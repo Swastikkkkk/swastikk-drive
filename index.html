@@ -173,6 +173,8 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 #dmplist li{display:grid;grid-template-columns:14px 1fr auto;gap:12px;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line);font-weight:600}
 #dmplist li i,#dmpr i{display:inline-block;width:10px;height:10px;border-radius:50%}
 #dmplist li.me{background:rgba(212,168,58,.12)}
+#dmplist button.kick{background:none;border:none;color:var(--mute);font:700 17px var(--mono);cursor:pointer;padding:0 0 0 10px;line-height:1;vertical-align:middle}
+#dmplist button.kick:hover{color:var(--paper)}
 .dbtn:disabled{opacity:.42;cursor:default}
 #dmpr{left:50%;top:calc(54px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:none;background:rgba(10,10,9,.6);backdrop-filter:blur(8px);border-radius:11px;padding:8px 12px;min-width:190px;max-width:calc(100vw - 210px);pointer-events:none;font-size:11px;letter-spacing:.06em;text-transform:none}
 #dmpr .r{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:8px;padding:3px 0;font-weight:600;color:var(--paper)}

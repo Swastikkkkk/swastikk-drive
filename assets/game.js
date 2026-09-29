@@ -2247,6 +2247,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     /* ----- members ----- */
     const sorted=()=>{const a=[{id:me.id,j:me.j}];peers.forEach(p=>a.push({id:p.id,j:p.j}));return a.sort((x,y)=>x.j-y.j||(x.id<y.id?-1:1))};
     const idxOf=id=>sorted().findIndex(m=>m.id===id);
+    // whoever's been in the room longest runs it - no server, so this is a convention everyone computes the same way, not an enforced role
+    const isHost=()=>{const a=sorted();return a.length>0&&a[0].id===me.id};
     function colorOf(id){const a=sorted().filter(m=>m.id!==me.id),i=a.findIndex(m=>m.id===id);return PAL[(i<0?0:i)%PAL.length]}
     function addPeer(m){
       let P=peers.get(m.id);
@@ -2288,11 +2290,12 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
             P.vx+=((x-P.tp.x)/dt-P.vx)*a;P.vy+=((y-P.tp.y)/dt-P.vy)*a;P.vz+=((z-P.tp.z)/dt-P.vz)*a;
             P.tp.set(x,y,z);P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize()}
           P.pt=now;P.st=num(m.st,-1,1,0);P.vf=num(m.vf,-80,120,0);P.d=num(m.d,-5,50,0);break}
-        case 'race':beginCountdown(P.n);break;
+        case 'race':beginCountdown(P.n,num(m.startAt,0,1e15,Date.now()+CD_LEAD));break;
         case 'fin':P.fin=num(m.ms,1,36e5,0);race.fins++;if(race.st===2&&!myFin&&!race.endAt)race.endAt=now+45000;toast2(P.n+' finished · '+fmtT(P.fin));ui();break;
         // a ping is just an echo request; whoever gets one bounces their own timestamp straight back
         case 'pg':send({k:'pk',t:num(m.t,0,1e15,now)});break;
         case 'pk':P.ping=Math.max(0,Math.min(9999,Math.round(now-num(m.t,0,1e15,now))));break;
+        case 'kick':if(String(m.target)===me.id){leave('Removed from the room by the host');closePanel()}break;
         case 'bye':dropPeer(P.id,true);break}}
     /* ----- rooms ----- */
     function normCode(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6)}
@@ -2328,15 +2331,19 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       sub=0;inPond=false;steerActual=0;race.hold={x,z,q:chassisB.quaternion.clone()};
       // the camera should start behind the car, not fly in from wherever it was
       C.position.set(x-q.tg.x*10,q.p.y+5,z-q.tg.z*10);look.set(x+q.tg.x*6,q.p.y+1,z+q.tg.z*6)}
+    const CD_LEAD=3000; // countdown length; also doubles as slack for the 'race' broadcast to reach everyone before GO
     function requestRace(){
       if(!room||status!=='up'){note('Not connected yet');return}
       if(race.st===1||race.st===2){note('A race is already running');return}
-      send({k:'race'});beginCountdown('You')}
-    function beginCountdown(who){
+      const startAt=Date.now()+CD_LEAD;send({k:'race',startAt});beginCountdown('You',startAt)}
+    function beginCountdown(who,startAt){
       if(race.st===1)return;
       if(raceMode)stopRace();
       closePanel();
-      race={st:1,t0:performance.now(),d0:0,rp:0,lastU:0,slot:slotOf(),ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0};myFin=0;
+      // startAt is a shared wall-clock instant (Date.now(), not performance.now(), since it has to mean
+      // the same thing on every client's clock) so everyone's countdown hits GO at roughly the same moment,
+      // regardless of when the 'race' broadcast actually arrived on each connection
+      race={st:1,startAt,t0:0,d0:0,rp:0,lastU:0,slot:slotOf(),ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0};myFin=0;
       peers.forEach(p=>{p.fin=0});
       gridTo(race.slot,peers.size+1);toast2(who+' started a race');ui()}
     function endRace(quiet){
@@ -2345,10 +2352,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const cdShow=(t)=>{if(!el.count)return;el.count.textContent=t;el.count.classList.remove('on');void el.count.offsetWidth;el.count.classList.add('on')};
     function raceTick(now,dt){
       if(race.st===1){
-        const e=now-race.t0,n=3-Math.floor(e/1000);
+        const remain=race.startAt-Date.now(),n=Math.max(1,Math.min(3,Math.ceil(remain/1000)));
         if(race.hold){chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.position.x=race.hold.x;chassisB.position.z=race.hold.z;chassisB.quaternion.copy(race.hold.q)}
-        if(n!==race.cdN&&n>0){race.cdN=n;cdShow(String(n));blip(520,.14,.1)}
-        if(e>=3000){race.st=2;race.t0=now;race.rp=0;race.lastP=0;race.hold=null;race.lastU=-1;cdShow('GO');blip(1040,.35,.14);
+        if(remain>0&&n!==race.cdN){race.cdN=n;cdShow(String(n));blip(520,.14,.1)}
+        if(remain<=0){race.st=2;race.t0=now;race.rp=0;race.lastP=0;race.hold=null;race.lastU=-1;cdShow('GO');blip(1040,.35,.14);
           setTimeout(()=>{if(race.st===2&&el.count)el.count.classList.remove('on')},900);ui()}
         return}
       if(race.st!==2)return;
@@ -2419,8 +2426,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       if(el.inn)el.inn.style.display=room?'block':'none';
       if(el.codeOut)el.codeOut.textContent=room||'';
       if(el.race)el.race.disabled=!room||status!=='up'||race.st===1||race.st===2;
-      if(el.list){let h='';h+='<li class="me"><i style="background:#640c0e"></i><span>'+esc(myName())+' (you)</span><span></span></li>';
-        peers.forEach(P=>{h+='<li><i style="background:'+HEX(colorOf(P.id))+'"></i><span>'+esc(P.n)+'</span><span>'+(P.fin?fmtT(P.fin):'')+'</span></li>'});
+      if(el.list){const host=isHost();let h='';h+='<li class="me"><i style="background:#640c0e"></i><span>'+esc(myName())+' (you)</span><span></span></li>';
+        peers.forEach(P=>{h+='<li><i style="background:'+HEX(colorOf(P.id))+'"></i><span>'+esc(P.n)+'</span><span>'+(P.fin?fmtT(P.fin):'')+
+          (host?'<button class="kick" type="button" data-id="'+P.id+'" title="Remove from room">&times;</button>':'')+'</span></li>'});
         el.list.innerHTML=h}
       if(el.note&&room)el.note.textContent=status==='up'?(peers.size?'Everyone here is a ghost to everyone else. No crashes, just a name above the car.':'Waiting for friends. Send them the code or the link.'):status==='down'?'Cannot reach the room. Check your connection and rejoin.':'Connecting…';
       roster()}
@@ -2439,6 +2447,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(el.copy)el.copy.onclick=()=>{const u=invite();
       const ok=()=>{el.copy.textContent='Link copied';setTimeout(()=>{el.copy.textContent='Copy invite link'},1800)};
       try{navigator.clipboard.writeText(u).then(ok,()=>{note(u)})}catch(e){note(u)}};
+    if(el.list)el.list.addEventListener('click',e=>{const b=e.target.closest('button.kick');if(!b||!isHost())return;
+      const id=b.dataset.id,P=peers.get(id);send({k:'kick',target:id});dropPeer(id,false);toast2((P?P.n:'Player')+' removed')});
     addEventListener('keydown',e=>{if(e.key==='Escape'&&el.panel&&el.panel.classList.contains('on'))closePanel()});
     setInterval(()=>{if(room&&status==='up'&&document.hidden)sendHi(true)},1500);
     addEventListener('pagehide',()=>{if(net)send({k:'bye'})});

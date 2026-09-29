@@ -81,7 +81,25 @@ multiplayer rewrite) from the pasted spec when picking this back up rather than 
    - Client-side interpolation for remote cars already existed before this pass: `tick()` extrapolates each peer's
      position from its last received velocity for up to 220ms, then `lerp`s toward it and `slerp`s the quaternion
      (`assets/game.js`, the `peers.forEach` block inside `tick`). Roadmap item satisfied; no rewrite needed here.
-   - Still open: synchronized countdown via shared `startAt` timestamp, reconnect/DNF handling.
+   - Done: synchronized countdown. `requestRace()` picks `startAt=Date.now()+CD_LEAD` (CD_LEAD=3000) and broadcasts it
+     literally in the `race` message; every client (host included) computes its own countdown as `remain=race.startAt-Date.now()`
+     against that same shared epoch value, so "3,2,1,GO" lands at the same real-world instant on every screen regardless
+     of when the broadcast physically arrived - previously each client independently started its own 3000ms timer the
+     moment ITS OWN copy of the 'race' message showed up, so the whole room's countdowns silently drifted by however much
+     their connection latencies differed. A late straggler (network delay exceeding CD_LEAD) just skips straight to GO
+     instead of getting stuck. Verified the remain->displayed-number formula with a standalone unit check (all edge
+     cases incl. exact 1000/2000/3000ms boundaries and negative/straggler values pass); the 2-tab headless race did
+     reach GO on both sides with no errors, but the measured skew there was ~9s - traced to this sandbox's swiftshader
+     CPU contention starving one tab's render loop while running two full 3D scenes at once (same class of artifact
+     seen in earlier multi-tab tests), not the sync logic - re-verify with a stopwatch on two real machines.
+   - Done: kick from room. Whoever's been in the room longest (`sorted()[0]`, i.e. lowest join time `j` - a convention
+     every client computes identically, not an enforced server role) sees a small × button next to each other player's
+     row in the room panel list. Clicking it drops that peer locally right away and broadcasts `{k:'kick',target:id}`;
+     the targeted client sees its own id and calls `leave()`. No server authority exists in this game (by design - see
+     "Ghosts stay non-colliding" above), so a peer could technically forge a kick message; acceptable for a small
+     friend-room arcade game, not worth building auth for. Verified headless: host sees exactly one kick button for
+     the one peer, clicking it drops the peer from the host's `peers` map and the kicked client's `room` state clears.
+   - Still open: reconnect/DNF handling.
 4. Test + tune: headless screenshots for each car, circuit drawer, race flow, 2-tab `?net=local` room test with 4 tabs.
 5. Update `README.md` and `MULTIPLAYER.md` (4 players, cars, circuits, weather, controls).
 6. Map/vehicle expansion toward the bigger-picture spec's 10 maps / 5-vehicle economy — only after 1-5 above are solid.
