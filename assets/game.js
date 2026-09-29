@@ -200,10 +200,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const PTS=[[0,-38],[38,-70],[83,-54],[99,-10],[80,35],[35,58],[-22,51],[-64,26],[-77,-22],[-48,-51]].map(([x,z])=>new THREE.Vector3(x*MK,0,z*MK));
   const curve=new THREE.CatmullRomCurve3(PTS,true,'catmullrom',.55);
   const N=600,SAMP=[];for(let i=0;i<=N;i++)SAMP.push(curve.getPointAt(i/N));
-  /* Two rises, because the story needs two. HILLS[0] is checkpoint 06's Pull Hill — the
-     climb the car has to fight up. HILLS[1] is checkpoint 10's Platform: it comes later on
-     the loop and it is deliberately the higher of the two, so the literal high point of the
-     map is the record, not the failure that preceded it. */
+  /* Two rises. HILLS[0] is a long climb the car has to fight up. HILLS[1] comes later on the
+     loop and is the higher of the two. */
   const HILLS=[{a:.265,b:.385,c:.475,d:.595,H:11},{a:.645,b:.755,c:.805,d:.915,H:13}];
   const HILL=HILLS[0];
   function hAt(u){u=((u%1)+1)%1;let out=0;
@@ -213,7 +211,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return out}
   const at=u=>{const p=curve.getPointAt(((u%1)+1)%1),tg=curve.getTangentAt(((u%1)+1)%1);p.y=hAt(u);return {p,tg,n:new THREE.Vector3(-tg.z,0,tg.x),ry:Math.atan2(tg.x,tg.z)}};
   /* ---------- side road: a spur off the main loop that climbs to a west-side summit.
-     It leaves the circuit at the top of the Platform hill (checkpoint 10), passes the
+     It leaves the circuit at the top of the second hill, passes the
      ramp yard, then keeps climbing out to a lookout at the map's edge for the sunset.
      peakR is hard-clamped to stay inside the heightfield/physics walls no matter where
      BR_U actually lands on the spline, so a bad guess here can't put anything out of bounds. */
@@ -280,7 +278,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* ---------- level pads, so nothing is built on a slope ---------- */
   function placeAt(u,side,dist){const {p,n}=at(u);return {x:p.x+n.x*side*dist,y:p.y,z:p.z+n.z*side*dist,ry:Math.atan2(-n.x*side,-n.z*side)}}
   /* placeAt turns a board square-on to the road, which is exactly how you end up reading a
-     story out of the side window at 70 km/h. faceAt keeps the same spot and turns the board
+     sign out of the side window at 70 km/h. faceAt keeps the same spot and turns the board
      up the road instead, to the angle you actually approach it from: deg is measured off the
      driving line, so a small number is a board aimed straight at the windscreen and 90 is the
      old square-on placement. Because the road curves, the angle is taken from the tangent at
@@ -294,19 +292,19 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   // the pad has to hold the whole ring, not just the ramps, or the circle rides a slope
   PADS.push({x:RAMPYARD.x,z:RAMPYARD.z,y:BR_H,r:RING.r+5,f:RING.r+15});
   PADS.push({x:PEAK.x,z:PEAK.z,y:PEAK_H,r:8,f:16});
-  /* ---------- the outer valley: a stunt park, a UFO field, the 230 monument and a volcano ----------
+  /* ---------- the outer valley: a stunt park, a UFO field and a volcano ----------
      All of it sits outside the loop, on land the valley gained when it was widened, and each
      one gets a dirt track off the main road so you can find it without the map. */
-  const VZ={stunt:{x:12,z:176,r:60},ufo:{x:-208,z:-58,r:17},monu:{x:40,z:-194,r:46},volc:{x:-196,z:190,R:88,H:54,cr:13}};
-  PADS.push({x:VZ.stunt.x,z:VZ.stunt.z,y:.6,r:VZ.stunt.r,f:VZ.stunt.r+26},{x:VZ.ufo.x,z:VZ.ufo.z,y:.6,r:VZ.ufo.r,f:VZ.ufo.r+22},{x:VZ.monu.x,z:VZ.monu.z,y:.6,r:VZ.monu.r,f:VZ.monu.r+22});
+  const VZ={stunt:{x:12,z:176,r:60},ufo:{x:-208,z:-58,r:17},volc:{x:-196,z:190,R:88,H:54,cr:13}};
+  PADS.push({x:VZ.stunt.x,z:VZ.stunt.z,y:.6,r:VZ.stunt.r,f:VZ.stunt.r+26},{x:VZ.ufo.x,z:VZ.ufo.z,y:.6,r:VZ.ufo.r,f:VZ.ufo.r+22});
   function volcH(x,z){const v=VZ.volc,d=Math.hypot(x-v.x,z-v.z);if(d>v.R)return -99;const hc=q=>v.H*Math.pow(1-q/v.R,1.35);
     if(d<v.cr){const hr=hc(v.cr),fl=hr-9;return fl+(hr-fl)*(d/v.cr)**2}
     return hc(d)*(1+(fbm2(x*.07,z*.07)-.5)*.18*Math.min(1,(d-v.cr)/10))}
   const SPURS=[];
   function spurTo(q,stop){let bi=0,bd=1e9;for(let i=0;i<N;i+=2){const d=(SAMP[i].x-q.x)**2+(SAMP[i].z-q.z)**2;if(d<bd){bd=d;bi=i}}
     const p=SAMP[bi],dx=q.x-p.x,dz=q.z-p.z,l=Math.hypot(dx,dz),L=l-stop,pts=[];for(let s=7;s<=L;s+=2)pts.push([p.x+dx/l*s,p.z+dz/l*s]);SPURS.push(pts)}
-  spurTo(VZ.stunt,VZ.stunt.r-6);spurTo(VZ.ufo,VZ.ufo.r-2);spurTo(VZ.monu,VZ.monu.r-8);spurTo(VZ.volc,VZ.volc.R*.92);
-  function zoneHit(x,z,m=0){for(const k of ['stunt','ufo','monu']){const q=VZ[k];if((x-q.x)**2+(z-q.z)**2<(q.r+m)**2)return true}
+  spurTo(VZ.stunt,VZ.stunt.r-6);spurTo(VZ.ufo,VZ.ufo.r-2);spurTo(VZ.volc,VZ.volc.R*.92);
+  function zoneHit(x,z,m=0){for(const k of ['stunt','ufo']){const q=VZ[k];if((x-q.x)**2+(z-q.z)**2<(q.r+m)**2)return true}
     const v=VZ.volc;if((x-v.x)**2+(z-v.z)**2<(v.R*.8+m)**2)return true;
     for(const S2 of SPURS)for(let i=0;i<S2.length;i+=2){const dx=S2[i][0]-x,dz=S2[i][1]-z;if(dx*dx+dz*dz<(5+m)*(5+m))return true}return false}
   /* ---------- one world heightfield: rolling land, a real mountain, a pond basin, a valley rim ---------- */
@@ -504,15 +502,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       o.position.set(bx,p.y+1.6,bz);o.rotation.set(0,0,0);o.scale.set(1,1,1);o.updateMatrix();postIM.setMatrixAt(i,o.matrix);
       const bulb=new THREE.Mesh(bulbGeo,M(0x3a3733));bulb.position.set(bx,p.y+3.3,bz);S.add(bulb);lamps.push({u,bulb})});
     S.add(postIM)})();
-  /* ---------- weight plates to collect: drive through one and it goes on the bar ---------- */
-  const plateList=[];let platesGot=0,plateKg=20;
-  (function(){const PD=[[25,0xb8322f],[20,0x2f4f9e],[15,0xd9b23a],[10,0x3f8a56]],hubM=M(0xc9c2b4),NP=24,geo={};
-    for(let i=0;i<NP;i++){let u=(i+.5)/NP;
-      const {p,n}=at(u),off=[-1.4,0,1.4][i%3],[kg,col]=PD[i%4],r=.36+kg/100;
-      if(!geo[kg])geo[kg]=new THREE.CylinderGeometry(r,r,.16,28);
-      const g=new THREE.Group(),disc=new THREE.Mesh(geo[kg],M(col,{emissive:col,emissiveIntensity:.35}));disc.rotation.z=Math.PI/2;disc.castShadow=true;g.add(disc);
-      const hb=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.24,12),hubM);hb.rotation.z=Math.PI/2;g.add(hb);
-      const y0=p.y+1.2;g.position.set(p.x+n.x*off,y0,p.z+n.z*off);S.add(g);plateList.push({g,kg,y0,got:false,ph:i*.7})}})();
   /* ---------- boost pads on the straights ---------- */
   const padList=[];let padT=0,padCool=0;
   (function(){const c=document.createElement('canvas');c.width=128;c.height=160;const x=c.getContext('2d');
@@ -524,7 +513,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     for(let u=.04;u<.96;u+=.004){const t1=at(u-.01).tg,t2=at(u+.01).tg,k=Math.acos(Math.max(-1,Math.min(1,t1.x*t2.x+t1.z*t2.z)));
       if(Math.abs(hAt(u+.01)-hAt(u-.01))>.25)continue;
       
-      const q=at(u).p;if(plateList.some(P=>Math.hypot(P.g.position.x-q.x,P.g.position.z-q.z)<8))continue;
       cand.push([u,k])}
     cand.sort((A,B)=>A[1]-B[1]);for(const [u] of cand){if(us.length>=5)break;if(us.some(v=>Math.abs(v-u)<.12&&Math.abs(v-u)<.88))continue;us.push(u)}
     us.forEach((u,i)=>{const {p,tg}=at(u),m=new THREE.Mesh(geoP,mat);m.position.set(p.x,p.y+.12,p.z);m.rotation.y=Math.atan2(tg.x,tg.z)+Math.PI;S.add(m);
@@ -609,7 +597,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      const nx=-tz/l*3,nz=tx/l*3,[x,z]=pts[i];pos.push(x+nx,HF.h(x+nx,z+nz)+.09,z+nz,x-nx,HF.h(x-nx,z-nz)+.09,z-nz);uv.push(0,i*.6,1,i*.6);if(i)idx.push((i-1)*2,(i-1)*2+1,i*2,(i-1)*2+1,i*2+1,i*2)}
      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
      const m=new THREE.Mesh(g,dirtM);m.receiveShadow=true;S.add(m)});
-   const SIGN=[['Stunt park','mega ramp · giant pins · trampolines'],['The UFO','drive under the light'],['The 230','a barbell the size of a bridge'],['The volcano','hot. do not swim.']];
+   const SIGN=[['Stunt park','mega ramp · giant pins · trampolines'],['The UFO','drive under the light'],['The volcano','hot. do not swim.']];
    SPURS.forEach((pts,i)=>{if(pts.length<8)return;const [x,z]=pts[5],[x2,z2]=pts[6],dx=x2-x,dz=z2-z,l=Math.hypot(dx,dz)||1,sx=x-dz/l*5.5,sz=z+dx/l*5.5;
      signPost(sx,sz,HF.h(sx,sz),SIGN[i][0],SIGN[i][1],i%2===1,Math.atan2(-dx,-dz))})}
   /* --- stunt park ---
@@ -714,20 +702,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       [120,92,64].forEach(r=>{x.beginPath();x.arc(128,128,r,0,6.283);x.stroke()});for(let i=0;i<6;i++){const a=i/6*6.283;x.beginPath();x.arc(128+Math.cos(a)*92,128+Math.sin(a)*92,14,0,6.283);x.fill()}x.beginPath();x.arc(128,128,30,0,6.283);x.fill()}
     const crop=new THREE.Mesh(new THREE.PlaneGeometry(30,30).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cc),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));crop.position.set(q.x,gy+.06,q.z);S.add(crop);
     return {g,gy,lm,bm,x:q.x,z:q.z,hit:false,cool:false,abT:0,t:0}})();
-  /* --- the 230: a barbell the size of a bridge, and a kettlebell to match --- */
-  (function(){const q=VZ.monu,gy=HF.h(q.x,q.z),g=new THREE.Group();g.position.set(q.x,gy,q.z);S.add(g);
-    const steelM=new THREE.MeshPhongMaterial({color:0xc9ccd0,specular:0xffffff,shininess:100}),ironM=new THREE.MeshPhongMaterial({color:0x26272a,specular:0x555555,shininess:40});
-    const bar=new THREE.Mesh(new THREE.CylinderGeometry(.85,.85,70,20).rotateZ(Math.PI/2),steelM);bar.position.y=8;bar.castShadow=!LOW;g.add(bar);
-    const PL=[[8,1.9,0xb8322f],[7.2,1.7,0x2f4f9e],[6.2,1.5,0xd9b23a],[5.2,1.3,0x3f8a56]];
-    [1,-1].forEach(sd=>{let x=24;PL.forEach(([r,t,c])=>{const p=new THREE.Mesh(new THREE.CylinderGeometry(r,r,t,40).rotateZ(Math.PI/2),M(c));p.position.set(sd*(x+t/2),8,0);p.castShadow=!LOW;g.add(p);
-        const hub=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.4,t+.1,20).rotateZ(Math.PI/2),steelM);hub.position.copy(p.position);g.add(hub);x+=t+.05});
-      const col=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,1.6,20).rotateZ(Math.PI/2),steelM);col.position.set(sd*(x+.8),8,0);g.add(col);
-      staticBox(q.x+sd*27.3,gy+8,q.z,3.3,8,8)});
-    const kb=new THREE.Group();kb.position.set(-34,0,22);g.add(kb);
-    const ball=new THREE.Mesh(new THREE.SphereGeometry(7,32,24),ironM);ball.scale.y=.92;ball.position.y=6.4;ball.castShadow=!LOW;kb.add(ball);
-    const hd=new THREE.Mesh(new THREE.TorusGeometry(4.2,1.05,14,36,Math.PI),ironM);hd.position.y=11.2;kb.add(hd);
-    {const b=new CANNON.Body({mass:0,material:oM});b.addShape(new CANNON.Sphere(6.5));b.position.set(q.x-34,gy+6.4,q.z+22);world.addBody(b)}
-    signPost(q.x,q.z+16,gy,'The 230','drive under the bar',true,0)})();
   /* --- the volcano: basalt cone, a lava lake, three flows and a smoke column --- */
   const VOLC=(function(){const v=VZ.volc,fy=HF.h(v.x,v.z),lavaM=new THREE.MeshBasicMaterial({color:0xff5a1f,side:THREE.DoubleSide});
     const disc=new THREE.Mesh(new THREE.CircleGeometry(v.cr*.85,32).rotateX(-Math.PI/2),lavaM);disc.position.set(v.x,fy+.5,v.z);S.add(disc);
@@ -907,7 +881,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const LAP_TARGET=Math.round(80000*MK/1000)*1000;
   const MISSIONS=[
     {id:'rings',name:'Ring run',hint:'Drive through all six gold rings',goal:6},
-    {id:'plates',name:'Load the bar',hint:'Drive through all 24 weight plates on the road',goal:24},
     {id:'cones',name:'Cone slalom',hint:'Knock over seven cones at the playground',goal:7},
     {id:'swim',name:'Take it swimming',hint:'Drive into the pond and wade through',goal:1},
     {id:'air',name:'Send it',hint:'Catch a full second of air off a ramp',goal:1},
@@ -995,11 +968,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const lab=new THREE.Mesh(new THREE.PlaneGeometry(9.6,1.3),new THREE.MeshBasicMaterial({map:label('START · FINISH','one lap · beat the board',1024,150,false)}));
     lab.position.set(0,7.3,.26);g.add(lab);const l2=lab.clone();l2.rotation.y=Math.PI;l2.position.z=-.26;g.add(l2)})();
   /* ---------- traffic lights ----------
-     Placed between chapters and clear of the two overtaking stretches, so they never
-     hold a car up in the middle of a story beat or fight the overtake logic. The AI
+     Placed clear of the two overtaking stretches, so they never hold a car up in
+     the middle of an overtake or fight the overtake logic. The AI
      reads them: amber and red both bring a car down to a stop a few metres short of
      the line, and it pulls away again when the light goes green. You are not forced
-     to stop — this is a story road, not a driving test — but the traffic behaves. */
+     to stop — this is a playground, not a driving test — but the traffic behaves. */
   const LIGHTS=[{u:.185,off:0},{u:.545,off:9.5}];
   const L_CYCLE=20,L_GREEN=11,L_AMBER=2;
   const lightPhase=(L,ts)=>{const t=((ts+L.off)%L_CYCLE+L_CYCLE)%L_CYCLE;
@@ -1362,8 +1335,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* ---------- weather particles ---------- */
   const PCOUNT=LOW?500:1200;const pGeo=new THREE.BufferGeometry();const pPos=new Float32Array(PCOUNT*3);for(let i=0;i<PCOUNT;i++){pPos[i*3]=(Math.random()-.5)*90;pPos[i*3+1]=Math.random()*40;pPos[i*3+2]=(Math.random()-.5)*90}pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
   const pMat=new THREE.PointsMaterial({color:0xffffff,size:.3,transparent:true,opacity:.8,depthWrite:false});const parts=new THREE.Points(pGeo,pMat);parts.frustumCulled=false;parts.visible=false;S.add(parts);
-  /* ---------- the sky belongs to the story, not to a button ----------
-     The weather picker is gone. Each chapter names a mood instead, and the world cross-fades
+  /* ---------- the sky follows the road, not a button ----------
+     There is no weather picker. Each stretch of road names a mood, and the world cross-fades
      into it over a few seconds while you keep driving: the climb clouds over, the summit goes
      gold, the last stretch warms up. The fade is nothing but value-lerping across a handful of
      colours and light intensities — no terrain repaint, no rebuilt geometry, nothing that can
@@ -1384,7 +1357,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function applyWx(full){
     S.background.setHex(wx.bg);S.fog.color.setHex(wx.bg);S.fog.near=wx.fog[0];S.fog.far=wx.fog[1];
     hemi.intensity=wx.hemi;sun.color.setHex(wx.sun);sun.intensity=wx.sunI;
-    /* the weather owns these numbers; the story bands below only bend them, so the
+    /* the weather owns these numbers; the bands below only bend them, so the
        baseline is re-read here rather than sampled once on the first frame. */
     fogNear0=wx.fog[0];fogFar0=wx.fog[1];hemi0=wx.hemi;sunI0=wx.sunI;
     groundM.color.setHex(wx.ground);leafM.color.setHex(wx.leaf);waterM.color.setHex(wx.water);
@@ -1399,7 +1372,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     applyVehicle()}
   function mood(id,dur){const t=wxOf(id);if(t.id===wxB.id)return;wxA=snapWx(wx);wxB=wxCopy(t);wxT=0;wxDur=dur||6}
   /* Night is a mode you hold, not a mood the road hands you. While it is on it outranks
-     the chapter moods and the summit's dusk, so driving into a new chapter does not
+     the road's moods and the summit's dusk, so driving into a new stretch does not
      yank the sky back to daylight underneath you; turning it off hands control back. */
   let nightOn=false;
   function toggleNight(){
@@ -1645,7 +1618,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {const V=VZ.volc;c.fillStyle='rgba(70,50,44,.8)';c.beginPath();c.arc(V.x*k,V.z*k,V.R*.8*k,0,6.283);c.fill();c.fillStyle='rgba(255,110,50,.95)';c.beginPath();c.arc(V.x*k,V.z*k,V.cr*k,0,6.283);c.fill()}
     c.lineWidth=1.8;c.strokeStyle='rgba(216,136,136,.85)';c.beginPath();c.arc(VZ.stunt.x*k,VZ.stunt.z*k,VZ.stunt.r*k,0,6.283);c.stroke();
     c.strokeStyle='rgba(120,240,230,.85)';c.beginPath();c.arc(VZ.ufo.x*k,VZ.ufo.z*k,VZ.ufo.r*k,0,6.283);c.stroke();
-    c.strokeStyle='rgba(230,200,120,.85)';c.strokeRect((VZ.monu.x-36)*k,(VZ.monu.z-9)*k,72*k,18*k);
     mapCache=cv2;
   }
   function drawMap(c,size,big){const sc=size/2/(big?116*MK*LAND+14:60);c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);
@@ -1670,7 +1642,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {c.fillStyle=atSummit?'#f2b26b':'#c98a4a';c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,big?5:3.4,0,6.283);c.fill();
      if(atSummit){c.strokeStyle='rgba(242,178,107,.8)';c.lineWidth=1.5;c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,(big?9:6)+Math.sin(t)*2,0,6.283);c.stroke()}
      if(big){c.fillStyle='#f2b26b';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.textAlign='left';c.fillText('SUMMIT',PEAK.x*sc+9,PEAK.z*sc+4)}}
-    if(big){c.font='600 11px ui-monospace,"SF Mono",Menlo,Consolas,monospace';c.fillStyle='#e8c28a';[['STUNT PARK',VZ.stunt],['UFO',VZ.ufo],['VOLCANO',VZ.volc],['THE 230',VZ.monu]].forEach(([t,q])=>c.fillText(t,q.x*sc-t.length*3.3,q.z*sc+4))}
+    if(big){c.font='600 11px ui-monospace,"SF Mono",Menlo,Consolas,monospace';c.fillStyle='#e8c28a';[['STUNT PARK',VZ.stunt],['UFO',VZ.ufo],['VOLCANO',VZ.volc]].forEach(([t,q])=>c.fillText(t,q.x*sc-t.length*3.3,q.z*sc+4))}
     if(big){c.fillStyle='#9fc3d6';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.fillText('POND',POND.x*sc-14,POND.z*sc+4);c.fillStyle='#d88';c.fillText('PLAYGROUND',(PG.x-12)*sc,(PG.z-13)*sc);c.fillStyle='#cdb98f';const hp=SAMP[Math.floor(.44*N)];c.fillText('HILL',hp.x*sc+10,hp.z*sc-10)}
     c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
     c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke()}
@@ -1802,7 +1774,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
          to reach 60 km/h in under a second, which is why the smallest touch of throttle sent
          the car flying. What it no longer has in raw grunt it gets back on a slope: climbAid
          hands the driven wheels exactly the component of weight the hill is taking away, so
-         the Pull Hill still climbs at a steady pull the way a low gear would, while flat
+         the long hill still climbs at a steady pull the way a low gear would, while flat
          ground stays civilised. Without it this engine cannot get up its own mountain. */
       const climb=Math.max(0,fwd.y);
       const climbAid=climb*chassisB.mass*Math.abs(world.gravity.y)/2;
@@ -1945,12 +1917,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         skP.set(hp.x+skN.x*.035,hp.y+skN.y*.035,hp.z+skN.z*.035);skM.compose(skP,skQ,skS);
         skid.setMatrixAt(skI,skM);skI=(skI+1)%SKN;skid.count=Math.min(SKN,skid.count+1);skid.instanceMatrix.needsUpdate=true}}
     if(active&&driving){const cp=car.position;
-      for(let i=0;i<plateList.length;i++){const P=plateList[i];if(P.got)continue;
-        P.g.rotation.y+=dt*2.2;P.g.position.y=P.y0+Math.sin(now/420+P.ph)*.16;
-        const dx=P.g.position.x-cp.x,dz=P.g.position.z-cp.z;
-        if(dx*dx+dz*dz<3.3*3.3&&Math.abs(P.g.position.y-cp.y)<3){P.got=true;P.g.visible=false;platesGot++;plateKg+=P.kg*2;
-          blip(640+P.kg*14,.14,.1);toastMsg('+'+P.kg+' kg a side \u00b7 '+plateKg+' kg on the bar ('+platesGot+'/'+plateList.length+')');missSet('plates',platesGot);
-          if(platesGot===plateList.length)setTimeout(()=>toastMsg('Every plate loaded. '+plateKg+' kg. Lift it.'),1800)}}
       padCool=Math.max(0,padCool-dt);
       if(padList.mat)padList.mat.opacity=.6+.3*Math.sin(now/170);
       if(padCool<=0)for(let i=0;i<padList.length;i++){const Q=padList[i],dx=Q.x-cp.x,dz=Q.z-cp.z;
@@ -2009,7 +1975,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
        fraction per frame, so the follow feels identical at 30 fps and at 144 instead of
        snapping on fast machines and swimming on slow ones. The aim point is smoothed
        separately from the position, which is what takes the last of the jitter out of the
-       horizon; the body rolls a degree or so into a turn; and driving into a new chapter
+       horizon; the body rolls a degree or so into a turn; and driving into a new stretch
        eases the camera back a little and opens the lens for a second, without ever taking
        the car away from you. */
     if(!cineOn&&!recapCam){
@@ -2073,7 +2039,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     dust.position.set(car.position.x,0,car.position.z);dust.rotation.y+=dt*.02;
     if(active&&frameN%3===0){spdS+=(sp*3.6-spdS)*.4;spd.textContent=String(Math.round(spdS)).padStart(3,'0')}
     // the shadow map is only redrawn as often as the current tier asks for
-    /* the story's light. Captured once the weather has set its own values, then pulled
+    /* the light of the current stretch. Captured once the weather has set its own values, then pulled
        toward whatever band of the loop the car is in. */
     {const z=ZN,e=.08;
      S.fog.far+=(fogFar0*z.fog-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,z.fog)-S.fog.near)*e;
