@@ -157,6 +157,30 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 @media (max-width:640px){html,body{overflow-x:hidden;max-width:100%}body{font-size:15.5px}}
 @media (hover:hover) and (min-width:901px){html.driving #dmiss{left:150px;bottom:calc(66px + env(safe-area-inset-bottom,0px))}}
 @keyframes dvin{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+#dmp{position:absolute;inset:0;z-index:5;display:none;background:rgba(8,8,7,.86);backdrop-filter:blur(6px);padding:24px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#dmp.on{display:flex;animation:dvin .35s cubic-bezier(.2,.8,.2,1)}
+#dmp .bd-in{margin:auto}
+#dmp h3{font-size:clamp(38px,5vw,62px);line-height:1;margin:10px 0 6px;letter-spacing:-.02em}
+#dmp-in{display:none}
+.dmp-code{font:700 clamp(46px,9vw,84px)/1 var(--mono);letter-spacing:.14em;margin:14px 0 4px;color:var(--paper)}
+#dmplist{list-style:none;margin:16px 0 0;padding:0;border-top:1px solid var(--line)}
+#dmplist li{display:grid;grid-template-columns:14px 1fr auto;gap:12px;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line);font-weight:600}
+#dmplist li i,#dmpr i{display:inline-block;width:10px;height:10px;border-radius:50%}
+#dmplist li.me{background:rgba(212,168,58,.12)}
+.dbtn:disabled{opacity:.42;cursor:default}
+#dmpr{left:50%;top:calc(54px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:none;background:rgba(10,10,9,.6);backdrop-filter:blur(8px);border-radius:11px;padding:8px 12px;min-width:190px;max-width:calc(100vw - 210px);pointer-events:none;font-size:11px;letter-spacing:.06em;text-transform:none}
+#dmpr .r{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:8px;padding:3px 0;font-weight:600;color:var(--paper)}
+#dmpr .r:not(:has(em)){grid-template-columns:auto 1fr auto}
+#dmpr .r b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#dmpr .r em{font-style:normal;color:var(--mute);min-width:.9em}
+#dmpr .r span{color:var(--bone);font-variant-numeric:tabular-nums}
+#dmpr .r.me b{color:#f2eee6}
+#dmpr .st{color:var(--mute);padding-top:3px}
+#dcount{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:4;font:800 clamp(110px,26vw,280px)/1 var(--serif);letter-spacing:-.04em;color:var(--paper);text-shadow:0 10px 80px rgba(0,0,0,.65);opacity:0}
+#dcount.on{animation:dcpop 1s cubic-bezier(.2,.8,.2,1) both}
+@keyframes dcpop{0%{opacity:0;transform:scale(1.5)}18%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:scale(.94)}}
+#drive.touch #dmpr{top:calc(14px + env(safe-area-inset-top,0px))}
+@media (max-height:520px){#dmp{padding:14px 20px}#dmp h3{font-size:34px;margin:2px 0 0}.dmp-code{font-size:46px;margin:6px 0 0}#dmp .bd-me{margin-top:10px}#dmp .bd-x{margin-top:10px}#dmplist li{padding:7px 2px}#dmp .bd-note{margin-top:8px}}
 #dload{position:fixed;inset:0;display:grid;place-items:center;background:#06070b;color:var(--bone);z-index:9;font:500 11px var(--mono);letter-spacing:.2em;text-transform:uppercase}
 </style>
 </head>
@@ -166,9 +190,10 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
   <canvas id="dc"></canvas>
   <div id="dhud">
     <div class="dtl"><div class="mono" id="dhint"></div></div>
-    <div class="dright"><canvas id="dmap" width="180" height="180" title="Open map (M)"></canvas><button id="dmenu" class="dbtn mono" aria-expanded="false" aria-controls="drow">Menu <span class="mchev">&#9662;</span></button><div class="drow" id="drow"><button id="drace" class="dbtn mono" title="Start a timed lap (L)">Time a lap</button><button id="dboardb" class="dbtn mono" title="Fastest laps (B)">Laps</button><button id="dtiltb" class="dbtn mono dtouch">Tilt: off</button><button id="dresetb" class="dbtn mono dtouch">Reset</button><button id="dmute" class="dbtn mono">Sound on</button><button id="dnight" class="dbtn mono" title="Night (N)">Night</button></div></div>
+    <div class="dright"><canvas id="dmap" width="180" height="180" title="Open map (M)"></canvas><button id="dmenu" class="dbtn mono" aria-expanded="false" aria-controls="drow">Menu <span class="mchev">&#9662;</span></button><div class="drow" id="drow"><button id="drace" class="dbtn mono" title="Start a timed lap (L)">Time a lap</button><button id="dboardb" class="dbtn mono" title="Fastest laps (B)">Laps</button><button id="droom" class="dbtn mono" title="Race friends as ghosts">Room</button><button id="dtiltb" class="dbtn mono dtouch">Tilt: off</button><button id="dresetb" class="dbtn mono dtouch">Reset</button><button id="dmute" class="dbtn mono">Sound on</button><button id="dnight" class="dbtn mono" title="Night (N)">Night</button></div></div>
     <div id="dlap"><div class="lrow"><span class="mono">Lap</span><b id="dlapt">--:--.--</b></div><div class="lsub mono"><span id="dlapn">Lap 1</span><span id="dlapb">Best --:--.--</span></div><div class="lsec"><i></i><i></i><i></i><i></i></div></div>
     <div id="dmiss"><div class="mono mt">Mission <span id="dmissc">0/9</span></div><div class="mh" id="dmissh">-</div><div class="mono ms" id="dmisss">-</div></div>
+    <div id="dmpr" class="mono"></div>
     <div class="dbr"><span id="dspeed">000</span><span class="mono">km/h</span></div>
   </div>
   <div id="dwrong" class="mono">Wrong way &middot; turn around</div>
@@ -180,6 +205,25 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
     <div class="mono bd-note" id="dbdnote"></div>
     <button id="dboardx" class="dbtn mono bd-x">Close &#10005;</button>
   </div></div>
+  <div id="dmp"><div class="bd-in">
+    <div class="mono" style="color:var(--bone)">Ghost race &middot; up to 3 drivers</div>
+    <h3 class="disp">Room</h3>
+    <div id="dmp-out">
+      <div class="bd-me"><input id="dmpname" maxlength="14" placeholder="Your name" aria-label="Your name" autocomplete="nickname"></div>
+      <div class="bd-me"><input id="dmpcode" maxlength="6" placeholder="Room code" aria-label="Room code" autocapitalize="characters" autocomplete="off" spellcheck="false"><button id="dmpjoin" class="dbtn mono">Join</button></div>
+      <div class="bd-me"><button id="dmpnew" class="dbtn mono">Create a room</button></div>
+      <div class="mono bd-note">Make a room, send the code or link to two friends, and race the same road. You see each other as ghosts, with a name above the car. Nothing collides.</div>
+    </div>
+    <div id="dmp-in">
+      <div id="dmpcodeout" class="dmp-code"></div>
+      <div class="bd-me"><button id="dmpcopy" class="dbtn mono">Copy invite link</button><button id="dmprace" class="dbtn mono">Start race</button></div>
+      <ol id="dmplist"></ol>
+      <div class="mono bd-note" id="dmpnote"></div>
+      <button id="dmpleave" class="dbtn mono bd-x">Leave room</button>
+    </div>
+    <button id="dmpx" class="dbtn mono bd-x">Close &#10005;</button>
+  </div></div>
+  <div id="dcount" aria-live="polite"></div>
   <div id="dtoast"></div>
   <div id="dmob">
     <div class="dsteer"><button id="dL" aria-label="Steer left"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button id="dR" aria-label="Steer right"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
