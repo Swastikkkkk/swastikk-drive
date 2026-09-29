@@ -223,9 +223,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      corridor is flattened ten metres wide either side and the tarmac is drawn from
      this same field, so the road can never disagree with the ground it sits on. */
   const WS=Math.round(205*MK*LAND),ES=LOW?7:5;
-  const dyn=[];
+  const dyn=[],dynI=[],dynITouched=new Set();
+  const dynIP=new THREE.Vector3(),dynIQ=new THREE.Quaternion(),dynIS=new THREE.Vector3(1,1,1),dynIM=new THREE.Matrix4(),dynIM2=new THREE.Matrix4();
   function staticBox(x,y,z,a,b,c,ry=0){const w=new CANNON.Body({mass:0,material:oM});w.addShape(new CANNON.Box(new CANNON.Vec3(a,b,c)));w.position.set(x,y,z);w.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),ry);world.addBody(w);return w}
-  function dynBox(mesh,x,y,z,a,b,c,mass,ry=0){const bd=new CANNON.Body({mass,material:oM});bd.addShape(new CANNON.Box(new CANNON.Vec3(a,b,c)));bd.position.set(x,y,z);bd.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),ry);bd.angularDamping=.5;bd.linearDamping=.2;bd.sleepSpeedLimit=.3;world.addBody(bd);mesh.position.set(x,y,z);mesh.rotation.y=ry;S.add(mesh);dyn.push({mesh,body:bd,home:new CANNON.Vec3(x,y,z),q:bd.quaternion.clone()});return bd}
+  // for clusters of small knockable props (crates/cones/tires/pins): one physics body driving one or more
+  // InstancedMesh slots, instead of a whole Object3D per prop - same knockable behavior, far fewer draw calls
+  function dynBoxI(parts,x,y,z,a,b,c,mass,ry=0){
+    const bd=new CANNON.Body({mass,material:oM});bd.addShape(new CANNON.Box(new CANNON.Vec3(a,b,c)));
+    bd.position.set(x,y,z);bd.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),ry);
+    bd.angularDamping=.5;bd.linearDamping=.2;bd.sleepSpeedLimit=.3;world.addBody(bd);
+    dynI.push({parts,body:bd,home:new CANNON.Vec3(x,y,z),q:bd.quaternion.clone()});
+    return bd}
   /* ---------- road spline ---------- */
   const PTS=[[0,-38],[38,-70],[83,-54],[99,-10],[80,35],[35,58],[-22,51],[-64,26],[-77,-22],[-48,-51]].map(([x,z])=>new THREE.Vector3(x*MK,0,z*MK));
   const curve=new THREE.CatmullRomCurve3(PTS,true,'catmullrom',.55);
@@ -590,14 +598,20 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   signPost(BR_START.x-BR_OUT.x*4,BR_START.z-BR_OUT.z*4,BR_H,'Ramp yard →','off the main road',false,Math.atan2(BR_OUT.x,BR_OUT.z));
   signPost(PEAK.x-BR_OUT.x*7,PEAK.z-BR_OUT.z*7,PEAK_H,'The summit','stop for the view',false,Math.atan2(BR_OUT.x,BR_OUT.z));
   const CULL=[];
-  /* ---------- playground obstacles ---------- */
-  function crateMesh(s){const m=new THREE.Mesh(new THREE.BoxGeometry(s,s,s),M(0xd9d2c2));m.castShadow=true;m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),new THREE.LineBasicMaterial({color:0x15140f})));return m}
-  for(let i=0;i<4;i++)for(let j=0;j<4-i;j++)dynBox(crateMesh(1.1),PG.x-8+(j-1.5+i*.5)*1.15,i*1.12+.6,PG.z-6,.55,.55,.55,6);
+  /* ---------- playground obstacles: instanced so 10 crates + 7 cones + 5 tires cost a handful of draw
+     calls instead of ~40, while staying individually knockable via dynBoxI ---------- */
+  const crateIM=new THREE.InstancedMesh(new THREE.BoxGeometry(1.1,1.1,1.1),M(0xd9d2c2),10);crateIM.castShadow=true;S.add(crateIM);
+  {let n=0;for(let i=0;i<4;i++)for(let j=0;j<4-i;j++)dynBoxI([{im:crateIM,idx:n++}],PG.x-8+(j-1.5+i*.5)*1.15,i*1.12+.6,PG.z-6,.55,.55,.55,6)}
   const coneBodies=[];
-  function cone(x,z){const g=new THREE.Group();const c=new THREE.Mesh(new THREE.ConeGeometry(.35,1,10),red);c.castShadow=true;g.add(c);const b=new THREE.Mesh(new THREE.BoxGeometry(.8,.08,.8),ink);b.position.y=-.46;g.add(b);coneBodies.push({b:dynBox(g,x,.5,z,.35,.5,.35,1),x,z})}
-  for(let i=0;i<7;i++)cone(PG.x+8,PG.z-10+i*3.2);
-  function tire(x,z){const g=new THREE.Group();const t=new THREE.Mesh(new THREE.TorusGeometry(.5,.24,8,16),rubber);t.rotation.x=Math.PI/2;g.add(t);dynBox(g,x,.3,z,.75,.25,.75,4)}
-  for(let i=0;i<5;i++)tire(PG.x-3+i*1.6,PG.z+6);
+  const coneIM=new THREE.InstancedMesh(new THREE.ConeGeometry(.35,1,10),red,7);coneIM.castShadow=true;S.add(coneIM);
+  const coneBaseIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.8,.08,.8),ink,7);S.add(coneBaseIM);
+  const coneBaseOff=new THREE.Matrix4().makeTranslation(0,-.46,0);
+  function cone(x,z,idx){const b=dynBoxI([{im:coneIM,idx},{im:coneBaseIM,idx,offset:coneBaseOff}],x,.5,z,.35,.5,.35,1);coneBodies.push({b,x,z})}
+  for(let i=0;i<7;i++)cone(PG.x+8,PG.z-10+i*3.2,i);
+  const tireIM=new THREE.InstancedMesh(new THREE.TorusGeometry(.5,.24,8,16),rubber,5);S.add(tireIM);
+  const tireOff=new THREE.Matrix4().makeRotationX(Math.PI/2);
+  function tire(x,z,idx){dynBoxI([{im:tireIM,idx,offset:tireOff}],x,.3,z,.75,.25,.75,4)}
+  for(let i=0;i<5;i++)tire(PG.x-3+i*1.6,PG.z+6,i);
   function ramp(x,z,ry,ang=.2,base=0){const y=base+.5;const m=new THREE.Mesh(new THREE.BoxGeometry(4,.5,7),M(0x8f2a2a));m.position.set(x,y,z);m.rotation.set(-ang,ry,0,'YXZ');m.castShadow=true;m.receiveShadow=true;S.add(m);const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(2,.25,3.5)));b.position.set(x,y,z);const q1=new CANNON.Quaternion();q1.setFromAxisAngle(new CANNON.Vec3(0,1,0),ry);const q2=new CANNON.Quaternion();q2.setFromAxisAngle(new CANNON.Vec3(1,0,0),-ang);b.quaternion=q1.mult(q2);world.addBody(b)}
   ramp(PG.x,PG.z-2,0);ramp(PG.x-2,PG.z+12,Math.PI/2,.16);
   /* ---------- the outer valley, built ---------- */
@@ -682,9 +696,15 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     // pins
     const pr=[[0,-2.1],[.45,-2.1],[.62,-1.5],[.75,-.6],[.62,.3],[.34,.9],[.3,1.3],[.4,1.75],[.3,2.05],[0,2.1]].map(p=>new THREE.Vector2(p[0],p[1]));
     const pg=new THREE.LatheGeometry(pr,18),pm=M(0xf4f1ea),sm=M(0xb8322f),sg=new THREE.TorusGeometry(.36,.07,6,18).rotateX(Math.PI/2);
-    for(let r=0;r<4;r++)for(let c=0;c<=r;c++){const [x,z]=lp(24+r*3.1,(c-r/2)*3),g=new THREE.Group(),b0=new THREE.Mesh(pg,pm);b0.castShadow=!LOW;g.add(b0);
-      [1.15,1.42].forEach(yy=>{const st=new THREE.Mesh(sg,sm);st.position.y=yy;g.add(st)});
-      const y=HF.h(x,z)+2.12;dynBox(g,x,y,z,.7,2.1,.7,5);PINS.push({b:dyn[dyn.length-1].body,x,y,z})}
+    // 10 pins as 2 InstancedMeshes (bodies, stripes) instead of 30 individual meshes
+    const pinBodyIM=new THREE.InstancedMesh(pg,pm,10);pinBodyIM.castShadow=!LOW;S.add(pinBodyIM);
+    const pinStripeIM=new THREE.InstancedMesh(sg,sm,20);S.add(pinStripeIM);
+    const stripeOff=[new THREE.Matrix4().makeTranslation(0,1.15,0),new THREE.Matrix4().makeTranslation(0,1.42,0)];
+    let pinN=0;
+    for(let r=0;r<4;r++)for(let c=0;c<=r;c++){const [x,z]=lp(24+r*3.1,(c-r/2)*3),idx=pinN++;
+      const y=HF.h(x,z)+2.12;
+      const b=dynBoxI([{im:pinBodyIM,idx},{im:pinStripeIM,idx:idx*2,offset:stripeOff[0]},{im:pinStripeIM,idx:idx*2+1,offset:stripeOff[1]}],x,y,z,.7,2.1,.7,5);
+      PINS.push({b,x,y,z})}
     // the ball: glossy, marbled, three finger holes
     const bc=document.createElement('canvas');bc.width=512;bc.height=256;{const x=bc.getContext('2d'),im=x.createImageData(512,256),d=im.data;
       for(let j=0;j<256;j++)for(let i=0;i<512;i++){const u=i/512*6.283,v=j/256*3.1416,w=Math.sin(u*3+Math.sin(v*4+u)*2.2)+Math.sin(v*6+Math.cos(u*2)*1.6),k=(j*512+i)*4,m=.5+.5*Math.sin(w*2.1);
@@ -2022,7 +2042,15 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     wl.forEach((k,i)=>{const c=wi[i].chassisConnectionPointLocal;k.w.position.set(c.x*.9,.05-wi[i].suspensionLength,c.z);k.w.rotation.set(0,i<2?wi[i].steering:0,0);k.spin.rotation.x=wi[i].rotation});
     if(active&&MP.on)MP.tick(now,dt);
     if(frameN%10===0){const ni=Math.max(0,Math.min(1.8,(.85-sun.intensity)*3.2));if(carHL)carHL.intensity=ni;headM.emissiveIntensity=1+ni*.5;npcHeadM.emissiveIntensity=.9+ni*.6;if(beams){const o=Math.min(.5,ni*.3);beams.m.opacity=o;beams.list.forEach(b=>b.visible=o>.02)};CLOUDM.opacity=.2+.6*Math.min(1,sun.intensity)}
-    if(active)for(let i=0;i<dyn.length;i++){const d=dyn[i];if(d.body.sleepState===2&&frameN%30)continue;d.mesh.position.copy(d.body.position);d.mesh.quaternion.copy(d.body.quaternion);if(d.body.position.y<-5){d.body.position.copy(d.home);d.body.quaternion.copy(d.q);d.body.velocity.setyou();d.body.angularVelocity.setyou()}}
+    if(active)for(let i=0;i<dyn.length;i++){const d=dyn[i];if(d.body.sleepState===2&&frameN%30)continue;d.mesh.position.copy(d.body.position);d.mesh.quaternion.copy(d.body.quaternion);if(d.body.position.y<-5){d.body.position.copy(d.home);d.body.quaternion.copy(d.q);d.body.velocity.set(0,0,0);d.body.angularVelocity.set(0,0,0)}}
+    if(active&&dynI.length){dynITouched.clear();
+      for(let i=0;i<dynI.length;i++){const d=dynI[i];if(d.body.sleepState===2&&frameN%30)continue;
+        if(d.body.position.y<-5){d.body.position.copy(d.home);d.body.quaternion.copy(d.q);d.body.velocity.set(0,0,0);d.body.angularVelocity.set(0,0,0)}
+        dynIP.set(d.body.position.x,d.body.position.y,d.body.position.z);
+        dynIQ.set(d.body.quaternion.x,d.body.quaternion.y,d.body.quaternion.z,d.body.quaternion.w);
+        dynIM.compose(dynIP,dynIQ,dynIS);
+        d.parts.forEach(p=>{p.im.setMatrixAt(p.idx,p.offset?dynIM2.multiplyMatrices(dynIM,p.offset):dynIM);dynITouched.add(p.im)})}
+      dynITouched.forEach(im=>im.instanceMatrix.needsUpdate=true)}
     const tt=now/1000;
     rings.forEach(q=>{if(q.g.visible){q.ring.rotation.z+=dt*1.5;q.ring2.rotation.z-=dt*2.1}});
     if(active&&driving)updTraffic(dt,now);

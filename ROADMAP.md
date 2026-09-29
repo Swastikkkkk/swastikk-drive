@@ -49,7 +49,26 @@ multiplayer rewrite) from the pasted spec when picking this back up rather than 
      is routinely 10-50x slower than real GPU hardware - it measured 4.3 FPS, which says nothing about real laptop
      performance and should not be used to judge "does it lag". Next step needs either a real browser with a real GPU
      (F12 → Performance/FPS meter) or someone running it locally, not this sandbox.
-   - Still open: identify and consolidate the specific meshes pushing draw calls over 213 (profile which ones exist per
+   - Done: instanced the playground/bowling props. Crates (10), cones (7), tires (5), and bowling pins (10, each with 2
+     stripe rings) were each a separate `THREE.Mesh`/`Group` per prop - 69 draw calls total across the four kinds. Added
+     `dynBoxI(parts,...)`: one physics body drives one or more `InstancedMesh` slots (`setMatrixAt` composed from the
+     body's transform plus an optional local-offset matrix for sub-parts like a cone's base or a pin's stripes), synced
+     once per frame with preallocated Vector3/Quaternion/Matrix4 temps (no per-frame allocation) instead of moving a
+     whole `Object3D` per prop. Result: 69 draw calls -> 6 (`crateIM`, `coneIM`, `coneBaseIM`, `tireIM`, `pinBodyIM`,
+     `pinStripeIM`), each still independently knockable since physics is per-body, only the rendering is batched.
+     Deliberately dropped crates' thin black edge-outline decoration (`EdgesGeometry`/`LineSegments`) since instancing
+     line geometry isn't practical in Three r128 and it was purely decorative.
+     Also fixed a live bug found while touching this code: the old dyn-prop reset-if-fallen path called
+     `body.velocity.setyou()` - not a real cannon.js method (should be `.set(0,0,0)`) - which would have thrown and
+     likely broken the render loop the first time any crate/cone/tire/pin/the bowling ball fell off the map. Dormant
+     until triggered, so it hadn't been noticed.
+     Verified headless: scene graph shows exactly 6 `InstancedMesh` objects with the expected instance counts
+     (10/7/7/5/10/20) and zero leftover `LineSegments`, confirming the old per-object meshes are gone; no console
+     errors. Total draw-calls-at-spawn didn't move in testing because these props sit in the playground/bowling area,
+     outside the camera's view frustum at the default spawn point - this helps whenever a player is actually near that
+     content, not the spawn-camera baseline number, so re-measure facing that area specifically before/after to see the
+     real delta. Total scene mesh count elsewhere (~640 individual meshes) is the next place to look for further wins.
+   - Still open: identify and consolidate remaining one-off meshes pushing draw calls over 213 in-frustum (profile which ones exist per
      map, group static props into fewer draw calls or InstancedMesh where their transforms allow it), then remeasure.
 2. Circuit mode (`MODE='circuit'`):
    - Arena = flat platform high above the world at y=900 (sky/shadow/moon already follow the camera, so no other changes needed).
