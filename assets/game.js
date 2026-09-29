@@ -7,6 +7,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const VEHS={
     car:{label:'Car',engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
   };
+  let MODE='world';
   const WEATHERS=[
     {id:'day',label:'Day',bg:0x9dc0dd,fog:[110,300],hemi:.62,sun:0xfff7e8,sunI:1.12,ground:0x5c6b44,leaf:0x39672b,part:null,slip:1,skyTop:0x4a86c6,skyBottom:0xc3d9ea,star:0,sunA:.7,terr:[1.06,1.1,.98],snow:0,water:0x2f6f8c,ridge:[.46,.53,.62]},
     {id:'dusk',label:'Dusk',bg:0x2e2418,fog:[80,240],hemi:.5,sun:0xffcf92,sunI:1.0,ground:0x3a3124,leaf:0x3d4a2c,part:null,slip:1,skyTop:0x3d4a72,skyBottom:0xd98f4e,star:.72,sunA:1,terr:[1.16,1,.82],snow:0,water:0x3c4f5e,ridge:[.3,.28,.3]},
@@ -18,7 +19,15 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
        faintly on rather than off — a pinhole low on the horizon reads as the last of the
        day going, which is kinder than a hard cut to black. */
     {id:'night',label:'Night',bg:0x070b16,fog:[64,250],hemi:.30,sun:0xbcd0f2,sunI:.42,ground:0x121722,leaf:0x1b2a22,part:null,slip:.95,skyTop:0x05080f,skyBottom:0x172542,star:1,sunA:.22,terr:[.70,.78,.98],snow:0,water:0x15273a,ridge:[.09,.12,.20]},
+    {id:'overcast',label:'Overcast',bg:0x9aa3ab,fog:[70,240],hemi:.62,sun:0xdfe6ec,sunI:.55,ground:0x4d5a40,leaf:0x33502b,part:null,slip:.95,skyTop:0x7d8791,skyBottom:0xb4bcc3,star:0,sunA:.12,terr:[.92,.98,.94],snow:0,water:0x3a5666,ridge:[.4,.44,.5]},
+    {id:'sunset',label:'Sunset',bg:0xc98a52,fog:[90,280],hemi:.55,sun:0xffb066,sunI:1.15,ground:0x4a3b28,leaf:0x5a5a2a,part:null,slip:1,skyTop:0x59608f,skyBottom:0xeba15e,star:.1,sunA:1,terr:[1.22,1.02,.8],snow:0,water:0x6a5a58,ridge:[.4,.29,.27]},
+    {id:'storm',label:'Storm',bg:0x2b3138,fog:[30,130],hemi:.38,sun:0x8d9db0,sunI:.22,ground:0x0f1114,leaf:0x1c2820,part:'rain',slip:.62,skyTop:0x1f252b,skyBottom:0x454e56,star:0,sunA:.05,terr:[.66,.74,.82],snow:0,water:0x1b3140,ridge:[.10,.12,.15]},
+    {id:'fog',label:'Fog',bg:0xb7bec2,fog:[8,85],hemi:.7,sun:0xf0f0ea,sunI:.5,ground:0x56624c,leaf:0x38553a,part:null,slip:.9,skyTop:0xc3c9cc,skyBottom:0xb7bec2,star:0,sunA:.1,terr:[.95,1,.96],snow:0,water:0x5b6f76,ridge:[.6,.63,.65]},
+    {id:'sand',label:'Sandstorm',bg:0xc9a266,fog:[14,110],hemi:.6,sun:0xffe0a0,sunI:.55,ground:0x8a6f44,leaf:0x7c6a3a,part:'sand',slip:.8,skyTop:0xb8935c,skyBottom:0xd2ac6e,star:0,sunA:.2,terr:[1.35,1.1,.72],snow:0,water:0x7a6a4a,ridge:[.55,.43,.27]},
+    {id:'blizzard',label:'Blizzard',bg:0xdfe6ea,fog:[10,75],hemi:.72,sun:0xffffff,sunI:.4,ground:0xe6eaed,leaf:0xe6eef2,part:'snow',slip:.48,skyTop:0xeaf0f4,skyBottom:0xdfe6ea,star:0,sunA:.1,terr:[1.05,1.07,1.1],snow:.95,water:0x6f8794,ridge:[.7,.74,.78]},
   ];
+  /* how the falling stuff behaves per weather: size, fall speed, sideways wind */
+  const PSTYLE={rain:{size:.16,fall:38,wind:0,col:0x9fb4c8},storm:{size:.2,fall:54,wind:9,col:0x8fa4b8},snow:{size:.34,fall:4,wind:0,col:0xffffff},blizzard:{size:.5,fall:11,wind:16,col:0xffffff},sand:{size:.3,fall:1.2,wind:26,col:0xd8b070},autumn:{size:.5,fall:3,wind:0,col:0xd0692a}};
   /* ---------- dom ---------- */
   const sec=$('#drive'),cv=$('#dc'),hud=$('#dhud'),hint=$('#dhint'),toast=$('#dtoast'),mm=$('#dmap'),mx2=mm.getContext('2d'),spd=$('#dspeed'),bigmap=$('#dbig'),bmc=$('#dbigc'),mob=$('#dmob'),mute=$('#dmute');
   let W=sec.clientWidth,H=sec.clientHeight,active=false,driving=false,muted=false;
@@ -184,7 +193,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const world=new CANNON.World();world.gravity.set(0,-24,0);world.broadphase=new CANNON.SAPBroadphase(world);world.allowSleep=true;world.defaultContactMaterial.friction=.3;
   const gM=new CANNON.Material('g'),oM=new CANNON.Material('o');world.addContactMaterial(new CANNON.ContactMaterial(gM,oM,{friction:.5,restitution:.1}));
   // no infinite ground plane: the world heightfield below is the only ground, which is what lets the pond have a real bed
-  const MK=1.45,LAND=1.5;const BOUND=Math.round(192*MK*LAND);[[BOUND,0,0,.5,8,BOUND],[-BOUND,0,0,.5,8,BOUND],[0,0,BOUND,BOUND,8,.5],[0,0,-BOUND,BOUND,8,.5]].forEach(([x,y,z,a,b,c])=>{const w=new CANNON.Body({mass:0});w.addShape(new CANNON.Box(new CANNON.Vec3(a,b,c)));w.position.set(x,y,z);world.addBody(w)});
+  const MK=2.1,LAND=1.75,VK=MK/1.45,RWX=3.4;/* RWX = extra half-width the roads gained */const BOUND=Math.round(192*MK*LAND);[[BOUND,0,0,.5,8,BOUND],[-BOUND,0,0,.5,8,BOUND],[0,0,BOUND,BOUND,8,.5],[0,0,-BOUND,BOUND,8,.5]].forEach(([x,y,z,a,b,c])=>{const w=new CANNON.Body({mass:0});w.addShape(new CANNON.Box(new CANNON.Vec3(a,b,c)));w.position.set(x,y,z);world.addBody(w)});
   /* Heightfield half-extent and grid spacing, declared early because the branch and
      summit road below need them. The terrain is one mesh that is never frustum culled,
      so its vertex count is paid on every single frame: at ES=2 a world this size is
@@ -192,7 +201,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      far cheaper than shrinking the world, and the roads survive it because their
      corridor is flattened ten metres wide either side and the tarmac is drawn from
      this same field, so the road can never disagree with the ground it sits on. */
-  const WS=Math.round(205*MK*LAND),ES=LOW?4:3;
+  const WS=Math.round(205*MK*LAND),ES=LOW?7:5;
   const dyn=[];
   function staticBox(x,y,z,a,b,c,ry=0){const w=new CANNON.Body({mass:0,material:oM});w.addShape(new CANNON.Box(new CANNON.Vec3(a,b,c)));w.position.set(x,y,z);w.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),ry);world.addBody(w);return w}
   function dynBox(mesh,x,y,z,a,b,c,mass,ry=0){const bd=new CANNON.Body({mass,material:oM});bd.addShape(new CANNON.Box(new CANNON.Vec3(a,b,c)));bd.position.set(x,y,z);bd.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),ry);bd.angularDamping=.5;bd.linearDamping=.2;bd.sleepSpeedLimit=.3;world.addBody(bd);mesh.position.set(x,y,z);mesh.rotation.y=ry;S.add(mesh);dyn.push({mesh,body:bd,home:new CANNON.Vec3(x,y,z),q:bd.quaternion.clone()});return bd}
@@ -276,14 +285,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function edgeR(a){return POND.r*(1+(noise2(Math.cos(a)*2+9,Math.sin(a)*2+9)-.5)*.34)}
   const pondR=(x,z)=>edgeR(Math.atan2(z-POND.z,x-POND.x));
   /* ---------- level pads, so nothing is built on a slope ---------- */
-  function placeAt(u,side,dist){const {p,n}=at(u);return {x:p.x+n.x*side*dist,y:p.y,z:p.z+n.z*side*dist,ry:Math.atan2(-n.x*side,-n.z*side)}}
+  function placeAt(u,side,dist){dist+=dist>=3?RWX:0;const {p,n}=at(u);return {x:p.x+n.x*side*dist,y:p.y,z:p.z+n.z*side*dist,ry:Math.atan2(-n.x*side,-n.z*side)}}
   /* placeAt turns a board square-on to the road, which is exactly how you end up reading a
      sign out of the side window at 70 km/h. faceAt keeps the same spot and turns the board
      up the road instead, to the angle you actually approach it from: deg is measured off the
      driving line, so a small number is a board aimed straight at the windscreen and 90 is the
      old square-on placement. Because the road curves, the angle is taken from the tangent at
      that point, so every board stays readable from the direction you arrive. */
-  function faceAt(u,side,dist,deg){const {p,n,tg}=at(u);const a=(deg===undefined?26:deg)*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a);
+  function faceAt(u,side,dist,deg){dist+=dist>=3?RWX:0;const {p,n,tg}=at(u);const a=(deg===undefined?26:deg)*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a);
     const dx=-tg.x*ca-n.x*side*sa,dz=-tg.z*ca-n.z*side*sa;
     return {x:p.x+n.x*side*dist,y:p.y,z:p.z+n.z*side*dist,ry:Math.atan2(dx,dz)}}
   const LEN=curve.getLength();
@@ -295,7 +304,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* ---------- the outer valley: a stunt park, a UFO field and a volcano ----------
      All of it sits outside the loop, on land the valley gained when it was widened, and each
      one gets a dirt track off the main road so you can find it without the map. */
-  const VZ={stunt:{x:12,z:176,r:60},ufo:{x:-208,z:-58,r:17},volc:{x:-196,z:190,R:88,H:54,cr:13}};
+  const VZ={stunt:{x:12*VK,z:176*VK,r:60},ufo:{x:-208*VK,z:-58*VK,r:17},volc:{x:-196*VK,z:190*VK,R:88,H:54,cr:13}};
   PADS.push({x:VZ.stunt.x,z:VZ.stunt.z,y:.6,r:VZ.stunt.r,f:VZ.stunt.r+26},{x:VZ.ufo.x,z:VZ.ufo.z,y:.6,r:VZ.ufo.r,f:VZ.ufo.r+22});
   function volcH(x,z){const v=VZ.volc,d=Math.hypot(x-v.x,z-v.z);if(d>v.R)return -99;const hc=q=>v.H*Math.pow(1-q/v.R,1.35);
     if(d<v.cr){const hr=hc(v.cr),fl=hr-9;return fl+(hr-fl)*(d/v.cr)**2}
@@ -349,7 +358,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const de=Math.max(Math.abs(x),Math.abs(z));
     if(de>116*MK*LAND){const t=SM((de-116*MK*LAND)/(32*MK));h+=t*(18+(fbm2(x*.04+7,z*.04-3)-.5)*20)}
     // the road corridor stays true to the spline, and wins over everything
-    const rn=roadNear(x,z),fw=1-SM((rn.d-9.8)/30);
+    const rn=roadNear(x,z),fw=1-SM((rn.d-(9.8+RWX))/30);
     if(fw>0)h=h*(1-fw)+(rn.ring?BR_H:rn.branch?brHAt(rn.u):hAt(rn.u))*fw;
     for(let i=0;i<PADS.length;i++){const p=PADS[i],dd=Math.hypot(p.x-x,p.z-z);
       if(dd<p.f){const w=1-SM((dd-p.r)/(p.f-p.r));h=h*(1-w)+p.y*w}}
@@ -407,8 +416,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const slAcc=(x,z)=>{const fi=Math.round((x-minX)/ES),fj=Math.round((maxZ-z)/ES);if(fi<0||fj<0||fi>nx-1||fj>nz-1)return 0;return slope[fi*nz+fj]};
     // boulders, on the steep flanks only, clear of the road
     {let seed=53;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;let tries=0;
-      while(rockPts.length<120&&tries<16000){tries++;const x=(rnd()-.5)*(374*MK*LAND),z=(rnd()-.5)*(374*MK*LAND);if(zoneHit(x,z,4))continue;const hh=hAcc(x,z);
-        if(hh<.5)continue;if(slAcc(x,z)<.42)continue;if(roadNear(x,z).d<11)continue;
+      while(rockPts.length<230&&tries<30000){tries++;const x=(rnd()-.5)*(374*MK*LAND),z=(rnd()-.5)*(374*MK*LAND);if(zoneHit(x,z,4))continue;const hh=hAcc(x,z);
+        if(hh<.5)continue;if(slAcc(x,z)<.42)continue;if(roadNear(x,z).d<11+RWX)continue;
         rockPts.push([x,hh,z,.65+rnd()*1.7,rnd()*Math.PI*2])}}
     const rockIM=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),M(0x585349,{roughness:.98,flatShading:true,map:grainTex(64,.09,2,.52)}),rockPts.length);
     rockIM.receiveShadow=true;
@@ -430,7 +439,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      Asphalt is painted once into a texture: dark aggregate, faint wear in the wheel tracks,
      solid edge lines and a dashed centre line baked in, so the markings are crisp at any
      distance instead of being a scatter of floating quads. */
-  const ROAD_REP=Math.round(curve.getLength()/12);
+  const ROAD_REP=Math.round(curve.getLength()/(12+RWX*4));
   function roadTex(){const W=256,H=512,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
     x.fillStyle='#303134';x.fillRect(0,0,W,H);const im=x.getImageData(0,0,W,H),d=im.data;
     for(let jj=0;jj<H;jj++)for(let ii=0;ii<W;ii++){const k=(jj*W+ii)*4,u=ii/W;
@@ -464,8 +473,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const m=new THREE.Mesh(g,mat);m.receiveShadow=true;S.add(m);return m}
   roadM.color.setHex(0xffffff);roadM.map=roadTex();edgeM.color.setHex(0x6d685e);
   edgeM.map=grainTex(64,.12,1,.6);edgeM.map.repeat.set(3,1);
-  strip(7.6,.04,edgeM);strip(5.8,.09,roadM);
-  stripB(7,.04,edgeM);stripB(5.2,.09,roadM);
+  strip(7.6+RWX*2,.04,edgeM);strip(5.8+RWX*2,.09,roadM);
+  stripB(7+RWX*1.6,.04,edgeM);stripB(5.2+RWX*1.6,.09,roadM);
   /* kerbs on the bends, so the tight corners read before you are in them */
   (function(){const R=[],mat=new THREE.MeshLambertMaterial({map:curbTex()});
     for(let i=0;i<N;i++){const a=at(i/N).tg,b=at((i+2)/N).tg;R.push(Math.acos(Math.max(-1,Math.min(1,a.x*b.x+a.z*b.z))))}
@@ -473,7 +482,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const runs=[];let st=-1;for(let i=0;i<=N;i++){const v=i<N&&dil[i];if(v&&st<0)st=i;if(!v&&st>=0){runs.push([st,i]);st=-1}}
     const seg=curve.getLength()/N;
     runs.forEach(([a,b])=>{if(b-a<4)return;[1,-1].forEach(sd=>{const pos=[],uv=[],idx=[];let k=0;
-      for(let i=a;i<=b;i++){const {p,n}=at(i/N),o1=2.9,o2=3.5;
+      for(let i=a;i<=b;i++){const {p,n}=at(i/N),o1=2.9+RWX,o2=3.5+RWX;
         pos.push(p.x+n.x*sd*o1,p.y+.1,p.z+n.z*sd*o1,p.x+n.x*sd*o2,p.y+.13,p.z+n.z*sd*o2);
         const v=(i-a)*seg/2;uv.push(0,v,1,v);if(i<b){idx.push(k,k+1,k+2,k+1,k+3,k+2)}k+=2}
       if(sd<0){for(let q=0;q<idx.length;q+=3){const t=idx[q+1];idx[q+1]=idx[q+2];idx[q+2]=t}}
@@ -498,7 +507,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   (function(){const US=[];for(let i=0;i<N;i+=15)US.push(i/N);
     const postIM=new THREE.InstancedMesh(new THREE.CylinderGeometry(.06,.08,3.2,6),steel,US.length);
     const bulbGeo=new THREE.SphereGeometry(.22,8,8);const o=new THREE.Object3D();
-    US.forEach((u,i)=>{const {p,n}=at(u);const bx=p.x+n.x*4.6,bz=p.z+n.z*4.6;
+    US.forEach((u,i)=>{const {p,n}=at(u);const bx=p.x+n.x*(4.6+RWX),bz=p.z+n.z*(4.6+RWX);
       o.position.set(bx,p.y+1.6,bz);o.rotation.set(0,0,0);o.scale.set(1,1,1);o.updateMatrix();postIM.setMatrixAt(i,o.matrix);
       const bulb=new THREE.Mesh(bulbGeo,M(0x3a3733));bulb.position.set(bx,p.y+3.3,bz);S.add(bulb);lamps.push({u,bulb})});
     S.add(postIM)})();
@@ -509,7 +518,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     for(let s=0;s<3;s++){const y=34+s*46;x.globalAlpha=.55+s*.2;x.beginPath();x.moveTo(20,y+34);x.lineTo(64,y);x.lineTo(108,y+34);x.stroke()}
     const tex=new THREE.CanvasTexture(c);tex.anisotropy=8;
     const mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:.9,depthWrite:false,blending:THREE.AdditiveBlending,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});
-    const geoP=new THREE.PlaneGeometry(2.4,3.2).rotateX(-Math.PI/2);const us=[];const cand=[];
+    const geoP=new THREE.PlaneGeometry(2.4+RWX*1.2,3.2+RWX).rotateX(-Math.PI/2);const us=[];const cand=[];
     for(let u=.04;u<.96;u+=.004){const t1=at(u-.01).tg,t2=at(u+.01).tg,k=Math.acos(Math.max(-1,Math.min(1,t1.x*t2.x+t1.z*t2.z)));
       if(Math.abs(hAt(u+.01)-hAt(u-.01))>.25)continue;
       
@@ -541,9 +550,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     lilies.forEach(([x,z,s],i)=>{o.position.set(x,WATER_Y+.03,z);o.scale.set(s,s,s);o.rotation.set(-Math.PI/2,0,i);o.updateMatrix();lilyIM.setMatrixAt(i,o.matrix)});S.add(lilyIM)})();
   /* ---------- grass tufts near the road and the water (one draw call) ---------- */
   (function(){if(LOW)return;const T=[];let seed=709;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;let tries=0;
-    while(T.length<1200&&tries<30000){tries++;const x=(rnd()-.5)*(372*MK*LAND),z=(rnd()-.5)*(372*MK*LAND);if(zoneHit(x,z,2))continue;const rd=roadNear(x,z).d;
+    while(T.length<2200&&tries<50000){tries++;const x=(rnd()-.5)*(372*MK*LAND),z=(rnd()-.5)*(372*MK*LAND);if(zoneHit(x,z,2))continue;const rd=roadNear(x,z).d;
       const pd=Math.hypot(x-POND.x,z-POND.z);
-      if(!(rd<20||pd<POND.r*1.9))continue;if(rd<4.2)continue;if(pd<pondR(x,z)*1.05)continue;
+      if(!(rd<20+RWX||pd<POND.r*1.9))continue;if(rd<4.2+RWX)continue;if(pd<pondR(x,z)*1.05)continue;
       const h=HF.h(x,z);if(HF.slope(x,z)>1.15)continue;if(h<-.2)continue;
       T.push([x,h,z,.5+rnd()*.7,rnd()*6.3])}
     const g=new THREE.PlaneGeometry(.42,.44);g.translate(0,.2,0);
@@ -743,8 +752,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const FIN=(function(){const s=new THREE.Shape();s.moveTo(-.55,0);s.lineTo(.55,0);s.quadraticCurveTo(.05,.5,-.6,1.2);s.lineTo(-.55,0);const g=new THREE.ExtrudeGeometry(s,{depth:.12,bevelEnabled:false});g.translate(0,0,-.06);
     const m=new THREE.Mesh(g,M(0x5d6770));S.add(m);return {m,a:0}})();
   const TRAP=(function(){const {p,n,tg}=at(.33),g=new THREE.Group();g.position.set(p.x,p.y,p.z);g.rotation.y=Math.atan2(tg.x,tg.z);S.add(g);
-    [-1,1].forEach(s=>{const po=new THREE.Mesh(new THREE.BoxGeometry(.3,6.4,.3),M(0x2a2a2a));po.position.set(s*6,3.2,0);g.add(po)});
-    const bm=new THREE.Mesh(new THREE.BoxGeometry(12.4,.9,.3),M(0x15140f));bm.position.y=6.2;g.add(bm);
+    [-1,1].forEach(s=>{const po=new THREE.Mesh(new THREE.BoxGeometry(.3,6.4,.3),M(0x2a2a2a));po.position.set(s*(6+RWX),3.2,0);g.add(po)});
+    const bm=new THREE.Mesh(new THREE.BoxGeometry(12.4+RWX*2,.9,.3),M(0x15140f));bm.position.y=6.2;g.add(bm);
     const pl=new THREE.Mesh(new THREE.PlaneGeometry(6,.8),new THREE.MeshBasicMaterial({map:label('Speed trap','how fast are you',1024,140,false),side:THREE.DoubleSide}));pl.position.set(0,6.2,-.17);pl.rotation.y=Math.PI;g.add(pl);
     return {x:p.x,z:p.z,c:0,best:0}})();
   let fwT=3;
@@ -794,8 +803,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       for(let i=2;i<4;i++){const w=veh.wheelInfos[i],rr=w.raycastResult;if(!w.isInContact||!rr||!rr.hitPointWorld)continue;const hp=rr.hitPointWorld;
         if(sub>.05){if(sp2>2&&Math.random()<.5)FX.emit(hp.x,hp.y+.3,hp.z,0xdcecf2,{life:.8,vy:3+Math.random()*2,vx:(Math.random()-.5)*2,vz:(Math.random()-.5)*2,grav:9,s0:.5,s1:1.7,a:.55});continue}
         const slide=sp2>4&&(w.skidInfo<.75||(key.h&&sp2>5));
-        if(slide&&offD<7.5){if(Math.random()<.6)FX.emit(hp.x,hp.y+.25,hp.z,0xc9c6bf,{life:1.4,vy:.7,vx:(Math.random()-.5)*.8,vz:(Math.random()-.5)*.8,s0:.7,s1:3.2,a:.3})}
-        else if(offD>6.5&&sp2>5&&Math.random()<Math.min(.65,sp2/32))FX.emit(hp.x,hp.y+.2,hp.z,0x8a7556,{life:1,vy:1.1+Math.random(),vx:-v.x*.08+(Math.random()-.5),vz:-v.z*.08+(Math.random()-.5),grav:1.5,s0:.5,s1:2.5,a:.36})}}
+        if(slide&&offD<7.5+RWX){if(Math.random()<.6)FX.emit(hp.x,hp.y+.25,hp.z,0xc9c6bf,{life:1.4,vy:.7,vx:(Math.random()-.5)*.8,vz:(Math.random()-.5)*.8,s0:.7,s1:3.2,a:.3})}
+        else if(offD>6.5+RWX&&sp2>5&&Math.random()<Math.min(.65,sp2/32))FX.emit(hp.x,hp.y+.2,hp.z,0x8a7556,{life:1,vy:1.1+Math.random(),vx:-v.x*.08+(Math.random()-.5),vz:-v.z*.08+(Math.random()-.5),grav:1.5,s0:.5,s1:2.5,a:.36})}}
     FX.upd(dt);SMOKE.upd(dt)}
   /* ---------- ramp yard: three jumps down the side spur, for the ramp-rally mission.
      The yard sits on top of the Platform hill, not at ground level, so every prop here
@@ -817,11 +826,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       return true};
     // copses first, then loners, so the woods clump the way real ones do
     const centres=[];let tries=0;
-    while(centres.length<55&&tries<2600){tries++;const x=(rnd()-.5)*(360*MK*LAND),z=(rnd()-.5)*(360*MK*LAND);if(okSpot(x,z,26))centres.push([x,z])}
+    while(centres.length<110&&tries<5200){tries++;const x=(rnd()-.5)*(360*MK*LAND),z=(rnd()-.5)*(360*MK*LAND);if(okSpot(x,z,26))centres.push([x,z])}
     centres.forEach(([cx,cz])=>{const n=7+(rnd()*11|0);
       for(let i=0;i<n;i++){const a=rnd()*6.283,r=rnd()*18+2,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
         if(!okSpot(x,z,13))continue;treePts.push([x,z,.78+rnd()*.85,rnd()<.62?0:1,rnd()*6.283])}});
-    tries=0;while(treePts.length<460&&tries<14000){tries++;const x=(rnd()-.5)*(368*MK*LAND),z=(rnd()-.5)*(368*MK*LAND);
+    tries=0;while(treePts.length<900&&tries<26000){tries++;const x=(rnd()-.5)*(368*MK*LAND),z=(rnd()-.5)*(368*MK*LAND);
       if(!okSpot(x,z,13))continue;treePts.push([x,z,.7+rnd()*.8,rnd()<.5?0:1,rnd()*6.283])}
     const conifer=treePts.filter(t=>t[3]===0),broad=treePts.filter(t=>t[3]===1);
     const o=new THREE.Object3D();
@@ -848,11 +857,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         blobs.forEach(([bx,by,bz,br],k)=>{o.position.set(x+bx*s,y+by*s,z+bz*s);o.scale.set(br*s,br*s*.85,br*s);o.rotation.set(ry+k,ry*.5,k*.6);o.updateMatrix();blobIM[k].setMatrixAt(i,o.matrix)})});
       S.add(trIM);blobIM.forEach(m=>S.add(m))}
     // only the roadside trees need to be solid; the rest are scenery and cost nothing
-    treePts.forEach(([x,z,s])=>{if(roadNear(x,z).d<42)staticBox(x,HF.h(x,z)+1.2,z,.34,1.2,.34)});
+    treePts.forEach(([x,z,s])=>{if(roadNear(x,z).d<42+RWX)staticBox(x,HF.h(x,z)+1.2,z,.34,1.2,.34)});
     // low scrub, one draw call, to stop the ground reading as bare polygons
     if(!LOW){const B=[];let t2=0;
-      while(B.length<480&&t2<20000){t2++;const x=(rnd()-.5)*(372*MK*LAND),z=(rnd()-.5)*(372*MK*LAND);if(zoneHit(x,z,3))continue;
-        if(roadNear(x,z).d<5.5)continue;
+      while(B.length<900&&t2<36000){t2++;const x=(rnd()-.5)*(372*MK*LAND),z=(rnd()-.5)*(372*MK*LAND);if(zoneHit(x,z,3))continue;
+        if(roadNear(x,z).d<5.5+RWX)continue;
         if((x-POND.x)**2+(z-POND.z)**2<(pondR(x,z)*1.02)**2)continue;
         if(HF.h(x,z)<-.15||HF.slope(x,z)>1.5)continue;
         B.push([x,z,.55+rnd()*.8,rnd()*6.283])}
@@ -956,16 +965,16 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* ---------- start / finish gantry ---------- */
   (function(){const {p,ry,n}=at(0);
     // painted line
-    const lw=6.2,seg=10;const cg=document.createElement('canvas');cg.width=seg*2;cg.height=8;const cx=cg.getContext('2d');
+    const lw=6.2+RWX*2,seg=10;const cg=document.createElement('canvas');cg.width=seg*2;cg.height=8;const cx=cg.getContext('2d');
     for(let i=0;i<seg;i++)for(let j=0;j<2;j++){cx.fillStyle=(i+j)%2?'#f2eee6':'#1b1a16';cx.fillRect(i*2,j*4,2,4)}
     const lt=new THREE.CanvasTexture(cg);lt.magFilter=THREE.NearestFilter;
     const line=new THREE.Mesh(new THREE.PlaneGeometry(lw,1.5),new THREE.MeshBasicMaterial({map:lt}));
     line.rotation.set(-Math.PI/2,0,-ry);line.position.set(p.x,p.y+.115,p.z);S.add(line);
     const g=new THREE.Group();g.position.set(p.x,p.y,p.z);g.rotation.y=ry;S.add(g);
-    [-1,1].forEach(s=>{const post=new THREE.Mesh(new THREE.BoxGeometry(.4,7,.4),paper);post.position.set(s*4.6,3.5,0);post.castShadow=!LOW;g.add(post);
-      staticBox(p.x+Math.cos(ry)*s*4.6,p.y+3,p.z-Math.sin(ry)*s*4.6,.26,3,.26)});
-    const top=new THREE.Mesh(new THREE.BoxGeometry(10,1.5,.45),ink);top.position.y=7.3;g.add(top);
-    const lab=new THREE.Mesh(new THREE.PlaneGeometry(9.6,1.3),new THREE.MeshBasicMaterial({map:label('START · FINISH','one lap · beat the board',1024,150,false)}));
+    [-1,1].forEach(s=>{const post=new THREE.Mesh(new THREE.BoxGeometry(.4,7,.4),paper);post.position.set(s*(4.6+RWX),3.5,0);post.castShadow=!LOW;g.add(post);
+      staticBox(p.x+Math.cos(ry)*s*(4.6+RWX),p.y+3,p.z-Math.sin(ry)*s*(4.6+RWX),.26,3,.26)});
+    const top=new THREE.Mesh(new THREE.BoxGeometry(10+RWX*2,1.5,.45),ink);top.position.y=7.3;g.add(top);
+    const lab=new THREE.Mesh(new THREE.PlaneGeometry(9.6+RWX*2,1.3),new THREE.MeshBasicMaterial({map:label('START · FINISH','one lap · beat the board',1024,150,false)}));
     lab.position.set(0,7.3,.26);g.add(lab);const l2=lab.clone();l2.rotation.y=Math.PI;l2.position.z=-.26;g.add(l2)})();
   /* ---------- traffic lights ----------
      Placed clear of the two overtaking stretches, so they never hold a car up in
@@ -1241,7 +1250,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   (function(){
     const n=LOW?3:7,COLS=[0x1f3b73,0xb9bcbf,0x1b1b1d,0xe8e6e0,0x2e4a3a,0x6e1a1c,0xc4bca6];
     for(let i=0;i<n;i++){
-      const lane=(i%2?1:-1)*2.05;
+      const lane=(i%2?1:-1)*(2.05+RWX*.62);
       const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});
       bd.addShape(new CANNON.Box(new CANNON.Vec3(.95,.62,2.05)));world.addBody(bd);
       const c=buildCar({paint:COLS[i%COLS.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:i%3===2,wheels:true});
@@ -1342,7 +1351,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      colours and light intensities — no terrain repaint, no rebuilt geometry, nothing that can
      spike a frame halfway through a corner. The ground tint rides on the terrain material,
      which multiplies the vertex colours the heightfield was painted with once at startup. */
-  const DUSTA={day:.1,dusk:.34,rain:0,snow:.05,autumn:.3,night:.14};
+  const DUSTA={day:.1,dusk:.34,rain:0,snow:.05,autumn:.3,night:.14,overcast:.04,sunset:.3,storm:0,fog:0,sand:.5,blizzard:.05};
   const wxOf=id=>WEATHERS.find(w=>w.id===id)||WEATHERS[0];
   const wxCopy=w=>({id:w.id,bg:w.bg,fog:[w.fog[0],w.fog[1]],hemi:w.hemi,sun:w.sun,sunI:w.sunI,ground:w.ground,leaf:w.leaf,
     part:w.part,slip:w.slip,skyTop:w.skyTop,skyBottom:w.skyBottom,star:w.star,sunA:w.sunA,water:w.water,
@@ -1367,19 +1376,21 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     sunSprite.material.color.setHex(wx.sun);sunSprite.material.opacity=wx.sunA;dustMat.opacity=wx.dust;
     if(full||ridgeN++%6===0)ridgeTint(wx.ridge);
     parts.visible=partA>.02;pMat.opacity=.8*partA;
-    pMat.color.setHex(wx.part==='rain'?0x9fb4c8:wx.part==='leaves'?0xd0692a:0xffffff);
-    pMat.size=wx.part==='rain'?.16:wx.part==='leaves'?.5:.34;
+    {const ps=PSTYLE[wxB.id]||PSTYLE[wx.part==='leaves'?'autumn':wx.part]||PSTYLE.snow;pMat.color.setHex(ps.col);pMat.size=ps.size}
     applyVehicle()}
   function mood(id,dur){const t=wxOf(id);if(t.id===wxB.id)return;wxA=snapWx(wx);wxB=wxCopy(t);wxT=0;wxDur=dur||6}
   /* Night is a mode you hold, not a mood the road hands you. While it is on it outranks
      the road's moods and the summit's dusk, so driving into a new stretch does not
      yank the sky back to daylight underneath you; turning it off hands control back. */
-  let nightOn=false;
+  let nightOn=false,ltT=4,flashV=0,thunderAt=0,wxLock=null;
+  function setWeather(id,quiet){
+    if(id==='auto'||!id){wxLock=null;nightOn=false;mood(MODE==='circuit'?'day':(atSummit?'dusk':(CHMOOD[act]||'day')),4);if(!quiet)toastMsg('Weather · auto')}
+    else{wxLock=id;nightOn=true;mood(id,3.5);if(!quiet)toastMsg(wxOf(id).label)}
+    const nb=$('#dnight');if(nb)nb.textContent=wxLock==='night'?'Daylight':'Night';
+    $$('#dwxl button').forEach(b=>b.classList.toggle('on',b.dataset.w===(wxLock||'auto')))}
   function toggleNight(){
-    nightOn=!nightOn;
-    const nb=$('#dnight');if(nb)nb.textContent=nightOn?'Daylight':'Night';
-    if(nightOn){mood('night',3.5);toastMsg('Night · press N to bring the day back')}
-    else{mood(atSummit?'dusk':(CHMOOD[act]||'day'),3.5);toastMsg('Daylight')}}
+    if(wxLock==='night'){setWeather('auto',true);toastMsg('Daylight')}
+    else{setWeather('night',true);toastMsg('Night · press N to bring the day back')}}
   function stepWx(dt){
     if(wxT>=1)return;
     wxT=Math.min(1,wxT+dt/wxDur);const e=wxT*wxT*(3-2*wxT);
@@ -1501,6 +1512,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let hornNodes=null;
   mute.onclick=()=>{muted=!muted;mute.textContent=muted?'Sound off':'Sound on'};
   {const nb=$('#dnight');if(nb)nb.onclick=()=>toggleNight()}
+  /* ---------- weather picker ---------- */
+  {const wb=$('#dweatherb'),wx=$('#dwx'),wl=$('#dwxl');
+   if(wb&&wx&&wl){
+     const chip=(id,label)=>{const b=document.createElement('button');b.className='dbtn';b.dataset.w=id;b.textContent=label;wl.appendChild(b);return b};
+     chip('auto','Auto');WEATHERS.forEach(w=>chip(w.id,w.label));
+     const setOpen=o=>{wx.classList.toggle('on',o);wb.setAttribute('aria-expanded',o?'true':'false')};
+     wb.onclick=e=>{e.stopPropagation();setOpen(!wx.classList.contains('on'))};
+     wl.addEventListener('click',e=>{const b=e.target.closest('button[data-w]');if(!b)return;setWeather(b.dataset.w);setOpen(false)});
+     addEventListener('pointerdown',e=>{if(!wx.classList.contains('on'))return;if(!wx.contains(e.target)&&e.target!==wb)setOpen(false)});
+     $$('#dwxl button').forEach(b=>b.classList.toggle('on',b.dataset.w==='auto'))
+   }}
   /* ---------- input ---------- */
   /* Stretches of the loop that feel different. Each band has a drag figure (0 = free,
      1 = crawling), a fog distance and a colour the light is pulled toward. It is one lookup
@@ -1850,9 +1872,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         if(!lapInit){lapU=rn.u;lapInit=true}
         let du=rn.u-lapU;const wrapFwd=du<-.5,wrapBack=du>.5;
         if(wrapFwd)du+=1;else if(wrapBack)du-=1;
-        if(Math.abs(du)<.06&&rn.d<16)lapProg+=du;
+        if(Math.abs(du)<.06&&rn.d<16+RWX*1.5)lapProg+=du;
         lapU=rn.u;
-        if(rn.d>18){offT+=dt;if(offT>2&&!lapVoid&&!lapArmed){lapVoid=true;lapEl.classList.add('void');toastMsg('Lap scrubbed · stay on the road')}}
+        if(rn.d>18+RWX*1.5){offT+=dt;if(offT>2&&!lapVoid&&!lapArmed){lapVoid=true;lapEl.classList.add('void');toastMsg('Lap scrubbed · stay on the road')}}
         else offT=Math.max(0,offT-dt*.6);
         if(wrapFwd){
           if(lapArmed){lapArmed=false;lapStart=now;lapNo=1;lapProg=0;lapVoid=false;offT=0;lapEl.classList.remove('void');blip(820,.2);toastMsg('Go')}
@@ -1876,7 +1898,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         S.mF.frequency.setTargetAtTime(650+S.ld*1400+r*900,T,.08);
         S.mG.gain.setTargetAtTime((.008+S.ld*.07)*(.3+.7*Math.min(1,r*1.6+(f?.25:0))),T,.07);
         // tyres on the surface: tarmac roar on the road, gravel hiss off it
-        const ground=air?0:Math.min(1,spq/V.max),off=offD>7?1:0;
+        const ground=air?0:Math.min(1,spq/V.max),off=offD>7+RWX?1:0;
         S.rF.frequency.setTargetAtTime(200+ground*1000,T,.1);
         S.rG.gain.setTargetAtTime(ground*(off?.05:.09),T,.1);
         S.gG.gain.setTargetAtTime(ground*off*.075,T,.1);
@@ -1968,7 +1990,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       d.g.rotation.z=Math.sin(tt*2.2+d.bob)*.05});
     if(frameN%8===0){const cx=car.position.x,cz=car.position.z;
       for(let i=0;i<CULL.length;i++){const G=CULL[i];const dx=G.position.x-cx,dz=G.position.z-cz;G.visible=dx*dx+dz*dz<10200}}
-    if(active&&parts.visible&&frameN%2===0){const pa=pGeo.attributes.position.array,fall=wx.part==='rain'?38:wx.part==='snow'?4:3;const PN=pGeo.drawRange.count||PCOUNT;for(let i=0;i<PN;i++){const j=i*3;pa[j+1]-=fall*dt*2;if(wx.part!=='rain'){pa[j]+=Math.sin(tt+i)*dt*1.6;pa[j+2]+=Math.cos(tt*.7+i)*dt*1}if(pa[j+1]<0)pa[j+1]+=40}pGeo.attributes.position.needsUpdate=true;parts.position.set(Math.round(car.position.x/10)*10,car.position.y-4,Math.round(car.position.z/10)*10)}
+    if(active&&parts.visible&&frameN%2===0){const pa=pGeo.attributes.position.array,ps=PSTYLE[wxB.id]||PSTYLE[wx.part==='leaves'?'autumn':wx.part]||PSTYLE.snow,fall=ps.fall,wind=ps.wind;const PN=pGeo.drawRange.count||PCOUNT;for(let i=0;i<PN;i++){const j=i*3;pa[j+1]-=fall*dt*2;if(wx.part!=='rain'||wind){pa[j]+=Math.sin(tt+i)*dt*1.6;pa[j+2]+=Math.cos(tt*.7+i)*dt*1}if(wind){pa[j]+=wind*dt*2*(.7+(i%5)*.15);if(pa[j]>45)pa[j]-=90}if(pa[j+1]<0)pa[j+1]+=40}pGeo.attributes.position.needsUpdate=true;parts.position.set(Math.round(car.position.x/10)*10,car.position.y-4,Math.round(car.position.z/10)*10)}
     if(active){const tg=at(progU).tg;fwd.set(0,0,1).applyQuaternion(car.quaternion);wrongEl.classList.toggle('on',sp>4&&(fwd.x*tg.x+fwd.z*tg.z)<-.5&&offD<9&&!inPond)}
     stepWx(Math.min(.05,dt));
     fwd.set(0,0,1).applyQuaternion(car.quaternion);fwd.y=0;fwd.normalize();
@@ -2045,7 +2067,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {const z=ZN,e=.08;
      S.fog.far+=(fogFar0*z.fog-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,z.fog)-S.fog.near)*e;
      const lt=(z.tint[0]+z.tint[1]+z.tint[2])/3;
-     hemi.intensity+=(hemi0*lt-hemi.intensity)*e;sun.intensity+=(sunI0*Math.min(1.25,lt)-sun.intensity)*e}
+     if(wxB.id==='storm'){ltT-=dt;if(ltT<=0){ltT=2.5+Math.random()*7;flashV=1;thunderAt=now+300+Math.random()*1800}}
+     if(flashV>0){flashV=Math.max(0,flashV-dt*(flashV>.6?3:2.2));if(flashV<.35&&Math.random()<.35)flashV=Math.min(1,flashV+.5*Math.random())}
+     if(thunderAt&&now>=thunderAt){thunderAt=0;thud(.9)}
+     hemi.intensity+=((hemi0*lt+flashV*1.5)-hemi.intensity)*(flashV>.02?.7:e);sun.intensity+=(sunI0*Math.min(1.25,lt)-sun.intensity)*e}
     if(R.shadowMap.enabled){const se=ULTRA.shEvery;if(se&&frameN%se===0)sun.shadow.needsUpdate=true}
     /* reflections are captured whole, only when the light changes or you have driven somewhere new:
        no per-frame cost, and no half-updated cube that flickers as you move */
@@ -2253,7 +2278,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         const rn=roadNear(car.position.x,car.position.z);
         if(race.lastU<0){race.lastU=rn.u;race.d0=rn.u>.5?rn.u-1:rn.u;race.rp=0}
         else{let du=rn.u-race.lastU;if(du<-.5)du+=1;else if(du>.5)du-=1;
-          if(!rn.branch&&Math.abs(du)<.06&&rn.d<16)race.rp+=du;race.lastU=rn.u}
+          if(!rn.branch&&Math.abs(du)<.06&&rn.d<16+RWX*1.5)race.rp+=du;race.lastU=rn.u}
         if(!myFin&&race.d0+race.rp>=1){myFin=now-race.t0;race.ms=myFin;race.fins++;send({k:'fin',ms:Math.round(myFin)});
           blip(880,.4,.14);setTimeout(()=>blip(1175,.5,.12),140);
           let pl=1;peers.forEach(p=>{if(p.fin&&p.fin<myFin)pl++});
