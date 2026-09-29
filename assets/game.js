@@ -8,6 +8,27 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     car:{label:'Car',engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
   };
   let MODE='world';
+  /* ---------- garage: 6 cars, 2 body kits (buildEV / buildCar) sharing the same physics rig ---------- */
+  const GARAGE=[
+    {id:'aster',label:'Aster',type:'ev',blurb:'Balanced',mass:190,F:2.42,B:-2.36,W:2.3,
+     V:{engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
+     paints:[0x640c0e,0x14161b,0xd9d4c6,0x27476b]},
+    {id:'voltgt',label:'Volt GT',type:'ev',blurb:'Wide, low, fast',mass:198,F:2.4,B:-2.32,W:2.42,
+     V:{engine:760,max:34.5,slip:2.6,xw:1.14,zf:1.3,zb:-1.3,r:.42,rest:.36,steer:.5,roll:.016},
+     paints:[0x18345c,0x14161b,0xc7cbce,0x7a1620]},
+    {id:'phantom',label:'Phantom',type:'ev',blurb:'Longest, top speed, twitchy',mass:210,F:2.7,B:-2.62,W:2.28,
+     V:{engine:820,max:37.5,slip:2.1,xw:1.08,zf:1.55,zb:-1.55,r:.46,rest:.4,steer:.58,roll:.024},
+     paints:[0x121216,0x2c2c30,0xd9d4c6,0x5c1418]},
+    {id:'kestrel',label:'Kestrel',type:'car',blurb:'Sedan, agile',mass:165,F:2.05,B:-2.05,W:1.92,wagon:false,
+     V:{engine:600,max:29,slip:2.55,xw:.92,zf:1.15,zb:-1.15,r:.4,rest:.38,steer:.66,roll:.018},
+     paints:[0x1f7a3d,0x14161b,0xd9d4c6,0x27476b]},
+    {id:'ridgeback',label:'Ridgeback',type:'car',blurb:'Wagon, heavy, grippy',mass:235,F:2.2,B:-2.35,W:2.05,wagon:true,
+     V:{engine:640,max:27.5,slip:2.9,xw:1.0,zf:1.35,zb:-1.35,r:.44,rest:.44,steer:.48,roll:.026},
+     paints:[0x3a4550,0x14161b,0xd9d4c6,0x5c3a1e]},
+    {id:'mamba',label:'Mamba',type:'car',blurb:'Sedan, quick, loose',mass:175,F:2.1,B:-2.1,W:1.95,wagon:false,
+     V:{engine:700,max:31.5,slip:2.15,xw:.95,zf:1.2,zb:-1.2,r:.4,rest:.36,steer:.6,roll:.016},
+     paints:[0xb33a1e,0x14161b,0xd9d4c6,0x27476b]},
+  ];
   const WEATHERS=[
     {id:'day',label:'Day',bg:0x9dc0dd,fog:[110,300],hemi:.62,sun:0xfff7e8,sunI:1.12,ground:0x5c6b44,leaf:0x39672b,part:null,slip:1,skyTop:0x4a86c6,skyBottom:0xc3d9ea,star:0,sunA:.7,terr:[1.06,1.1,.98],snow:0,water:0x2f6f8c,ridge:[.46,.53,.62]},
     {id:'dusk',label:'Dusk',bg:0x2e2418,fog:[80,240],hemi:.5,sun:0xffcf92,sunI:1.0,ground:0x3a3124,leaf:0x3d4a2c,part:null,slip:1,skyTop:0x3d4a72,skyBottom:0xd98f4e,star:.72,sunA:1,terr:[1.16,1,.82],snow:0,water:0x3c4f5e,ridge:[.3,.28,.3]},
@@ -1438,13 +1459,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   skid.count=0;skid.frustumCulled=false;if(skid.instanceMatrix.setUsage)skid.instanceMatrix.setUsage(THREE.DynamicDrawUsage);S.add(skid);
   const add=(g,geo,m,x,y,z,sh=true)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=sh;g.add(o);return o};
   const headM=M(0xfff2c0,{emissive:0xfff2c0,emissiveIntensity:1.3}),tailM=M(0xff3b30,{emissive:0xff3b30,emissiveIntensity:.5});
-  const PCAR=buildEV({paint:0x640c0e,r:VEHS.car.r,zf:VEHS.car.zf,zb:VEHS.car.zb,F:2.42,B:-2.36,W:2.3,head:headM,tail:tailM});
+  let PCAR=buildEV({paint:0x640c0e,r:VEHS.car.r,zf:VEHS.car.zf,zb:VEHS.car.zb,F:2.42,B:-2.36,W:2.3,head:headM,tail:tailM});
   PCAR.g.position.y=.05-(VEHS.car.rest-.07)-VEHS.car.r;vis.bodyIn.add(PCAR.g);
-  const wv={car:[0,1,2,3].map(i=>makeWheel(VEHS.car.r,.36,i%2?-1:1,true,true))};wv.car.forEach(k=>vis.car.add(k.w));
+  let wv={car:[0,1,2,3].map(i=>makeWheel(VEHS.car.r,.36,i%2?-1:1,true,true))};wv.car.forEach(k=>vis.car.add(k.w));
   /* soft contact shadow so the car sits on the road instead of hovering over it */
+  let carShadow=null;
   {const c=document.createElement('canvas');c.width=64;c.height=128;const x=c.getContext('2d'),g=x.createRadialGradient(32,64,4,32,64,62);g.addColorStop(0,'rgba(0,0,0,.75)');g.addColorStop(.6,'rgba(0,0,0,.35)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,64,128);
    const sh=new THREE.Mesh(new THREE.PlaneGeometry(2.9,5.4).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}));
-   sh.position.y=.05-(VEHS.car.rest-.07)-.02;sh.renderOrder=1;vis.car.add(sh)}
+   sh.position.y=.05-(VEHS.car.rest-.07)-.02;sh.renderOrder=1;vis.car.add(sh);carShadow=sh}
   /* real headlights once the light drops: one spot on the road ahead, no shadow */
   let carHL=null;if(!LOW){carHL=new THREE.SpotLight(0xfff1d6,0,70,.52,.55,1.1);carHL.position.set(0,.1,2.3);carHL.target.position.set(0,-1.4,16);vis.car.add(carHL);vis.car.add(carHL.target)}
   /* light you can see: two soft beams in front of the car after dark */
@@ -1461,6 +1483,26 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     CARMATS.forEach(m=>{m.envMap=cubeRT.texture;m.needsUpdate=true})}catch(e){cubeCam=null}}
   const V=VEHS.car;
   function applyVehicle(){veh.wheelInfos.forEach((w,i)=>{const sx=i%2?-1:1;w.chassisConnectionPointLocal.set(sx*V.xw,.05,i<2?V.zf:V.zb);w.radius=V.r;w.suspensionRestLength=V.rest;w.frictionSlip=V.slip*wx.slip;w.rollInfluence=V.roll});chassisB.angularDamping=.4}
+  /* ---------- swap the whole car: physics rig, body mesh, wheels, mass, shadow ---------- */
+  let curCarId='aster';
+  const GARAGE_BASE_LEN=2.42-(-2.36);
+  function garageOf(id){return GARAGE.find(g=>g.id===id)||GARAGE[0]}
+  function setCar(id,paint,quiet){
+    const spec=garageOf(id);curCarId=spec.id;
+    const paintHex=paint!=null?paint:spec.paints[0];
+    Object.assign(V,spec.V);V.label=spec.label;
+    applyVehicle();
+    chassisB.mass=spec.mass;chassisB.updateMassProperties();
+    vis.bodyIn.remove(PCAR.g);
+    const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};
+    PCAR=spec.type==='ev'?buildEV(o):buildCar(Object.assign(o,{wagon:!!spec.wagon,wheels:false}));
+    PCAR.g.position.y=.05-(V.rest-.07)-V.r;vis.bodyIn.add(PCAR.g);
+    if(cubeRT)PCAR.g.traverse(m=>{if(m.material&&m.material.reflectivity!==undefined){m.material.envMap=cubeRT.texture;m.material.needsUpdate=true}});
+    wv.car.forEach(k=>vis.car.remove(k.w));
+    wv={car:[0,1,2,3].map(i=>makeWheel(V.r,.36,i%2?-1:1,true,true))};wv.car.forEach(k=>vis.car.add(k.w));
+    if(carShadow){carShadow.position.y=.05-(V.rest-.07)-.02;carShadow.scale.z=(spec.F-spec.B)/GARAGE_BASE_LEN}
+    try{localStorage.setItem('sl_car',JSON.stringify({id:spec.id,paint:paintHex}))}catch(e){}
+    if(!quiet)toastMsg(spec.label)}
   /* ---------- audio ----------
      It is an electric car, so there is no gearbox drone any more. A motor whine that rises
      smoothly with speed and gets louder under load (and on regen), tyre roar that follows
@@ -1523,6 +1565,33 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      addEventListener('pointerdown',e=>{if(!wx.classList.contains('on'))return;if(!wx.contains(e.target)&&e.target!==wb)setOpen(false)});
      $$('#dwxl button').forEach(b=>b.classList.toggle('on',b.dataset.w==='auto'))
    }}
+  /* ---------- garage ---------- */
+  {const gb=$('#dgarageb'),gp=$('#dgarage'),gx=$('#dgaragex'),gl=$('#dgcars'),gpaints=$('#dgpaints'),gname=$('#dgname'),gblurb=$('#dgblurb');
+   if(gb&&gp&&gl){
+     let curPaint=GARAGE[0].paints[0],hadSave=false;
+     try{const s=JSON.parse(localStorage.getItem('sl_car')||'null');
+       if(s&&garageOf(s.id)){hadSave=true;curPaint=s.paint!=null?s.paint:garageOf(s.id).paints[0];setCar(s.id,curPaint,true)}}catch(e){}
+     GARAGE.forEach(spec=>{const li=document.createElement('li');li.dataset.id=spec.id;
+       li.innerHTML='<span class="n">'+spec.label+'</span><span class="s">'+(spec.type==='ev'?'EV':'Petrol')+'</span>';
+       gl.appendChild(li)});
+     const refresh=()=>{const spec=garageOf(curCarId);
+       $$('#dgcars li').forEach(li=>li.classList.toggle('on',li.dataset.id===curCarId));
+       gblurb.textContent=spec.label+' · '+spec.blurb;
+       gpaints.innerHTML='';spec.paints.forEach(c=>{const b=document.createElement('button');
+         b.style.background='#'+c.toString(16).padStart(6,'0');b.dataset.p=c;
+         b.classList.toggle('on',c===curPaint);gpaints.appendChild(b)})};
+     refresh();
+     const setOpen=o=>{gp.classList.toggle('on',o);if(o){try{gname.value=localStorage.getItem('sl_name')||''}catch(e){}}};
+     gb.onclick=()=>setOpen(true);
+     gx.onclick=()=>setOpen(false);
+     gp.addEventListener('click',e=>{if(e.target===gp)setOpen(false)});
+     gl.addEventListener('click',e=>{const li=e.target.closest('li[data-id]');if(!li)return;
+       curPaint=garageOf(li.dataset.id).paints[0];setCar(li.dataset.id,curPaint);refresh()});
+     gpaints.addEventListener('click',e=>{const b=e.target.closest('button[data-p]');if(!b)return;
+       curPaint=+b.dataset.p;setCar(curCarId,curPaint);$$('#dgpaints button').forEach(x=>x.classList.toggle('on',x===b))});
+     gname.addEventListener('change',()=>{const nm=(gname.value||'').trim().slice(0,14);try{if(nm)localStorage.setItem('sl_name',nm)}catch(e){}});
+     if(!hadSave)setTimeout(()=>setOpen(true),900)
+   }}
   /* ---------- input ---------- */
   /* Stretches of the loop that feel different. Each band has a drag figure (0 = free,
      1 = crawling), a fog distance and a colour the light is pulled toward. It is one lookup
@@ -1543,7 +1612,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return {drag:d,fog:f,tint:[t0,t1,t2]}}
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
-  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');

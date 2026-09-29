@@ -22,15 +22,25 @@ pick a name and one of 5-6 cars, proper end-to-end racing feel, multiplayer up t
   Click toggles the popover, clicking a chip calls `setWeather(id)` and closes it; outside-click and picking a chip both close it.
   Verified headless: no console errors, all 13 chips render, clicking "Storm" sets it with no throw (`assets/game.js` ~1385-1525,
   `index.html` `#drow`/CSS near `.drow.open`).
+- Garage + 6 cars: `GARAGE` array (Aster/Volt GT/Phantom EVs via `buildEV`, Kestrel/Ridgeback/Mamba via `buildCar`), `setCar(id,paint)`
+  mutates the shared `V` spec object in place (`Object.assign(V,spec.V)` then `applyVehicle()`), swaps `PCAR.g`/`wv.car` meshes, sets
+  `chassisB.mass`+`updateMassProperties()`, repositions the contact shadow, reapplies `cubeRT` reflection to new materials.
+  Garage panel (`#dgarage`): name input, car list, blurb, paint swatches; auto-opens on first visit; persists `sl_car`/`sl_name`.
+  Turntable preview (second WebGLRenderer) was skipped as a stretch goal — not implemented.
+  Verified headless: button exists, 6 cars + 4 paints render, switching cars updates `.on` state correctly, `sl_car`/`sl_name` persist.
+
+## Bigger picture
+Swastik dropped a much larger production spec (10 maps, 5-car economy w/ purchases, full netcode rewrite with clock-sync/
+interpolation/jitter-buffer, checkpoint-based race engine, AI racing, quality tiers, etc). That doc's own instructions say to
+work it in phases — audit/fix performance FIRST, then core architecture, then content — rather than attempt it all at once.
+Treat items below as the concrete next steps within that Phase-1/2 window; re-derive later phases (maps, vehicles-economy,
+multiplayer rewrite) from the pasted spec when picking this back up rather than re-copying it here.
 
 ## Left (in order)
-1. Garage + 6 cars:
-   - `PCAR` is a `const` at ~line 1430, make it `let`. `V = VEHS.car` is mutable, `Object.assign(V, spec.V)` then `applyVehicle()`.
-   - `GARAGE` specs: Aster (EV, balanced), Volt GT (EV, wide/low, fast), Phantom (EV, longest, top speed, twitchy),
-     Kestrel (`buildCar` sedan, agile), Ridgeback (`buildCar` wagon, heavy/grippy), Mamba (`buildCar` sedan, quick/loose).
-   - `setCar(id, paint)`: swap `PCAR.g` in `vis.bodyIn`, rebuild `wv.car` wheels with `makeWheel(V.r,...)`, set `chassisB.mass`, `updateMassProperties()`.
-   - Garage panel: name input (localStorage `sl_name`), car list, stat bars, paint swatches, turntable preview on a second small WebGLRenderer.
-   - Auto-open on first visit. Save car in localStorage.
+1. Performance audit (do this before any new content): measure current FPS/draw calls/physics body count/particle count in this
+   headless rig or a real browser profiler, identify the actual bottleneck (don't guess), fix it, remeasure. Candidates already
+   visible in the code: per-object materials/geometries that could share instances, shadow casters, particle systems using
+   individual meshes instead of `THREE.Points`.
 2. Circuit mode (`MODE='circuit'`):
    - Arena = flat platform high above the world at y=900 (sky/shadow/moon already follow the camera, so no other changes needed).
      Physics: big static box. Hide `HF.mesh` while active. Reuse `farRidge.clone()` at y=900 for horizon.
@@ -49,8 +59,11 @@ pick a name and one of 5-6 cars, proper end-to-end racing feel, multiplayer up t
    - Allow solo race (tick must run when `race.st>0` without a room).
    - Room panel: show each player's car, current track, Start race.
    - Ghosts stay non-colliding by design (no authoritative server).
+   - Per the bigger-picture spec: also add ping display, synchronized countdown via shared `startAt` timestamp, client-side
+     interpolation buffer for remote cars (lerp position / slerp quaternion, never snap), reconnect/DNF handling.
 4. Test + tune: headless screenshots for each car, circuit drawer, race flow, 2-tab `?net=local` room test with 4 tabs.
 5. Update `README.md` and `MULTIPLAYER.md` (4 players, cars, circuits, weather, controls).
+6. Map/vehicle expansion toward the bigger-picture spec's 10 maps / 5-vehicle economy — only after 1-5 above are solid.
 
 ## Test rig
 Recreate as a throwaway script (don't commit it): playwright-core + chromium, flags
