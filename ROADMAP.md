@@ -57,7 +57,14 @@ multiplayer rewrite) from the pasted spec when picking this back up rather than 
      logic needed no other change. Verified: 2-tab `?net=local` create+join, both tabs see a 2-player roster, no console errors.
      Not yet verified at full 4 players — 4 concurrent software-rendered (swiftshader) tabs exceeds this dev box's headless
      capacity; re-test with 4 real tabs before shipping, or on a machine with real GPU accel.
-   - Add car id + paint to `hi`/`s` messages; `makeGhost` must build the peer's car with its own `V` spec (currently uses global `V`).
+   - Done: `hi` messages now carry `car:curCarId`; peers store `P.car`, `makeGhost(carId,col,name)` looks up the real `GARAGE`
+     spec (shape/dims/wheel radius) instead of hardcoding the default EV / global `V`. Mid-session car changes call
+     `mpCarNotify()` (set by `MP` to its `carChanged`, via an indirection var since `MP` isn't declared yet at the point
+     `setCar` is first called during page load — a direct `MP.carChanged()` reference there would throw a TDZ error) which
+     resends `hi` immediately, and `onMsg` rebuilds the peer's ghost in place, preserving position/visibility.
+     Paint intentionally NOT synced — ghost body color stays the room-assigned per-slot `PAL` color for driver identification.
+     Verified headless: 2-tab session, peer's ghost is built with the correct car shape, and switching car mid-race updates
+     the peer's `car` field and rebuilds the ghost live with no console errors.
    - `race` message carries track control points + laps; receivers build the same circuit deterministically, then countdown.
    - Generalise race progress to laps (`d` in lap units, finish at `d >= laps`), per-track length instead of `TLEN`.
    - Allow solo race (tick must run when `race.st>0` without a room).

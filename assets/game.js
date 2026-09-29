@@ -1484,7 +1484,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const V=VEHS.car;
   function applyVehicle(){veh.wheelInfos.forEach((w,i)=>{const sx=i%2?-1:1;w.chassisConnectionPointLocal.set(sx*V.xw,.05,i<2?V.zf:V.zb);w.radius=V.r;w.suspensionRestLength=V.rest;w.frictionSlip=V.slip*wx.slip;w.rollInfluence=V.roll});chassisB.angularDamping=.4}
   /* ---------- swap the whole car: physics rig, body mesh, wheels, mass, shadow ---------- */
-  let curCarId='aster';
+  let curCarId='aster',mpCarNotify=null;
   const GARAGE_BASE_LEN=2.42-(-2.36);
   function garageOf(id){return GARAGE.find(g=>g.id===id)||GARAGE[0]}
   function setCar(id,paint,quiet){
@@ -1502,6 +1502,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     wv={car:[0,1,2,3].map(i=>makeWheel(V.r,.36,i%2?-1:1,true,true))};wv.car.forEach(k=>vis.car.add(k.w));
     if(carShadow){carShadow.position.y=.05-(V.rest-.07)-.02;carShadow.scale.z=(spec.F-spec.B)/GARAGE_BASE_LEN}
     try{localStorage.setItem('sl_car',JSON.stringify({id:spec.id,paint:paintHex}))}catch(e){}
+    if(mpCarNotify)mpCarNotify();
     if(!quiet)toastMsg(spec.label)}
   /* ---------- audio ----------
      It is an electric car, so there is no gearbox drone any more. A motor whine that rises
@@ -2219,15 +2220,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       x.fillStyle='#f2eee6';x.font='700 27px -apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif';x.textBaseline='middle';
       let t=name;while(x.measureText(t).width>176&&t.length>2)t=t.slice(0,-1);x.fillText(t,50,34);
       const tx=new THREE.CanvasTexture(c);tx.minFilter=THREE.LinearFilter;return tx}
-    function makeGhost(col,name){
+    function makeGhost(carId,col,name){
+      const spec=garageOf(carId),sv=spec.V;
       const g=new THREE.Group(),vg=new THREE.Group(),bo=new THREE.Group(),bi=new THREE.Group();
       g.add(vg);bo.position.y=.55;vg.add(bo);bi.position.y=-.55;bo.add(bi);
-      const P=buildEV({paint:col,r:V.r,zf:V.zf,zb:V.zb,F:2.42,B:-2.36,W:2.3,head:headM,tail:tailM});
-      P.g.position.y=.05-(V.rest-.07)-V.r;bi.add(P.g);
-      const wl=[0,1,2,3].map(i=>{const k=makeWheel(V.r,.36,i%2?-1:1,true,true);
-        k.w.position.set((i%2?-1:1)*V.xw*.9,.05-V.rest,i<2?V.zf:V.zb);vg.add(k.w);return k});
+      const o={paint:col,r:sv.r,zf:sv.zf,zb:sv.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};
+      const P=spec.type==='ev'?buildEV(o):buildCar(Object.assign(o,{wagon:!!spec.wagon,wheels:false}));
+      P.g.position.y=.05-(sv.rest-.07)-sv.r;bi.add(P.g);
+      const wl=[0,1,2,3].map(i=>{const k=makeWheel(sv.r,.36,i%2?-1:1,true,true);
+        k.w.position.set((i%2?-1:1)*sv.xw*.9,.05-sv.rest,i<2?sv.zf:sv.zb);vg.add(k.w);return k});
       const sh=new THREE.Mesh(new THREE.PlaneGeometry(2.9,5.4).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:blob(),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,opacity:.7}));
-      sh.position.y=.05-(V.rest-.07)-.02;sh.renderOrder=1;vg.add(sh);
+      sh.position.y=.05-(sv.rest-.07)-.02;sh.renderOrder=1;vg.add(sh);
       // see-through: every material is a private copy so the traffic and the player keep theirs
       const seen=new Map();
       g.traverse(o=>{o.castShadow=false;if(!o.material||o===sh)return;
@@ -2237,7 +2240,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const tg=new THREE.Sprite(new THREE.SpriteMaterial({map:tagTex(name,col),transparent:true,depthTest:false,depthWrite:false,fog:false}));
       tg.renderOrder=999;tg.scale.set(6,1.5,1);
       S.add(g);S.add(tg);g.visible=false;tg.visible=false;
-      return {g,tg,wl,col,name}}
+      return {g,tg,wl,col,name,carId:spec.id}}
     function killGhost(P){if(!P.gh)return;const G=P.gh;S.remove(G.g);S.remove(G.tg);
       G.g.traverse(o=>{if(o.material&&!CARMATS.includes(o.material)){const mm=Array.isArray(o.material)?o.material:[o.material];mm.forEach(m=>m.dispose&&m.dispose())}});
       if(G.tg.material.map)G.tg.material.map.dispose();G.tg.material.dispose();P.gh=null}
@@ -2252,7 +2255,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         // more than MAXP in a room: the latest joiner is the one who is out
         const a=sorted().concat([{id:m.id,j}]).sort((x,y)=>x.j-y.j||(x.id<y.id?-1:1));
         if(a.findIndex(z=>z.id===m.id)>=MAXP)return null;
-        P={id:String(m.id).slice(0,12),n:clean(m.n)||'Driver',j,last:0,gh:null,tp:new THREE.Vector3(),tq:new THREE.Quaternion(),vx:0,vy:0,vz:0,pt:0,st:0,vf:0,wr:0,d:0,fin:0,got:false,sp:0};
+        P={id:String(m.id).slice(0,12),n:clean(m.n)||'Driver',j,last:0,gh:null,car:'aster',tp:new THREE.Vector3(),tq:new THREE.Quaternion(),vx:0,vy:0,vz:0,pt:0,st:0,vf:0,wr:0,d:0,fin:0,got:false,sp:0};
         peers.set(P.id,P);lg('add',P.n,'j',j,'me',me.j);
         if(idxOf(me.id)>=MAXP){leave('Room is full · '+MAXP+' drivers max');return null}
         toast2(P.n+' joined');ui()}
@@ -2261,7 +2264,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function toast2(s){try{toastMsg(s)}catch(e){}}
     /* ----- messages ----- */
     function send(m){if(net&&status==='up'){m.id=me.id;net.send(m)}}
-    function sendHi(rep){send({k:'hi',n:myName(),j:me.j,r:rep?1:0})}
+    function sendHi(rep){send({k:'hi',n:myName(),j:me.j,r:rep?1:0,car:curCarId})}
     function onMsg(m){
       if(!m||typeof m!=='object'||m.id===me.id||typeof m.id!=='string'||!room)return;
       const now=performance.now();
@@ -2270,6 +2273,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       if(!P){if((m.k!=='hi'&&m.k!=='s')||!(+m.j>0))return;P=addPeer(m);if(!P)return}
       P.last=now;
       if(m.n){const nn=clean(m.n);if(nn&&nn!==P.n){P.n=nn;if(P.gh){P.gh.tg.material.map.dispose();P.gh.tg.material.map=tagTex(nn,P.gh.col);P.gh.name=nn}ui()}}
+      if(m.car){const cid=garageOf(String(m.car)).id;if(cid!==P.car){P.car=cid;
+        if(P.gh){const was=P.gh;killGhost(P);P.gh=makeGhost(P.car,was.col,P.n);
+          P.gh.g.position.copy(P.tp);P.gh.g.quaternion.copy(P.tq);P.gh.g.visible=was.g.visible;P.gh.tg.visible=was.tg.visible}}}
       switch(m.k){
         case 'hi':if(!m.r)sendHi(true);break;
         case 's':{
@@ -2277,7 +2283,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
           const x=num(m.p[0],-1e4,1e4,0),y=num(m.p[1],-500,2000,0),z=num(m.p[2],-1e4,1e4,0);
           if(!P.got||Math.hypot(x-P.tp.x,z-P.tp.z)>60){P.got=true;P.pt=0;P.vx=P.vy=P.vz=0;P.tp.set(x,y,z);
             P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize();
-            const G=P.gh||(P.gh=makeGhost(colorOf(P.id),P.n));G.g.position.copy(P.tp);G.g.quaternion.copy(P.tq);G.g.visible=true;G.tg.visible=true}
+            const G=P.gh||(P.gh=makeGhost(P.car,colorOf(P.id),P.n));G.g.position.copy(P.tp);G.g.quaternion.copy(P.tq);G.g.visible=true;G.tg.visible=true}
           else{const dt=Math.max(.04,Math.min(.5,(now-P.pt)/1000)),a=.6;
             P.vx+=((x-P.tp.x)/dt-P.vx)*a;P.vy+=((y-P.tp.y)/dt-P.vy)*a;P.vz+=((z-P.tp.z)/dt-P.vz)*a;
             P.tp.set(x,y,z);P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize()}
@@ -2434,6 +2440,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     // a friend's invite link opens straight into the room
     {const m=/[?&]room=([A-Za-z0-9]{4,6})/.exec(location.search);
      if(m)setTimeout(()=>{me.n=savedName();join(m[1])},300)}
+    function carChanged(){if(room)sendHi(true)}
+    mpCarNotify=carChanged;
     return {tick,join,leave,LOG,get on(){return !!room},get state(){return {room,status,peers,race,me}},_dbg:{sorted}}
   })();
   /* ---------- go ---------- */
