@@ -53,7 +53,11 @@ multiplayer rewrite) from the pasted spec when picking this back up rather than 
    - AI bots for solo: kinematic followers like `traffic`, speed profile from curvature (forward/backward pass), 3 skill levels.
    - 3 preset circuits + saved user circuits (localStorage, max 8).
 3. Multiplayer rewrite (`MP` block near the end of `game.js`):
-   - `MAXP = 3 -> 4`. Add car id + paint to `hi`/`s` messages; `makeGhost` must build the peer's car with its own `V` spec (currently uses global `V`).
+   - Done: `MAXP = 3 -> 4` (index.html copy updated to match). `PAL` already had 4 colors defined, so `colorOf`/roster/room-full
+     logic needed no other change. Verified: 2-tab `?net=local` create+join, both tabs see a 2-player roster, no console errors.
+     Not yet verified at full 4 players — 4 concurrent software-rendered (swiftshader) tabs exceeds this dev box's headless
+     capacity; re-test with 4 real tabs before shipping, or on a machine with real GPU accel.
+   - Add car id + paint to `hi`/`s` messages; `makeGhost` must build the peer's car with its own `V` spec (currently uses global `V`).
    - `race` message carries track control points + laps; receivers build the same circuit deterministically, then countdown.
    - Generalise race progress to laps (`d` in lap units, finish at `d >= laps`), per-track length instead of `TLEN`.
    - Allow solo race (tick must run when `race.st>0` without a room).
