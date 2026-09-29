@@ -70,17 +70,39 @@ multiplayer rewrite) from the pasted spec when picking this back up rather than 
      real delta. Total scene mesh count elsewhere (~640 individual meshes) is the next place to look for further wins.
    - Still open: identify and consolidate remaining one-off meshes pushing draw calls over 213 in-frustum (profile which ones exist per
      map, group static props into fewer draw calls or InstancedMesh where their transforms allow it), then remeasure.
-2. Circuit mode (`MODE='circuit'`):
-   - Arena = flat platform high above the world at y=900 (sky/shadow/moon already follow the camera, so no other changes needed).
-     Physics: big static box. Hide `HF.mesh` while active. Reuse `farRidge.clone()` at y=900 for horizon.
-   - Drawer overlay: freehand canvas, resample, smooth, close loop, reject self-intersection, enforce min corner radius,
-     scale to Short/Medium/Long lap length, closed `CatmullRomCurve3`, sample ~1 point per 3m.
-   - Build: asphalt strip (reuse `roadTex`), kerbs, instanced barriers + physics segments, start gantry, grandstand, tyre walls.
-   - Guard world-only code with `MODE==='world'`: `progU` scan, missions, lap timer, traffic, wrong-way, `resetCar` (reset to last checkpoint in circuit).
-   - Offroad drag via `ZN.drag` override, circuit minimap in `drawMap`.
-   - Race engine: cumulative forward progress along centerline (only counts on road), laps, lap times, best lap, positions, results screen.
-   - AI bots for solo: kinematic followers like `traffic`, speed profile from curvature (forward/backward pass), 3 skill levels.
-   - 3 preset circuits + saved user circuits (localStorage, max 8).
+2. Circuit mode (`MODE='circuit'`) - **first slice done**, deliberately scoped small and verified before adding more:
+   - Draw: `#dcircb` ("Draw track"/"Go to track"/"Back to world", state-dependent) opens a fullscreen pointer-drag canvas
+     (`#dcirc`). On release: resample to a fixed ~110-point density (picking `step` from the path's own length up front,
+     NOT resampling-then-truncating - truncating after the fact silently chopped off the closing stretch of the loop in
+     testing, which both broke closure and hid a genuine self-crossing that fell past the old 140-point cutoff, so this
+     is a real bug found and fixed, not a hypothetical), reject if too small, reject if it doesn't close back near the
+     start, reject on any non-adjacent segment self-intersection (`segInt`, standard segment-crossing formula), reject
+     on any single-vertex turn sharper than 95°. Each rejection shows a specific reason in `#dcircerr`.
+   - Build: valid loop -> closed `CatmullRomCurve3` scaled so its perimeter is a fixed 420m (no Short/Medium/Long choice
+     yet), placed at a fixed spot far outside the main map (`CIRC_X,CIRC_Z` well past `WS`) rather than the original
+     y=900-elevated-platform idea - confirmed sky/stars/moon already re-anchor to the camera every frame regardless of
+     position (`sky.position.copy(C.position)` etc in `loop()`), so an XZ offset alone needed zero other setup and is
+     simpler than elevating. Asphalt ribbon reuses `roadM`/`edgeM` via a generic `circStrip()` (same recipe as the
+     world's own `strip()`). Collision is deliberately just one big flat static box under the whole loop + margin - off-
+     road is a logical distance-to-centerline thing, same as the main map already does, not a physical curb wall.
+   - Race: `chassisB` teleports to the start point on entry (world position saved and restored on "Back to world"); lap
+     progress is a nearest-point search on a sampled array of the circuit curve (same pattern as the world's own `progU`),
+     wrapping from u>.82 back to u<.18 counts a lap, announced via `toastMsg` with `fmtT`, best lap tracked in memory.
+     `resetCar()` (R key, and the fall-through/flip safety checks) branches to the circuit's own curve when `MODE==='circuit'`
+     instead of the world's `at(progU)`, so those don't warp the player back to the main map.
+   - Guarded world-only per-frame systems with `MODE==='world'`: the `progU`/lamp/summit/mood scan, the missions block,
+     `updTraffic`, `WORLDFX`/`WORLD2`, and the world's own "Time a lap" (`raceMode`) block - none of these make sense
+     against a circuit's coordinates. `ZN` (drag zone) is forced to a neutral `{drag:0}` in circuit mode instead of
+     calling `zoneAt(progU)` with a stale/irrelevant `progU`.
+   - Verified headless end-to-end: draw a valid ellipse -> accepted -> enter -> car teleports and `MODE` flips -> drive
+     15s -> lap-progress metric genuinely advances (0 -> 0.14, confirming the nearest-point search tracks the real drawn
+     track, not just "didn't crash") -> leave -> position and `MODE` restored exactly. Separately verified both
+     rejection paths fire for the right reason (tiny scribble -> "bigger loop"; a deliberately self-intersecting bowtie
+     -> "crosses itself", which is what caught the truncation bug above). No console errors in any of it.
+   - Explicitly NOT in this pass (see the mega-spec conversation for the full picture): checkpoints/anti-cheat beyond the
+     simple wrap-detection above, AI bots, Short/Medium/Long length choice, saved circuits (localStorage), minimap
+     integration, a start gantry/grandstand/tyre walls, and multiplayer circuits (`race` message carrying control
+     points). Each is a legitimate next slice, not forgotten.
 3. Multiplayer rewrite (`MP` block near the end of `game.js`):
    - Done: `MAXP = 3 -> 4` (index.html copy updated to match). `PAL` already had 4 colors defined, so `colorOf`/roster/room-full
      logic needed no other change. Verified: 2-tab `?net=local` create+join, both tabs see a 2-player roster, no console errors.

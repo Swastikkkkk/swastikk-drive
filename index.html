@@ -192,6 +192,12 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 #dload{position:fixed;inset:0;display:grid;place-items:center;background:#06070b;color:var(--bone);z-index:9;font:500 11px var(--mono);letter-spacing:.2em;text-transform:uppercase}
 #dgarage{position:absolute;inset:0;z-index:5;display:none;place-items:center;background:rgba(8,8,7,.86);backdrop-filter:blur(6px);padding:24px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 #dgarage.on{display:grid;animation:dvin .35s cubic-bezier(.2,.8,.2,1)}
+#dcirc{position:absolute;inset:0;z-index:5;display:none;background:rgba(8,8,7,.7)}
+#dcirc.on{display:block;animation:dvin .3s cubic-bezier(.2,.8,.2,1)}
+#dcircdraw{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#dcirctop{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);color:var(--bone);pointer-events:none;text-align:center}
+#dcircerr{position:absolute;top:calc(46px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);color:#c94f3f;pointer-events:none;text-align:center;max-width:80vw}
+#dcircbtns{position:absolute;bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);display:flex;gap:10px}
 #dgcars{list-style:none;margin:14px 0 0;padding:0;border-top:1px solid var(--line)}
 #dgcars li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line);cursor:pointer}
 #dgcars li.on{background:rgba(212,168,58,.12)}
@@ -209,7 +215,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
   <canvas id="dc"></canvas>
   <div id="dhud">
     <div class="dtl"><div class="mono" id="dhint"></div></div>
-    <div class="dright"><canvas id="dmap" width="180" height="180" title="Open map (M)"></canvas><button id="dmenu" class="dbtn mono" aria-expanded="false" aria-controls="drow">Menu <span class="mchev">&#9662;</span></button><div class="drow" id="drow"><button id="drace" class="dbtn mono" title="Start a timed lap (L)">Time a lap</button><button id="dboardb" class="dbtn mono" title="Fastest laps (B)">Laps</button><button id="droom" class="dbtn mono" title="Race friends as ghosts">Room</button><button id="dgarageb" class="dbtn mono" title="Choose your car">Garage</button><button id="dtiltb" class="dbtn mono dtouch">Tilt: off</button><button id="dresetb" class="dbtn mono dtouch">Reset</button><button id="dmute" class="dbtn mono">Sound on</button><button id="dweatherb" class="dbtn mono" aria-expanded="false" aria-controls="dwx" title="Weather">Weather</button><button id="dnight" class="dbtn mono" title="Night (N)">Night</button></div><div id="dwx"><div id="dwxl"></div></div></div>
+    <div class="dright"><canvas id="dmap" width="180" height="180" title="Open map (M)"></canvas><button id="dmenu" class="dbtn mono" aria-expanded="false" aria-controls="drow">Menu <span class="mchev">&#9662;</span></button><div class="drow" id="drow"><button id="drace" class="dbtn mono" title="Start a timed lap (L)">Time a lap</button><button id="dboardb" class="dbtn mono" title="Fastest laps (B)">Laps</button><button id="droom" class="dbtn mono" title="Race friends as ghosts">Room</button><button id="dgarageb" class="dbtn mono" title="Choose your car">Garage</button><button id="dcircb" class="dbtn mono" title="Draw and race your own track">Draw track</button><button id="dtiltb" class="dbtn mono dtouch">Tilt: off</button><button id="dresetb" class="dbtn mono dtouch">Reset</button><button id="dmute" class="dbtn mono">Sound on</button><button id="dweatherb" class="dbtn mono" aria-expanded="false" aria-controls="dwx" title="Weather">Weather</button><button id="dnight" class="dbtn mono" title="Night (N)">Night</button></div><div id="dwx"><div id="dwxl"></div></div></div>
     <div id="dlap"><div class="lrow"><span class="mono">Lap</span><b id="dlapt">--:--.--</b></div><div class="lsub mono"><span id="dlapn">Lap 1</span><span id="dlapb">Best --:--.--</span></div><div class="lsec"><i></i><i></i><i></i><i></i></div></div>
     <div id="dmiss"><div class="mono mt">Mission <span id="dmissc">0/9</span></div><div class="mh" id="dmissh">-</div><div class="mono ms" id="dmisss">-</div></div>
     <div id="dmpr" class="mono"></div>
@@ -233,6 +239,15 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
     <div id="dgpaints"></div>
     <button id="dgaragex" class="dbtn mono bd-x">Close &#10005;</button>
   </div></div>
+  <div id="dcirc">
+    <canvas id="dcircdraw"></canvas>
+    <div id="dcirctop" class="mono">Draw a closed loop for your track</div>
+    <div id="dcircerr" class="mono"></div>
+    <div id="dcircbtns">
+      <button id="dcircclear" class="dbtn mono">Clear</button>
+      <button id="dcircx" class="dbtn mono">Cancel</button>
+    </div>
+  </div>
   <div id="dmp"><div class="bd-in">
     <div class="mono" style="color:var(--bone)">Ghost race &middot; up to 4 drivers</div>
     <h3 class="disp">Room</h3>

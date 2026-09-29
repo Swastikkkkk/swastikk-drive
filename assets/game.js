@@ -1633,7 +1633,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return {drag:d,fog:f,tint:[t0,t1,t2]}}
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
-  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -1697,7 +1697,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let camMode=0;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}
   function cycleCam(){camMode=(camMode+1)%CAMS.length;try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' \u00b7 C to switch')}
   {const nb=document.getElementById('dnight');if(nb){const cb=nb.cloneNode(true);cb.id='dcam';cb.textContent='Camera';cb.title='Camera (C)';nb.after(cb);cb.onclick=()=>cycleCam()}}
-  function resetCar(){const {p,tg}=at(progU);PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
+  function resetCar(){const {p,tg}=(MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve):at(progU);PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
     chassisB.position.set(p.x,p.y+1.4,p.z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
     chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0);chassisB.linearDamping=.01;chassisB.angularDamping=.4;
     chassisB.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),Math.atan2(tg.x,tg.z));
@@ -1873,7 +1873,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       {const pd=Math.hypot(chassisB.position.x-POND.x,chassisB.position.z-POND.z),pr=pondR(chassisB.position.x,chassisB.position.z);
        sub=pd<pr*1.05?Math.max(0,Math.min(1,(WATER_Y-(chassisB.position.y-.52))/1.5)):0}
       inPond=sub>.06;
-      ZN=zoneAt(progU);const zd=ZN.drag;
+      ZN=MODE==='circuit'?{drag:0,fog:1,tint:[1,1,1]}:zoneAt(progU);const zd=ZN.drag;
       padT=Math.max(0,padT-dt);const boost=(key.boost||padT>0)?1:0;
       const eMul=(1-sub*.66)*(1-zd*.52),vmax=V.max*(1+boost*.28)*(1-sub*.68)*(1-zd*.38);
       /* Tractive force used to be flat all the way to the cap, so the car pulled just as
@@ -1933,10 +1933,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
          drawn interpolated between the last two physics states. */
       physAcc+=dt;{let n=0;while(physAcc>=PSTEP&&n<4){world.step(PSTEP);physAcc-=PSTEP;n++}if(n>=4)physAcc=0}
       const dv=tmp.set(chassisB.velocity.x,chassisB.velocity.y,chassisB.velocity.z).sub(lastV).length();lastV.set(chassisB.velocity.x,chassisB.velocity.y,chassisB.velocity.z);if(dv>7){shake=Math.min(1,dv/25);thud(Math.min(1,(dv-5)/18))}
-      if(chassisB.position.y<-9||!isFinite(chassisB.position.y)||!isFinite(chassisB.velocity.x)){resetCar();toastMsg('Pulled you back onto the road')}
+      if(chassisB.position.y<(MODE==='circuit'?CIRC_Y-15:-9)||!isFinite(chassisB.position.y)||!isFinite(chassisB.velocity.x)){resetCar();toastMsg('Pulled you back onto the road')}
       UPV.set(0,1,0);const up=bodyUp;chassisB.quaternion.vmult(UPV,up);if(up.y<.25){flipT+=dt;if(flipT>1.8){resetCar();flipT=0;toastMsg('Back on the road, lock in')}}else flipT=0;
       if(f||b||l||rr||Math.abs(tiltSteer)>.12)idleT=0;else{idleT+=dt;if(idleT>10){idleT=-999;toastMsg(TOUCH?'Hold GAS on the right':'W to drive.')}}
-      if(frameN%4===0){let best=1e9,bi=0;for(let i=0;i<=N;i+=2){const d=(SAMP[i].x-chassisB.position.x)**2+(SAMP[i].z-chassisB.position.z)**2;if(d<best){best=d;bi=i}}const u=bi/N;if(best<60&&(u>progU||u<progU-.5))progU=u;prog.geometry.setDrawRange(0,Math.floor(progU*N)*6);if(frameN%16===0)lamps.forEach(L=>{L.bulb.material.color.setHex(L.u<=progU?0xf2eee6:0x3a3733)});
+      if(MODE==='world'&&frameN%4===0){let best=1e9,bi=0;for(let i=0;i<=N;i+=2){const d=(SAMP[i].x-chassisB.position.x)**2+(SAMP[i].z-chassisB.position.z)**2;if(d<best){best=d;bi=i}}const u=bi/N;if(best<60&&(u>progU||u<progU-.5))progU=u;prog.geometry.setDrawRange(0,Math.floor(progU*N)*6);if(frameN%16===0)lamps.forEach(L=>{L.bulb.material.color.setHex(L.u<=progU?0xf2eee6:0x3a3733)});
         const summitD=Math.hypot(car.position.x-PEAK.x,car.position.z-PEAK.z);
         const wasSummit=atSummit;atSummit=summitD<12;recapCam=atSummit;
         if(atSummit&&!wasSummit){summitMoodBack=CHMOOD[act]||'day';if(!nightOn)mood('dusk',5);blip(600,.16,.08);toastMsg('The summit')}
@@ -1944,8 +1944,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         /* the sky settles into each stretch of the road as you drive into it */
         {let a=0;for(let k=0;k<ACTS.length;k++)if(progU>=ACTS[k][0]-.028)a=k;
          if(a!==act){act=a;if(!nightOn)mood(CHMOOD[a],6);chapEase=1}}}
-      /* ---- missions ---- */
-      {const mc=curMission();
+      /* ---- missions (world only - circuit has no missions in this pass) ---- */
+      if(MODE==='world'){const mc=curMission();
        if(mc&&mc.id==='rings'){const r=rings[ringIdx];
          if(r&&!r.done&&Math.hypot(r.pos.x-car.position.x,r.pos.z-car.position.z)<3.8){r.done=true;ringIdx++;missSet('rings',ringIdx)}}
        if(sub>.45)missSet('swim',1);
@@ -1954,8 +1954,19 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
        let airborne=true;for(let i=0;i<veh.wheelInfos.length;i++)if(veh.wheelInfos[i].isInContact){airborne=false;break}
        if(airborne&&sp>4&&sub<.1){airT+=dt;if(airT>1)missSet('air',1)}else airT=0;
        if(sp>6)for(const r of RAMPS)if(!rampHit.has(r.id)&&Math.hypot(r.x-car.position.x,r.z-car.position.z)<4){rampHit.add(r.id);missSet('ramps',rampHit.size)}}
+      /* ---- circuit lap tracking ---- */
+      if(MODE==='circuit'&&circuit){
+        let best=1e9,bi=0;const {CSAMP,CN}=circuit;
+        for(let i=0;i<CN;i++){const dx=CSAMP[i].x-chassisB.position.x,dz=CSAMP[i].z-chassisB.position.z,d=dx*dx+dz*dz;if(d<best){best=d;bi=i}}
+        const u=bi/CN;
+        if(circU0<0){circU0=u;circLapT0=now}
+        else{if(circU0>.82&&u<.18){circLap++;const t=now-circLapT0;circLapT0=now;
+            if(!circBest||t<circBest)circBest=t;
+            toastMsg('Lap '+circLap+' · '+fmtT(t))}
+          circU0=u}
+        if(frameN%20===0)hint.textContent='Circuit · lap '+(circLap+1)+(circBest?' · best '+fmtT(circBest):'')+' · Track button to leave'}
       /* ---- lap timing ---- */
-      if(raceMode){
+      if(raceMode&&MODE==='world'){
         // the ramp yard is off the timed circuit, so treat it exactly like being off-road
         const rn0=roadNear(car.position.x,car.position.z);
         const rn=rn0.branch?{d:99,u:lapU}:rn0;
@@ -2053,8 +2064,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       dynITouched.forEach(im=>im.instanceMatrix.needsUpdate=true)}
     const tt=now/1000;
     rings.forEach(q=>{if(q.g.visible){q.ring.rotation.z+=dt*1.5;q.ring2.rotation.z-=dt*2.1}});
-    if(active&&driving)updTraffic(dt,now);
-    if(active){WORLDFX(dt,now);WORLD2(dt,now)}
+    if(active&&driving&&MODE==='world')updTraffic(dt,now);
+    if(active&&MODE==='world'){WORLDFX(dt,now);WORLD2(dt,now)}
     // the lamps only need repainting a few times a second to read as changing
     if(active&&frameN%5===0)updLights(now/1000);
     if(active)birds.forEach(b=>{b.a+=dt*b.sp;const x=POND.x+Math.cos(b.a)*b.r,z=POND.z+Math.sin(b.a)*b.r;b.g.position.set(x,b.y+Math.sin(tt*.6+b.a)*.6,z);b.g.rotation.y=-b.a+Math.PI/2;const fl=Math.sin(tt*9+b.a)*.9;b.wL.rotation.z=fl;b.wR.rotation.z=-fl});
@@ -2187,6 +2198,137 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   {const an=Math.min(8,R.capabilities&&R.capabilities.getMaxAnisotropy?R.capabilities.getMaxAnisotropy():1);
    if(an>1)S.traverse(o=>{const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];
      ms.forEach(m=>{if(m.map&&m.map.anisotropy<an){m.map.anisotropy=an;m.map.needsUpdate=true}})})}
+  /* ---------- circuit mode: draw a closed loop, race on it ----------
+     First slice only (see ROADMAP.md): freehand draw -> validate (closed, no self-intersection,
+     no too-sharp corners, big enough) -> smoothed closed curve -> asphalt ribbon + one flat
+     static ground plate under the whole thing, built far outside the main map so nothing
+     overlaps it. Sky/stars/moon/sun all already re-anchor to the camera every frame (see
+     loop() above), so placing the arena anywhere in X/Z needs no other change - deliberately
+     NOT using the y=900 elevated-platform idea from the original notes, since XZ offset alone
+     is already proven safe by that same camera-relative code and needed zero new setup.
+     Off-road here is a logical distance-to-centerline check, same as the main map - there is
+     no separate curb collision, just the one ground plate, so the car can never fall through.
+     AI, checkpoints/anti-cheat, saved circuits, Short/Medium/Long length choice and multiplayer
+     circuits are NOT in this pass. */
+  const CIRC_X=0,CIRC_Z=-(WS+500),CIRC_Y=40,CIRC_LEN=420,CIRC_W=10;
+  let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null;
+  function circAt(u,curve){u=((u%1)+1)%1;const p=curve.getPointAt(u).clone();const tg=curve.getTangentAt(u);return {p,tg,n:new THREE.Vector3(-tg.z,0,tg.x)}}
+  function circStrip(curve,Nseg,w,yo,mat,rep){const pos=[],idx=[],uv=[];
+    for(let i=0;i<=Nseg;i++){const {p,n}=circAt(i/Nseg,curve),nx=n.x*w/2,nz=n.z*w/2;
+      pos.push(p.x-nx,p.y+yo,p.z-nz,p.x+nx,p.y+yo,p.z+nz);uv.push(0,i/Nseg*rep,1,i/Nseg*rep);
+      if(i<Nseg){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2)}}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
+    return new THREE.Mesh(g,mat)}
+  function clearCircuit(){if(!circuit)return;S.remove(circuit.root);
+    circuit.root.traverse(o=>{if(o.geometry)o.geometry.dispose()});
+    if(circuit.groundBody)world.removeBody(circuit.groundBody);
+    circuit=null}
+  function buildCircuit(pts2D){ // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
+    clearCircuit();
+    const pts3=pts2D.map(q=>new THREE.Vector3(CIRC_X+q.x,CIRC_Y,CIRC_Z+q.y));
+    const curve=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);
+    const CN=Math.max(60,Math.min(240,Math.round(curve.getLength()/3)));
+    const CSAMP=[];for(let i=0;i<CN;i++)CSAMP.push(curve.getPointAt(i/CN));
+    const root=new THREE.Group();S.add(root);
+    const rep=curve.getLength()/12;
+    const edgeStrip=circStrip(curve,CN,CIRC_W+1.8,.04,edgeM,rep);edgeStrip.receiveShadow=true;root.add(edgeStrip);
+    const roadStrip=circStrip(curve,CN,CIRC_W,.09,roadM,rep);roadStrip.receiveShadow=true;root.add(roadStrip);
+    // one flat plate under the whole loop - the simplest correct collision, matching how the
+    // main map already treats off-road as a logical grip penalty rather than a physical wall
+    let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;pts3.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z)});
+    const hx=(maxX-minX)/2+20,hz=(maxZ-minZ)/2+20,cx=(minX+maxX)/2,cz=(minZ+maxZ)/2;
+    const groundMat=M(0x2c3a26,{roughness:.95});
+    const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(hx*2,1,hz*2),groundMat);groundMesh.position.set(cx,CIRC_Y-.5,cz);groundMesh.receiveShadow=true;root.add(groundMesh);
+    const groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Box(new CANNON.Vec3(hx,.5,hz)));groundBody.position.set(cx,CIRC_Y-.5,cz);world.addBody(groundBody);
+    const startP=circAt(0,curve);
+    const flag=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,1.6).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.85,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+    flag.position.set(startP.p.x,CIRC_Y+.12,startP.p.z);flag.rotation.y=Math.atan2(startP.tg.x,startP.tg.z);root.add(flag);
+    circuit={curve,CN,CSAMP,root,groundBody,startP};
+    return circuit}
+  function enterCircuit(){if(!circuit)return;
+    worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
+    MODE='circuit';circU0=-1;circLap=0;circBest=null;circLapT0=performance.now();
+    const {p,tg}=circuit.startP;
+    PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
+    chassisB.position.set(p.x,p.y+1.4,p.z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
+    chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0);
+    chassisB.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),Math.atan2(tg.x,tg.z));
+    veh.wheelInfos.forEach(w=>{w.suspensionLength=w.suspensionRestLength;w.deltaRotation=0});
+    for(let i=0;i<4;i++){veh.applyEngineForce(0,i);veh.setBrake(0,i)}
+    toastMsg('Circuit mode · one lap is once around your track');updCircBtn()}
+  function leaveCircuit(){if(MODE!=='circuit')return;
+    MODE='world';
+    if(worldSave){PREV.ok=false;physAcc=0;chassisB.position.copy(worldSave.p);chassisB.quaternion.copy(worldSave.q);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0)}
+    hint.textContent=TOUCH?'':'WASD drive · C camera · L time a lap · M map · R reset';
+    toastMsg('Back to the valley');updCircBtn()}
+  /* ---------- drawing overlay ---------- */
+  const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr');
+  const circCx=circCv?circCv.getContext('2d'):null;
+  let drawPts=[],drawingNow=false;
+  function resizeDrawCv(){if(!circCv)return;circCv.width=innerWidth;circCv.height=innerHeight}
+  addEventListener('resize',resizeDrawCv);
+  function redrawPath(){if(!circCx)return;circCx.clearRect(0,0,circCv.width,circCv.height);
+    if(drawPts.length<2)return;
+    circCx.strokeStyle='#f2eee6';circCx.lineWidth=4;circCx.lineJoin='round';circCx.lineCap='round';
+    circCx.beginPath();circCx.moveTo(drawPts[0].x,drawPts[0].y);
+    for(let i=1;i<drawPts.length;i++)circCx.lineTo(drawPts[i].x,drawPts[i].y);
+    circCx.stroke()}
+  function openDrawer(){if(!circDrawEl)return;resizeDrawCv();drawPts=[];drawingNow=false;if(circErrEl)circErrEl.textContent='';redrawPath();circDrawEl.classList.add('on')}
+  function closeDrawer(){if(circDrawEl)circDrawEl.classList.remove('on')}
+  if(circCv){
+    const posOf=e=>{const r=circCv.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}};
+    circCv.addEventListener('pointerdown',e=>{drawingNow=true;drawPts=[posOf(e)];if(circErrEl)circErrEl.textContent='';try{circCv.setPointerCapture(e.pointerId)}catch(_){}});
+    circCv.addEventListener('pointermove',e=>{if(!drawingNow)return;const p=posOf(e);const last=drawPts[drawPts.length-1];
+      if(Math.hypot(p.x-last.x,p.y-last.y)>3){drawPts.push(p);redrawPath()}});
+    ['pointerup','pointercancel'].forEach(ev=>circCv.addEventListener(ev,()=>{if(!drawingNow)return;drawingNow=false;finishDraw()}))}
+  function segInt(a,b,c,d){
+    const d1=(d.x-c.x)*(a.y-c.y)-(d.y-c.y)*(a.x-c.x),d2=(d.x-c.x)*(b.y-c.y)-(d.y-c.y)*(b.x-c.x),
+      d3=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),d4=(b.x-a.x)*(d.y-a.y)-(b.y-a.y)*(d.x-a.x);
+    return ((d1>0&&d2<0)||(d1<0&&d2>0))&&((d3>0&&d4<0)||(d3<0&&d4>0))}
+  function resamplePath(pts,step){const out=[pts[0]];let acc=0;
+    for(let i=1;i<pts.length;i++){let a=pts[i-1];const b=pts[i];let segLen=Math.hypot(b.x-a.x,b.y-a.y);
+      while(acc+segLen>=step){const t=(step-acc)/segLen,nx=a.x+(b.x-a.x)*t,ny=a.y+(b.y-a.y)*t;out.push({x:nx,y:ny});a={x:nx,y:ny};segLen=Math.hypot(b.x-a.x,b.y-a.y);acc=0}
+      acc+=segLen}
+    return out}
+  function drawFail(msg){if(circErrEl)circErrEl.textContent=msg;drawPts=[];redrawPath()}
+  function finishDraw(){
+    if(drawPts.length<8){drawFail('Draw a bigger loop.');return}
+    const first=drawPts[0],last=drawPts[drawPts.length-1];
+    const closeDist=Math.hypot(last.x-first.x,last.y-first.y);
+    let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;drawPts.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)});
+    const diag=Math.hypot(maxX-minX,maxY-minY);
+    if(diag<120){drawFail('Draw a bigger loop.');return}
+    if(closeDist>diag*.22){drawFail('Loop has to close - end near where you started.');return}
+    const closed=drawPts.slice();closed.push({x:first.x,y:first.y});
+    // target a fixed point count by picking the step from the path's own length, rather than
+    // resampling then truncating the array - truncating after the fact can chop off the closing
+    // stretch of the loop and silently hide a crossing that falls past the cutoff
+    let rawLen=0;for(let i=1;i<closed.length;i++)rawLen+=Math.hypot(closed[i].x-closed[i-1].x,closed[i].y-closed[i-1].y);
+    const step=Math.max(4,rawLen/110);
+    const rs=resamplePath(closed,step);
+    if(rs.length<10){drawFail('Draw a bigger loop.');return}
+    for(let i=0;i<rs.length-1;i++)for(let j=i+2;j<rs.length-1;j++){
+      if(i===0&&j===rs.length-2)continue;
+      if(segInt(rs[i],rs[i+1],rs[j],rs[j+1])){drawFail('Track crosses itself. Try a simpler loop.');return}}
+    for(let i=0;i<rs.length-1;i++){
+      const a=rs[(i-1+rs.length-1)%(rs.length-1)],b=rs[i],c=rs[i+1];
+      const v1x=b.x-a.x,v1y=b.y-a.y,v2x=c.x-b.x,v2y=c.y-b.y,l1=Math.hypot(v1x,v1y)||1,l2=Math.hypot(v2x,v2y)||1;
+      const cos=Math.max(-1,Math.min(1,(v1x*v2x+v1y*v2y)/(l1*l2))),ang=Math.acos(cos)*180/Math.PI;
+      if(ang>95){drawFail('Track has a sharp corner. Try drawing a wider turn.');return}}
+    let perim=0;for(let i=0;i<rs.length-1;i++)perim+=Math.hypot(rs[i+1].x-rs[i].x,rs[i+1].y-rs[i].y);
+    const scale=CIRC_LEN/perim;
+    let cxp=0,cyp=0;for(let i=0;i<rs.length-1;i++){cxp+=rs[i].x;cyp+=rs[i].y}cxp/=(rs.length-1);cyp/=(rs.length-1);
+    const world2=rs.slice(0,rs.length-1).map(p=>({x:(p.x-cxp)*scale,y:(p.y-cyp)*scale}));
+    buildCircuit(world2);closeDrawer();updCircBtn();
+    toastMsg('Track ready · Track button to race it')}
+  const circBtn=$('#dcircb');
+  function updCircBtn(){if(!circBtn)return;
+    circBtn.textContent=MODE==='circuit'?'Back to world':(circuit?'Go to track':'Draw track')}
+  if(circBtn)circBtn.onclick=()=>{if(MODE==='circuit'){leaveCircuit();return}if(circuit){enterCircuit();return}openDrawer()};
+  {const x=$('#dcircx'),cl=$('#dcircclear');
+   if(x)x.onclick=closeDrawer;
+   if(cl)cl.onclick=()=>{drawPts=[];redrawPath();if(circErrEl)circErrEl.textContent=''}}
+  updCircBtn();
   requestAnimationFrame(loop);
   /* ---------- rooms: ghost cars over a shared channel ----------
      Everybody drives their own physics on their own machine. What travels is a small pose
