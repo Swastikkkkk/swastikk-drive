@@ -7,6 +7,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const VEHS={
     car:{label:'Car',engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
   };
+  let MODE='world';
   const WEATHERS=[
     {id:'day',label:'Day',bg:0x9dc0dd,fog:[110,300],hemi:.62,sun:0xfff7e8,sunI:1.12,ground:0x5c6b44,leaf:0x39672b,part:null,slip:1,skyTop:0x4a86c6,skyBottom:0xc3d9ea,star:0,sunA:.7,terr:[1.06,1.1,.98],snow:0,water:0x2f6f8c,ridge:[.46,.53,.62]},
     {id:'dusk',label:'Dusk',bg:0x2e2418,fog:[80,240],hemi:.5,sun:0xffcf92,sunI:1.0,ground:0x3a3124,leaf:0x3d4a2c,part:null,slip:1,skyTop:0x3d4a72,skyBottom:0xd98f4e,star:.72,sunA:1,terr:[1.16,1,.82],snow:0,water:0x3c4f5e,ridge:[.3,.28,.3]},
@@ -1511,6 +1512,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let hornNodes=null;
   mute.onclick=()=>{muted=!muted;mute.textContent=muted?'Sound off':'Sound on'};
   {const nb=$('#dnight');if(nb)nb.onclick=()=>toggleNight()}
+  /* ---------- weather picker ---------- */
+  {const wb=$('#dweatherb'),wx=$('#dwx'),wl=$('#dwxl');
+   if(wb&&wx&&wl){
+     const chip=(id,label)=>{const b=document.createElement('button');b.className='dbtn';b.dataset.w=id;b.textContent=label;wl.appendChild(b);return b};
+     chip('auto','Auto');WEATHERS.forEach(w=>chip(w.id,w.label));
+     const setOpen=o=>{wx.classList.toggle('on',o);wb.setAttribute('aria-expanded',o?'true':'false')};
+     wb.onclick=e=>{e.stopPropagation();setOpen(!wx.classList.contains('on'))};
+     wl.addEventListener('click',e=>{const b=e.target.closest('button[data-w]');if(!b)return;setWeather(b.dataset.w);setOpen(false)});
+     addEventListener('pointerdown',e=>{if(!wx.classList.contains('on'))return;if(!wx.contains(e.target)&&e.target!==wb)setOpen(false)});
+     $$('#dwxl button').forEach(b=>b.classList.toggle('on',b.dataset.w==='auto'))
+   }}
   /* ---------- input ---------- */
   /* Stretches of the loop that feel different. Each band has a drag figure (0 = free,
      1 = crawling), a fog distance and a colour the light is pulled toward. It is one lookup
