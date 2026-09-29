@@ -37,10 +37,20 @@ Treat items below as the concrete next steps within that Phase-1/2 window; re-de
 multiplayer rewrite) from the pasted spec when picking this back up rather than re-copying it here.
 
 ## Left (in order)
-1. Performance audit (do this before any new content): measure current FPS/draw calls/physics body count/particle count in this
-   headless rig or a real browser profiler, identify the actual bottleneck (don't guess), fix it, remeasure. Candidates already
-   visible in the code: per-object materials/geometries that could share instances, shadow casters, particle systems using
-   individual meshes instead of `THREE.Points`.
+1. Performance audit (do this before any new content):
+   - First pass done: measured via the headless rig with `R.info` exposed temporarily. Default map, settled scene:
+     **213 draw calls** (spec target <150, ideally <100), **~397K triangles**, 229 geometries, 21 textures. Draw calls and
+     triangle count are hardware-independent so these are real, actionable numbers. Textures/geometries counts look
+     healthy already (shared, not duplicated per earlier code read: trees/rocks/reeds/lilies/grass/barriers/posts already
+     use `InstancedMesh`, weather already uses batched `THREE.Points` not per-particle meshes) - the draw-call overage is
+     most likely from the many one-off decorative meshes (signs, cones, tires, ramps, individual landmark parts) that
+     aren't instanced, not from the systems the original spec worried about most.
+   - **Could NOT get a real FPS number.** The headless rig renders via swiftshader (software GL) in a sandboxed VM, which
+     is routinely 10-50x slower than real GPU hardware - it measured 4.3 FPS, which says nothing about real laptop
+     performance and should not be used to judge "does it lag". Next step needs either a real browser with a real GPU
+     (F12 → Performance/FPS meter) or someone running it locally, not this sandbox.
+   - Still open: identify and consolidate the specific meshes pushing draw calls over 213 (profile which ones exist per
+     map, group static props into fewer draw calls or InstancedMesh where their transforms allow it), then remeasure.
 2. Circuit mode (`MODE='circuit'`):
    - Arena = flat platform high above the world at y=900 (sky/shadow/moon already follow the camera, so no other changes needed).
      Physics: big static box. Hide `HF.mesh` while active. Reuse `farRidge.clone()` at y=900 for horizon.
