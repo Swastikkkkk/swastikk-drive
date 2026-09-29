@@ -2173,7 +2173,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const LOCAL=/[?&]net=local\b/.test(location.search);
     const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',rid=n=>{let s='';for(let i=0;i<n;i++)s+=ALPH[Math.random()*32|0];return s};
     const me={id:rid(8),n:'',j:0},LOG=[],lg=(...a)=>{LOG.push(Math.round(performance.now())+' '+a.join(' '));if(LOG.length>60)LOG.shift()};
-    let room=null,net=null,status='off',peers=new Map(),lastSend=0,lastHi=0,lastUI=0,
+    let room=null,net=null,status='off',peers=new Map(),lastSend=0,lastHi=0,lastUI=0,lastPing=0,
         race={st:0,t0:0,d0:0,rp:0,lastU:0,slot:0,ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0},
         myFin=0;
     const $$1=s=>document.querySelector(s);
@@ -2255,7 +2255,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         // more than MAXP in a room: the latest joiner is the one who is out
         const a=sorted().concat([{id:m.id,j}]).sort((x,y)=>x.j-y.j||(x.id<y.id?-1:1));
         if(a.findIndex(z=>z.id===m.id)>=MAXP)return null;
-        P={id:String(m.id).slice(0,12),n:clean(m.n)||'Driver',j,last:0,gh:null,car:'aster',tp:new THREE.Vector3(),tq:new THREE.Quaternion(),vx:0,vy:0,vz:0,pt:0,st:0,vf:0,wr:0,d:0,fin:0,got:false,sp:0};
+        P={id:String(m.id).slice(0,12),n:clean(m.n)||'Driver',j,last:0,gh:null,car:'aster',ping:null,tp:new THREE.Vector3(),tq:new THREE.Quaternion(),vx:0,vy:0,vz:0,pt:0,st:0,vf:0,wr:0,d:0,fin:0,got:false,sp:0};
         peers.set(P.id,P);lg('add',P.n,'j',j,'me',me.j);
         if(idxOf(me.id)>=MAXP){leave('Room is full · '+MAXP+' drivers max');return null}
         toast2(P.n+' joined');ui()}
@@ -2290,6 +2290,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
           P.pt=now;P.st=num(m.st,-1,1,0);P.vf=num(m.vf,-80,120,0);P.d=num(m.d,-5,50,0);break}
         case 'race':beginCountdown(P.n);break;
         case 'fin':P.fin=num(m.ms,1,36e5,0);race.fins++;if(race.st===2&&!myFin&&!race.endAt)race.endAt=now+45000;toast2(P.n+' finished · '+fmtT(P.fin));ui();break;
+        // a ping is just an echo request; whoever gets one bounces their own timestamp straight back
+        case 'pg':send({k:'pk',t:num(m.t,0,1e15,now)});break;
+        case 'pk':P.ping=Math.max(0,Math.min(9999,Math.round(now-num(m.t,0,1e15,now))));break;
         case 'bye':dropPeer(P.id,true);break}}
     /* ----- rooms ----- */
     function normCode(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6)}
@@ -2374,7 +2377,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
           const d=race.st===2||race.st===3?race.d0+race.rp:0;
           send({k:'s',n:myName(),j:me.j,p:[+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2)],q:[+q.x.toFixed(3),+q.y.toFixed(3),+q.z.toFixed(3),+q.w.toFixed(3)],
             st:+st.toFixed(3),vf:+vf.toFixed(1),d:+d.toFixed(4)})}
-        if(now-lastHi>3000){lastHi=now;sendHi(true)}}
+        if(now-lastHi>3000){lastHi=now;sendHi(true)}
+        if(now-lastPing>1500&&peers.size){lastPing=now;send({k:'pg',t:now})}}
       // ghosts
       const k=1-Math.exp(-dt*11);
       peers.forEach(P=>{const G=P.gh;if(!G)return;
@@ -2394,7 +2398,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       if(!el.roster)return;
       if(!room){el.roster.style.display='none';return}
       const rows=[{me:1,n:myName(),c:0x640c0e,d:race.st>=2?race.d0+race.rp:0,fin:myFin}];
-      peers.forEach(P=>rows.push({n:P.n,c:colorOf(P.id),d:P.d,fin:P.fin,sp:P.sp,off:!P.got}));
+      peers.forEach(P=>rows.push({n:P.n,c:colorOf(P.id),d:P.d,fin:P.fin,sp:P.sp,off:!P.got,ping:P.ping}));
       const racing=race.st>=2;
       if(racing)rows.sort((a,b)=>(a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:b.d-a.d));
       const lead=racing?Math.max.apply(null,rows.filter(r=>!r.fin).map(r=>r.d).concat([-9])):0;
@@ -2404,6 +2408,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         if(r.fin)t=fmtT(r.fin);
         else if(racing)t=r.d>=lead-1e-4?'leading':'-'+Math.round((lead-r.d)*TLEN)+' m';
         else if(!r.me)t=r.off?'joining':(r.sp>=1000?Math.round(r.sp/100)/10+' km':Math.round(r.sp)+' m');
+        if(!r.me&&!r.off&&r.ping!=null)t+=(t?' · ':'')+r.ping+'ms';
         h+='<div class="r'+(r.me?' me':'')+'"><i style="background:'+HEX(r.c)+'"></i>'+(racing?'<em>'+(i+1)+'</em>':'')+'<b>'+esc(r.n)+(r.me?' (you)':'')+'</b><span>'+t+'</span></div>'});
       if(status!=='up')h+='<div class="st">'+(status==='down'?'offline':'connecting')+'</div>';
       el.roster.innerHTML=h;el.roster.style.display='block'}

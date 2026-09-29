@@ -70,8 +70,18 @@ multiplayer rewrite) from the pasted spec when picking this back up rather than 
    - Allow solo race (tick must run when `race.st>0` without a room).
    - Room panel: show each player's car, current track, Start race.
    - Ghosts stay non-colliding by design (no authoritative server).
-   - Per the bigger-picture spec: also add ping display, synchronized countdown via shared `startAt` timestamp, client-side
-     interpolation buffer for remote cars (lerp position / slerp quaternion, never snap), reconnect/DNF handling.
+   - Done: ping display. Each client broadcasts `{k:'pg',t:now}` every 1.5s (only while `peers.size`); whoever receives it
+     echoes `{k:'pk',t:m.t}` straight back (via the existing `id`-tagging in `send()`, so RTT attributes correctly per
+     sender even though it's a broadcast, not a unicast); the original sender computes `now-t`, clamps to 0-9999ms, and
+     stores it on `P.ping`. Shown appended to each peer's row in the on-screen roster (`#dmpr`), e.g. "42 m · 87ms" —
+     no separate debug HUD, no self-ping (not meaningful). Verified headless: 2-tab session, ping appears in both
+     rosters with no console errors; absolute ms values in that test were inflated by swiftshader CPU contention from
+     running two full 3D scenes in one sandboxed browser, not a protocol issue — re-check on real hardware for realistic
+     numbers.
+   - Client-side interpolation for remote cars already existed before this pass: `tick()` extrapolates each peer's
+     position from its last received velocity for up to 220ms, then `lerp`s toward it and `slerp`s the quaternion
+     (`assets/game.js`, the `peers.forEach` block inside `tick`). Roadmap item satisfied; no rewrite needed here.
+   - Still open: synchronized countdown via shared `startAt` timestamp, reconnect/DNF handling.
 4. Test + tune: headless screenshots for each car, circuit drawer, race flow, 2-tab `?net=local` room test with 4 tabs.
 5. Update `README.md` and `MULTIPLAYER.md` (4 players, cars, circuits, weather, controls).
 6. Map/vehicle expansion toward the bigger-picture spec's 10 maps / 5-vehicle economy — only after 1-5 above are solid.
