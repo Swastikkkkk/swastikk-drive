@@ -202,8 +202,11 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 #dgcars li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line);cursor:pointer}
 #dgcars li.on{background:rgba(212,168,58,.12)}
 #dgcars li:hover{background:rgba(242,238,230,.06)}
+#dgcars li.locked{opacity:.6}
 #dgcars .n{font-family:var(--serif);font-weight:600;font-size:19px}
 #dgcars .s{color:var(--mute);font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;text-align:right}
+#dgcars li.locked .s{color:var(--paper)}
+#dgcoins{color:var(--paper);margin-top:6px}
 #dgpaints{display:flex;gap:9px;margin-top:16px}
 #dgpaints button{width:32px;height:32px;border-radius:50%;border:2px solid rgba(242,238,230,.28);cursor:pointer;padding:0}
 #dgpaints button.on{border-color:var(--paper);box-shadow:0 0 0 2px rgba(8,8,7,.86),0 0 0 3px var(--paper)}
@@ -233,6 +236,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
   <div id="dgarage"><div class="bd-in">
     <div class="mono" style="color:var(--bone)">Garage</div>
     <h3 class="disp">Choose your car</h3>
+    <div class="mono" id="dgcoins">0 coins</div>
     <div class="bd-me"><input id="dgname" maxlength="14" placeholder="Your name" aria-label="Your name" autocomplete="nickname"></div>
     <ul id="dgcars"></ul>
     <div class="mono bd-note" id="dgblurb">-</div>

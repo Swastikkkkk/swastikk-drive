@@ -8,24 +8,41 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     car:{label:'Car',engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
   };
   let MODE='world';
+  /* ---------- coins: a simple economy, no backend - earn from laps/missions, spend on cars ---------- */
+  let coins=(()=>{try{return Math.max(0,parseInt(localStorage.getItem('sl_coins'))||0)}catch(e){return 0}})();
+  function saveCoins(){try{localStorage.setItem('sl_coins',String(coins))}catch(e){}}
+  function saveUnlocked(){try{localStorage.setItem('sl_unlocked',JSON.stringify([...unlocked]))}catch(e){}}
+  const unlockedRaw=(()=>{try{return localStorage.getItem('sl_unlocked')}catch(e){return null}})();
+  const unlocked=(()=>{let arr=[];try{const p=JSON.parse(unlockedRaw||'[]');if(Array.isArray(p))arr=p}catch(e){}
+    const set=new Set(arr);
+    // this system didn't exist before - grandfather in whatever car a returning player already
+    // had selected, so shipping this doesn't retroactively lock people out of their own car
+    if(unlockedRaw==null){try{const sc=JSON.parse(localStorage.getItem('sl_car')||'null');if(sc&&sc.id)set.add(sc.id)}catch(e){}}
+    return set})();
+  unlocked.add('aster'); // the starter car is always free, regardless of what's saved
+  if(unlockedRaw==null)saveUnlocked();
+  let updCoinsUI=()=>{}; // the garage UI wiring below replaces this once #dgcoins exists
+  // state-only on purpose: callers fold the amount into whatever toast they're already showing
+  // (mission-done, lap-done, etc), since the single-element toast would otherwise overwrite itself
+  function earnCoins(n){coins+=n;saveCoins();updCoinsUI()}
   /* ---------- garage: 6 cars, 2 body kits (buildEV / buildCar) sharing the same physics rig ---------- */
   const GARAGE=[
-    {id:'aster',label:'Aster',type:'ev',blurb:'Balanced',mass:190,F:2.42,B:-2.36,W:2.3,
+    {id:'aster',label:'Aster',type:'ev',blurb:'Balanced',mass:190,F:2.42,B:-2.36,W:2.3,price:0,
      V:{engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
      paints:[0x640c0e,0x14161b,0xd9d4c6,0x27476b]},
-    {id:'voltgt',label:'Volt GT',type:'ev',blurb:'Wide, low, fast',mass:198,F:2.4,B:-2.32,W:2.42,
+    {id:'voltgt',label:'Volt GT',type:'ev',blurb:'Wide, low, fast',mass:198,F:2.4,B:-2.32,W:2.42,price:400,
      V:{engine:760,max:34.5,slip:2.6,xw:1.14,zf:1.3,zb:-1.3,r:.42,rest:.36,steer:.5,roll:.016},
      paints:[0x18345c,0x14161b,0xc7cbce,0x7a1620]},
-    {id:'phantom',label:'Phantom',type:'ev',blurb:'Longest, top speed, twitchy',mass:210,F:2.7,B:-2.62,W:2.28,
+    {id:'phantom',label:'Phantom',type:'ev',blurb:'Longest, top speed, twitchy',mass:210,F:2.7,B:-2.62,W:2.28,price:600,
      V:{engine:820,max:37.5,slip:2.1,xw:1.08,zf:1.55,zb:-1.55,r:.46,rest:.4,steer:.58,roll:.024},
      paints:[0x121216,0x2c2c30,0xd9d4c6,0x5c1418]},
-    {id:'kestrel',label:'Kestrel',type:'car',blurb:'Sedan, agile',mass:165,F:2.05,B:-2.05,W:1.92,wagon:false,
+    {id:'kestrel',label:'Kestrel',type:'car',blurb:'Sedan, agile',mass:165,F:2.05,B:-2.05,W:1.92,wagon:false,price:150,
      V:{engine:600,max:29,slip:2.55,xw:.92,zf:1.15,zb:-1.15,r:.4,rest:.38,steer:.66,roll:.018},
      paints:[0x1f7a3d,0x14161b,0xd9d4c6,0x27476b]},
-    {id:'ridgeback',label:'Ridgeback',type:'car',blurb:'Wagon, heavy, grippy',mass:235,F:2.2,B:-2.35,W:2.05,wagon:true,
+    {id:'ridgeback',label:'Ridgeback',type:'car',blurb:'Wagon, heavy, grippy',mass:235,F:2.2,B:-2.35,W:2.05,wagon:true,price:300,
      V:{engine:640,max:27.5,slip:2.9,xw:1.0,zf:1.35,zb:-1.35,r:.44,rest:.44,steer:.48,roll:.026},
      paints:[0x3a4550,0x14161b,0xd9d4c6,0x5c3a1e]},
-    {id:'mamba',label:'Mamba',type:'car',blurb:'Sedan, quick, loose',mass:175,F:2.1,B:-2.1,W:1.95,wagon:false,
+    {id:'mamba',label:'Mamba',type:'car',blurb:'Sedan, quick, loose',mass:175,F:2.1,B:-2.1,W:1.95,wagon:false,price:220,
      V:{engine:700,max:31.5,slip:2.15,xw:.95,zf:1.2,zb:-1.2,r:.4,rest:.36,steer:.6,roll:.016},
      paints:[0xb33a1e,0x14161b,0xd9d4c6,0x27476b]},
   ];
@@ -951,7 +968,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     rings.forEach((r,i)=>{r.g.visible=!!m&&m.id==='rings'&&i===ringIdx&&!r.done})}
   function missSet(id,v){const m=MISSIONS.find(x=>x.id===id);if(!m||m.done)return;
     if(v<=m.prog)return;m.prog=v;
-    if(m.prog>=m.goal){m.done=true;missSave();blip(680,.3,.13);toastMsg('Mission done · '+m.name);
+    if(m.prog>=m.goal){m.done=true;missSave();earnCoins(50);blip(680,.3,.13);toastMsg('Mission done · '+m.name+' · +50 coins');
       const nx=curMission();if(nx)setTimeout(()=>toastMsg('Next up · '+nx.name),1900);else setTimeout(()=>toastMsg('Every mission cleared. Built different.'),1900)}
     else blip(560,.16,.1);
     missUI()}
@@ -999,7 +1016,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const isBest=ms<bestMs;if(isBest)bestMs=ms;
     lapEl.classList.toggle('best',isBest);
     blip(isBest?880:640,.35,.14);
-    toastMsg((isBest?'New best lap · ':'Lap · ')+fmtT(ms));
+    const reward=isBest?30:10;earnCoins(reward);
+    toastMsg((isBest?'New best lap · ':'Lap · ')+fmtT(ms)+' · +'+reward+' coins');
     if(ms<LAP_TARGET)missSet('lap',1);
     lapB.textContent='Best '+fmtT(bestMs);
     setTimeout(()=>lapEl.classList.remove('best'),2600)}
@@ -1587,27 +1605,39 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      $$('#dwxl button').forEach(b=>b.classList.toggle('on',b.dataset.w==='auto'))
    }}
   /* ---------- garage ---------- */
-  {const gb=$('#dgarageb'),gp=$('#dgarage'),gx=$('#dgaragex'),gl=$('#dgcars'),gpaints=$('#dgpaints'),gname=$('#dgname'),gblurb=$('#dgblurb');
+  {const gb=$('#dgarageb'),gp=$('#dgarage'),gx=$('#dgaragex'),gl=$('#dgcars'),gpaints=$('#dgpaints'),gname=$('#dgname'),gblurb=$('#dgblurb'),gcoins=$('#dgcoins');
    if(gb&&gp&&gl){
      let curPaint=GARAGE[0].paints[0],hadSave=false;
      try{const s=JSON.parse(localStorage.getItem('sl_car')||'null');
        if(s&&garageOf(s.id)){hadSave=true;curPaint=s.paint!=null?s.paint:garageOf(s.id).paints[0];setCar(s.id,curPaint,true)}}catch(e){}
-     GARAGE.forEach(spec=>{const li=document.createElement('li');li.dataset.id=spec.id;
-       li.innerHTML='<span class="n">'+spec.label+'</span><span class="s">'+(spec.type==='ev'?'EV':'Petrol')+'</span>';
-       gl.appendChild(li)});
+     GARAGE.forEach(spec=>{const li=document.createElement('li');li.dataset.id=spec.id;gl.appendChild(li)});
+     updCoinsUI=()=>{if(gcoins)gcoins.textContent=coins+' coins'};
+     const refreshList=()=>{$$('#dgcars li').forEach(li=>{const spec=garageOf(li.dataset.id),owned=unlocked.has(spec.id);
+       li.classList.toggle('locked',!owned);
+       li.innerHTML='<span class="n">'+spec.label+'</span><span class="s">'+
+         (owned?(spec.type==='ev'?'EV':'Petrol'):('Buy · '+spec.price))+'</span>'})};
      const refresh=()=>{const spec=garageOf(curCarId);
+       refreshList();
        $$('#dgcars li').forEach(li=>li.classList.toggle('on',li.dataset.id===curCarId));
        gblurb.textContent=spec.label+' · '+spec.blurb;
        gpaints.innerHTML='';spec.paints.forEach(c=>{const b=document.createElement('button');
          b.style.background='#'+c.toString(16).padStart(6,'0');b.dataset.p=c;
-         b.classList.toggle('on',c===curPaint);gpaints.appendChild(b)})};
+         b.classList.toggle('on',c===curPaint);gpaints.appendChild(b)});
+       updCoinsUI()};
      refresh();
-     const setOpen=o=>{gp.classList.toggle('on',o);if(o){try{gname.value=localStorage.getItem('sl_name')||''}catch(e){}}};
+     const setOpen=o=>{gp.classList.toggle('on',o);if(o){try{gname.value=localStorage.getItem('sl_name')||''}catch(e){}refresh()}};
      gb.onclick=()=>setOpen(true);
      gx.onclick=()=>setOpen(false);
      gp.addEventListener('click',e=>{if(e.target===gp)setOpen(false)});
      gl.addEventListener('click',e=>{const li=e.target.closest('li[data-id]');if(!li)return;
-       curPaint=garageOf(li.dataset.id).paints[0];setCar(li.dataset.id,curPaint);refresh()});
+       const spec=garageOf(li.dataset.id);
+       if(!unlocked.has(spec.id)){
+         if(coins>=spec.price){coins-=spec.price;saveCoins();unlocked.add(spec.id);saveUnlocked();
+           toastMsg('Bought '+spec.label+' · -'+spec.price+' coins');
+           curPaint=spec.paints[0];setCar(spec.id,curPaint);refresh()}
+         else toastMsg('Need '+(spec.price-coins)+' more coins for '+spec.label);
+         return}
+       curPaint=spec.paints[0];setCar(spec.id,curPaint);refresh()});
      gpaints.addEventListener('click',e=>{const b=e.target.closest('button[data-p]');if(!b)return;
        curPaint=+b.dataset.p;setCar(curCarId,curPaint);$$('#dgpaints button').forEach(x=>x.classList.toggle('on',x===b))});
      gname.addEventListener('change',()=>{const nm=(gname.value||'').trim().slice(0,14);try{if(nm)localStorage.setItem('sl_name',nm)}catch(e){}});
@@ -1962,7 +1992,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         if(circU0<0){circU0=u;circLapT0=now}
         else{if(circU0>.82&&u<.18){circLap++;const t=now-circLapT0;circLapT0=now;
             if(!circBest||t<circBest)circBest=t;
-            toastMsg('Lap '+circLap+' · '+fmtT(t))}
+            earnCoins(10);
+            toastMsg('Lap '+circLap+' · '+fmtT(t)+' · +10 coins')}
           circU0=u}
         if(frameN%20===0)hint.textContent='Circuit · lap '+(circLap+1)+(circBest?' · best '+fmtT(circBest):'')+' · Track button to leave'}
       /* ---- lap timing ---- */

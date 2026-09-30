@@ -170,7 +170,21 @@ multiplayer rewrite) from the pasted spec when picking this back up rather than 
    - Still open: reconnect/DNF handling.
 4. Test + tune: headless screenshots for each car, circuit drawer, race flow, 2-tab `?net=local` room test with 4 tabs.
 5. Update `README.md` and `MULTIPLAYER.md` (4 players, cars, circuits, weather, controls).
-6. Map/vehicle expansion toward the bigger-picture spec's 10 maps / 5-vehicle economy — only after 1-5 above are solid.
+6. Map/vehicle expansion toward the bigger-picture spec's 10 maps — only after 1-5 above are solid.
+7. Vehicle economy — **done**. `sl_coins`/`sl_unlocked` in localStorage; Aster stays free, the other five cost
+   150/220/300/400/600 (`price` field added to each `GARAGE` entry). Earn 50 on any mission complete, 10 on a world
+   "Time a lap" completion (30 if it's a new best), 10 per circuit lap - each folded into the toast that action already
+   shows (e.g. "Lap · 0:41.20 · +10 coins") rather than firing a second competing toast, since the game's toast is a
+   single overwriting element and two firing at once would just race. Garage list shows "Buy · price" on locked cars;
+   clicking one with enough coins deducts, unlocks, and equips it in one step, with insufficient funds showing exactly
+   how many more coins are needed instead of silently failing.
+   Migration handled explicitly: players who already had a paid car selected via `sl_car` before this system existed
+   get that car grandfathered into `sl_unlocked` the first time it initializes, so shipping this doesn't retroactively
+   lock anyone out of a car they'd already picked.
+   Verified headless: fresh state shows correct lock/price text on all 5 paid cars; buying with insufficient coins
+   correctly rejects (coins/selection unchanged); buying with enough coins deducts the right amount, unlocks, selects,
+   and updates the list item's text/state; a full page reload confirms coins/unlocked/selected-car all persisted. No
+   console errors.
 
 ## Test rig
 Recreate as a throwaway script (don't commit it): playwright-core + chromium, flags
