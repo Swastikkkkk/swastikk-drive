@@ -1663,7 +1663,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return {drag:d,fog:f,tint:[t0,t1,t2]}}
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
-  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -2242,7 +2242,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      AI, checkpoints/anti-cheat, saved circuits, Short/Medium/Long length choice and multiplayer
      circuits are NOT in this pass. */
   const CIRC_X=0,CIRC_Z=-(WS+500),CIRC_Y=40,CIRC_LEN=420,CIRC_W=10;
-  let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null;
+  let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null,worldFogSave=null;
   function circAt(u,curve){u=((u%1)+1)%1;const p=curve.getPointAt(u).clone();const tg=curve.getTangentAt(u);return {p,tg,n:new THREE.Vector3(-tg.z,0,tg.x)}}
   function circStrip(curve,Nseg,w,yo,mat,rep){const pos=[],idx=[],uv=[];
     for(let i=0;i<=Nseg;i++){const {p,n}=circAt(i/Nseg,curve),nx=n.x*w/2,nz=n.z*w/2;
@@ -2258,8 +2258,59 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     (circuit.ownedMats||[]).forEach(m=>m.dispose());
     if(circuit.groundBody)world.removeBody(circuit.groundBody);
     circuit=null}
-  function buildCircuit(pts2D){ // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
+  // default theme: the original green look for freehand-drawn tracks. Preset maps (see THEMES
+  // below) override this per call; nothing about the freehand-draw flow changes.
+  const THEME_DEFAULT={id:'meadow',name:'Meadow',ground:0x2c3a26,field:0x2f4a28,trunk:0x3a2c20,leaf:0x33402c,
+    tree:'pine',stand:0x3a3934,standTrim:0xb8322f,fog:0x0e0e0d,sky:0x0e0e0d};
+  // scale+center a closed loop (array of {x,y}, NOT repeating the first point at the end) so its
+  // perimeter matches the standard circuit length - shared by the freehand drawer and the presets
+  // below, so both produce the same size of track regardless of how big/small the input was drawn
+  function normalizeLoop(pts,targetLen){
+    const n=pts.length;
+    let perim=0;for(let i=0;i<n;i++){const a=pts[i],b=pts[(i+1)%n];perim+=Math.hypot(b.x-a.x,b.y-a.y)}
+    const scale=(targetLen||CIRC_LEN)/perim;
+    let cx=0,cy=0;pts.forEach(p=>{cx+=p.x;cy+=p.y});cx/=n;cy/=n;
+    return pts.map(p=>({x:(p.x-cx)*scale,y:(p.y-cy)*scale}))}
+  // a polar radius function r(a) is always a simple (non-self-intersecting) closed curve by
+  // construction, since it has exactly one radius per angle - a cheap way to get 7-8 genuinely
+  // different-looking preset track outlines without hand-authoring point lists that risk crossing
+  function polarShape(rx,ry,mod){const pts=[],N=16;
+    for(let i=0;i<N;i++){const a=i/N*Math.PI*2,m=mod?mod(a):1;pts.push({x:Math.cos(a)*rx*m,y:Math.sin(a)*ry*m})}
+    return pts}
+  const THEMES=[
+    THEME_DEFAULT,
+    {id:'desert',name:'Desert',ground:0xc9a769,field:0xd8bd82,trunk:0x6b4a2a,leaf:0x4a7a3a,tree:'palm',
+      stand:0x8a6f4a,standTrim:0xd4a83a,fog:0xd8b878,sky:0xcaa060},
+    {id:'snow',name:'Snow',ground:0xe8ecf0,field:0xf2f5f8,trunk:0x3a3530,leaf:0xeef2f5,tree:'pine',
+      stand:0x5a6570,standTrim:0x2f4f9e,fog:0xc8d4dc,sky:0xb8c8d2},
+    {id:'forest',name:'Forest',ground:0x1c2a18,field:0x203a1c,trunk:0x2e2318,leaf:0x1f3018,tree:'pine',
+      stand:0x2a2e22,standTrim:0x3f8a56,fog:0x141f12,sky:0x101a0e},
+    {id:'volcanic',name:'Volcanic',ground:0x1a1614,field:0x231d1a,trunk:0x2a2422,leaf:0x2a2422,tree:'rock',
+      stand:0x2a1e1a,standTrim:0xff5a1f,fog:0x3a1f14,sky:0x2a140c},
+    {id:'coastal',name:'Coastal',ground:0xd6c9a0,field:0xe3d8b0,trunk:0x6b5a3a,leaf:0x3f7a4a,tree:'palm',
+      stand:0x7a8a94,standTrim:0x2f6f9e,fog:0xb8ccd8,sky:0x9fc0d4},
+    {id:'night',name:'Night',ground:0x141416,field:0x18181c,trunk:0x1e1e22,leaf:0x1e1e22,tree:'rock',
+      stand:0x1c1c20,standTrim:0x5cf2ff,fog:0x0a0a0e,sky:0x08080c},
+    {id:'canyon',name:'Canyon',ground:0x8a4a30,field:0x9a5838,trunk:0x6a3f2a,leaf:0x6a3f2a,tree:'rock',
+      stand:0x6a4530,standTrim:0xd4a83a,fog:0xc87850,sky:0xb85f3a},
+  ];
+  // 8 preset circuits: distinct shapes (via distinct polar radius functions) x distinct themes.
+  // Built directly through buildCircuit, bypassing the freehand validator entirely - these are
+  // developer-authored, not user-drawn, so there's nothing to validate.
+  const TRACK_PRESETS=[
+    {id:'meadowoval',name:'Meadow Oval',theme:THEMES[0],shape:polarShape(300,180)},
+    {id:'desertdunes',name:'Desert Dunes',theme:THEMES[1],shape:polarShape(280,220,a=>1+.25*Math.sin(a+1))},
+    {id:'snowpass',name:'Snow Pass',theme:THEMES[2],shape:polarShape(320,160,a=>1+.3*Math.cos(a*2))},
+    {id:'forestesses',name:'Forest Esses',theme:THEMES[3],shape:polarShape(280,280,a=>1+.28*Math.sin(a*3))},
+    {id:'volcanospeedway',name:'Volcano Speedway',theme:THEMES[4],shape:polarShape(380,140)},
+    {id:'coastalstar',name:'Coastal Star',theme:THEMES[5],shape:polarShape(260,260,a=>1+.22*Math.cos(a*5))},
+    {id:'nightteardrop',name:'Night Teardrop',theme:THEMES[6],shape:polarShape(300,220,a=>1+.35*Math.sin(a))},
+    {id:'canyontrigon',name:'Canyon Trigon',theme:THEMES[7],shape:polarShape(300,300,a=>1+.3*Math.cos(a*3+1))},
+  ];
+  function buildPreset(preset){buildCircuit(normalizeLoop(preset.shape),preset.theme);enterCircuit()}
+  function buildCircuit(pts2D,theme){ // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
     clearCircuit();
+    theme=theme||THEME_DEFAULT;
     const pts3=pts2D.map(q=>new THREE.Vector3(CIRC_X+q.x,CIRC_Y,CIRC_Z+q.y));
     const curve=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);
     const CN=Math.max(60,Math.min(240,Math.round(curve.getLength()/3)));
@@ -2272,36 +2323,71 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     // main map already treats off-road as a logical grip penalty rather than a physical wall
     let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;pts3.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z)});
     const hx=(maxX-minX)/2+20,hz=(maxZ-minZ)/2+20,cx=(minX+maxX)/2,cz=(minZ+maxZ)/2;
-    const groundMat=M(0x2c3a26,{roughness:.95});
+    const groundMat=M(theme.ground,{roughness:.95});
     const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(hx*2,1,hz*2),groundMat);groundMesh.position.set(cx,CIRC_Y-.5,cz);groundMesh.receiveShadow=true;root.add(groundMesh);
     const groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Box(new CANNON.Vec3(hx,.5,hz)));groundBody.position.set(cx,CIRC_Y-.5,cz);world.addBody(groundBody);
-    // scenery so the track doesn't sit in an empty void: a wider grass field, and a scattered
-    // ring of instanced trees just outside the paved plate (radius from the plate's own diagonal,
-    // so trees can never land inside the rectangle regardless of the drawn loop's proportions).
-    // Dedicated materials, not the world's shared groundM/leafM/trunkM, so weather picked in the
-    // main map can't recolor the circuit unexpectedly.
+    // scenery so the track doesn't sit in an empty void: a themed field, then a stadium ring
+    // (barrier wall, grandstands, floodlights) with trees/rocks filling the gaps between stands.
+    // Dedicated materials per build, not the world's shared groundM/leafM/trunkM, so weather
+    // picked on the main map can't bleed into circuit colors, and each theme stays distinct.
     const ownedMats=[groundMat];
-    const fieldMat=M(0x2f4a28,{roughness:.98});ownedMats.push(fieldMat);
+    const fieldMat=M(theme.field,{roughness:.98});ownedMats.push(fieldMat);
     const field=new THREE.Mesh(new THREE.PlaneGeometry((hx+160)*2,(hz+160)*2).rotateX(-Math.PI/2),fieldMat);
     field.position.set(cx,CIRC_Y-.49,cz);field.receiveShadow=true;root.add(field);
-    {const trunkMat=M(0x3a2c20,{roughness:.9}),leafMat=M(0x33402c,{roughness:.95});ownedMats.push(trunkMat,leafMat);
-     const treeN=Math.max(40,Math.min(140,Math.round(curve.getLength()/4)));
-     const trunkIM=new THREE.InstancedMesh(new THREE.CylinderGeometry(.18,.24,2.2,6),trunkMat,treeN);trunkIM.castShadow=true;root.add(trunkIM);
-     const leafIM=new THREE.InstancedMesh(new THREE.ConeGeometry(1.3,3.4,7),leafMat,treeN);leafIM.castShadow=true;root.add(leafIM);
-     const tM=new THREE.Matrix4(),tP=new THREE.Vector3(),tQ=new THREE.Quaternion(),tS=new THREE.Vector3(1,1,1),upAxis=new THREE.Vector3(0,1,0);
-     const r0=Math.hypot(hx,hz)+15,r1=r0+130;
-     for(let i=0;i<treeN;i++){
-       const a=hash2(i*7.31,3.1)*Math.PI*2,rr=r0+hash2(i*2.7,9.4)*(r1-r0);
-       const x=cx+Math.cos(a)*rr,z=cz+Math.sin(a)*rr;
-       tQ.setFromAxisAngle(upAxis,hash2(i*3.3,i*1.1)*Math.PI*2);
-       tP.set(x,CIRC_Y-.5+1.1,z);tM.compose(tP,tQ,tS);trunkIM.setMatrixAt(i,tM);
-       tP.set(x,CIRC_Y-.5+2.6,z);tM.compose(tP,tQ,tS);leafIM.setMatrixAt(i,tM)}
-     trunkIM.instanceMatrix.needsUpdate=true;leafIM.instanceMatrix.needsUpdate=true}
+    const r0=Math.hypot(hx,hz)+15;
+    // perimeter barrier wall: one continuous strip just outside the paved plate, all the way round
+    {const wallMat=M(0xd9d4c6,{roughness:.7});ownedMats.push(wallMat);
+     const wallCurve=new THREE.CatmullRomCurve3(pts3.map(p=>{
+         const d=new THREE.Vector3(p.x-cx,0,p.z-cz).normalize();
+         return new THREE.Vector3(cx+d.x*(r0-4),CIRC_Y,cz+d.z*(r0-4))}),true,'catmullrom',.5);
+     const wall=circStrip(wallCurve,CN,1.1,1.1,wallMat,1);wall.castShadow=true;wall.receiveShadow=true;root.add(wall)}
+    // grandstands: raked seating blocks at N points around the ring, all facing the track center
+    {const standN=Math.max(6,Math.min(14,Math.round(curve.getLength()/60)));
+     const standMat=M(theme.stand,{roughness:.85}),trimMat=M(theme.standTrim,{roughness:.6});ownedMats.push(standMat,trimMat);
+     const standIM=new THREE.InstancedMesh(new THREE.BoxGeometry(22,7,10),standMat,standN);standIM.castShadow=true;root.add(standIM);
+     const trimIM=new THREE.InstancedMesh(new THREE.BoxGeometry(22,.6,10.4),trimMat,standN);root.add(trimIM);
+     const sM=new THREE.Matrix4(),sP=new THREE.Vector3(),sQ=new THREE.Quaternion(),sS=new THREE.Vector3(1,1,1),upAxis0=new THREE.Vector3(0,1,0);
+     for(let i=0;i<standN;i++){const a=(i/standN)*Math.PI*2+.3;
+       const x=cx+Math.cos(a)*(r0+30),z=cz+Math.sin(a)*(r0+30);
+       sQ.setFromAxisAngle(upAxis0,Math.atan2(cx-x,cz-z));
+       sP.set(x,CIRC_Y-.5+3.5,z);sM.compose(sP,sQ,sS);standIM.setMatrixAt(i,sM);
+       sP.set(x,CIRC_Y-.5+7.3,z);sM.compose(sP,sQ,sS);trimIM.setMatrixAt(i,sM)}
+     standIM.instanceMatrix.needsUpdate=true;trimIM.instanceMatrix.needsUpdate=true}
+    // floodlight pylons, fewer than grandstands, interspersed around the same ring
+    {const lampMat=M(0x2a2a2a,{roughness:.6}),lensMat=new THREE.MeshBasicMaterial({color:0xfff3d6});ownedMats.push(lampMat,lensMat);
+     const lampN=Math.max(4,Math.round(curve.getLength()/110));
+     const poleIM=new THREE.InstancedMesh(new THREE.CylinderGeometry(.22,.3,14,6),lampMat,lampN);poleIM.castShadow=true;root.add(poleIM);
+     const lensIM=new THREE.InstancedMesh(new THREE.BoxGeometry(2.4,1.4,.4),lensMat,lampN);root.add(lensIM);
+     const lM=new THREE.Matrix4(),lP=new THREE.Vector3(),lQ=new THREE.Quaternion(),lS=new THREE.Vector3(1,1,1),upAxis1=new THREE.Vector3(0,1,0);
+     for(let i=0;i<lampN;i++){const a=(i/lampN)*Math.PI*2+.9;
+       const x=cx+Math.cos(a)*(r0+10),z=cz+Math.sin(a)*(r0+10);
+       lQ.setFromAxisAngle(upAxis1,Math.atan2(cx-x,cz-z));
+       lP.set(x,CIRC_Y-.5+7,z);lM.compose(lP,lQ,lS);poleIM.setMatrixAt(i,lM);
+       lP.set(x,CIRC_Y-.5+13.6,z);lM.compose(lP,lQ,lS);lensIM.setMatrixAt(i,lM)}
+     poleIM.instanceMatrix.needsUpdate=true;lensIM.instanceMatrix.needsUpdate=true}
+    // trees or rocks (per theme) fill the gaps between grandstands, same radius band as before
+    if(theme.tree!=='none'){
+      const trunkMat=M(theme.trunk,{roughness:.9}),leafMat=M(theme.leaf,{roughness:.95});ownedMats.push(trunkMat,leafMat);
+      const treeN=Math.max(30,Math.min(110,Math.round(curve.getLength()/5)));
+      const isRock=theme.tree==='rock';
+      const trunkGeo=isRock?new THREE.DodecahedronGeometry(1,0):new THREE.CylinderGeometry(.18,.24,2.2,6);
+      const leafGeo=theme.tree==='palm'?new THREE.ConeGeometry(1.1,2.2,6):new THREE.ConeGeometry(1.3,3.4,7);
+      const trunkIM=new THREE.InstancedMesh(trunkGeo,trunkMat,treeN);trunkIM.castShadow=true;root.add(trunkIM);
+      const leafIM=isRock?null:new THREE.InstancedMesh(leafGeo,leafMat,treeN);if(leafIM){leafIM.castShadow=true;root.add(leafIM)}
+      const tM=new THREE.Matrix4(),tP=new THREE.Vector3(),tQ=new THREE.Quaternion(),tS=new THREE.Vector3(1,1,1),upAxis=new THREE.Vector3(0,1,0);
+      const r1=r0+130;
+      for(let i=0;i<treeN;i++){
+        const a=hash2(i*7.31,3.1)*Math.PI*2,rr=r0+40+hash2(i*2.7,9.4)*(r1-r0-40);
+        const x=cx+Math.cos(a)*rr,z=cz+Math.sin(a)*rr;
+        tQ.setFromAxisAngle(upAxis,hash2(i*3.3,i*1.1)*Math.PI*2);
+        tP.set(x,CIRC_Y-.5+(isRock?.6:1.1),z);tM.compose(tP,tQ,tS.setScalar(isRock?.7+hash2(i,i*2)*.8:1));trunkIM.setMatrixAt(i,tM);
+        if(leafIM){tP.set(x,CIRC_Y-.5+2.6,z);tM.compose(tP,tQ,tS.set(1,1,1));leafIM.setMatrixAt(i,tM)}}
+      trunkIM.instanceMatrix.needsUpdate=true;if(leafIM)leafIM.instanceMatrix.needsUpdate=true}
     const startP=circAt(0,curve);
     const flagMat=new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.85,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});ownedMats.push(flagMat);
     const flag=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,1.6).rotateX(-Math.PI/2),flagMat);
     flag.position.set(startP.p.x,CIRC_Y+.12,startP.p.z);flag.rotation.y=Math.atan2(startP.tg.x,startP.tg.z);root.add(flag);
-    circuit={curve,CN,CSAMP,root,groundBody,startP,ownedMats};
+    circuit={curve,CN,CSAMP,root,groundBody,startP,ownedMats,theme};
     return circuit}
   function enterCircuit(){if(!circuit)return;
     worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
@@ -2313,10 +2399,15 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     chassisB.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),Math.atan2(tg.x,tg.z));
     veh.wheelInfos.forEach(w=>{w.suspensionLength=w.suspensionRestLength;w.deltaRotation=0});
     for(let i=0;i<4;i++){veh.applyEngineForce(0,i);veh.setBrake(0,i)}
+    // each theme tints fog/sky to match (desert haze, snow glare, etc); saved once so leaving
+    // always restores the exact value the main map had, regardless of weather/day-night state
+    if(!worldFogSave)worldFogSave={fog:S.fog.color.getHex(),bg:S.background.getHex()};
+    const th=circuit.theme||THEME_DEFAULT;S.fog.color.setHex(th.fog);S.background.setHex(th.sky);
     toastMsg('Circuit mode · one lap is once around your track');updCircBtn()}
   function leaveCircuit(){if(MODE!=='circuit')return;
     MODE='world';
     if(worldSave){PREV.ok=false;physAcc=0;chassisB.position.copy(worldSave.p);chassisB.quaternion.copy(worldSave.q);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0)}
+    if(worldFogSave){S.fog.color.setHex(worldFogSave.fog);S.background.setHex(worldFogSave.bg)}
     hint.textContent=TOUCH?'':'WASD drive · C camera · L time a lap · M map · R reset';
     toastMsg('Back to the valley');updCircBtn()}
   /* ---------- drawing overlay ---------- */
@@ -2373,10 +2464,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const v1x=b.x-a.x,v1y=b.y-a.y,v2x=c.x-b.x,v2y=c.y-b.y,l1=Math.hypot(v1x,v1y)||1,l2=Math.hypot(v2x,v2y)||1;
       const cos=Math.max(-1,Math.min(1,(v1x*v2x+v1y*v2y)/(l1*l2))),ang=Math.acos(cos)*180/Math.PI;
       if(ang>95){drawFail('Track has a sharp corner. Try drawing a wider turn.');return}}
-    let perim=0;for(let i=0;i<rs.length-1;i++)perim+=Math.hypot(rs[i+1].x-rs[i].x,rs[i+1].y-rs[i].y);
-    const scale=CIRC_LEN/perim;
-    let cxp=0,cyp=0;for(let i=0;i<rs.length-1;i++){cxp+=rs[i].x;cyp+=rs[i].y}cxp/=(rs.length-1);cyp/=(rs.length-1);
-    const world2=rs.slice(0,rs.length-1).map(p=>({x:(p.x-cxp)*scale,y:(p.y-cyp)*scale}));
+    const world2=normalizeLoop(rs.slice(0,rs.length-1));
     buildCircuit(world2);closeDrawer();updCircBtn();
     toastMsg('Track ready · Track button to race it')}
   const circBtn=$('#dcircb');
@@ -2392,6 +2480,20 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
    if(x)x.onclick=closeDrawer;
    if(cl)cl.onclick=()=>{drawPts=[];redrawPath();if(circErrEl)circErrEl.textContent=''}}
   updCircBtn();
+  /* ---------- preset circuits (Maps panel) ---------- */
+  {const mb=$('#dmapsb'),mp=$('#dmaps'),mx=$('#dmapsx'),ml=$('#dmapslist');
+   if(mb&&mp&&ml){
+     TRACK_PRESETS.forEach(preset=>{const li=document.createElement('li');li.dataset.id=preset.id;
+       li.innerHTML='<span class="n">'+preset.name+'</span><span class="s">'+preset.theme.name+'</span>';
+       ml.appendChild(li)});
+     const setOpen=o=>mp.classList.toggle('on',o);
+     mb.onclick=()=>setOpen(true);
+     mx.onclick=()=>setOpen(false);
+     mp.addEventListener('click',e=>{if(e.target===mp)setOpen(false)});
+     ml.addEventListener('click',e=>{const li=e.target.closest('li[data-id]');if(!li)return;
+       const preset=TRACK_PRESETS.find(p=>p.id===li.dataset.id);if(!preset)return;
+       buildPreset(preset);setOpen(false);updCircBtn()})
+   }}
   requestAnimationFrame(loop);
   /* ---------- rooms: ghost cars over a shared channel ----------
      Everybody drives their own physics on their own machine. What travels is a small pose

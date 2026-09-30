@@ -116,10 +116,39 @@ multiplayer rewrite) from the pasted spec when picking this back up rather than 
      click→click→dblclick on one element, so it would briefly enter-then-leave the circuit (full save/restore/toast
      noise) before the drawer opened - a half-working shortcut is worse than an honest gap. Redrawing needs a page
      reload for now; a real fix needs its own UI entry point (e.g. a small "New track" control), not a click hack.
-   - Explicitly NOT in this pass (see the mega-spec conversation for the full picture): checkpoints/anti-cheat beyond the
-     simple wrap-detection above, AI bots, Short/Medium/Long length choice, saved circuits (localStorage), minimap
-     integration, a proper redraw entry point, a start gantry/grandstand/tyre walls, and multiplayer circuits (`race`
-     message carrying control points). Each is a legitimate next slice, not forgotten.
+   - Done: a stadium around every circuit, and 7-8 preset circuits (**not** 7-8 hand-built open worlds like Green
+     Loop - see the honesty note below). `buildCircuit(pts2D, theme)` now takes an optional theme object (ground/field/
+     tree/trunk/leaf/stand/standTrim/fog/sky colors + a `tree` style of `'pine'|'palm'|'rock'|'none'`); freehand-drawn
+     tracks still default to the original green `THEME_DEFAULT` unchanged. Added per circuit: a continuous perimeter
+     barrier wall (reusing `circStrip` on a curve offset inward from the tree radius), 6-14 grandstand blocks
+     (2 `InstancedMesh` - seating block + trim) spaced around the ring and all facing the track center via
+     `atan2`, and 4+ floodlight pylons (2 more `InstancedMesh`) interspersed between them. Fog and sky background tint
+     to the theme on `enterCircuit()` and restore to the exact prior value on `leaveCircuit()` (`worldFogSave`, captured
+     once so day/night/weather changes elsewhere never get clobbered by a stale restore value).
+     `TRACK_PRESETS`: 8 entries, each a `{name, theme, shape}` pairing one of 8 distinct `THEMES` (Meadow, Desert, Snow,
+     Forest, Volcanic, Coastal, Night, Canyon) with one of 8 distinct track outlines generated via `polarShape(rx,ry,mod)`
+     - a polar radius function `r(angle)` is a simple (non-self-intersecting) closed curve *by construction*, since
+     there's exactly one radius per angle, which sidesteps needing to hand-author and manually verify 8 point lists
+     against the same crossing checks the freehand drawer uses. A "Circuits" menu button opens a picker listing all 8;
+     picking one calls `buildCircuit` + `enterCircuit` directly, skipping the freehand validator entirely since these
+     are developer-authored, not user-drawn. Extracted the freehand path's scale-to-`CIRC_LEN`-and-center-on-centroid
+     logic into a shared `normalizeLoop()` so presets and freehand drawings size identically.
+     Verified headless: all 8 presets listed with correct name/theme text; each one entered, tinted the sky to its
+     exact theme hex, was driven on for over a second, and exited cleanly with correct button-state transitions -
+     zero real console errors across all 8, not just a sampled few. Separately spot-checked that forest (pine) produces
+     `ConeGeometry` instances and volcanic (rock) produces `DodecahedronGeometry` instances, confirming the tree-vs-rock
+     branch actually fires correctly per theme rather than both silently rendering the same thing. Re-ran the freehand
+     draw -> enter -> drive -> leave cycle afterward as a regression check on the `buildCircuit` signature change - still
+     clean.
+     **Honesty note**: this is 8 different track shapes/themes on ONE shared circuit engine (asphalt loop + flat
+     collision plate + stadium ring), not 8 independently hand-built worlds with unique terrain algorithms, physics
+     zones, and landmarks the way the original "Green Loop" map is (~2400 lines on its own). That would be many more
+     sessions of work. This delivers real, verified variety now without pretending it's something bigger than it is.
+   - Explicitly NOT in this pass: checkpoints/anti-cheat beyond the simple wrap-detection above, AI bots, Short/Medium/
+     Long length choice, saved circuits (localStorage), minimap integration, a proper redraw entry point for the
+     freehand drawer, and multiplayer circuits (`race` message carrying control points). Each is a legitimate next
+     slice, not forgotten. Also not done: 7-8 fully independent open-world maps in the Green Loop sense - see the
+     honesty note above and the "Map/vehicle expansion" item further down.
 3. Multiplayer rewrite (`MP` block near the end of `game.js`):
    - Done: `MAXP = 3 -> 4` (index.html copy updated to match). `PAL` already had 4 colors defined, so `colorOf`/roster/room-full
      logic needed no other change. Verified: 2-tab `?net=local` create+join, both tabs see a 2-player roster, no console errors.
