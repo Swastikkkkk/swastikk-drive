@@ -149,6 +149,31 @@ multiplayer rewrite) from the pasted spec when picking this back up rather than 
      freehand drawer, and multiplayer circuits (`race` message carrying control points). Each is a legitimate next
      slice, not forgotten. Also not done: 7-8 fully independent open-world maps in the Green Loop sense - see the
      honesty note above and the "Map/vehicle expansion" item further down.
+   - Done: a 9th preset, "Lunar Circuit" (`THEMES[8]`, id `'moon'`), added after a request to build an
+     Earth -> black hole -> wormhole -> Moon space-travel mode. That full request (gravitational-lensing shaders, a
+     wormhole cutscene, quality-tier system ULTRA/HIGH/MEDIUM/LOW, dynamic FPS-based quality scaling, WebGL-failure
+     fallback UI, chunked/LOD moon terrain loading) is not in this codebase in any form and would be many sessions of
+     new systems, unrelated to anything already built - it was NOT attempted. What *is* real: the one piece marked
+     gameplay-critical in that request, actual reduced gravity, built on the circuit-theme engine that already existed.
+     `THEMES[8].gravity` is `-24*(1.62/9.81)` - scaled from this game's own tuned `-24` Earth gravity by the real
+     Moon/Earth ratio, not set to the literal real-world `-1.62`, since suspension load / hill-climb-aid / reverse-assist
+     forces are all computed from `Math.abs(world.gravity.y)` already (see the driving tick) - dropping straight to
+     `-1.62` would have made the same formulas read as "1/15th Earth" instead of the intended "1/6th". `enterCircuit`/
+     `leaveCircuit` now save-once/restore `world.gravity.y` the same way they already did for fog and sky color.
+     Also: Moon forces `starMat` opacity to 1 and hides the world's own decorative moon sprite (seeing "the moon" from
+     on top of the actual Moon reads oddly) - both captured once and restored exactly on leave, same pattern as the
+     fog/sky/gravity saves. Added a simple Earth sphere (canvas-texture continents on a sphere) at a fixed far offset in
+     the sky - not camera-following like the sun/moon/stars are, since the circuit's drivable area is small next to the
+     distance, so a fixed placement reads as fixed without hooking into that per-frame system.
+     Verified headless: gravity is exactly `-3.963302752293578` while on the Moon circuit, restores to exactly `-24` on
+     leave; sky/fog/moon-visibility/star-opacity all correct on enter and restored exactly on leave; drove for several
+     seconds under lunar gravity with no crash or instability; confirmed a non-Moon preset (Desert) does NOT touch
+     gravity or star/moon state, ruling out the new code leaking into the other 8 presets.
+     **Explicitly not built and not planned as part of this feature**: the black hole, the wormhole transition, the
+     Earth-to-space travel sequence, gravitational lensing (real or faked), the ULTRA/HIGH/MEDIUM/LOW quality-tier
+     system, dynamic performance scaling based on measured FPS, chunked/LOD moon terrain generation, a WebGL-failure
+     compatibility screen, or a loading-percentage UI. If any of these are wanted, they're each substantial standalone
+     systems and should be scoped and built one at a time, the same way every other feature in this file was.
 3. Multiplayer rewrite (`MP` block near the end of `game.js`):
    - Done: `MAXP = 3 -> 4` (index.html copy updated to match). `PAL` already had 4 colors defined, so `colorOf`/roster/room-full
      logic needed no other change. Verified: 2-tab `?net=local` create+join, both tabs see a 2-player roster, no console errors.

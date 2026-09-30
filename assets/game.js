@@ -2242,7 +2242,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      AI, checkpoints/anti-cheat, saved circuits, Short/Medium/Long length choice and multiplayer
      circuits are NOT in this pass. */
   const CIRC_X=0,CIRC_Z=-(WS+500),CIRC_Y=40,CIRC_LEN=420,CIRC_W=10;
-  let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null,worldFogSave=null;
+  let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null,worldFogSave=null,worldGSave=null,worldStarSave=null;
   function circAt(u,curve){u=((u%1)+1)%1;const p=curve.getPointAt(u).clone();const tg=curve.getTangentAt(u);return {p,tg,n:new THREE.Vector3(-tg.z,0,tg.x)}}
   function circStrip(curve,Nseg,w,yo,mat,rep){const pos=[],idx=[],uv=[];
     for(let i=0;i<=Nseg;i++){const {p,n}=circAt(i/Nseg,curve),nx=n.x*w/2,nz=n.z*w/2;
@@ -2293,6 +2293,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       stand:0x1c1c20,standTrim:0x5cf2ff,fog:0x0a0a0e,sky:0x08080c},
     {id:'canyon',name:'Canyon',ground:0x8a4a30,field:0x9a5838,trunk:0x6a3f2a,leaf:0x6a3f2a,tree:'rock',
       stand:0x6a4530,standTrim:0xd4a83a,fog:0xc87850,sky:0xb85f3a},
+    // gravity is the one property here that isn't just cosmetic: it's applied to world.gravity.y
+    // on enter and restored on leave (see enterCircuit/leaveCircuit). Scaled from this game's own
+    // tuned -24 Earth gravity by the real Moon/Earth ratio (1.62/9.81), not set to the literal
+    // real-world -1.62, since the car's suspension/engine forces are all tuned relative to -24 -
+    // dropping straight to -1.62 would make the same code read as "1/15th Earth" instead of the
+    // intended "1/6th", floating far more than a Moon buggy should.
+    {id:'moon',name:'Moon',ground:0x605e5c,field:0x4a4846,trunk:0x3a3836,leaf:0x3a3836,tree:'rock',
+      stand:0x383634,standTrim:0xc8ccd0,fog:0x030305,sky:0x020204,gravity:-24*(1.62/9.81)},
   ];
   // 8 preset circuits: distinct shapes (via distinct polar radius functions) x distinct themes.
   // Built directly through buildCircuit, bypassing the freehand validator entirely - these are
@@ -2306,6 +2314,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {id:'coastalstar',name:'Coastal Star',theme:THEMES[5],shape:polarShape(260,260,a=>1+.22*Math.cos(a*5))},
     {id:'nightteardrop',name:'Night Teardrop',theme:THEMES[6],shape:polarShape(300,220,a=>1+.35*Math.sin(a))},
     {id:'canyontrigon',name:'Canyon Trigon',theme:THEMES[7],shape:polarShape(300,300,a=>1+.3*Math.cos(a*3+1))},
+    {id:'lunarcircuit',name:'Lunar Circuit',theme:THEMES[8],shape:polarShape(320,260,a=>1+.2*Math.sin(a*2+.5))},
   ];
   function buildPreset(preset){buildCircuit(normalizeLoop(preset.shape),preset.theme);enterCircuit()}
   function buildCircuit(pts2D,theme){ // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
@@ -2383,6 +2392,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         tP.set(x,CIRC_Y-.5+(isRock?.6:1.1),z);tM.compose(tP,tQ,tS.setScalar(isRock?.7+hash2(i,i*2)*.8:1));trunkIM.setMatrixAt(i,tM);
         if(leafIM){tP.set(x,CIRC_Y-.5+2.6,z);tM.compose(tP,tQ,tS.set(1,1,1));leafIM.setMatrixAt(i,tM)}}
       trunkIM.instanceMatrix.needsUpdate=true;if(leafIM)leafIM.instanceMatrix.needsUpdate=true}
+    // Earth, hanging in the lunar sky - fixed far offset rather than camera-following, since the
+    // circuit's drivable area is small next to the distance, so it reads as fixed without needing
+    // to hook into the per-frame camera-follow code the world's own sun/moon/stars use
+    if(theme.id==='moon'){
+      const ec=document.createElement('canvas');ec.width=128;ec.height=128;const ex=ec.getContext('2d');
+      ex.fillStyle='#2a5ea8';ex.fillRect(0,0,128,128);
+      ex.fillStyle='#3f8a56';[[30,40,22],[80,70,18],[50,95,14]].forEach(([x,y,r])=>{ex.beginPath();ex.arc(x,y,r,0,6.283);ex.fill()});
+      ex.fillStyle='rgba(255,255,255,.55)';[[95,30,16],[20,90,12]].forEach(([x,y,r])=>{ex.beginPath();ex.arc(x,y,r,0,6.283);ex.fill()});
+      const earthMat=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(ec),fog:false});ownedMats.push(earthMat);
+      const earth=new THREE.Mesh(new THREE.SphereGeometry(60,20,16),earthMat);
+      earth.position.set(cx+420,CIRC_Y+260,cz-300);root.add(earth)}
     const startP=circAt(0,curve);
     const flagMat=new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.85,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});ownedMats.push(flagMat);
     const flag=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,1.6).rotateX(-Math.PI/2),flagMat);
@@ -2403,11 +2423,27 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     // always restores the exact value the main map had, regardless of weather/day-night state
     if(!worldFogSave)worldFogSave={fog:S.fog.color.getHex(),bg:S.background.getHex()};
     const th=circuit.theme||THEME_DEFAULT;S.fog.color.setHex(th.fog);S.background.setHex(th.sky);
-    toastMsg('Circuit mode · one lap is once around your track');updCircBtn()}
+    // gravity is gameplay, not decoration: themes that define one (currently just Moon) override
+    // world.gravity.y here and it's restored byte-for-byte on leave. Everything that derives force
+    // from gravity (suspension load, hill-climb aid, reverse assist) reads world.gravity.y live,
+    // so lighter gravity here isn't just a falling-speed change - the whole car feels different.
+    if(!worldGSave)worldGSave=world.gravity.y;
+    world.gravity.y=(th.gravity!=null)?th.gravity:worldGSave;
+    // the world's own day/night mood system is paused while MODE!=='world' (see the frameN%4
+    // guard further down), so stars stay at whatever opacity they happened to have when the
+    // player entered - force them visible for the Moon specifically so "black sky, stars, Earth"
+    // doesn't depend on what time of day it happened to be on the main map. Hide the world's own
+    // decorative moon sprite too, since seeing "the moon" from on top of the actual Moon is odd.
+    if(th.id==='moon'){if(worldStarSave==null)worldStarSave=starMat.uniforms.uOpacity.value;
+      starMat.uniforms.uOpacity.value=1;moon.visible=false}
+    toastMsg((th.gravity!=null?'Lunar gravity · ':'')+'Circuit mode · one lap is once around your track');updCircBtn()}
   function leaveCircuit(){if(MODE!=='circuit')return;
+    const wasMoon=circuit&&circuit.theme&&circuit.theme.id==='moon';
     MODE='world';
     if(worldSave){PREV.ok=false;physAcc=0;chassisB.position.copy(worldSave.p);chassisB.quaternion.copy(worldSave.q);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0)}
     if(worldFogSave){S.fog.color.setHex(worldFogSave.fog);S.background.setHex(worldFogSave.bg)}
+    if(worldGSave!=null)world.gravity.y=worldGSave;
+    if(wasMoon){moon.visible=true;if(worldStarSave!=null)starMat.uniforms.uOpacity.value=worldStarSave}
     hint.textContent=TOUCH?'':'WASD drive · C camera · L time a lap · M map · R reset';
     toastMsg('Back to the valley');updCircBtn()}
   /* ---------- drawing overlay ---------- */
