@@ -2220,7 +2220,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
     return new THREE.Mesh(g,mat)}
   function clearCircuit(){if(!circuit)return;S.remove(circuit.root);
+    // roadStrip/edgeStrip use the world's SHARED roadM/edgeM - only dispose materials this
+    // circuit actually created its own copies of (tracked in ownedMats), never blanket-dispose
+    // whatever a traverse happens to find, or the next redraw would break the main map's road
     circuit.root.traverse(o=>{if(o.geometry)o.geometry.dispose()});
+    (circuit.ownedMats||[]).forEach(m=>m.dispose());
     if(circuit.groundBody)world.removeBody(circuit.groundBody);
     circuit=null}
   function buildCircuit(pts2D){ // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
@@ -2240,10 +2244,33 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const groundMat=M(0x2c3a26,{roughness:.95});
     const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(hx*2,1,hz*2),groundMat);groundMesh.position.set(cx,CIRC_Y-.5,cz);groundMesh.receiveShadow=true;root.add(groundMesh);
     const groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Box(new CANNON.Vec3(hx,.5,hz)));groundBody.position.set(cx,CIRC_Y-.5,cz);world.addBody(groundBody);
+    // scenery so the track doesn't sit in an empty void: a wider grass field, and a scattered
+    // ring of instanced trees just outside the paved plate (radius from the plate's own diagonal,
+    // so trees can never land inside the rectangle regardless of the drawn loop's proportions).
+    // Dedicated materials, not the world's shared groundM/leafM/trunkM, so weather picked in the
+    // main map can't recolor the circuit unexpectedly.
+    const ownedMats=[groundMat];
+    const fieldMat=M(0x2f4a28,{roughness:.98});ownedMats.push(fieldMat);
+    const field=new THREE.Mesh(new THREE.PlaneGeometry((hx+160)*2,(hz+160)*2).rotateX(-Math.PI/2),fieldMat);
+    field.position.set(cx,CIRC_Y-.49,cz);field.receiveShadow=true;root.add(field);
+    {const trunkMat=M(0x3a2c20,{roughness:.9}),leafMat=M(0x33402c,{roughness:.95});ownedMats.push(trunkMat,leafMat);
+     const treeN=Math.max(40,Math.min(140,Math.round(curve.getLength()/4)));
+     const trunkIM=new THREE.InstancedMesh(new THREE.CylinderGeometry(.18,.24,2.2,6),trunkMat,treeN);trunkIM.castShadow=true;root.add(trunkIM);
+     const leafIM=new THREE.InstancedMesh(new THREE.ConeGeometry(1.3,3.4,7),leafMat,treeN);leafIM.castShadow=true;root.add(leafIM);
+     const tM=new THREE.Matrix4(),tP=new THREE.Vector3(),tQ=new THREE.Quaternion(),tS=new THREE.Vector3(1,1,1),upAxis=new THREE.Vector3(0,1,0);
+     const r0=Math.hypot(hx,hz)+15,r1=r0+130;
+     for(let i=0;i<treeN;i++){
+       const a=hash2(i*7.31,3.1)*Math.PI*2,rr=r0+hash2(i*2.7,9.4)*(r1-r0);
+       const x=cx+Math.cos(a)*rr,z=cz+Math.sin(a)*rr;
+       tQ.setFromAxisAngle(upAxis,hash2(i*3.3,i*1.1)*Math.PI*2);
+       tP.set(x,CIRC_Y-.5+1.1,z);tM.compose(tP,tQ,tS);trunkIM.setMatrixAt(i,tM);
+       tP.set(x,CIRC_Y-.5+2.6,z);tM.compose(tP,tQ,tS);leafIM.setMatrixAt(i,tM)}
+     trunkIM.instanceMatrix.needsUpdate=true;leafIM.instanceMatrix.needsUpdate=true}
     const startP=circAt(0,curve);
-    const flag=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,1.6).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.85,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+    const flagMat=new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.85,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});ownedMats.push(flagMat);
+    const flag=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,1.6).rotateX(-Math.PI/2),flagMat);
     flag.position.set(startP.p.x,CIRC_Y+.12,startP.p.z);flag.rotation.y=Math.atan2(startP.tg.x,startP.tg.z);root.add(flag);
-    circuit={curve,CN,CSAMP,root,groundBody,startP};
+    circuit={curve,CN,CSAMP,root,groundBody,startP,ownedMats};
     return circuit}
   function enterCircuit(){if(!circuit)return;
     worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
@@ -2324,6 +2351,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const circBtn=$('#dcircb');
   function updCircBtn(){if(!circBtn)return;
     circBtn.textContent=MODE==='circuit'?'Back to world':(circuit?'Go to track':'Draw track')}
+  // once a circuit exists there is no redraw path yet - single button cycles enter/leave only.
+  // A dblclick-to-redraw was tried and reverted: browsers fire click,click,dblclick on the same
+  // element, so it would briefly enter-then-leave the circuit (with the save/restore/toast noise
+  // that implies) before the drawer opened. A half-working shortcut is worse than not having one;
+  // redrawing needs a page reload for now (see ROADMAP.md).
   if(circBtn)circBtn.onclick=()=>{if(MODE==='circuit'){leaveCircuit();return}if(circuit){enterCircuit();return}openDrawer()};
   {const x=$('#dcircx'),cl=$('#dcircclear');
    if(x)x.onclick=closeDrawer;

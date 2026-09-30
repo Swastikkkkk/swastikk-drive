@@ -99,10 +99,27 @@ multiplayer rewrite) from the pasted spec when picking this back up rather than 
      track, not just "didn't crash") -> leave -> position and `MODE` restored exactly. Separately verified both
      rejection paths fire for the right reason (tiny scribble -> "bigger loop"; a deliberately self-intersecting bowtie
      -> "crosses itself", which is what caught the truncation bug above). No console errors in any of it.
+   - Done: environment dressing, so the track isn't a strip of asphalt floating in a void. `buildCircuit` now also adds
+     a wide grass-colored field plane under/around the paved plate and a scattered ring of instanced trees (trunk +
+     cone canopy, 2 `InstancedMesh`) placed at a radius derived from the plate's own diagonal (`Math.hypot(hx,hz)`, not
+     `max(hx,hz)`) so trees can never land inside the rectangle regardless of how lopsided the drawn loop is. Dedicated
+     materials, not the world's shared `groundM`/`leafM`/`trunkM`, so weather picked on the main map can't bleed into
+     circuit colors. `clearCircuit()` now disposes exactly the materials this circuit created (`ownedMats`, an explicit
+     list built in `buildCircuit`) - NOT a blanket "dispose whatever the traverse finds", which would have disposed the
+     world's shared `roadM`/`edgeM` too (caught this in review before it shipped, not after).
+     Verified headless: no console errors; scene graph shows the field plane plus two new `InstancedMesh` objects at
+     the expected tree count; full draw -> enter -> drive -> leave cycle still clean afterward.
+   - Confirmed, not a new feature: "shouldn't collide/meet, one path" was already guaranteed by the existing
+     self-intersection validation - any accepted loop is a single non-crossing path by construction.
+   - Found and reverted during this pass: tried a double-click-to-redraw shortcut on the same button, since right now
+     once a circuit exists there is no way back into the drawer to replace it. Reverted because browsers fire
+     click→click→dblclick on one element, so it would briefly enter-then-leave the circuit (full save/restore/toast
+     noise) before the drawer opened - a half-working shortcut is worse than an honest gap. Redrawing needs a page
+     reload for now; a real fix needs its own UI entry point (e.g. a small "New track" control), not a click hack.
    - Explicitly NOT in this pass (see the mega-spec conversation for the full picture): checkpoints/anti-cheat beyond the
      simple wrap-detection above, AI bots, Short/Medium/Long length choice, saved circuits (localStorage), minimap
-     integration, a start gantry/grandstand/tyre walls, and multiplayer circuits (`race` message carrying control
-     points). Each is a legitimate next slice, not forgotten.
+     integration, a proper redraw entry point, a start gantry/grandstand/tyre walls, and multiplayer circuits (`race`
+     message carrying control points). Each is a legitimate next slice, not forgotten.
 3. Multiplayer rewrite (`MP` block near the end of `game.js`):
    - Done: `MAXP = 3 -> 4` (index.html copy updated to match). `PAL` already had 4 colors defined, so `colorOf`/roster/room-full
      logic needed no other change. Verified: 2-tab `?net=local` create+join, both tabs see a 2-player roster, no console errors.
