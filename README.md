@@ -1,8 +1,28 @@
 # swastikk-drive
 
-A small driving game that runs in the browser. It opens straight into the game and the road is a closed loop, so you can keep going for as long as you like.
+A small driving game that runs in the browser. It opens straight into the game and the main road is a closed loop, so you can keep going for as long as you like.
 
-Off the loop there is a stunt park with a mega ramp and a ring of fire, a bowling lane you play with the car, a UFO field and a volcano. There are nine missions, a timed lap, day and night and changing weather.
+Off the loop there is a stunt park with a mega ramp and a ring of fire, a bowling lane you play with the car, a UFO field and a volcano. There are nine missions, a timed lap, day and night, and changing weather.
+
+## Cars and the Garage
+
+Open Menu, then Garage (it also opens itself the first time you play). There are six cars — Aster (free, balanced), Volt GT, Phantom, Kestrel, Ridgeback and Mamba — each with real differences in top speed, acceleration, grip and steering feel, not just paint. Aster is free; the other five are unlocked with coins earned in-game (see below). Pick a paint color and a name while you're in there; both are remembered.
+
+### Coins
+
+Coins come from playing, not from a store:
+
+| Action | Coins |
+| --- | --- |
+| Complete a mission | 50 |
+| Finish a timed lap | 10 (30 if it's a new best) |
+| Complete a lap on a drawn circuit | 10 |
+
+Cars cost 150–600 coins. The Garage shows "Buy · price" on anything you haven't unlocked yet; clicking it spends the coins and switches you to that car in one step, or tells you how many more coins you need.
+
+## Draw your own track
+
+Open Menu, then "Draw track". Freehand-draw a closed loop on the screen; it gets checked (does it close up, does it cross itself, is any corner too sharp) and, if it's valid, built into a real drivable track — asphalt, a bit of scenery around it, lap counting — somewhere off on its own away from the main map. The same button becomes "Go to track" once you have one, and "Back to world" while you're on it. There's currently no way to replace a circuit once you've drawn one without reloading the page, and no AI, checkpoints, or saved-circuits list yet — see `ROADMAP.md` if you want the full state of this feature.
 
 ## Controls
 
@@ -23,7 +43,7 @@ On a phone it shows on-screen steering, gas, brake and boost. Landscape works be
 
 ## Racing friends
 
-Open Menu, then Room. Create a room, or type a code someone sent you, and up to three drivers share it. You see each other as see-through ghost cars with a name tag above them, so nothing collides. Anyone in the room can hit Start race for a shared 3, 2, 1 and one lap around the loop; finish times show for everyone. An invite link looks like `?room=CODE`.
+Open Menu, then Room. Create a room, or type a code someone sent you, and up to four drivers share it. You see each other as see-through ghost cars — built with whichever car they actually picked in the Garage, not a generic default — with a name tag above them, so nothing collides. Anyone in the room can hit Start race; everyone's countdown is synchronized to the same shared clock, so 3, 2, 1 lands together instead of drifting by each person's own connection speed. One lap around the loop, then finish times show for everyone. Ping to each other player shows in the room list. Whoever's been in the room longest can remove another player with the × next to their name. An invite link looks like `?room=CODE`.
 
 Rooms run on a Supabase Realtime broadcast channel named after the code. Each player sends their car pose ten times a second and nothing is stored. The project URL and public anon key are at the top of the `MP` block in `assets/game.js`; swap them to use your own project. Add `?net=local` to link two tabs on one machine without any server.
 
@@ -41,3 +61,5 @@ Then open http://localhost:8000. Three.js r128 and cannon.js 0.6.2 load from cdn
 
 - `index.html` the page, HUD and styles
 - `assets/game.js` the whole game
+- `ROADMAP.md` what's done, what's in progress, and what's deliberately not built yet
+- `MULTIPLAYER.md` how the room/ghost system works under the hood
