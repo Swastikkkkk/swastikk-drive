@@ -1,6 +1,11 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 (function(){
-  if(!window.THREE||!window.CANNON)return;
+  const show3DFallback=()=>{
+    const loading=$('#dload');
+    if(loading){loading.textContent='This game requires WebGL for the full 3D experience. Please use a modern browser with hardware acceleration enabled.';loading.style.cssText='position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:28px;background:#06070b;color:#f2eee6;font:500 15px/1.6 system-ui,sans-serif;text-align:center;letter-spacing:0;text-transform:none'}
+  };
+  if(!window.THREE||!window.CANNON){show3DFallback();return}
+  try{const probe=document.createElement('canvas');if(!(probe.getContext('webgl')||probe.getContext('experimental-webgl'))){show3DFallback();return}}catch(e){show3DFallback();return}
   /* the weather turns as you go round the loop: [how far round it is (0..1), weather] */
   const ACTS=[[.008,'day'],[.075,'day'],[.145,'day'],[.215,'day'],[.295,'rain'],[.395,'dusk'],[.5,'dusk'],[.575,'day'],[.65,'dusk'],[.762,'day'],[.845,'autumn'],[.905,'autumn'],[.962,'dusk']];
   const CHMOOD=ACTS.map(a=>a[1]);
@@ -71,7 +76,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let W=sec.clientWidth,H=sec.clientHeight,active=false,driving=false,muted=false;
   const LOW=!matchMedia('(hover:hover)').matches;const TOUCH=matchMedia('(pointer:coarse)').matches||LOW;
   /* ---------- renderer / scene ---------- */
-  const R=new THREE.WebGLRenderer({canvas:cv,antialias:!LOW,powerPreference:'high-performance'});
+  let R;
+  try{R=new THREE.WebGLRenderer({canvas:cv,antialias:!LOW,powerPreference:'high-performance'})}
+  catch(e){show3DFallback();return}
   R.shadowMap.enabled=!LOW;R.shadowMap.type=THREE.PCFSoftShadowMap;
   /* One quality: Ultra, and it is not a menu. Everything the old tiers used to switch off
      is simply on — shadows, grass, dust, stars, the full particle budget. The only thing
@@ -594,18 +601,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     reedIM.count=k;S.add(reedIM);
     const lilyIM=new THREE.InstancedMesh(new THREE.CircleGeometry(1,10),M(0x2e4a26,{roughness:.6,side:THREE.DoubleSide}),lilies.length);
     lilies.forEach(([x,z,s],i)=>{o.position.set(x,WATER_Y+.03,z);o.scale.set(s,s,s);o.rotation.set(-Math.PI/2,0,i);o.updateMatrix();lilyIM.setMatrixAt(i,o.matrix)});S.add(lilyIM)})();
-  /* ---------- grass tufts near the road and the water (one draw call) ---------- */
-  (function(){if(LOW)return;const T=[];let seed=709;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;let tries=0;
-    while(T.length<2200&&tries<50000){tries++;const x=(rnd()-.5)*(372*MK*LAND),z=(rnd()-.5)*(372*MK*LAND);if(zoneHit(x,z,2))continue;const rd=roadNear(x,z).d;
-      const pd=Math.hypot(x-POND.x,z-POND.z);
-      if(!(rd<20+RWX||pd<POND.r*1.9))continue;if(rd<4.2+RWX)continue;if(pd<pondR(x,z)*1.05)continue;
-      const h=HF.h(x,z);if(HF.slope(x,z)>1.15)continue;if(h<-.2)continue;
-      T.push([x,h,z,.5+rnd()*.7,rnd()*6.3])}
-    const g=new THREE.PlaneGeometry(.42,.44);g.translate(0,.2,0);
-    const im=new THREE.InstancedMesh(g,addSway(new THREE.MeshLambertMaterial({color:0x51612f,side:THREE.DoubleSide}),'0.1'),T.length*2);
-    const o=new THREE.Object3D();let k=0;
-    T.forEach(([x,h,z,s,ry])=>{for(let b=0;b<2;b++){o.position.set(x,h,z);o.scale.set(s,s*(1+b*.2),s);o.rotation.set(0,ry+b*1.57,0);o.updateMatrix();im.setMatrixAt(k++,o.matrix)}});
-    im.count=k;S.add(im);SCN.grass=im})();
+  SCN.grass=null;
   /* ---------- labels ---------- */
   function label(txt,sub,w=1024,h=256,dark=false){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle=dark?'#f2eee6':'#15140f';x.fillRect(0,0,w,h);x.fillStyle=dark?'#15140f':'#f2eee6';x.textAlign='center';x.textBaseline='middle';x.font=`600 ${sub?h*.4:h*.5}px -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Inter,"Helvetica Neue",Arial,sans-serif`;x.fillText(txt,w/2,sub?h*.38:h*.5,w*.94);if(sub){x.font=`600 ${h*.12}px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace`;x.fillStyle=dark?'#6b675f':'#9a958c';x.fillText(sub.toUpperCase(),w/2,h*.78,w*.94)}const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t}
   function signPost(x,z,y,txt,sub,dark,ry){const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=ry;S.add(g);const post=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,3.2,6),steel);post.position.y=1.6;g.add(post);const b=new THREE.Mesh(new THREE.BoxGeometry(6.4,1.8,.2),dark?paper:ink);b.position.y=3.8;g.add(b);const pl=new THREE.Mesh(new THREE.PlaneGeometry(6.2,1.6),new THREE.MeshBasicMaterial({map:label(txt,sub,1024,264,dark)}));pl.position.set(0,3.8,.12);g.add(pl);const p2=pl.clone();p2.rotation.y=Math.PI;p2.position.z=-.12;g.add(p2);staticBox(x,y+1.6,z,.15,1.6,.15);return g}
@@ -825,21 +821,15 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(active&&driving){const cp=car.position,v=chassisB.velocity;
       const fdx=cp.x-FIRE.x,fdz=cp.z-FIRE.z,fal=fdx*SAX.ax+fdz*SAX.az,flt=fdx*SAX.az-fdz*SAX.ax;if(Math.abs(fal)<2.6&&Math.hypot(flt,cp.y-FIRE.y)<FIRE.R+.3&&now-FIRE.hit>3000){FIRE.hit=now;toastMsg('Through the fire');missSet('fire',1);blip(520,.3,.12)}
       TRAP.c=Math.max(0,TRAP.c-dt);if(TRAP.c<=0&&Math.hypot(cp.x-TRAP.x,cp.z-TRAP.z)<7){TRAP.c=4;const kmh=Math.round(Math.hypot(v.x,v.z)*3.6);const nb=kmh>TRAP.best;if(nb)TRAP.best=kmh;toastMsg('Speed trap · '+kmh+' km/h'+(nb?' · new best':' · best '+TRAP.best));blip(nb?900:600,.15,.08)}}}
-  let offD=0,smokeT=0,ufoLift=null;
+  let offD=0,smokeT=0;
   function WORLDFX(dt,now){const t=now/1000;SWAY.value=t;
     CLOUD.position.set(C.position.x,0,C.position.z);CLOUD.children.forEach(s=>{s.position.x+=dt*2.2;if(s.position.x>200)s.position.x=-200});
     TURB.forEach(T=>T.rot.rotation.z-=dt*T.sp);
     BAL.forEach((B,i)=>{B.a+=dt*B.sp;B.g.position.set(B.cx+Math.cos(B.a)*B.r,B.h+Math.sin(t*.35+i)*2.2,B.cz+Math.sin(B.a)*B.r)});
     VOLC.t+=dt;VOLC.lavaM.color.setHSL(.045,1,.5+.07*Math.sin(VOLC.t*2.1));
     smokeT-=dt;if(smokeT<=0&&Math.hypot(C.position.x-VOLC.x,C.position.z-VOLC.z)<340){smokeT=.35;SMOKE.emit(VOLC.x+(Math.random()-.5)*6,VOLC.fy+4,VOLC.z+(Math.random()-.5)*6,Math.random()<.5?0x2f2c2a:0x46423e,{life:9,vy:4+Math.random()*2,vx:1.6,vz:.4,s0:7,s1:30,a:.6})}
-    {const U=UFO;U.t+=dt;U.g.rotation.y+=dt*.6;U.g.position.y=U.gy+18+Math.sin(U.t*1.1)*.6;U.bm.opacity=.32+.14*Math.sin(U.t*5);if(frameN%14===0)U.lm[0].color.setHex((frameN/14|0)%2?0xfff1a8:0xff6a3a)}
+    {const U=UFO;U.t+=dt;U.g.rotation.y+=dt*.18;U.g.position.y=U.gy+18+Math.sin(U.t*1.1)*.6;U.bm.opacity=.32+.14*Math.sin(U.t*5);if(frameN%14===0)U.lm[0].color.setHex((frameN/14|0)%2?0xfff1a8:0xff6a3a)}
     if(active&&driving){const cp=car.position,v=chassisB.velocity,sp2=Math.hypot(v.x,v.z);
-      // UFO: lifts you up, spins you round, and puts you back down
-      {const U=UFO,dx=cp.x-U.x,dz=cp.z-U.z,d=Math.hypot(dx,dz);
-       if(d<6.2&&!U.cool){U.abT+=dt;if(U.abT<3.2)ufoLift=cp.y<U.gy+11?6:0;else{ufoLift=-3;if(cp.y<U.gy+1.6){U.cool=true;ufoLift=null;toastMsg('Returned. Mostly.')}}
-         v.x*=.965;v.z*=.965;chassisB.angularVelocity.y+=(1.4-chassisB.angularVelocity.y)*Math.min(1,dt*2);
-         if(!U.hit){U.hit=true;toastMsg('Beam me up');blip(300,.5,.1);setTimeout(()=>blip(900,.4,.08),220);missSet('ufo',1)}}
-       else{ufoLift=null;if(d>14){U.cool=false;U.hit=false;U.abT=0}}}
       // trampolines
       TRAMP.forEach(T=>{T.c=Math.max(0,T.c-dt);T.b=Math.max(0,T.b-dt*3);T.mat.position.y=.1-T.b*.35;
         if(T.c<=0&&Math.hypot(cp.x-T.x,cp.z-T.z)<2.7&&cp.y<T.y+2.2){v.y=17;T.c=.9;T.b=1;shake=Math.max(shake,.25);blip(420,.18,.1);setTimeout(()=>blip(840,.2,.08),80);
@@ -916,38 +906,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       S.add(trIM);blobIM.forEach(m=>S.add(m))}
     // only the roadside trees need to be solid; the rest are scenery and cost nothing
     treePts.forEach(([x,z,s])=>{if(roadNear(x,z).d<42+RWX)staticBox(x,HF.h(x,z)+1.2,z,.34,1.2,.34)});
-    // low scrub, one draw call, to stop the ground reading as bare polygons
-    if(!LOW){const B=[];let t2=0;
-      while(B.length<900&&t2<36000){t2++;const x=(rnd()-.5)*(372*MK*LAND),z=(rnd()-.5)*(372*MK*LAND);if(zoneHit(x,z,3))continue;
-        if(roadNear(x,z).d<5.5+RWX)continue;
-        if((x-POND.x)**2+(z-POND.z)**2<(pondR(x,z)*1.02)**2)continue;
-        if(HF.h(x,z)<-.15||HF.slope(x,z)>1.5)continue;
-        B.push([x,z,.55+rnd()*.8,rnd()*6.283])}
-      const bIM=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0),M(0x475a2a,{roughness:.98}),B.length);bIM.receiveShadow=true;
-      B.forEach(([x,z,s,ry],i)=>{o.position.set(x,HF.h(x,z)+s*.42,z);o.scale.set(s,s*.62,s*.9);o.rotation.set(ry*.3,ry,ry*.2);o.updateMatrix();bIM.setMatrixAt(i,o.matrix)});
-      S.add(bIM)}
   })();
-  /* ---------- gold rings (the ring-run mission) ---------- */
-  const ringPts=[];{let seed=91;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;let tries=0;
-    while(ringPts.length<6&&tries<5000){tries++;const x=(rnd()-.5)*(250*MK),z=(rnd()-.5)*(250*MK);
-      if(roadNear(x,z).d<15)continue;
-      if((x-POND.x)**2+(z-POND.z)**2<(POND.r+8)**2)continue;if((x-PG.x)**2+(z-PG.z)**2<24*24)continue;
-      if(PADS.some(p=>(p.x-x)**2+(p.z-z)**2<(p.r+6)**2))continue;
-      if(ringPts.some(q=>(q[0]-x)**2+(q[1]-z)**2<30*30))continue;
-      if(HF.h(x,z)<.2||HF.slope(x,z)>.85)continue;
-      ringPts.push([x,z])}}
-  const rings=ringPts.map((p,i)=>{const y=HF.h(p[0],p[1]);const g=new THREE.Group();g.position.set(p[0],y,p[1]);S.add(g);
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.5,.13,8,24),new THREE.MeshBasicMaterial({color:0xd4a83a}));ring.rotation.x=Math.PI/2;ring.position.y=1.6;g.add(ring);
-    const ring2=ring.clone();ring2.scale.setScalar(.6);ring2.material=new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.7});g.add(ring2);
-    const glowQ=new THREE.PointLight(0xd4a83a,1.2,11);glowQ.position.y=1.6;g.add(glowQ);
-    g.visible=false;
-    return {i,pos:g.position,ring,ring2,g,done:false}});
-  let ringIdx=0;
   /* ---------- missions ---------- */
   const MSAVE=(()=>{try{return JSON.parse(localStorage.getItem('sl_miss')||'{}')}catch(e){return{}}})();
   const LAP_TARGET=Math.round(80000*MK/1000)*1000;
   const MISSIONS=[
-    {id:'rings',name:'Ring run',hint:'Drive through all six gold rings',goal:6},
     {id:'cones',name:'Cone slalom',hint:'Knock over seven cones at the playground',goal:7},
     {id:'swim',name:'Take it swimming',hint:'Drive into the pond and wade through',goal:1},
     {id:'air',name:'Send it',hint:'Catch a full second of air off a ramp',goal:1},
@@ -964,8 +927,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function missUI(){const m=curMission(),n=MISSIONS.filter(x=>x.done).length;
     missC.textContent=n+'/'+MISSIONS.length;
     if(!m){missH.textContent='All missions cleared';missS.textContent='You ate. No crumbs left.';}
-    else{missH.textContent=m.name;missS.textContent=m.hint+(m.goal>1?'  ·  '+Math.min(m.prog,m.goal)+'/'+m.goal:'')}
-    rings.forEach((r,i)=>{r.g.visible=!!m&&m.id==='rings'&&i===ringIdx&&!r.done})}
+    else{missH.textContent=m.name;missS.textContent=m.hint+(m.goal>1?'  ·  '+Math.min(m.prog,m.goal)+'/'+m.goal:'')}}
   function missSet(id,v){const m=MISSIONS.find(x=>x.id===id);if(!m||m.done)return;
     if(v<=m.prog)return;m.prog=v;
     if(m.prog>=m.goal){m.done=true;missSave();earnCoins(50);blip(680,.3,.13);toastMsg('Mission done · '+m.name+' · +50 coins');
@@ -1663,7 +1625,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return {drag:d,fog:f,tint:[t0,t1,t2]}}
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
-  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -1770,11 +1732,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {const s=MAPR*sc;c.drawImage(mapCache,-s,-s,s*2,s*2)}
     c.strokeStyle='#f2eee6';c.lineWidth=2;c.beginPath();const n=Math.floor(progU*MAPS.length);for(let i=0;i<=n&&i<MAPS.length;i++){const p=MAPS[i];i?c.lineTo(p.x*sc,p.z*sc):c.moveTo(p.x*sc,p.z*sc)}c.stroke();
     const t=performance.now()/500;
-    {const mC=curMission();
-     if(mC&&mC.id==='rings'){const qA=rings[ringIdx];
-       if(qA&&!qA.done){c.fillStyle='#d4a83a';c.beginPath();c.arc(qA.pos.x*sc,qA.pos.z*sc,big?5:3.4,0,6.283);c.fill();
-         c.strokeStyle='rgba(212,168,58,.8)';c.lineWidth=1.5;c.beginPath();c.arc(qA.pos.x*sc,qA.pos.z*sc,(big?9:6)+Math.sin(t)*2,0,6.283);c.stroke();
-         if(big){c.fillStyle='#d4a83a';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.textAlign='left';c.fillText('RING '+(ringIdx+1)+'/6',qA.pos.x*sc+9,qA.pos.z*sc+4)}}}
+    {
      // traffic shows up on the map so you can see what you are racing into
      c.fillStyle='rgba(242,238,230,.75)';traffic.forEach(tc=>{const pt=at(tc.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?3.4:2.2,0,6.283);c.fill()})}
     // the ring road, drawn as the circle it is
@@ -1813,8 +1771,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const PREV={p:new CANNON.Vec3(),q:new CANNON.Quaternion(),ok:false},qA=new THREE.Quaternion(),qB=new THREE.Quaternion();
   const shD=new THREE.Vector3(),shR=new THREE.Vector3(),shU=new THREE.Vector3();
   function physStep(h){
-      /* the UFO beam: cancels gravity and eases the car toward a target climb rate, every substep */
-      if(ufoLift!==null){fScratch.set(0,chassisB.mass*(24+(ufoLift-chassisB.velocity.y)*5),0);chassisB.applyForce(fScratch,chassisB.position)}
       if(sub>0){
         // buoyancy scales with how submerged it is and is capped under its own weight, so it wallows instead of taking off
         const lift=chassisB.mass*24*sub*.88;
@@ -1954,7 +1910,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 
     let rev=0.12, hintShown=false;
     const GROUND=new THREE.Vector3(gx,gy,gz);
-    const api={grp, center:CEN, ground:GROUND, radius:HOR, get reveal(){return rev;}, near:false, armed:false};
+    const api={grp, center:CEN, ground:GROUND, radius:HOR, get reveal(){return rev;}, near:false};
 
     api.update=function(dt,now){
       // reveal eases toward full at night, stays faint by day
@@ -1984,7 +1940,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const dx=chassisB.position.x-gx, dz=chassisB.position.z-gz;
       const d=Math.hypot(dx,dz);
       api.near = d<70;
-      if(nightOn && api.near && !hintShown){ hintShown=true; try{toastMsg('A gravitational anomaly tears at the dark ahead. Drive into it.');}catch(e){} }
+      if(nightOn && api.near && !hintShown){ hintShown=true; try{toastMsg('A gravitational anomaly tears at the dark ahead. The UFO is the way in.');}catch(e){} }
       if(!api.near) hintShown=false;
       api.armed = nightOn && d<HOR*1.6;   // inside the event-horizon footprint ??? entry trigger (Phase 2)
     };
@@ -2003,7 +1959,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      States: earth ??? entering ??? space ??? moon ??? returning ??? earth
      ===================================================================== */
   const SPACE=(function(){
-    const api={state:'earth', cool:false};
+    const api={state:'earth',warpX:0,warpY:0};
     let t=0;                       // seconds inside the current phase
     const camShake=new THREE.Vector3();
     const savedFar=C.far, savedNear=C.near;
@@ -2051,6 +2007,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       'font-family:ui-monospace,Menlo,Consolas,monospace;font-size:clamp(15px,3vw,26px);letter-spacing:.04em;'+
       'pointer-events:none;opacity:0;transition:opacity .5s;text-shadow:0 2px 20px rgba(0,0,0,.85)';
     sec.appendChild(cap);
+    const travelEl=$('#dtravel');
     let capText='';
     function say(s){ if(s===capText)return; capText=s; if(!s){cap.style.opacity='0';return;} cap.textContent=s; cap.style.opacity='1'; }
 
@@ -2066,6 +2023,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const sunG=mkGlow('rgba(255,225,150,1)',700); sun2.add(sunG);
       const dl=new THREE.DirectionalLight(0xffffff,1.4); dl.position.copy(sun2.position); sc.add(dl);
       sc.add(new THREE.AmbientLight(0x101826,0.5));
+      // A simple canvas-textured disc keeps the black-hole landmark usable without custom shaders.
+      const bh=new THREE.Group(),horizon=new THREE.Mesh(new THREE.SphereGeometry(58,40,32),new THREE.MeshBasicMaterial({color:0x000000}));
+      const dc=document.createElement('canvas');dc.width=256;dc.height=32;
+      {const x=dc.getContext('2d'),g=x.createLinearGradient(0,0,256,0);g.addColorStop(0,'rgba(255,95,24,0)');g.addColorStop(.18,'rgba(196,54,20,.45)');g.addColorStop(.38,'rgba(255,149,58,.95)');g.addColorStop(.55,'rgba(255,241,207,.98)');g.addColorStop(.72,'rgba(230,91,29,.75)');g.addColorStop(1,'rgba(255,96,24,0)');x.fillStyle=g;x.fillRect(0,0,256,32)}
+      const diskMat=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(dc),transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending});
+      const disk=new THREE.Mesh(new THREE.RingGeometry(72,168,128),diskMat);disk.rotation.x=Math.PI*.5-.26;
+      const photon=new THREE.Mesh(new THREE.TorusGeometry(66,1.6,12,128),new THREE.MeshBasicMaterial({color:0xffe9c6,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+      bh.add(disk,horizon,photon);bh.position.set(0,0,-620);sc.add(bh);
       // Earth (starts large/near, shrinks behind)
       const earth=new THREE.Mesh(new THREE.SphereGeometry(120,36,36),
         new THREE.MeshStandardMaterial({map:planetTex('#1f5fa8',[{c:'#2f7d3a',y:.2,h:.16},{c:'#2a6d33',y:.55,h:.12},{c:'#eef5ff',y:0,h:.07,a:.75}]),roughness:1}));
@@ -2084,35 +2049,46 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         m.position.set(pos[0],pos[1],pos[2]);sc.add(m);pl.push(m);});
       // warp streak field (reused star points, stretched via size)
       const streak=starPoints(1200,200,1400,3); sc.add(streak);
+      const craft=UFO.g.clone(true),passenger=car.clone(true);craft.scale.setScalar(.72);
+      passenger.position.set(0,-2.4,0);passenger.quaternion.identity();passenger.scale.setScalar(.45);craft.add(passenger);sc.add(craft);
+      const warpRings=[];
+      for(let i=0;i<16;i++){
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(38+(i%4)*5,.65,7,52),new THREE.MeshBasicMaterial({color:i%3===0?0xffd39a:0x9ca9c4,transparent:true,opacity:.35+(i%4)*.08,blending:THREE.AdditiveBlending,depthWrite:false}));
+        ring.position.set(Math.sin(i*1.73)*24,Math.cos(i*1.17)*18,-180-i*250);sc.add(ring);warpRings.push(ring);
+      }
       sc.add(earth); sc.add(moonP);
-      spaceScene=sc; spaceObj={earth,moonP,sun2,streak,neb,pl};
+      spaceScene=sc; spaceObj={earth,moonP,sun2,streak,neb,pl,bh,disk,photon,craft,warpRings};
     }
 
     /* =================== MOON SURFACE (lazy) =================== */
     let moonScene=null, M=null;
+    const MOON_SEED=271828;
     // procedural lunar height ??? rolling base + multi-scale craters + basins
     function moonH(x,z){
-      let h = (fbm2(x*0.004+40, z*0.004-20)-0.5)*26      // broad undulation
-            + (fbm2(x*0.02-13, z*0.02+9)-0.5)*7;          // finer roughness
+      const seedOffset=MOON_SEED*.001;
+      let h=(fbm2(x*.004+40+seedOffset,z*.004-20-seedOffset)-.5)*26
+           +(fbm2(x*.02-13-seedOffset,z*.02+9+seedOffset)-.5)*7;
       // crater grids: [cellSize, minR, maxR, depthScale, presence]
       const grids=[[70,8,26,1.0,0.5],[180,34,78,1.9,0.42],[520,140,300,3.0,0.55]];
       for(let gi=0;gi<grids.length;gi++){
         const cell=grids[gi][0],minR=grids[gi][1],maxR=grids[gi][2],ds=grids[gi][3],pr=grids[gi][4];
         const cx=Math.floor(x/cell),cz=Math.floor(z/cell);
         for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){
-          const gx=cx+i,gz=cz+j, hsh=hash2(gx*1.7+gi*3.3, gz*1.3-gi*2.1);
+          const gx=cx+i,gz=cz+j,hsh=hash2(gx*1.7+gi*3.3+seedOffset,gz*1.3-gi*2.1-seedOffset);
           if(hsh<1-pr) continue;
-          const ox=hash2(gx+3.1+gi, gz+1.7), oz=hash2(gx+5.3, gz+9.1+gi);
+          const ox=hash2(gx+3.1+gi+seedOffset,gz+1.7-seedOffset),oz=hash2(gx+5.3-seedOffset,gz+9.1+gi);
           const ccx=(gx+ox)*cell, ccz=(gz+oz)*cell;
-          const R=minR+(maxR-minR)*hash2(gx+7.7-gi, gz+2.9+gi);
-          const irr=0.82+0.36*noise2((x+ccx)*0.02,(z+ccz)*0.02);     // non-circular
+          const R=minR+(maxR-minR)*hash2(gx+7.7-gi+seedOffset,gz+2.9+gi);
+          const irr=.82+.36*noise2((x-ccx)*.035,(z-ccz)*.035);
           const d=Math.hypot(x-ccx,z-ccz)/(R*irr);
           if(d<1.35){
             const depth=R*0.16*ds;
             const bowl = d<1 ? -(1-d*d) : 0;
-            const rim = Math.exp(-Math.pow((d-1.0)/0.17,2))*0.6;
-            const age = hash2(gx*2.3,gz*2.7);                          // old craters flatten
-            h += (bowl*depth + rim*depth*0.9) * (0.5+0.5*age);
+            const rim=Math.exp(-Math.pow((d-1)/.17,2))*(.52+.2*noise2(x*.08,z*.08));
+            const age=hash2(gx*2.3+seedOffset,gz*2.7-seedOffset),angle=Math.atan2(z-ccz,x-ccx);
+            const rayAngle=hash2(gx+19.1+seedOffset,gz-8.7)*Math.PI*2,rays=Math.pow(Math.max(0,Math.cos(angle-rayAngle)),18);
+            const ejecta=Math.exp(-Math.pow((d-1.2)/.22,2))*(.1+.26*rays),peak=R>100&&d<.17?(1-d/.17)*.2:0;
+            h+=(bowl*depth+rim*depth*.9+ejecta*depth+peak*depth)*(.5+.5*age);
           }
         }
       }
@@ -2122,7 +2098,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       if(moonScene)return;
       const sc=new THREE.Scene(); sc.background=new THREE.Color(0x02030a);
       // --- terrain mesh ---
-      const SIZE=1500, SEG=200;
+      const SIZE=3000, SEG=LOW?180:300;
       const geo=new THREE.PlaneGeometry(SIZE,SIZE,SEG,SEG);
       geo.rotateX(-Math.PI/2);
       const pos=geo.attributes.position, col=[];
@@ -2141,15 +2117,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       // --- scattered boulders (instanced) ---
       const rockGeo=new THREE.DodecahedronGeometry(1,0);
       const rockMat=new THREE.MeshStandardMaterial({color:0x8d8a84,roughness:1});
-      const ROCKS=240, rocks=new THREE.InstancedMesh(rockGeo,rockMat,ROCKS); const dm=new THREE.Matrix4();
-      let seed=12345; const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
+      const ROCKS=LOW?180:520,rocks=new THREE.InstancedMesh(rockGeo,rockMat,ROCKS),dm=new THREE.Matrix4();
+      const rockPos=new THREE.Vector3(),rockRot=new THREE.Quaternion(),rockScale=new THREE.Vector3(),rockUp=new THREE.Vector3(0,1,0),rockColor=new THREE.Color();
+      let seed=MOON_SEED; const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
       for(let i=0;i<ROCKS;i++){
-        const x=(rnd()-0.5)*SIZE*0.92, z=(rnd()-0.5)*SIZE*0.92, s=0.6+rnd()*rnd()*6;
-        dm.makeScale(s,s*(0.7+rnd()*0.5),s);
-        dm.setPosition(x, moonH(x,z)+s*0.3, z);
+        const x=(rnd()-.5)*SIZE*.92,z=(rnd()-.5)*SIZE*.92,s=.5+Math.pow(rnd(),3)*22;
+        rockPos.set(x,moonH(x,z)+s*.3,z);rockRot.setFromAxisAngle(rockUp,rnd()*Math.PI*2);
+        rockScale.set(s,s*(.58+rnd()*.75),s*(.68+rnd()*.55));dm.compose(rockPos,rockRot,rockScale);
         rocks.setMatrixAt(i,dm);
+        if(rocks.setColorAt){const shade=.72+rnd()*.48;rocks.setColorAt(i,rockColor.setRGB(shade,shade*.99,shade*.95))}
       }
-      rocks.instanceMatrix.needsUpdate=true;
+      rocks.instanceMatrix.needsUpdate=true;if(rocks.instanceColor)rocks.instanceColor.needsUpdate=true;rocks.castShadow=true;
       sc.add(rocks);
       // --- celestial sky ---
       const stars=starPoints(4000,2000,9000,3); sc.add(stars);
@@ -2285,15 +2263,27 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function go(s){ api.state=s; t=0;
       if(s==='space'){ buildSpace(); }
       if(s==='moon'){ buildMoon(); M.pos.set(0,moonH(0,0),0); M.vel.set(0,0,0); M.vy=0; M.yaw=0; M.grounded=true; say('The Moon ?? 1/6 gravity ?? drive to the blue portal to return'); }
-      if(s==='earth'){ C.far=savedFar; C.near=savedNear; C.updateProjectionMatrix(); api.cool=true; say(''); }
+      if(s==='earth'){ C.far=savedFar; C.near=savedNear; C.updateProjectionMatrix(); say(''); }
     }
 
+    api.updateEarth=function(){
+      if(!travelEl)return;
+      const near=active&&driving&&MODE==='world'&&api.state==='earth'&&Math.hypot(car.position.x-UFO.x,car.position.z-UFO.z)<24;
+      travelEl.hidden=!near;
+    };
+    api.interact=function(){
+      if(api.state!=='earth'||MODE!=='world'||Math.hypot(car.position.x-UFO.x,car.position.z-UFO.z)>=24)return;
+      api.begin();
+    };
+    if(travelEl)travelEl.onclick=()=>api.interact();
     api.begin=function(){
-      if(api.state!=='earth')return;
-      go('entering');
+      if(api.state!=='earth'||MODE!=='world')return;
+      if(travelEl)travelEl.hidden=true;
+      buildSpace();go('flight');api.warpX=0;api.warpY=0;
       C.far=20000; C.near=0.5; C.updateProjectionMatrix();
       api._camFrom=C.position.clone();
-      try{toastMsg('Crossing the event horizon???');}catch(e){}
+      UFO.hit=true;missSet('ufo',1);blip(300,.5,.1);setTimeout(()=>blip(900,.4,.08),220);
+      try{toastMsg('The UFO lifts toward the anomaly');}catch(e){}
     };
 
     const fade=(function(){ const d=document.createElement('div');
@@ -2302,34 +2292,39 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 
     api.frame=function(dt,now){
       t+=dt;
-      if(api.state==='entering'){
-        // plunge the Earth camera into the anomaly, shake + white-out
-        const k=Math.min(1,t/2.6);
-        const tgt=ANOMALY.center;
-        C.position.lerp(tgt, 1-Math.pow(0.02,dt));
-        camShake.set((Math.random()-0.5),(Math.random()-0.5),(Math.random()-0.5)).multiplyScalar(k*1.6);
-        C.position.add(camShake);
-        C.lookAt(tgt);
-        say(k<0.6?'Gravity takes hold???':'');
-        fade.style.opacity=(Math.max(0,(k-0.6)/0.4)).toFixed(2);
-        if(t>2.6){ go('space'); fade.style.opacity='1'; }
-        R.render(S,C);
-        return;
+      if(api.state==='flight'){
+        const o=spaceObj,dur=9,k=Math.min(1,t/dur),steer=((key.r?1:0)-(key.l?1:0))*20;
+        fade.style.opacity=Math.max(0,1-t/.8).toFixed(2);
+        o.earth.position.set(0,25,320+k*500);o.earth.scale.setScalar(1-k*.5);o.earth.rotation.y+=dt*.04;
+        o.bh.position.set(0,0,-620+k*470);o.bh.scale.setScalar(.42+k*1.8);o.disk.rotation.z+=dt*.12;o.photon.rotation.z-=dt*.08;
+        o.craft.position.set(steer,5+Math.sin(t*1.6)*2,95-k*190);o.craft.rotation.z=-steer*.004;
+        C.position.set(o.craft.position.x,18+o.craft.position.y,o.craft.position.z+38);C.lookAt(o.bh.position);
+        say(k<.55?'The UFO is pulling clear of Earth…':'Black hole ahead. Hold course.');
+        if(t>dur){o.bh.visible=false;go('warp')}
+        R.render(spaceScene,C);return;
       }
-      if(api.state==='space'){
-        const o=spaceObj, dur=8, k=Math.min(1,t/dur);
-        fade.style.opacity=Math.max(0, 1-t/0.6).toFixed(2); // fade in from white
-        o.earth.position.set(0, 30, 250 + k*600); o.earth.scale.setScalar(1 - k*0.6);   // recedes behind
-        o.moonP.position.set(0, 0, -1600 + k*1350); o.moonP.scale.setScalar(0.4 + k*1.6); // grows ahead (stops short of camera)
-        o.earth.rotation.y+=dt*0.05; o.moonP.rotation.y+=dt*0.08;
-        o.streak.material.size = 3 + Math.sin(k*Math.PI)*40; // warp streak mid-journey
-        const steerX=((key.r?1:0)-(key.l?1:0))*26, climbY=((key.f?1:0)-(key.b?1:0))*12;
-        C.position.set(steerX, 20+climbY, 120);
-        C.lookAt(o.moonP.position);
-        say(k<0.4?'Driving the gravitational tunnel between worlds???':k>0.8?'The Moon ahead.':'');
-        if(t>dur){ fade.style.opacity='1'; go('moon'); }
-        R.render(spaceScene,C);
-        return;
+      if(api.state==='warp'){
+        const o=spaceObj,dur=36,k=Math.min(1,t/dur),camZ=120-t*100;
+        api.warpX=Math.max(-54,Math.min(54,api.warpX+((key.r?1:0)-(key.l?1:0))*dt*30));
+        api.warpY=Math.max(-34,Math.min(34,api.warpY+((key.f?1:0)-(key.b?1:0))*dt*18));
+        const pathX=Math.sin(t*.12)*18,pathY=Math.cos(t*.09)*10,x=pathX+api.warpX,y=pathY+api.warpY;
+        o.craft.position.set(x,y,camZ-24);o.craft.rotation.z=Math.max(-.18,Math.min(.18,-api.warpX*.004));
+        o.warpRings.forEach((ring,i)=>{ring.rotation.z+=dt*(i%2?.12:-.09);ring.material.opacity=.3+.18*Math.sin(t*3+i)});
+        o.streak.material.size=4+Math.sin(k*Math.PI)*54;
+        C.position.set(x,y+8,camZ);C.lookAt(pathX+Math.sin(t*.3)*28,pathY,camZ-90);
+        say(k<.08?'Inside the event horizon · steer through the gravity tunnel':k<.86?'Warp corridor · A/D steer · W/S climb and dive':'Moon signal ahead.');
+        if(t>dur){o.streak.material.size=3;go('approach')}
+        R.render(spaceScene,C);return;
+      }
+      if(api.state==='approach'){
+        const o=spaceObj,dur=7,k=Math.min(1,t/dur),camZ=-3480;
+        o.moonP.position.set(0,0,-4300+k*700);o.moonP.scale.setScalar(.6+k*1.4);o.moonP.rotation.y+=dt*.025;
+        o.earth.position.set(0,20,900);o.earth.scale.setScalar(.35);
+        o.craft.position.set(0,0,camZ-22);C.position.set(0,8,camZ);C.lookAt(o.moonP.position);
+        fade.style.opacity=(k>.88?(k-.88)/.12:0).toFixed(2);
+        say(k<.55?'The Moon is growing ahead…':'Descending to the surface.');
+        if(t>dur){go('moon');fade.style.opacity='1'}
+        R.render(spaceScene,C);return;
       }
       if(api.state==='moon'){
         fade.style.opacity=Math.max(0, 1-t/0.6).toFixed(2);
@@ -2457,8 +2452,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
          if(a!==act){act=a;if(!nightOn)mood(CHMOOD[a],6);chapEase=1}}}
       /* ---- missions (world only - circuit has no missions in this pass) ---- */
       if(MODE==='world'){const mc=curMission();
-       if(mc&&mc.id==='rings'){const r=rings[ringIdx];
-         if(r&&!r.done&&Math.hypot(r.pos.x-car.position.x,r.pos.z-car.position.z)<3.8){r.done=true;ringIdx++;missSet('rings',ringIdx)}}
        if(sub>.45)missSet('swim',1);
        if(frameN%12===0&&mc&&mc.id==='cones'){let k=0;coneBodies.forEach(c=>{if(Math.hypot(c.b.position.x-c.x,c.b.position.z-c.z)>1.5||c.b.position.y<.34)k++});if(k>0)missSet('cones',k)}
        // airtime
@@ -2575,7 +2568,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         d.parts.forEach(p=>{p.im.setMatrixAt(p.idx,p.offset?dynIM2.multiplyMatrices(dynIM,p.offset):dynIM);dynITouched.add(p.im)})}
       dynITouched.forEach(im=>im.instanceMatrix.needsUpdate=true)}
     const tt=now/1000;
-    rings.forEach(q=>{if(q.g.visible){q.ring.rotation.z+=dt*1.5;q.ring2.rotation.z-=dt*2.1}});
     if(active&&driving&&MODE==='world')updTraffic(dt,now);
     if(active&&MODE==='world'){WORLDFX(dt,now);WORLD2(dt,now)}
     // the lamps only need repainting a few times a second to read as changing
@@ -2698,11 +2690,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(cubeCam&&active&&(!cubeInit||(frameN%90===0&&(Math.abs(sun.intensity-cubeSun)>.12||Math.hypot(car.position.x-cubeX,car.position.z-cubeZ)>140)))){
       cubeCam.position.set(car.position.x,car.position.y+1.6,car.position.z);cubeCam.updateMatrixWorld();hideCars(false);cubeCam.update(R,S);hideCars(true);
       cubeInit=true;cubeSun=sun.intensity;cubeX=car.position.x;cubeZ=car.position.z}
-    if(active)ANOMALY.update(dt,now);
-    if(active){
-      if(!ANOMALY.armed)SPACE.cool=false;
-      else if(driving&&SPACE.state==='earth'&&!SPACE.cool)SPACE.begin();
-    }
+    if(active){ANOMALY.update(dt,now);SPACE.updateEarth()}
     R.render(S,C);if(active&&frameN%6===0)drawMap(mx2,mm.width,false);
     /* Grab the still immediately after the draw, in this same frame: the drawing buffer
        is not preserved past the end of it, so this is the only moment it can be read. */
@@ -2728,7 +2716,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      AI, checkpoints/anti-cheat, saved circuits, Short/Medium/Long length choice and multiplayer
      circuits are NOT in this pass. */
   const CIRC_X=0,CIRC_Z=-(WS+500),CIRC_Y=40,CIRC_LEN=420,CIRC_W=10;
-  let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null,worldFogSave=null,worldGSave=null,worldStarSave=null;
+  let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null,worldFogSave=null,worldGSave=null,worldWeatherSave=null;
   function circAt(u,curve){u=((u%1)+1)%1;const p=curve.getPointAt(u).clone();const tg=curve.getTangentAt(u);return {p,tg,n:new THREE.Vector3(-tg.z,0,tg.x)}}
   function circStrip(curve,Nseg,w,yo,mat,rep){const pos=[],idx=[],uv=[];
     for(let i=0;i<=Nseg;i++){const {p,n}=circAt(i/Nseg,curve),nx=n.x*w/2,nz=n.z*w/2;
@@ -2760,9 +2748,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   // a polar radius function r(a) is always a simple (non-self-intersecting) closed curve by
   // construction, since it has exactly one radius per angle - a cheap way to get 7-8 genuinely
   // different-looking preset track outlines without hand-authoring point lists that risk crossing
-  function polarShape(rx,ry,mod){const pts=[],N=16;
-    for(let i=0;i<N;i++){const a=i/N*Math.PI*2,m=mod?mod(a):1;pts.push({x:Math.cos(a)*rx*m,y:Math.sin(a)*ry*m})}
-    return pts}
   const THEMES=[
     THEME_DEFAULT,
     {id:'desert',name:'Desert',ground:0xc9a769,field:0xd8bd82,trunk:0x6b4a2a,leaf:0x4a7a3a,tree:'palm',
@@ -2779,33 +2764,24 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       stand:0x1c1c20,standTrim:0x5cf2ff,fog:0x0a0a0e,sky:0x08080c},
     {id:'canyon',name:'Canyon',ground:0x8a4a30,field:0x9a5838,trunk:0x6a3f2a,leaf:0x6a3f2a,tree:'rock',
       stand:0x6a4530,standTrim:0xd4a83a,fog:0xc87850,sky:0xb85f3a},
-    // gravity is the one property here that isn't just cosmetic: it's applied to world.gravity.y
-    // on enter and restored on leave (see enterCircuit/leaveCircuit). Scaled from this game's own
-    // tuned -24 Earth gravity by the real Moon/Earth ratio (1.62/9.81), not set to the literal
-    // real-world -1.62, since the car's suspension/engine forces are all tuned relative to -24 -
-    // dropping straight to -1.62 would make the same code read as "1/15th Earth" instead of the
-    // intended "1/6th", floating far more than a Moon buggy should.
-    {id:'moon',name:'Moon',ground:0x605e5c,field:0x4a4846,trunk:0x3a3836,leaf:0x3a3836,tree:'rock',
-      stand:0x383634,standTrim:0xc8ccd0,fog:0x030305,sky:0x020204,gravity:-24*(1.62/9.81)},
+    {id:'mountain',name:'Mountain',ground:0x777b76,field:0x707873,trunk:0x403c34,leaf:0x56604f,tree:'pine',
+      stand:0x45494a,standTrim:0xc3c5bd,fog:0x7b8588,sky:0x667d90},
+    {id:'alpine',name:'Alpine',ground:0xc7c8c4,field:0xd6d7d3,trunk:0x514c42,leaf:0x64705d,tree:'pine',
+      stand:0x525457,standTrim:0xe0dfd5,fog:0xaeb8bf,sky:0x9cacb9},
+    {id:'tropical',name:'Tropical',ground:0x448c70,field:0x55a084,trunk:0x62452b,leaf:0x236b47,tree:'palm',
+      stand:0x426c63,standTrim:0xe0bd58,fog:0x76a99d,sky:0x65a6ba},
+    {id:'rocky',name:'Rocky',ground:0x68645f,field:0x77716a,trunk:0x494641,leaf:0x5d5851,tree:'rock',
+      stand:0x484745,standTrim:0xc69c65,fog:0x77726b,sky:0x85847f},
+    {id:'autumn',name:'Autumn',ground:0x805838,field:0x987149,trunk:0x4e3826,leaf:0xb45a2c,tree:'pine',
+      stand:0x514138,standTrim:0xd89a43,fog:0x94734f,sky:0xb68c5c},
+    {id:'sunset',name:'Sunset',ground:0x72553c,field:0x90704d,trunk:0x463529,leaf:0x6e5c35,tree:'pine',
+      stand:0x463c37,standTrim:0xf0a36e,fog:0x956c58,sky:0xb98669},
   ];
-  // 8 preset circuits: distinct shapes (via distinct polar radius functions) x distinct themes.
-  // Built directly through buildCircuit, bypassing the freehand validator entirely - these are
-  // developer-authored, not user-drawn, so there's nothing to validate.
-  const TRACK_PRESETS=[
-    {id:'meadowoval',name:'Meadow Oval',theme:THEMES[0],shape:polarShape(300,180)},
-    {id:'desertdunes',name:'Desert Dunes',theme:THEMES[1],shape:polarShape(280,220,a=>1+.25*Math.sin(a+1))},
-    {id:'snowpass',name:'Snow Pass',theme:THEMES[2],shape:polarShape(320,160,a=>1+.3*Math.cos(a*2))},
-    {id:'forestesses',name:'Forest Esses',theme:THEMES[3],shape:polarShape(280,280,a=>1+.28*Math.sin(a*3))},
-    {id:'volcanospeedway',name:'Volcano Speedway',theme:THEMES[4],shape:polarShape(380,140)},
-    {id:'coastalstar',name:'Coastal Star',theme:THEMES[5],shape:polarShape(260,260,a=>1+.22*Math.cos(a*5))},
-    {id:'nightteardrop',name:'Night Teardrop',theme:THEMES[6],shape:polarShape(300,220,a=>1+.35*Math.sin(a))},
-    {id:'canyontrigon',name:'Canyon Trigon',theme:THEMES[7],shape:polarShape(300,300,a=>1+.3*Math.cos(a*3+1))},
-    {id:'lunarcircuit',name:'Lunar Circuit',theme:THEMES[8],shape:polarShape(320,260,a=>1+.2*Math.sin(a*2+.5))},
-  ];
-  function buildPreset(preset){buildCircuit(normalizeLoop(preset.shape),preset.theme);enterCircuit()}
-  function buildCircuit(pts2D,theme){ // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
+  function buildCircuit(pts2D,theme,seed,venue){ // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
     clearCircuit();
     theme=theme||THEME_DEFAULT;
+    seed=Math.max(1,Math.floor(+seed)||271828);let rngState=seed>>>0;
+    const seeded=()=>{rngState=(Math.imul(rngState,1664525)+1013904223)>>>0;return rngState/4294967296};
     const pts3=pts2D.map(q=>new THREE.Vector3(CIRC_X+q.x,CIRC_Y,CIRC_Z+q.y));
     const curve=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);
     const CN=Math.max(60,Math.min(240,Math.round(curve.getLength()/3)));
@@ -2826,6 +2802,16 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     // Dedicated materials per build, not the world's shared groundM/leafM/trunkM, so weather
     // picked on the main map can't bleed into circuit colors, and each theme stays distinct.
     const ownedMats=[groundMat];
+    const runoff=circStrip(curve,CN,CIRC_W+4,.025,groundMat,rep);runoff.receiveShadow=true;root.add(runoff);
+    const curbRed=M(theme.standTrim,{roughness:.75}),curbWhite=M(0xdad8d0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
+    const curbGeo=new THREE.BoxGeometry(1.7,.18,Math.max(1.8,Math.min(4,curve.getLength()/CN)));
+    const curbRedIM=new THREE.InstancedMesh(curbGeo,curbRed,CN*2),curbWhiteIM=new THREE.InstancedMesh(curbGeo,curbWhite,CN*2);
+    curbRedIM.receiveShadow=true;curbWhiteIM.receiveShadow=true;root.add(curbRedIM,curbWhiteIM);
+    {let redN=0,whiteN=0;const up=new THREE.Vector3(0,1,0),p0=new THREE.Vector3(),q0=new THREE.Quaternion(),s0=new THREE.Vector3(1,1,1),mx0=new THREE.Matrix4();
+      for(let i=0;i<CN;i++){const {p,tg,n}=circAt(i/CN,curve),yaw=Math.atan2(tg.x,tg.z);
+        for(const side of [-1,1]){p0.set(p.x+n.x*side*(CIRC_W/2+.75),CIRC_Y+.16,p.z+n.z*side*(CIRC_W/2+.75));q0.setFromAxisAngle(up,yaw);mx0.compose(p0,q0,s0);
+          if((i+side+CN)%2===0)curbRedIM.setMatrixAt(redN++,mx0);else curbWhiteIM.setMatrixAt(whiteN++,mx0)}}
+      curbRedIM.count=redN;curbWhiteIM.count=whiteN;curbRedIM.instanceMatrix.needsUpdate=true;curbWhiteIM.instanceMatrix.needsUpdate=true}
     const fieldMat=M(theme.field,{roughness:.98});ownedMats.push(fieldMat);
     const field=new THREE.Mesh(new THREE.PlaneGeometry((hx+160)*2,(hz+160)*2).rotateX(-Math.PI/2),fieldMat);
     field.position.set(cx,CIRC_Y-.49,cz);field.receiveShadow=true;root.add(field);
@@ -2836,29 +2822,35 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
          const d=new THREE.Vector3(p.x-cx,0,p.z-cz).normalize();
          return new THREE.Vector3(cx+d.x*(r0-4),CIRC_Y,cz+d.z*(r0-4))}),true,'catmullrom',.5);
      const wall=circStrip(wallCurve,CN,1.1,1.1,wallMat,1);wall.castShadow=true;wall.receiveShadow=true;root.add(wall)}
-    // grandstands: raked seating blocks at N points around the ring, all facing the track center
-    {const standN=Math.max(6,Math.min(14,Math.round(curve.getLength()/60)));
+    // Keep the grandstands close enough to read from the track, placed from its actual tangent.
+    {const standN=Math.max(8,Math.min(16,Math.round(curve.getLength()/38)));
      const standMat=M(theme.stand,{roughness:.85}),trimMat=M(theme.standTrim,{roughness:.6});ownedMats.push(standMat,trimMat);
-     const standIM=new THREE.InstancedMesh(new THREE.BoxGeometry(22,7,10),standMat,standN);standIM.castShadow=true;root.add(standIM);
-     const trimIM=new THREE.InstancedMesh(new THREE.BoxGeometry(22,.6,10.4),trimMat,standN);root.add(trimIM);
+    const standIM=new THREE.InstancedMesh(new THREE.BoxGeometry(25,.8,8),standMat,standN);standIM.castShadow=true;standIM.receiveShadow=true;root.add(standIM);
+    const trimIM=new THREE.InstancedMesh(new THREE.BoxGeometry(25,.45,8.4),trimMat,standN);trimIM.castShadow=true;root.add(trimIM);
+    const seatIM=new THREE.InstancedMesh(new THREE.BoxGeometry(23,.82,1.75),trimMat,standN*5);seatIM.castShadow=true;seatIM.receiveShadow=true;root.add(seatIM);
+    const roofIM=new THREE.InstancedMesh(new THREE.BoxGeometry(28,.48,10),standMat,standN);roofIM.castShadow=true;root.add(roofIM);
+    const frameIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.42,6.5,.42),standMat,standN*4);frameIM.castShadow=true;root.add(frameIM);
      const sM=new THREE.Matrix4(),sP=new THREE.Vector3(),sQ=new THREE.Quaternion(),sS=new THREE.Vector3(1,1,1),upAxis0=new THREE.Vector3(0,1,0);
-     for(let i=0;i<standN;i++){const a=(i/standN)*Math.PI*2+.3;
-       const x=cx+Math.cos(a)*(r0+30),z=cz+Math.sin(a)*(r0+30);
+    for(let i=0;i<standN;i++){const {p,tg,n}=circAt((i+.5)/standN,curve),side=i%2?1:-1,offset=CIRC_W/2+13+seeded()*5;
+       const x=p.x+n.x*side*offset,z=p.z+n.z*side*offset;
        sQ.setFromAxisAngle(upAxis0,Math.atan2(cx-x,cz-z));
-       sP.set(x,CIRC_Y-.5+3.5,z);sM.compose(sP,sQ,sS);standIM.setMatrixAt(i,sM);
-       sP.set(x,CIRC_Y-.5+7.3,z);sM.compose(sP,sQ,sS);trimIM.setMatrixAt(i,sM)}
-     standIM.instanceMatrix.needsUpdate=true;trimIM.instanceMatrix.needsUpdate=true}
+       sP.set(x,CIRC_Y-.5+.4,z);sM.compose(sP,sQ,sS);standIM.setMatrixAt(i,sM);
+       sP.set(x,CIRC_Y-.5+4.4,z);sM.compose(sP,sQ,sS);trimIM.setMatrixAt(i,sM);
+       sP.set(x,CIRC_Y-.5+7.7,z-1.5);sM.compose(sP,sQ,sS);roofIM.setMatrixAt(i,sM);
+       for(let row=0;row<5;row++){const seatOffset=new THREE.Vector3(0,1.15+row*1.08,3.8-row*1.65).applyQuaternion(sQ);sP.set(x+seatOffset.x,CIRC_Y-.5+seatOffset.y,z+seatOffset.z);sM.compose(sP,sQ,sS);seatIM.setMatrixAt(i*5+row,sM)}
+       for(let post=0;post<4;post++){const localX=post%2?11:-11,localZ=post<2?3.4:-4.4,frameOffset=new THREE.Vector3(localX,3.2,localZ).applyQuaternion(sQ);sP.set(x+frameOffset.x,CIRC_Y-.5+frameOffset.y,z+frameOffset.z);sM.compose(sP,sQ,sS);frameIM.setMatrixAt(i*4+post,sM)}}
+     standIM.instanceMatrix.needsUpdate=true;trimIM.instanceMatrix.needsUpdate=true;seatIM.instanceMatrix.needsUpdate=true;roofIM.instanceMatrix.needsUpdate=true;frameIM.instanceMatrix.needsUpdate=true}
     // floodlight pylons, fewer than grandstands, interspersed around the same ring
     {const lampMat=M(0x2a2a2a,{roughness:.6}),lensMat=new THREE.MeshBasicMaterial({color:0xfff3d6});ownedMats.push(lampMat,lensMat);
-     const lampN=Math.max(4,Math.round(curve.getLength()/110));
-     const poleIM=new THREE.InstancedMesh(new THREE.CylinderGeometry(.22,.3,14,6),lampMat,lampN);poleIM.castShadow=true;root.add(poleIM);
+    const lampN=Math.max(6,Math.round(curve.getLength()/70));
+    const poleIM=new THREE.InstancedMesh(new THREE.CylinderGeometry(.2,.28,9,8),lampMat,lampN);poleIM.castShadow=true;root.add(poleIM);
      const lensIM=new THREE.InstancedMesh(new THREE.BoxGeometry(2.4,1.4,.4),lensMat,lampN);root.add(lensIM);
      const lM=new THREE.Matrix4(),lP=new THREE.Vector3(),lQ=new THREE.Quaternion(),lS=new THREE.Vector3(1,1,1),upAxis1=new THREE.Vector3(0,1,0);
-     for(let i=0;i<lampN;i++){const a=(i/lampN)*Math.PI*2+.9;
-       const x=cx+Math.cos(a)*(r0+10),z=cz+Math.sin(a)*(r0+10);
+     for(let i=0;i<lampN;i++){const {p,tg,n}=circAt((i+.25)/lampN+.18,curve),side=i%2?1:-1,rr=CIRC_W/2+58+seeded()*8;
+       const x=p.x+n.x*side*rr,z=p.z+n.z*side*rr;
        lQ.setFromAxisAngle(upAxis1,Math.atan2(cx-x,cz-z));
-       lP.set(x,CIRC_Y-.5+7,z);lM.compose(lP,lQ,lS);poleIM.setMatrixAt(i,lM);
-       lP.set(x,CIRC_Y-.5+13.6,z);lM.compose(lP,lQ,lS);lensIM.setMatrixAt(i,lM)}
+       lP.set(x,CIRC_Y-.5+4.5,z);lM.compose(lP,lQ,lS);poleIM.setMatrixAt(i,lM);
+       lP.set(x,CIRC_Y-.5+9.2,z);lM.compose(lP,lQ,lS);lensIM.setMatrixAt(i,lM)}
      poleIM.instanceMatrix.needsUpdate=true;lensIM.instanceMatrix.needsUpdate=true}
     // trees or rocks (per theme) fill the gaps between grandstands, same radius band as before
     if(theme.tree!=='none'){
@@ -2872,28 +2864,45 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const tM=new THREE.Matrix4(),tP=new THREE.Vector3(),tQ=new THREE.Quaternion(),tS=new THREE.Vector3(1,1,1),upAxis=new THREE.Vector3(0,1,0);
       const r1=r0+130;
       for(let i=0;i<treeN;i++){
-        const a=hash2(i*7.31,3.1)*Math.PI*2,rr=r0+40+hash2(i*2.7,9.4)*(r1-r0-40);
+        const a=seeded()*Math.PI*2,rr=r0+40+seeded()*(r1-r0-40);
         const x=cx+Math.cos(a)*rr,z=cz+Math.sin(a)*rr;
-        tQ.setFromAxisAngle(upAxis,hash2(i*3.3,i*1.1)*Math.PI*2);
-        tP.set(x,CIRC_Y-.5+(isRock?.6:1.1),z);tM.compose(tP,tQ,tS.setScalar(isRock?.7+hash2(i,i*2)*.8:1));trunkIM.setMatrixAt(i,tM);
+        tQ.setFromAxisAngle(upAxis,seeded()*Math.PI*2);
+        tP.set(x,CIRC_Y-.5+(isRock?.6:1.1),z);tM.compose(tP,tQ,tS.setScalar(isRock?.7+seeded()*.8:.82+seeded()*.45));trunkIM.setMatrixAt(i,tM);
         if(leafIM){tP.set(x,CIRC_Y-.5+2.6,z);tM.compose(tP,tQ,tS.set(1,1,1));leafIM.setMatrixAt(i,tM)}}
       trunkIM.instanceMatrix.needsUpdate=true;if(leafIM)leafIM.instanceMatrix.needsUpdate=true}
-    // Earth, hanging in the lunar sky - fixed far offset rather than camera-following, since the
-    // circuit's drivable area is small next to the distance, so it reads as fixed without needing
-    // to hook into the per-frame camera-follow code the world's own sun/moon/stars use
-    if(theme.id==='moon'){
-      const ec=document.createElement('canvas');ec.width=128;ec.height=128;const ex=ec.getContext('2d');
-      ex.fillStyle='#2a5ea8';ex.fillRect(0,0,128,128);
-      ex.fillStyle='#3f8a56';[[30,40,22],[80,70,18],[50,95,14]].forEach(([x,y,r])=>{ex.beginPath();ex.arc(x,y,r,0,6.283);ex.fill()});
-      ex.fillStyle='rgba(255,255,255,.55)';[[95,30,16],[20,90,12]].forEach(([x,y,r])=>{ex.beginPath();ex.arc(x,y,r,0,6.283);ex.fill()});
-      const earthMat=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(ec),fog:false});ownedMats.push(earthMat);
-      const earth=new THREE.Mesh(new THREE.SphereGeometry(60,20,16),earthMat);
-      earth.position.set(cx+420,CIRC_Y+260,cz-300);root.add(earth)}
+    {
+      const ridgeN=LOW?8:14,ridgeMat=M(theme.ground,{roughness:1,flatShading:true}),ridgeGeo=new THREE.DodecahedronGeometry(1,1),ridgeIM=new THREE.InstancedMesh(ridgeGeo,ridgeMat,ridgeN);
+      ownedMats.push(ridgeMat);ridgeIM.receiveShadow=true;ridgeIM.castShadow=!LOW;
+      const ridgeP=new THREE.Vector3(),ridgeQ=new THREE.Quaternion(),ridgeS=new THREE.Vector3(),ridgeM=new THREE.Matrix4(),ridgeUp=new THREE.Vector3(0,1,0);
+      for(let i=0;i<ridgeN;i++){
+        const a=(i/ridgeN)*Math.PI*2+(seeded()-.5)*.24,r=r0+100+seeded()*45,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
+        const w=34+seeded()*42,h=11+seeded()*29,d=24+seeded()*38;
+        ridgeP.set(x,CIRC_Y-1+h*.42,z);ridgeQ.setFromAxisAngle(ridgeUp,seeded()*Math.PI);
+        ridgeS.set(w,h,d);ridgeM.compose(ridgeP,ridgeQ,ridgeS);ridgeIM.setMatrixAt(i,ridgeM);
+        if(ridgeIM.setColorAt){const shade=.72+seeded()*.34;ridgeIM.setColorAt(i,new THREE.Color().setRGB(shade,shade,shade))}
+      }
+      ridgeIM.instanceMatrix.needsUpdate=true;if(ridgeIM.instanceColor)ridgeIM.instanceColor.needsUpdate=true;root.add(ridgeIM);
+    }
     const startP=circAt(0,curve);
     const flagMat=new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.85,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});ownedMats.push(flagMat);
     const flag=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,1.6).rotateX(-Math.PI/2),flagMat);
     flag.position.set(startP.p.x,CIRC_Y+.12,startP.p.z);flag.rotation.y=Math.atan2(startP.tg.x,startP.tg.z);root.add(flag);
-    circuit={curve,CN,CSAMP,root,groundBody,startP,ownedMats,theme};
+    {
+      const yaw=Math.atan2(startP.tg.x,startP.tg.z),pitRoot=new THREE.Group(),pitMat=M(theme.stand,{roughness:.82}),roofMat=M(theme.standTrim,{roughness:.68}),glassMat=M(0x9db9c1,{roughness:.32,metalness:.22}),lampMat=new THREE.MeshBasicMaterial({color:0xfff1c8});
+      ownedMats.push(pitMat,roofMat,glassMat,lampMat);pitRoot.position.set(startP.p.x,startP.p.y,startP.p.z);pitRoot.rotation.y=yaw;
+      const pitSide=CIRC_W/2+13,pit=new THREE.Mesh(new THREE.BoxGeometry(14,4.8,25),pitMat);pit.position.set(pitSide,2.4,-12);pit.castShadow=true;pit.receiveShadow=true;pitRoot.add(pit);
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(15,.55,26),roofMat);roof.position.set(pitSide,5.05,-12);roof.castShadow=true;pitRoot.add(roof);
+      const doors=new THREE.InstancedMesh(new THREE.BoxGeometry(.18,2.4,3.2),glassMat,5),doorMatrix=new THREE.Matrix4();
+      for(let i=0;i<5;i++){doorMatrix.makeTranslation(pitSide-7.1,1.65,-22+i*5);doors.setMatrixAt(i,doorMatrix)}doors.instanceMatrix.needsUpdate=true;pitRoot.add(doors);
+      const tower=new THREE.Mesh(new THREE.BoxGeometry(5.5,10,7),pitMat);tower.position.set(pitSide+9.5,5,-8);tower.castShadow=true;pitRoot.add(tower);
+      const towerGlass=new THREE.Mesh(new THREE.BoxGeometry(5.7,1.8,7.2),glassMat);towerGlass.position.set(pitSide+9.5,8.5,-8);pitRoot.add(towerGlass);
+      const gantry=new THREE.Group();gantry.position.z=18;[-1,1].forEach(side=>{const post=new THREE.Mesh(new THREE.BoxGeometry(.28,6,.28),pitMat);post.position.set(side*(CIRC_W/2+4),3,0);gantry.add(post)});
+      const bar=new THREE.Mesh(new THREE.BoxGeometry(CIRC_W+8,.42,.5),pitMat);bar.position.y=6;gantry.add(bar);
+      const startLights=new THREE.InstancedMesh(new THREE.SphereGeometry(.26,8,6),lampMat,5),lightMatrix=new THREE.Matrix4();
+      for(let i=0;i<5;i++){lightMatrix.makeTranslation((i-2)*1.7,6.55,0);startLights.setMatrixAt(i,lightMatrix)}startLights.instanceMatrix.needsUpdate=true;gantry.add(startLights);
+      pitRoot.add(gantry);root.add(pitRoot);
+    }
+    circuit={curve,CN,CSAMP,root,groundBody,startP,ownedMats,theme,seed,venue:venue||{weather:'day',time:'day'}};
     return circuit}
   function enterCircuit(){if(!circuit)return;
     worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
@@ -2907,35 +2916,31 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     for(let i=0;i<4;i++){veh.applyEngineForce(0,i);veh.setBrake(0,i)}
     // each theme tints fog/sky to match (desert haze, snow glare, etc); saved once so leaving
     // always restores the exact value the main map had, regardless of weather/day-night state
-    if(!worldFogSave)worldFogSave={fog:S.fog.color.getHex(),bg:S.background.getHex()};
+    worldFogSave={fog:S.fog.color.getHex(),bg:S.background.getHex()};
     const th=circuit.theme||THEME_DEFAULT;S.fog.color.setHex(th.fog);S.background.setHex(th.sky);
     // gravity is gameplay, not decoration: themes that define one (currently just Moon) override
     // world.gravity.y here and it's restored byte-for-byte on leave. Everything that derives force
     // from gravity (suspension load, hill-climb aid, reverse assist) reads world.gravity.y live,
     // so lighter gravity here isn't just a falling-speed change - the whole car feels different.
-    if(!worldGSave)worldGSave=world.gravity.y;
+    worldGSave=world.gravity.y;
     world.gravity.y=(th.gravity!=null)?th.gravity:worldGSave;
-    // the world's own day/night mood system is paused while MODE!=='world' (see the frameN%4
-    // guard further down), so stars stay at whatever opacity they happened to have when the
-    // player entered - force them visible for the Moon specifically so "black sky, stars, Earth"
-    // doesn't depend on what time of day it happened to be on the main map. Hide the world's own
-    // decorative moon sprite too, since seeing "the moon" from on top of the actual Moon is odd.
-    if(th.id==='moon'){if(worldStarSave==null)worldStarSave=starMat.uniforms.uOpacity.value;
-      starMat.uniforms.uOpacity.value=1;moon.visible=false}
-    toastMsg((th.gravity!=null?'Lunar gravity · ':'')+'Circuit mode · one lap is once around your track');updCircBtn()}
+    if(!worldWeatherSave)worldWeatherSave={lock:wxLock,id:wx.id};
+    const venue=circuit.venue||{},weather=WEATHERS.some(w=>w.id===venue.weather)?venue.weather:'day',time=WEATHERS.some(w=>w.id===venue.time)?venue.time:'day';
+    setWeather(weather,true);
+    if(time!==weather){mood(time,.8);const weatherTarget=wxOf(weather);wxB.part=weatherTarget.part;wxB.slip=weatherTarget.slip;wxB.dust=weatherTarget.dust}
+    toastMsg('Venue · '+th.name+' · seed '+circuit.seed);updCircBtn()}
   function leaveCircuit(){if(MODE!=='circuit')return;
-    const wasMoon=circuit&&circuit.theme&&circuit.theme.id==='moon';
     MODE='world';
     if(worldSave){PREV.ok=false;physAcc=0;chassisB.position.copy(worldSave.p);chassisB.quaternion.copy(worldSave.q);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0)}
-    if(worldFogSave){S.fog.color.setHex(worldFogSave.fog);S.background.setHex(worldFogSave.bg)}
-    if(worldGSave!=null)world.gravity.y=worldGSave;
-    if(wasMoon){moon.visible=true;if(worldStarSave!=null)starMat.uniforms.uOpacity.value=worldStarSave}
+    if(worldFogSave){S.fog.color.setHex(worldFogSave.fog);S.background.setHex(worldFogSave.bg);worldFogSave=null}
+    if(worldGSave!=null){world.gravity.y=worldGSave;worldGSave=null}
+    if(worldWeatherSave){const saved=worldWeatherSave;worldWeatherSave=null;setWeather(saved.lock||'auto',true);if(!saved.lock&&saved.id)mood(saved.id,.8)}
     hint.textContent=TOUCH?'':'WASD drive · C camera · L time a lap · M map · R reset';
     toastMsg('Back to the valley');updCircBtn()}
   /* ---------- drawing overlay ---------- */
-  const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr');
+  const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
   const circCx=circCv?circCv.getContext('2d'):null;
-  let drawPts=[],drawingNow=false;
+  let drawPts=[],drawingNow=false,pendingTrack=null;
   function resizeDrawCv(){if(!circCv)return;circCv.width=innerWidth;circCv.height=innerHeight}
   addEventListener('resize',resizeDrawCv);
   function redrawPath(){if(!circCx)return;circCx.clearRect(0,0,circCv.width,circCv.height);
@@ -2944,11 +2949,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     circCx.beginPath();circCx.moveTo(drawPts[0].x,drawPts[0].y);
     for(let i=1;i<drawPts.length;i++)circCx.lineTo(drawPts[i].x,drawPts[i].y);
     circCx.stroke()}
-  function openDrawer(){if(!circDrawEl)return;resizeDrawCv();drawPts=[];drawingNow=false;if(circErrEl)circErrEl.textContent='';redrawPath();circDrawEl.classList.add('on')}
+  function openDrawer(){if(!circDrawEl)return;if(MODE==='circuit'){toastMsg('Return to Earth before generating a new venue');return}resizeDrawCv();drawPts=[];drawingNow=false;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;if(circErrEl)circErrEl.textContent='';redrawPath();circDrawEl.classList.add('on')}
   function closeDrawer(){if(circDrawEl)circDrawEl.classList.remove('on')}
   if(circCv){
     const posOf=e=>{const r=circCv.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}};
-    circCv.addEventListener('pointerdown',e=>{drawingNow=true;drawPts=[posOf(e)];if(circErrEl)circErrEl.textContent='';try{circCv.setPointerCapture(e.pointerId)}catch(_){}});
+    circCv.addEventListener('pointerdown',e=>{drawingNow=true;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;drawPts=[posOf(e)];if(circErrEl)circErrEl.textContent='';try{circCv.setPointerCapture(e.pointerId)}catch(_){}});
     circCv.addEventListener('pointermove',e=>{if(!drawingNow)return;const p=posOf(e);const last=drawPts[drawPts.length-1];
       if(Math.hypot(p.x-last.x,p.y-last.y)>3){drawPts.push(p);redrawPath()}});
     ['pointerup','pointercancel'].forEach(ev=>circCv.addEventListener(ev,()=>{if(!drawingNow)return;drawingNow=false;finishDraw()}))}
@@ -2961,7 +2966,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       while(acc+segLen>=step){const t=(step-acc)/segLen,nx=a.x+(b.x-a.x)*t,ny=a.y+(b.y-a.y)*t;out.push({x:nx,y:ny});a={x:nx,y:ny};segLen=Math.hypot(b.x-a.x,b.y-a.y);acc=0}
       acc+=segLen}
     return out}
-  function drawFail(msg){if(circErrEl)circErrEl.textContent=msg;drawPts=[];redrawPath()}
+  function drawFail(msg){pendingTrack=null;if(circGoEl)circGoEl.disabled=true;if(circErrEl)circErrEl.textContent=msg;drawPts=[];redrawPath()}
   function finishDraw(){
     if(drawPts.length<8){drawFail('Draw a bigger loop.');return}
     const first=drawPts[0],last=drawPts[drawPts.length-1];
@@ -2986,9 +2991,24 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const v1x=b.x-a.x,v1y=b.y-a.y,v2x=c.x-b.x,v2y=c.y-b.y,l1=Math.hypot(v1x,v1y)||1,l2=Math.hypot(v2x,v2y)||1;
       const cos=Math.max(-1,Math.min(1,(v1x*v2x+v1y*v2y)/(l1*l2))),ang=Math.acos(cos)*180/Math.PI;
       if(ang>95){drawFail('Track has a sharp corner. Try drawing a wider turn.');return}}
-    const world2=normalizeLoop(rs.slice(0,rs.length-1));
-    buildCircuit(world2);closeDrawer();updCircBtn();
-    toastMsg('Track ready · Track button to race it')}
+    pendingTrack=normalizeLoop(rs.slice(0,rs.length-1));
+    if(circGoEl)circGoEl.disabled=false;
+    if(circErrEl)circErrEl.textContent='Loop validated. Choose venue settings, then press GO.'}
+  function generateVenue(){
+    if(!pendingTrack)return;
+    const seed=Math.max(1,Math.min(2147483647,Math.floor(Number(circSeedEl&&circSeedEl.value)||271828)));
+    let state=seed>>>0;const rand=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296};
+    const choose=(value,options)=>value==='random'?options[Math.floor(rand()*options.length)]:value;
+    const sceneryEl=$('#dcircscenery'),weatherEl=$('#dcircweather'),timeEl=$('#dcirctime');
+    const scenery=choose(sceneryEl?sceneryEl.value:'meadow',THEMES.map(t=>t.id));
+    const weather=choose(weatherEl?weatherEl.value:'day',WEATHERS.map(w=>w.id));
+    const time=choose(timeEl?timeEl.value:'day',['day','dusk','sunset','night']);
+    const theme=THEMES.find(t=>t.id===scenery)||THEME_DEFAULT,venue={weather,time};
+    try{localStorage.setItem('sl_venue',JSON.stringify({seed,scenery,weather,time}))}catch(e){}
+    buildCircuit(pendingTrack,theme,seed,venue);closeDrawer();enterCircuit();updCircBtn();
+  }
+  if(circGoEl)circGoEl.onclick=generateVenue;
+  {const randomButton=$('#dcircrandom');if(randomButton)randomButton.onclick=()=>{if(circSeedEl)circSeedEl.value=String(1+Math.floor(Math.random()*2147483646))}}
   const circBtn=$('#dcircb');
   function updCircBtn(){if(!circBtn)return;
     circBtn.textContent=MODE==='circuit'?'Back to world':(circuit?'Go to track':'Draw track')}
@@ -3000,22 +3020,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   if(circBtn)circBtn.onclick=()=>{if(MODE==='circuit'){leaveCircuit();return}if(circuit){enterCircuit();return}openDrawer()};
   {const x=$('#dcircx'),cl=$('#dcircclear');
    if(x)x.onclick=closeDrawer;
-   if(cl)cl.onclick=()=>{drawPts=[];redrawPath();if(circErrEl)circErrEl.textContent=''}}
+  if(cl)cl.onclick=()=>{drawPts=[];pendingTrack=null;if(circGoEl)circGoEl.disabled=true;redrawPath();if(circErrEl)circErrEl.textContent=''}}
   updCircBtn();
-  /* ---------- preset circuits (Maps panel) ---------- */
-  {const mb=$('#dmapsb'),mp=$('#dmaps'),mx=$('#dmapsx'),ml=$('#dmapslist');
-   if(mb&&mp&&ml){
-     TRACK_PRESETS.forEach(preset=>{const li=document.createElement('li');li.dataset.id=preset.id;
-       li.innerHTML='<span class="n">'+preset.name+'</span><span class="s">'+preset.theme.name+'</span>';
-       ml.appendChild(li)});
-     const setOpen=o=>mp.classList.toggle('on',o);
-     mb.onclick=()=>setOpen(true);
-     mx.onclick=()=>setOpen(false);
-     mp.addEventListener('click',e=>{if(e.target===mp)setOpen(false)});
-     ml.addEventListener('click',e=>{const li=e.target.closest('li[data-id]');if(!li)return;
-       const preset=TRACK_PRESETS.find(p=>p.id===li.dataset.id);if(!preset)return;
-       buildPreset(preset);setOpen(false);updCircBtn()})
-   }}
+  {const newVenue=$('#dmapsb');if(newVenue)newVenue.onclick=openDrawer;
+   const saved=(()=>{try{return JSON.parse(localStorage.getItem('sl_venue')||'null')}catch(e){return null}})();
+   if(saved){if(circSeedEl)circSeedEl.value=String(saved.seed||271828);const scenery=$('#dcircscenery'),weather=$('#dcircweather'),time=$('#dcirctime');
+     if(scenery&&scenery.querySelector('option[value="'+saved.scenery+'"]'))scenery.value=saved.scenery;
+     if(weather&&weather.querySelector('option[value="'+saved.weather+'"]'))weather.value=saved.weather;
+     if(time&&time.querySelector('option[value="'+saved.time+'"]'))time.value=saved.time}}
   requestAnimationFrame(loop);
   /* ---------- rooms: ghost cars over a shared channel ----------
      Everybody drives their own physics on their own machine. What travels is a small pose
