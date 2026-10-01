@@ -1979,6 +1979,43 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const api={state:'earth',warpX:0,warpY:0,planet:'moon',target:null,nearStation:false};
     let t=0;                       // seconds inside the current phase
     const savedFar=C.far, savedNear=C.near;
+    /* ---- planet / UFO / space audio (reuses the shared SND bus) ----
+       Airless Moon: no wind at all. Thin-atmosphere Mars: a faint wind only.
+       The rover motor is the SND motor voice, lower and cleaner than the car;
+       road rumble follows speed and drops when airborne. UFO power-up / landing
+       are one-shot sweeps; a low spacecraft bed hums through the space phases. */
+    let bed=null;
+    function silenceSnd(){ if(!AC||!SND)return; const T=AC.currentTime; [SND.mG,SND.rG,SND.gG,SND.wG,SND.sG].forEach(g=>{try{g.gain.setTargetAtTime(0,T,.05)}catch(e){}}); }
+    function audioSurface(dt){ if(!AC||!SND)return; const S=SURF; if(!S)return; const cfg=S.cfg,A=SND,T=AC.currentTime,mars=cfg===PLANETS.mars;
+      const speed=Math.hypot(S.vel.x,S.vel.z), spN=Math.min(1,speed/cfg.vmax), thr=(key.f?1:0)-(key.b?1:0);
+      S.ld=(S.ld==null?0:S.ld)+((thr>0?1:0)-(S.ld==null?0:S.ld))*Math.min(1,dt*3);
+      const baseHz=mars?120:150, hz=baseHz+spN*(mars?260:300);
+      try{A.m1.frequency.setTargetAtTime(hz,T,.08);A.m2.frequency.setTargetAtTime(hz*.5,T,.08);A.m3.frequency.setTargetAtTime(hz*3.0,T,.08);
+      A.mF.frequency.setTargetAtTime(480+spN*1300,T,.1);
+      A.mG.gain.setTargetAtTime(muted?0:(0.01+spN*0.05)*(0.4+0.6*(thr>0?1:0.35)),T,.08);
+      A.g3.gain.setTargetAtTime(0.02+(key.boost?0.06:0),T,.1);
+      A.rF.frequency.setTargetAtTime(150+spN*500,T,.1);
+      A.rG.gain.setTargetAtTime(muted?0:spN*(mars?0.06:0.045)*(S.grounded?1:0.15),T,.1);
+      A.gG.gain.setTargetAtTime(muted?0:(S.grounded?spN*0.03:0),T,.1);
+      const windG=mars?Math.min(0.03,spN*spN*0.05):0;
+      A.wG.gain.setTargetAtTime(muted?0:windG,T,.15); if(mars)A.wF.frequency.setTargetAtTime(420+speed*18,T,.2);
+      A.sG.gain.setTargetAtTime(0,T,.05);}catch(e){} }
+    function ufoPower(){ if(!AC||muted)return; try{const T=AC.currentTime,o=AC.createOscillator(),g=AC.createGain(),f=AC.createBiquadFilter();
+      o.type='sawtooth';o.frequency.setValueAtTime(70,T);o.frequency.exponentialRampToValueAtTime(520,T+1.4);
+      f.type='lowpass';f.frequency.setValueAtTime(300,T);f.frequency.exponentialRampToValueAtTime(2600,T+1.4);
+      g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.08,T+.3);g.gain.setValueAtTime(.08,T+1.0);g.gain.exponentialRampToValueAtTime(.0001,T+1.7);
+      o.connect(f);f.connect(g);g.connect(SND?SND.bus:AC.destination);o.start(T);o.stop(T+1.8);}catch(e){} }
+    function ufoLand(){ if(!AC||muted)return; try{const T=AC.currentTime,o=AC.createOscillator(),g=AC.createGain(),f=AC.createBiquadFilter();
+      o.type='sawtooth';o.frequency.setValueAtTime(420,T);o.frequency.exponentialRampToValueAtTime(70,T+1.4);
+      f.type='lowpass';f.frequency.setValueAtTime(2200,T);f.frequency.exponentialRampToValueAtTime(260,T+1.4);
+      g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.07,T+.2);g.gain.exponentialRampToValueAtTime(.0001,T+1.5);
+      o.connect(f);f.connect(g);g.connect(SND?SND.bus:AC.destination);o.start(T);o.stop(T+1.6);}catch(e){} }
+    function bedOn(){ if(!AC||bed)return; try{const T=AC.currentTime,o=AC.createOscillator(),o2=AC.createOscillator(),g=AC.createGain(),f=AC.createBiquadFilter();
+      o.type='sine';o.frequency.value=56;o2.type='sine';o2.frequency.value=84;f.type='lowpass';f.frequency.value=320;
+      g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(muted?0:.05,T+1.2);
+      o.connect(f);o2.connect(f);f.connect(g);g.connect(SND?SND.bus:AC.destination);o.start(T);o2.start(T);bed={o,o2,g};}catch(e){} }
+    function bedOff(){ if(!AC||!bed)return; try{const T=AC.currentTime,b=bed;bed=null;b.g.gain.setTargetAtTime(0,T,.4);setTimeout(()=>{try{b.o.stop();b.o2.stop();b.g.disconnect();}catch(e){}},1000);}catch(e){} }
+
 
     /* ---- shared helpers ---- */
     function mkGlow(col,scale){
@@ -2428,7 +2465,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       } else {
         S.vy -= cfg.g*dt; p.y += S.vy*dt;
         if(p.y<=gy){ const impact=-S.vy; p.y=gy; S.vy=0; S.grounded=true;
-          if(impact>3){ S.emitDust(p.x,gy-1.1,p.z,22,Math.min(10,impact*0.8),0.8); S.land=Math.min(0.4,impact*0.03); } }
+          if(impact>3){ S.emitDust(p.x,gy-1.1,p.z,22,Math.min(10,impact*0.8),0.8); S.land=Math.min(0.4,impact*0.03); try{thud(Math.min(1,impact*0.05));}catch(e){} } }
       }
       if(S.grounded && throttle && speed>4 && frameN%2===0){
         S.emitDust(p.x - fx*2, gy-0.9, p.z - fz*2, 2, 2.2, 0.25);
@@ -2480,6 +2517,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const km=(S.maxS/1000), nextUFO=(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery, toNext=(nextUFO-S.s)/1000;
       odo.style.opacity='1';
       odo.textContent=cfg.name+' - '+km.toFixed(2)+' km - next UFO '+toNext.toFixed(2)+' km';
+      audioSurface(dt);
     }
 
     /* =================== ARRIVAL (descent + gravity ramp) =================== */
@@ -2488,8 +2526,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     /* =================== STATE MACHINE =================== */
     function go(s,arg){ api.state=s; t=0;
       if(s==='space'){ buildSpace(); }
-      if(s==='surface'){ odo.style.opacity='1'; }
-      if(s==='earth'){ C.far=savedFar; C.near=savedNear; C.updateProjectionMatrix(); say(''); odo.style.opacity='0'; if(travelEl)travelEl.hidden=true; }
+      if(s==='surface'){ odo.style.opacity='1'; bedOff(); }
+      if(s==='earth'){ C.far=savedFar; C.near=savedNear; C.updateProjectionMatrix(); say(''); odo.style.opacity='0'; if(travelEl)travelEl.hidden=true; bedOff(); silenceSnd(); }
     }
 
     // begin arrival onto planet `key`: build it, lift rover above ground, ramp gravity in
@@ -2501,7 +2539,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       // start upright-ish; orientation will slerp to the true normal as it settles
       S.rover.quaternion.identity();
       C.far=20000; C.near=0.5; C.updateProjectionMatrix();
-      go('arrive'); api._gRamp=0;
+      go('arrive'); api._gRamp=0; silenceSnd(); ufoLand();
       say(cfg.caption);
     }
 
@@ -2526,7 +2564,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function chooseDest(key){
       selEl.style.display='none';
       if(key===api.planet){ api.state='surface'; t=0; return; }   // already here
-      api.target=key; go('depart');
+      api.target=key; bedOn();ufoPower(); go('depart');
       try{blip(300,.5,.1);}catch(e){}
     }
 
@@ -2536,7 +2574,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       buildSpace();go('flight');api.warpX=0;api.warpY=0;api.planet='moon';
       C.far=20000; C.near=0.5; C.updateProjectionMatrix();
       api._camFrom=C.position.clone();
-      UFO.hit=true;missSet('ufo',1);blip(300,.5,.1);setTimeout(()=>blip(900,.4,.08),220);
+      UFO.hit=true;missSet('ufo',1);silenceSnd();ufoPower();bedOn();blip(300,.5,.1);setTimeout(()=>blip(900,.4,.08),220);
       try{toastMsg('The UFO lifts toward the anomaly');}catch(e){}
     };
 
@@ -2546,6 +2584,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 
     api.frame=function(dt,now){
       t+=dt;
+      if(AC&&SND){try{SND.bus.gain.setTargetAtTime(muted?0:.9,AC.currentTime,.05);}catch(e){}}
       if(api.state==='flight'){
         const o=spaceObj,dur=4,k=Math.min(1,t/dur),steer=((key.r?1:0)-(key.l?1:0))*20;
         fade.style.opacity=Math.max(0,1-t/.8).toFixed(2);
@@ -2648,6 +2687,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     };
     // keep the surface gently alive while the menu is open (dust settles, reflectors spin)
     function S_idle(S,dt){
+      if(AC&&SND){try{SND.mG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.rG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.wG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.gG.gain.setTargetAtTime(0,AC.currentTime,.1);}catch(e){}}
       const arr=S.dgeo.attributes.position.array;
       for(let i=0;i<S.dlife.length;i++){ if(S.dlife[i]>0){ S.dlife[i]-=dt; S.dvel[i].y-=S.cfg.g*0.5*dt;
         arr[i*3]+=S.dvel[i].x*dt;arr[i*3+1]+=S.dvel[i].y*dt;arr[i*3+2]+=S.dvel[i].z*dt; if(S.dlife[i]<=0)arr[i*3+1]=-9999; } }
