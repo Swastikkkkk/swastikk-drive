@@ -2068,6 +2068,13 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       'z-index:40;color:#dfe6ea;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;letter-spacing:.12em;'+
       'text-transform:uppercase;pointer-events:none;opacity:0;transition:opacity .3s;text-shadow:0 2px 12px rgba(0,0,0,.8)';
     sec.appendChild(odo);
+    // gravity toggle: default Earth gravity on every surface; this button enables the real planet g
+    const gravBtn=document.createElement('button');
+    gravBtn.className='dbtn mono';
+    gravBtn.style.cssText='position:fixed;right:max(8px,env(safe-area-inset-right,0px));top:calc(54px + env(safe-area-inset-top,0px));z-index:41;display:none';
+    gravBtn.textContent='Low gravity: off';
+    gravBtn.onclick=()=>{ moonGravityOn=!moonGravityOn; gravBtn.textContent='Low gravity: '+(moonGravityOn?'on':'off'); };
+    sec.appendChild(gravBtn);
 
     const travelEl=$('#dtravel');
 
@@ -2111,9 +2118,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
        One row per world. Adding a planet is adding a row here, not a system.
        Units: 1 world unit ~= 1 metre. gravity in m/s^2 (scaled for feel).
        ===================================================================== */
+    let moonGravityOn=false;
     const PLANETS={
       moon:{ name:'Moon', seed:271828, g:4.0,
-        bg:0x02030a, fog:null, sun:0xfff6e8, sunI:2.3, sunDir:[0.5,0.42,0.3], amb:0x0a0f1c, ambI:0.25,
+        bg:0x02030a, fog:null, sun:0xfff6e8, sunI:2.3, sunDir:[0.5,0.42,0.3], amb:0x0a0f1c, ambI:0.35,
         ground:[0.40,0.38,0.35], groundNoise:0.10, rock:0x8d8a84, roadCol:0x3b3a37, dust:0xb8b4ab, rover:{body:0xd7dae2,cab:0x9fb6d8},
         accel:24, vmax:40, boost:1.5, steer:1.7, ufoEvery:5000, earthInSky:true, dunes:0, atmo:0,
         base1:[0.004,26], base2:[0.02,7],
@@ -2311,11 +2319,15 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 
       // road ribbon + edge reflectors
       const roadGeo=new THREE.BufferGeometry();
-      const roadMesh=new THREE.Mesh(roadGeo,new THREE.MeshStandardMaterial({color:cfg.roadCol,roughness:0.95,metalness:0.0}));
+      const roadMesh=new THREE.Mesh(roadGeo,new THREE.MeshStandardMaterial({color:cfg.roadCol,roughness:0.95,metalness:0.0,side:THREE.DoubleSide,emissive:new THREE.Color(cfg.roadCol),emissiveIntensity:0.35}));
       roadMesh.receiveShadow=true; sc.add(roadMesh);
       const reflGeo=new THREE.SphereGeometry(0.45,6,5);
       const reflMat=new THREE.MeshStandardMaterial({color:0x6fe3ff,emissive:0x2f8aa0,emissiveIntensity:0.8,roughness:0.4});
       const REFLN=40, refl=new THREE.InstancedMesh(reflGeo,reflMat,REFLN); refl.frustumCulled=false; sc.add(refl);
+      // scattered boulders (instanced), restreamed around the rover as it moves
+      const rockGeo=new THREE.DodecahedronGeometry(1,0);
+      const rockMat=new THREE.MeshStandardMaterial({color:cfg.rock,roughness:1});
+      const ROCKN=LOW?60:150, rocks=new THREE.InstancedMesh(rockGeo,rockMat,ROCKN); rocks.frustumCulled=false; rocks.castShadow=!LOW; sc.add(rocks);
 
       // rover
       const rr=buildRover({rover_body:cfg.rover.body,rover_cab:cfg.rover.cab});
@@ -2341,7 +2353,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 
       SURF=surfaces[key]={
         key,cfg,scene:sc,sunL,tiles,TILE,GRID,SEG,terrMat,
-        roadMesh,roadGeo,refl,reflMat,
+        roadMesh,roadGeo,refl,reflMat,rocks,ROCKN,
         rover:rr.rover,wheels:rr.wheels,
         dust,dgeo,dpos,dlife,dvel,emitDust,
         road:{xs:[],zs:[],len:0},
@@ -2381,6 +2393,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         }
         pos.needsUpdate=true; col.needsUpdate=true; mesh.geometry.computeVertexNormals();
       }
+      if(S.rocks){ const span=GRID*TILE; let seed=(Math.abs(((pcx*73856093)^(pcz*19349663)))%2147483647)||1; const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
+        const rdm=new THREE.Matrix4(),rpv=new THREE.Vector3(),rqv=new THREE.Quaternion(),rsv=new THREE.Vector3(),ry0=new THREE.Vector3(0,1,0);
+        for(let i=0;i<S.ROCKN;i++){ const rx=S.pos.x+(rnd()-0.5)*span, rz=S.pos.z+(rnd()-0.5)*span; const nr=nearestRoad(cfg,S.road,rx,rz,S.s); const sz=0.6+Math.pow(rnd(),3)*7.5;
+          const ryv=(nr.d<10)?-9999:groundH(cfg,S.road,rx,rz,S.s)+sz*0.3; rpv.set(rx,ryv,rz); rqv.setFromAxisAngle(ry0,rnd()*6.283); rsv.set(sz,sz*(0.55+rnd()*0.7),sz*(0.7+rnd()*0.5)); rdm.compose(rpv,rqv,rsv); S.rocks.setMatrixAt(i,rdm); }
+        S.rocks.instanceMatrix.needsUpdate=true; }
     }
 
     // --- road ribbon: rebuild the strip in a window ahead of the rover when the rover advances ---
@@ -2393,7 +2410,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const verts=[], idx=[]; let row=0;
       for(let s=s0;s<=s1;s+=step){
         const r=roadAt(cfg,S.road,s);
-        const yC=groundH(cfg,S.road,r.x,r.z,S.s)+0.07;
+        const yC=groundH(cfg,S.road,r.x,r.z,S.s)+0.18;
         verts.push(r.x+r.nx*ROADHALF, yC, r.z+r.nz*ROADHALF);
         verts.push(r.x-r.nx*ROADHALF, yC, r.z-r.nz*ROADHALF);
         if(row>0){const b=(row-1)*2;idx.push(b,b+1,b+2, b+1,b+3,b+2);}
@@ -2463,7 +2480,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         p.y=gy;
         if(terrV>6 && speed>8){ S.vy=terrV*0.5; S.grounded=false; }
       } else {
-        S.vy -= cfg.g*dt; p.y += S.vy*dt;
+        S.vy -= (moonGravityOn?cfg.g:24)*dt; p.y += S.vy*dt;
         if(p.y<=gy){ const impact=-S.vy; p.y=gy; S.vy=0; S.grounded=true;
           if(impact>3){ S.emitDust(p.x,gy-1.1,p.z,22,Math.min(10,impact*0.8),0.8); S.land=Math.min(0.4,impact*0.03); try{thud(Math.min(1,impact*0.05));}catch(e){} } }
       }
@@ -2488,7 +2505,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const arr=S.dgeo.attributes.position.array;
       for(let i=0;i<S.dlife.length;i++){
         if(S.dlife[i]>0){
-          S.dlife[i]-=dt; S.dvel[i].y-=cfg.g*0.5*dt;
+          S.dlife[i]-=dt; S.dvel[i].y-=(moonGravityOn?cfg.g:24)*0.5*dt;
           arr[i*3]+=S.dvel[i].x*dt; arr[i*3+1]+=S.dvel[i].y*dt; arr[i*3+2]+=S.dvel[i].z*dt;
           const fgy=groundH(cfg,S.road,arr[i*3],arr[i*3+2],S.s); if(arr[i*3+1]<fgy){arr[i*3+1]=fgy;S.dvel[i].set(0,0,0);}
           if(S.dlife[i]<=0)arr[i*3+1]=-9999;
@@ -2527,7 +2544,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function go(s,arg){ api.state=s; t=0;
       if(s==='space'){ buildSpace(); }
       if(s==='surface'){ odo.style.opacity='1'; bedOff(); }
-      if(s==='earth'){ C.far=savedFar; C.near=savedNear; C.updateProjectionMatrix(); say(''); odo.style.opacity='0'; if(travelEl)travelEl.hidden=true; bedOff(); silenceSnd(); }
+      if(s==='earth'){ C.far=savedFar; C.near=savedNear; C.updateProjectionMatrix(); say(''); odo.style.opacity='0'; if(travelEl)travelEl.hidden=true; bedOff(); silenceSnd(); if(gravBtn)gravBtn.style.display='none'; }
     }
 
     // begin arrival onto planet `key`: build it, lift rover above ground, ramp gravity in
@@ -2585,6 +2602,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     api.frame=function(dt,now){
       t+=dt;
       if(AC&&SND){try{SND.bus.gain.setTargetAtTime(muted?0:.9,AC.currentTime,.05);}catch(e){}}
+      if(gravBtn)gravBtn.style.display=(api.state==='surface'||api.state==='select'||api.state==='arrive')?'block':'none';
       if(api.state==='flight'){
         const o=spaceObj,dur=4,k=Math.min(1,t/dur),steer=((key.r?1:0)-(key.l?1:0))*20;
         fade.style.opacity=Math.max(0,1-t/.8).toFixed(2);
@@ -2643,7 +2661,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         // gravity ramps 0 -> full as the rover descends and settles onto the normal
         api._gRamp=k;
         const gy=groundH(cfg,S.road,S.pos.x,S.pos.z,S.s)+1.1;
-        S.vy -= cfg.g*(0.35+0.65*api._gRamp)*dt; S.pos.y += S.vy*dt;
+        S.vy -= (moonGravityOn?cfg.g:24)*(0.35+0.65*api._gRamp)*dt; S.pos.y += S.vy*dt;
         if(S.pos.y<=gy){ S.pos.y=gy; S.vy=0; S.grounded=true; if(k<1){ S.emitDust(S.pos.x,gy-1.1,S.pos.z,26,6,0.8); } }
         _n.copy(surfaceNormal(cfg,S.road,S.pos.x,S.pos.z,S.s));
         _qy.setFromAxisAngle(_up,S.yaw); _qa.setFromUnitVectors(_up,_n); _qt.copy(_qa).multiply(_qy);
@@ -2654,7 +2672,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         C.lookAt(S.pos.x+fx*6,S.pos.y+1.5,S.pos.z+fz*6);
         // dust integrate during landing
         const arr=S.dgeo.attributes.position.array;
-        for(let i=0;i<S.dlife.length;i++){ if(S.dlife[i]>0){ S.dlife[i]-=dt; S.dvel[i].y-=cfg.g*0.5*dt;
+        for(let i=0;i<S.dlife.length;i++){ if(S.dlife[i]>0){ S.dlife[i]-=dt; S.dvel[i].y-=(moonGravityOn?cfg.g:24)*0.5*dt;
           arr[i*3]+=S.dvel[i].x*dt;arr[i*3+1]+=S.dvel[i].y*dt;arr[i*3+2]+=S.dvel[i].z*dt; if(S.dlife[i]<=0)arr[i*3+1]=-9999; } }
         S.dgeo.attributes.position.needsUpdate=true;
         say(cfg.caption);
@@ -2689,7 +2707,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function S_idle(S,dt){
       if(AC&&SND){try{SND.mG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.rG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.wG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.gG.gain.setTargetAtTime(0,AC.currentTime,.1);}catch(e){}}
       const arr=S.dgeo.attributes.position.array;
-      for(let i=0;i<S.dlife.length;i++){ if(S.dlife[i]>0){ S.dlife[i]-=dt; S.dvel[i].y-=S.cfg.g*0.5*dt;
+      for(let i=0;i<S.dlife.length;i++){ if(S.dlife[i]>0){ S.dlife[i]-=dt; S.dvel[i].y-=(moonGravityOn?S.cfg.g:24)*0.5*dt;
         arr[i*3]+=S.dvel[i].x*dt;arr[i*3+1]+=S.dvel[i].y*dt;arr[i*3+2]+=S.dvel[i].z*dt; if(S.dlife[i]<=0)arr[i*3+1]=-9999; } }
       S.dgeo.attributes.position.needsUpdate=true;
     }
