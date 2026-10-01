@@ -3030,13 +3030,13 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const LOCAL=/[?&]net=local\b/.test(location.search);
     const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',rid=n=>{let s='';for(let i=0;i<n;i++)s+=ALPH[Math.random()*32|0];return s};
     const me={id:rid(8),n:'',j:0},LOG=[],lg=(...a)=>{LOG.push(Math.round(performance.now())+' '+a.join(' '));if(LOG.length>60)LOG.shift()};
-    let room=null,net=null,status='off',peers=new Map(),lastSend=0,lastHi=0,lastUI=0,lastPing=0,
-        race={st:0,t0:0,d0:0,rp:0,lastU:0,slot:0,ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0},
+    let room=null,net=null,status='off',peers=new Map(),lastSend=0,lastHi=0,lastUI=0,lastPing=0,pingSeq=0,pendingPings=new Map(),
+      race={id:'',st:0,t0:0,d0:0,rp:0,lastU:0,slot:0,ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0},
         myFin=0;
     const $$1=s=>document.querySelector(s);
     const el={btn:$$1('#droom'),panel:$$1('#dmp'),out:$$1('#dmp-out'),inn:$$1('#dmp-in'),name:$$1('#dmpname'),code:$$1('#dmpcode'),
       join:$$1('#dmpjoin'),mk:$$1('#dmpnew'),copy:$$1('#dmpcopy'),race:$$1('#dmprace'),leave:$$1('#dmpleave'),x:$$1('#dmpx'),
-      codeOut:$$1('#dmpcodeout'),list:$$1('#dmplist'),note:$$1('#dmpnote'),roster:$$1('#dmpr'),count:$$1('#dcount')};
+      codeOut:$$1('#dmpcodeout'),list:$$1('#dmplist'),note:$$1('#dmpnote'),raceStatus:$$1('#dmpracestatus'),roster:$$1('#dmpr'),count:$$1('#dcount')};
     const clean=s=>String(s==null?'':s).replace(/[\u0000-\u001f<>&"'`\\]/g,'').trim().slice(0,14);
     const num=(v,lo,hi,d)=>{v=+v;return isFinite(v)?Math.max(lo,Math.min(hi,v)):d};
     const savedName=()=>{try{return clean(localStorage.getItem('sl_name'))}catch(e){return ''}};
@@ -3123,7 +3123,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function toast2(s){try{toastMsg(s)}catch(e){}}
     /* ----- messages ----- */
     function send(m){if(net&&status==='up'){m.id=me.id;net.send(m)}}
-    function sendHi(rep){send({k:'hi',n:myName(),j:me.j,r:rep?1:0,car:curCarId})}
+    function sendHi(rep){send({k:'hi',n:myName(),j:me.j,r:rep?1:0,car:curCarId,rid:race.id,rs:race.st,startAt:race.startAt,fin:myFin,d:race.st>=2?race.d0+race.rp:0})}
+    function syncRace(P,m){
+      const remoteState=num(m.rs,0,4,0),rid=String(m.rid||'');
+      if(!rid||remoteState<1||((race.st===1||race.st===2||race.st===4)&&race.id!==rid))return;
+      if(race.id!==rid){
+        race={id:rid,st:remoteState===3?3:4,startAt:num(m.startAt,0,1e15,0),t0:0,d0:0,rp:0,lastU:0,slot:0,ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0};
+        myFin=0;
+      }
+      P.fin=num(m.fin,0,36e5,0);P.d=num(m.d,-5,50,0);
+      ui();
+    }
     function onMsg(m){
       if(!m||typeof m!=='object'||m.id===me.id||typeof m.id!=='string'||!room)return;
       const now=performance.now();
@@ -3136,7 +3146,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         if(P.gh){const was=P.gh;killGhost(P);P.gh=makeGhost(P.car,was.col,P.n);
           P.gh.g.position.copy(P.tp);P.gh.g.quaternion.copy(P.tq);P.gh.g.visible=was.g.visible;P.gh.tg.visible=was.tg.visible}}}
       switch(m.k){
-        case 'hi':if(!m.r)sendHi(true);break;
+        case 'hi':if(!m.r)sendHi(true);syncRace(P,m);break;
         case 's':{
           if(!Array.isArray(m.p)||!Array.isArray(m.q))return;
           const x=num(m.p[0],-1e4,1e4,0),y=num(m.p[1],-500,2000,0),z=num(m.p[2],-1e4,1e4,0);
@@ -3147,11 +3157,18 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
             P.vx+=((x-P.tp.x)/dt-P.vx)*a;P.vy+=((y-P.tp.y)/dt-P.vy)*a;P.vz+=((z-P.tp.z)/dt-P.vz)*a;
             P.tp.set(x,y,z);P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize()}
           P.pt=now;P.st=num(m.st,-1,1,0);P.vf=num(m.vf,-80,120,0);P.d=num(m.d,-5,50,0);break}
-        case 'race':beginCountdown(P.n,num(m.startAt,0,1e15,Date.now()+CD_LEAD));break;
-        case 'fin':P.fin=num(m.ms,1,36e5,0);race.fins++;if(race.st===2&&!myFin&&!race.endAt)race.endAt=now+45000;toast2(P.n+' finished · '+fmtT(P.fin));ui();break;
-        // a ping is just an echo request; whoever gets one bounces their own timestamp straight back
-        case 'pg':send({k:'pk',t:num(m.t,0,1e15,now)});break;
-        case 'pk':P.ping=Math.max(0,Math.min(9999,Math.round(now-num(m.t,0,1e15,now))));break;
+        case 'race':beginCountdown(P.n,num(m.startAt,0,1e15,Date.now()+CD_LEAD),String(m.rid||''));break;
+        case 'fin':
+          if(!m.rid||m.rid!==race.id||(race.st<2&&race.st!==4)||P.fin)return;
+          P.fin=num(m.ms,1,36e5,0);race.fins++;
+          if(!myFin&&!race.endAt)race.endAt=now+45000;
+          toast2(P.n+' finished · '+fmtT(P.fin));ui();break;
+        case 'pg':if(String(m.target)===me.id)send({k:'pk',target:m.id,seq:num(m.seq,0,1e9,0)});break;
+        case 'pk':{
+          if(String(m.target)!==me.id)break;
+          const pingKey=m.id+':'+num(m.seq,0,1e9,0),sentAt=pendingPings.get(pingKey);
+          if(sentAt==null)break;
+          pendingPings.delete(pingKey);P.ping=Math.max(0,Math.min(9999,Math.round(performance.now()-sentAt)));break}
         case 'kick':if(String(m.target)===me.id){leave('Removed from the room by the host');closePanel()}break;
         case 'bye':dropPeer(P.id,true);break}}
     /* ----- rooms ----- */
@@ -3192,16 +3209,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function requestRace(){
       if(!room||status!=='up'){note('Not connected yet');return}
       if(race.st===1||race.st===2){note('A race is already running');return}
-      const startAt=Date.now()+CD_LEAD;send({k:'race',startAt});beginCountdown('You',startAt)}
-    function beginCountdown(who,startAt){
-      if(race.st===1)return;
+      const startAt=Date.now()+CD_LEAD,rid=me.id+'-'+startAt;send({k:'race',startAt,rid});beginCountdown('You',startAt,rid)}
+    function beginCountdown(who,startAt,rid){
+      rid=String(rid||('legacy-'+startAt));
+      if(race.id===rid&&race.st>=1)return;
       if(raceMode)stopRace();
       closePanel();
       // startAt is a shared wall-clock instant (Date.now(), not performance.now(), since it has to mean
       // the same thing on every client's clock) so everyone's countdown hits GO at roughly the same moment,
       // regardless of when the 'race' broadcast actually arrived on each connection
-      race={st:1,startAt,t0:0,d0:0,rp:0,lastU:0,slot:slotOf(),ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0};myFin=0;
-      peers.forEach(p=>{p.fin=0});
+      race={id:rid,st:1,startAt,t0:0,d0:0,rp:0,lastU:0,slot:slotOf(),ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0};myFin=0;
+      peers.forEach(p=>{p.fin=0;p.d=0});
       gridTo(race.slot,peers.size+1);toast2(who+' started a race');ui()}
     function endRace(quiet){
       race.st=0;race.hold=null;if(el.count){el.count.classList.remove('on');el.count.textContent=''}
@@ -3215,13 +3233,16 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         if(remain<=0){race.st=2;race.t0=now;race.rp=0;race.lastP=0;race.hold=null;race.lastU=-1;cdShow('GO');blip(1040,.35,.14);
           setTimeout(()=>{if(race.st===2&&el.count)el.count.classList.remove('on')},900);ui()}
         return}
+      if(race.st===4){
+        let all=peers.size>0;peers.forEach(p=>{if(!p.fin&&(!p.last||now-p.last<STALE))all=false});
+        if(all||race.endAt&&now>race.endAt){race.st=3;ui()}return}
       if(race.st!==2)return;
       if(now-race.lastP>=100){race.lastP=now;
         const rn=roadNear(car.position.x,car.position.z);
         if(race.lastU<0){race.lastU=rn.u;race.d0=rn.u>.5?rn.u-1:rn.u;race.rp=0}
         else{let du=rn.u-race.lastU;if(du<-.5)du+=1;else if(du>.5)du-=1;
           if(!rn.branch&&Math.abs(du)<.06&&rn.d<16+RWX*1.5)race.rp+=du;race.lastU=rn.u}
-        if(!myFin&&race.d0+race.rp>=1){myFin=now-race.t0;race.ms=myFin;race.fins++;send({k:'fin',ms:Math.round(myFin)});
+        if(!myFin&&race.d0+race.rp>=1){myFin=now-race.t0;race.ms=myFin;race.fins++;send({k:'fin',rid:race.id,ms:Math.round(myFin)});
           blip(880,.4,.14);setTimeout(()=>blip(1175,.5,.12),140);
           let pl=1;peers.forEach(p=>{if(p.fin&&p.fin<myFin)pl++});
           toast2((pl===1?'You win · ':'Finished P'+pl+' · ')+fmtT(myFin));race.endAt=now+45000;ui()}}
@@ -3242,7 +3263,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
           send({k:'s',n:myName(),j:me.j,p:[+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2)],q:[+q.x.toFixed(3),+q.y.toFixed(3),+q.z.toFixed(3),+q.w.toFixed(3)],
             st:+st.toFixed(3),vf:+vf.toFixed(1),d:+d.toFixed(4)})}
         if(now-lastHi>3000){lastHi=now;sendHi(true)}
-        if(now-lastPing>1500&&peers.size){lastPing=now;send({k:'pg',t:now})}}
+        if(now-lastPing>1500&&peers.size){lastPing=now;
+          peers.forEach(P=>{const seq=++pingSeq,key=P.id+':'+seq;pendingPings.set(key,performance.now());send({k:'pg',target:P.id,seq})});
+          pendingPings.forEach((sentAt,key)=>{if(performance.now()-sentAt>8000)pendingPings.delete(key)})}}
       // ghosts
       const k=1-Math.exp(-dt*11);
       peers.forEach(P=>{const G=P.gh;if(!G)return;
@@ -3256,7 +3279,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         G.tg.visible=dd<520&&G.g.visible;
         P.sp=Math.hypot(car.position.x-G.g.position.x,car.position.z-G.g.position.z)});
       raceTick(now,dt);
-      if(now-lastUI>250){lastUI=now;roster()}}
+      if(now-lastUI>250){lastUI=now;if(el.panel&&el.panel.classList.contains('on')&&room)ui();else roster()}}
     /* ----- HUD ----- */
     function roster(){
       if(!el.roster)return;
@@ -3282,10 +3305,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       if(el.out)el.out.style.display=room?'none':'block';
       if(el.inn)el.inn.style.display=room?'block':'none';
       if(el.codeOut)el.codeOut.textContent=room||'';
-      if(el.race)el.race.disabled=!room||status!=='up'||race.st===1||race.st===2;
-      if(el.list){const host=isHost();let h='';h+='<li class="me"><i style="background:#640c0e"></i><span>'+esc(myName())+' (you)</span><span></span></li>';
-        peers.forEach(P=>{h+='<li><i style="background:'+HEX(colorOf(P.id))+'"></i><span>'+esc(P.n)+'</span><span>'+(P.fin?fmtT(P.fin):'')+
-          (host?'<button class="kick" type="button" data-id="'+P.id+'" title="Remove from room">&times;</button>':'')+'</span></li>'});
+      if(el.race){el.race.disabled=!room||status!=='up'||race.st===1||race.st===2||race.st===4;
+        el.race.textContent=race.st===3?'Rematch':'Start race'}
+      if(el.raceStatus)el.raceStatus.textContent=!room?'Create or join a room to race.':status!=='up'?'Connecting to room…':race.st===1?'Race countdown in progress':race.st===2?'Race in progress · finish times appear here as drivers finish':race.st===4?'Race in progress · you joined as a spectator':race.st===3?'Race complete · final times are shown below':'Room ready · anyone can start a race';
+      if(el.list){const host=isHost(),racing=race.st>=2,rows=[{id:me.id,n:myName(),c:0x640c0e,me:1,watching:race.st===4,d:racing?race.d0+race.rp:0,fin:myFin,ping:null,off:false}];
+        peers.forEach(P=>rows.push({id:P.id,n:P.n,c:colorOf(P.id),d:P.d,fin:P.fin,ping:P.ping,off:!P.got}));
+        if(racing)rows.sort((a,b)=>a.watching?1:b.watching?-1:a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:b.d-a.d);
+        const lead=Math.max.apply(null,rows.filter(P=>!P.fin).map(P=>P.d).concat([0]));
+        let h='';rows.forEach((P,i)=>{let timing=P.watching?'Spectating':P.fin?fmtT(P.fin):racing?(P.off?'Connecting':P.d>=lead-1e-4?'Leading':'-'+Math.max(0,Math.round((lead-P.d)*TLEN))+' m'):(P.off?'Joining':'Ready');
+          const ping=P.me?'':P.ping==null?'Ping…':P.ping+' ms';
+          h+='<li class="'+(P.me?'me':'')+'"><i style="background:'+HEX(P.c)+'"></i><span class="mp-driver">'+(racing?'<em>'+(P.fin?i+1:'')+'</em>':'')+esc(P.n)+(P.me?' (you)':'')+'</span><span class="mp-timing">'+timing+(ping?' · '+ping:'')+
+            (host&&!P.me?'<button class="kick" type="button" data-id="'+P.id+'" title="Remove from room" aria-label="Remove '+esc(P.n)+' from room">&times;</button>':'')+'</span></li>'});
         el.list.innerHTML=h}
       if(el.note&&room)el.note.textContent=status==='up'?(peers.size?'Everyone here is a ghost to everyone else. No crashes, just a name above the car.':'Waiting for friends. Send them the code or the link.'):status==='down'?'Cannot reach the room. Check your connection and rejoin.':'Connecting…';
       roster()}
