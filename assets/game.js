@@ -2052,9 +2052,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const craft=UFO.g.clone(true),passenger=car.clone(true);craft.scale.setScalar(.72);
       passenger.position.set(0,-2.4,0);passenger.quaternion.identity();passenger.scale.setScalar(.45);craft.add(passenger);sc.add(craft);
       const warpRings=[];
-      for(let i=0;i<16;i++){
+      for(let i=0;i<5;i++){
         const ring=new THREE.Mesh(new THREE.TorusGeometry(38+(i%4)*5,.65,7,52),new THREE.MeshBasicMaterial({color:i%3===0?0xffd39a:0x9ca9c4,transparent:true,opacity:.35+(i%4)*.08,blending:THREE.AdditiveBlending,depthWrite:false}));
-        ring.position.set(Math.sin(i*1.73)*24,Math.cos(i*1.17)*18,-180-i*250);sc.add(ring);warpRings.push(ring);
+        ring.position.set(Math.sin(i*1.73)*20,Math.cos(i*1.17)*15,-220-i*650);sc.add(ring);warpRings.push(ring);
       }
       sc.add(earth); sc.add(moonP);
       spaceScene=sc; spaceObj={earth,moonP,sun2,streak,neb,pl,bh,disk,photon,craft,warpRings};
@@ -2293,7 +2293,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     api.frame=function(dt,now){
       t+=dt;
       if(api.state==='flight'){
-        const o=spaceObj,dur=9,k=Math.min(1,t/dur),steer=((key.r?1:0)-(key.l?1:0))*20;
+        const o=spaceObj,dur=4,k=Math.min(1,t/dur),steer=((key.r?1:0)-(key.l?1:0))*20;
         fade.style.opacity=Math.max(0,1-t/.8).toFixed(2);
         o.earth.position.set(0,25,320+k*500);o.earth.scale.setScalar(1-k*.5);o.earth.rotation.y+=dt*.04;
         o.bh.position.set(0,0,-620+k*470);o.bh.scale.setScalar(.42+k*1.8);o.disk.rotation.z+=dt*.12;o.photon.rotation.z-=dt*.08;
@@ -2304,7 +2304,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         R.render(spaceScene,C);return;
       }
       if(api.state==='warp'){
-        const o=spaceObj,dur=36,k=Math.min(1,t/dur),camZ=120-t*100;
+        const o=spaceObj,dur=12,k=Math.min(1,t/dur),camZ=120-k*3600;
         api.warpX=Math.max(-54,Math.min(54,api.warpX+((key.r?1:0)-(key.l?1:0))*dt*30));
         api.warpY=Math.max(-34,Math.min(34,api.warpY+((key.f?1:0)-(key.b?1:0))*dt*18));
         const pathX=Math.sin(t*.12)*18,pathY=Math.cos(t*.09)*10,x=pathX+api.warpX,y=pathY+api.warpY;
@@ -2317,7 +2317,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         R.render(spaceScene,C);return;
       }
       if(api.state==='approach'){
-        const o=spaceObj,dur=7,k=Math.min(1,t/dur),camZ=-3480;
+        const o=spaceObj,dur=4,k=Math.min(1,t/dur),camZ=-3480;
         o.moonP.position.set(0,0,-4300+k*700);o.moonP.scale.setScalar(.6+k*1.4);o.moonP.rotation.y+=dt*.025;
         o.earth.position.set(0,20,900);o.earth.scale.setScalar(.35);
         o.craft.position.set(0,0,camZ-22);C.position.set(0,8,camZ);C.lookAt(o.moonP.position);
