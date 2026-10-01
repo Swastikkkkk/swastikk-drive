@@ -2268,15 +2268,35 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 
     function buildRover(cfg){
       const rover=new THREE.Group();
-      const bodyMat=new THREE.MeshStandardMaterial({color:cfg.rover_body,roughness:.5,metalness:.3});
-      const b1=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.5,3.6),bodyMat); b1.position.y=0.9; b1.castShadow=true; rover.add(b1);
-      const cab=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.7,1.4),new THREE.MeshStandardMaterial({color:cfg.rover_cab,roughness:.3,metalness:.4})); cab.position.set(0,1.45,-0.2); cab.castShadow=true; rover.add(cab);
-      const wheelGeo=new THREE.CylinderGeometry(0.62,0.62,0.5,14); wheelGeo.rotateZ(Math.PI/2);
-      const wheelMat=new THREE.MeshStandardMaterial({color:0x1b1d22,roughness:.9});
-      const wheels=[];[[-1.3,-1.3],[1.3,-1.3],[-1.3,1.3],[1.3,1.3]].forEach(w=>{
-        const m=new THREE.Mesh(wheelGeo,wheelMat); m.position.set(w[0],0.6,w[1]); m.castShadow=true; rover.add(m); wheels.push(m);
-      });
+      const bodyMat=new THREE.MeshStandardMaterial({color:cfg.rover_body,roughness:.55,metalness:.35});
+      const cabMat=new THREE.MeshStandardMaterial({color:cfg.rover_cab,roughness:.3,metalness:.5});
+      const darkMat=new THREE.MeshStandardMaterial({color:0x20232a,roughness:.7,metalness:.4});
+      const deck=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.35,3.8),bodyMat); deck.position.y=1.05; deck.castShadow=true; rover.add(deck);
+      const box=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.6,1.8),cabMat); box.position.set(0,1.5,-0.2); box.castShadow=true; rover.add(box);
+      const panel=new THREE.Mesh(new THREE.BoxGeometry(2.3,0.08,2.6),darkMat); panel.position.set(0,1.78,0.1); rover.add(panel);
+      const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,1.1,8),darkMat); mast.position.set(0.55,2.3,-0.95); rover.add(mast);
+      const head=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.3,0.35),cabMat); head.position.set(0.55,2.95,-0.95); head.castShadow=true; rover.add(head);
+      const eye=new THREE.Mesh(new THREE.CircleGeometry(0.09,12),new THREE.MeshBasicMaterial({color:0x6fe3ff})); eye.position.set(0.55,2.95,-0.77); rover.add(eye);
+      const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1.0,6),darkMat); ant.position.set(-0.85,2.2,0.85); rover.add(ant);
+      const wheelGeo=new THREE.CylinderGeometry(0.62,0.62,0.45,16); wheelGeo.rotateZ(Math.PI/2);
+      const wheelMat=new THREE.MeshStandardMaterial({color:0x121319,roughness:.95});
+      const wheels=[];
+      [-1.5,0,1.5].forEach(wz=>{[-1.5,1.5].forEach(wx=>{
+        const arm=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.12,0.8),darkMat); arm.position.set(wx*0.82,0.82,wz); rover.add(arm);
+        const w=new THREE.Mesh(wheelGeo,wheelMat); w.position.set(wx,0.62,wz); w.castShadow=true; rover.add(w); wheels.push(w);
+      });});
       return {rover,wheels};
+    }
+    function buildAlien(){
+      const g=new THREE.Group();
+      const skin=new THREE.MeshStandardMaterial({color:0x9fd6a0,roughness:.7});
+      const body=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.24,0.9,8),skin); body.position.y=0.62; body.castShadow=true; g.add(body);
+      const head=new THREE.Mesh(new THREE.SphereGeometry(0.3,14,12),skin); head.position.y=1.22; head.scale.set(1,1.25,0.9); head.castShadow=true; g.add(head);
+      const eyeMat=new THREE.MeshBasicMaterial({color:0x0a0a0f});
+      [-0.12,0.12].forEach(ex=>{const e=new THREE.Mesh(new THREE.SphereGeometry(0.09,10,10),eyeMat); e.position.set(ex,1.24,0.2); e.scale.set(1,1.6,0.7); g.add(e);});
+      [-0.17,0.17].forEach(lx=>{const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.5,6),skin); leg.position.set(lx,0.22,0); g.add(leg);});
+      [-0.26,0.26].forEach(lx=>{const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.5,6),skin); arm.position.set(lx,0.75,0); arm.rotation.z=lx<0?0.5:-0.5; g.add(arm);});
+      return g;
     }
 
     function buildSurface(key){
@@ -2321,6 +2341,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const roadGeo=new THREE.BufferGeometry();
       const roadMesh=new THREE.Mesh(roadGeo,new THREE.MeshStandardMaterial({color:cfg.roadCol,roughness:0.95,metalness:0.0,side:THREE.DoubleSide,emissive:new THREE.Color(cfg.roadCol),emissiveIntensity:0.35}));
       roadMesh.receiveShadow=true; sc.add(roadMesh);
+      const stripeGeo=new THREE.BufferGeometry();
+      const stripeMesh=new THREE.Mesh(stripeGeo,new THREE.MeshBasicMaterial({color:0xcfc8b8,side:THREE.DoubleSide,transparent:true,opacity:0.92})); stripeMesh.frustumCulled=false; sc.add(stripeMesh);
       const reflGeo=new THREE.SphereGeometry(0.45,6,5);
       const reflMat=new THREE.MeshStandardMaterial({color:0x6fe3ff,emissive:0x2f8aa0,emissiveIntensity:0.8,roughness:0.4});
       const REFLN=40, refl=new THREE.InstancedMesh(reflGeo,reflMat,REFLN); refl.frustumCulled=false; sc.add(refl);
@@ -2353,7 +2375,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 
       SURF=surfaces[key]={
         key,cfg,scene:sc,sunL,tiles,TILE,GRID,SEG,terrMat,
-        roadMesh,roadGeo,refl,reflMat,rocks,ROCKN,
+        roadMesh,roadGeo,refl,reflMat,rocks,ROCKN,stripeGeo,stripeMesh,
         rover:rr.rover,wheels:rr.wheels,
         dust,dgeo,dpos,dlife,dvel,emitDust,
         road:{xs:[],zs:[],len:0},
@@ -2418,6 +2440,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       }
       S.roadGeo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
       S.roadGeo.setIndex(idx); S.roadGeo.computeVertexNormals();
+      // dashed centre line so the route clearly reads as a road
+      if(S.stripeGeo){ const sv=[], sidx=[]; let q=0;
+        for(let s=Math.ceil(s0/9)*9; s<=s1; s+=9){ if((((s/9)|0)%2)) continue;
+          const a=roadAt(cfg,S.road,s), bq=roadAt(cfg,S.road,s+4.5), hw=0.5;
+          const ya=groundH(cfg,S.road,a.x,a.z,S.s)+0.24, yb=groundH(cfg,S.road,bq.x,bq.z,S.s)+0.24;
+          sv.push(a.x+a.nx*hw,ya,a.z+a.nz*hw, a.x-a.nx*hw,ya,a.z-a.nz*hw, bq.x+bq.nx*hw,yb,bq.z+bq.nz*hw, bq.x-bq.nx*hw,yb,bq.z-bq.nz*hw);
+          const b=q*4; sidx.push(b,b+1,b+2, b+1,b+3,b+2); q++; }
+        S.stripeGeo.setAttribute('position',new THREE.Float32BufferAttribute(sv,3)); S.stripeGeo.setIndex(sidx); S.stripeGeo.computeVertexNormals(); }
       // edge reflectors alternating sides every ~80m
       const dm=new THREE.Matrix4(), rp=new THREE.Vector3(), rq=new THREE.Quaternion(), rs=new THREE.Vector3(1,1,1);
       let n=0; const start=Math.ceil(s0/80)*80;
@@ -2434,9 +2464,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function syncStations(S){
       const cfg=S.cfg, every=cfg.ufoEvery;
       const kLo=Math.max(0,Math.floor((S.s-every*0.4)/every)), kHi=Math.floor((S.s+every*1.2)/every);
-      // drop stations outside window
+      // drop stations (and their aliens) outside window
       for(let i=S.stations.length-1;i>=0;i--){ const st=S.stations[i];
-        if(st.idx<kLo||st.idx>kHi){ S.scene.remove(st.grp); S.stations.splice(i,1); } }
+        if(st.idx<kLo||st.idx>kHi){ S.scene.remove(st.grp); if(st.aliens)st.aliens.forEach(a=>S.scene.remove(a)); S.stations.splice(i,1); } }
       // add missing
       for(let k=kLo;k<=kHi;k++){
         if(S.stations.some(st=>st.idx===k)) continue;
@@ -2446,7 +2476,13 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         const gx=r.x+r.nx*(ROADHALF+9)*side, gz=r.z+r.nz*(ROADHALF+9)*side;
         grp.position.set(gx, groundH(cfg,S.road,gx,gz,S.s)+13, gz);
         S.scene.add(grp);
-        S.stations.push({idx:k, grp, x:gx, z:gz, sAt:k*every});
+        // a couple of aliens milling by the roadside under the craft
+        const aliens=[];
+        for(let ai=0;ai<2;ai++){ const al=buildAlien(); const off=(ai?1:-1)*2.4;
+          const axp=gx+r.tx*off, azp=gz+r.tz*off;
+          al.position.set(axp, groundH(cfg,S.road,axp,azp,S.s), azp);
+          al.rotation.y=Math.atan2(r.x-axp, r.z-azp); S.scene.add(al); aliens.push(al); }
+        S.stations.push({idx:k, grp, aliens, x:gx, z:gz, sAt:k*every});
       }
     }
 
@@ -2470,20 +2506,24 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       S.vel.x += fx*throttle*ACC*dt; S.vel.z += fz*throttle*ACC*dt;
       const vmax=cfg.vmax*(key.boost?cfg.boost:1), sp2=Math.hypot(S.vel.x,S.vel.z);
       if(sp2>vmax){S.vel.x*=vmax/sp2;S.vel.z*=vmax/sp2;}
-      const gy=groundH(cfg,S.road,p.x,p.z,S.s)+1.1;
-      const terrV=(gy-(S.prevGY||gy))/Math.max(dt,0.001); S.prevGY=gy;
       if(S.grounded){ const drag=throttle?0.995:0.985; S.vel.x*=drag; S.vel.z*=drag; }
       else { S.vel.x*=0.999; S.vel.z*=0.999; }
       p.x+=S.vel.x*dt; p.z+=S.vel.z*dt;
-      // vertical: crest launch, floaty fall, dust on landing
+      // ground height at the NEW position
+      const gy=groundH(cfg,S.road,p.x,p.z,S.s)+1.1;
+      const terrV=(gy-(S.prevGY||gy))/Math.max(dt,0.001); S.prevGY=gy;
+      const G=(moonGravityOn?cfg.g:24);
+      // vertical: hug the ground. Only a real ramp at speed launches, and only in low gravity.
       if(S.grounded){
         p.y=gy;
-        if(terrV>6 && speed>8){ S.vy=terrV*0.5; S.grounded=false; }
+        if(moonGravityOn && terrV>14 && speed>14){ S.vy=Math.min(terrV*0.35,9); S.grounded=false; }
       } else {
-        S.vy -= (moonGravityOn?cfg.g:24)*dt; p.y += S.vy*dt;
+        S.vy -= G*dt; p.y += S.vy*dt;
         if(p.y<=gy){ const impact=-S.vy; p.y=gy; S.vy=0; S.grounded=true;
           if(impact>3){ S.emitDust(p.x,gy-1.1,p.z,22,Math.min(10,impact*0.8),0.8); S.land=Math.min(0.4,impact*0.03); try{thud(Math.min(1,impact*0.05));}catch(e){} } }
       }
+      // HARD FLOOR: the rover can never sit below the surface ("under the map")
+      if(p.y<gy){ p.y=gy; if(S.vy<0)S.vy=0; S.grounded=true; }
       if(S.grounded && throttle && speed>4 && frameN%2===0){
         S.emitDust(p.x - fx*2, gy-0.9, p.z - fz*2, 2, 2.2, 0.25);
       }
@@ -2522,6 +2562,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const goal=new THREE.Vector3(p.x-fx*back, p.y+upH, p.z-fz*back);
       C.position.lerp(goal, 1-Math.pow(0.0015,dt));
       if(S.land>0){ C.position.y+=Math.sin(t*60)*S.land; S.land*=0.85; }
+      { const cf=groundH(cfg,S.road,C.position.x,C.position.z,S.s)+2.2; if(C.position.y<cf)C.position.y=cf; }
       C.lookAt(p.x+fx*6, p.y+1.5, p.z+fz*6);
 
       // station proximity -> prompt
