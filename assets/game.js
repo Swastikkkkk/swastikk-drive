@@ -2534,7 +2534,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function beginArrival(key){
       buildSurface(key); api.planet=key; const S=SURF, cfg=S.cfg;
       const r0=roadAt(cfg,S.road,0);
-      S.pos.set(r0.x, groundH(cfg,S.road,r0.x,r0.z,0)+34, r0.z);
+      S.pos.set(r0.x, groundH(cfg,S.road,r0.x,r0.z,0)+10, r0.z);
       S.vel.set(0,0,0); S.vy=0; S.yaw=0; S.grounded=false; S.s=0; S.maxS=0; S.land=0;
       // start upright-ish; orientation will slerp to the true normal as it settles
       S.rover.quaternion.identity();
@@ -2638,12 +2638,12 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         R.render(spaceScene,C);return;
       }
       if(api.state==='arrive'){
-        const S=SURF,cfg=S.cfg,dur=1.8,k=Math.min(1,t/dur);
+        const S=SURF,cfg=S.cfg,dur=2.2,k=Math.min(1,t/dur);
         fade.style.opacity=Math.max(0,1-t/0.6).toFixed(2);
         // gravity ramps 0 -> full as the rover descends and settles onto the normal
         api._gRamp=k;
         const gy=groundH(cfg,S.road,S.pos.x,S.pos.z,S.s)+1.1;
-        S.vy -= cfg.g*api._gRamp*dt; S.pos.y += S.vy*dt;
+        S.vy -= cfg.g*(0.35+0.65*api._gRamp)*dt; S.pos.y += S.vy*dt;
         if(S.pos.y<=gy){ S.pos.y=gy; S.vy=0; S.grounded=true; if(k<1){ S.emitDust(S.pos.x,gy-1.1,S.pos.z,26,6,0.8); } }
         _n.copy(surfaceNormal(cfg,S.road,S.pos.x,S.pos.z,S.s));
         _qy.setFromAxisAngle(_up,S.yaw); _qa.setFromUnitVectors(_up,_n); _qt.copy(_qa).multiply(_qy);
@@ -2658,7 +2658,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
           arr[i*3]+=S.dvel[i].x*dt;arr[i*3+1]+=S.dvel[i].y*dt;arr[i*3+2]+=S.dvel[i].z*dt; if(S.dlife[i]<=0)arr[i*3+1]=-9999; } }
         S.dgeo.attributes.position.needsUpdate=true;
         say(cfg.caption);
-        if(t>dur && S.grounded){ go('surface'); }
+        if(t>dur){ const gyf=groundH(cfg,S.road,S.pos.x,S.pos.z,S.s)+1.1; if(S.pos.y>gyf+0.5){S.emitDust(S.pos.x,gyf-1.1,S.pos.z,26,6,0.8);} S.pos.y=gyf; S.vy=0; S.grounded=true; try{ufoLand();}catch(e){} go('surface'); }
         R.render(S.scene,C); return;
       }
       if(api.state==='surface'){
@@ -2716,7 +2716,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         if(idleLow!==2){idleLow=2;R.setPixelRatio(Math.min(devicePixelRatio,.6));R.setSize(W,H,false)}}
     }else if(idleLow){idleLow=0;applyQ()}
     const dt=Math.min(.1,(now-last)/1000);last=now;frameN++;
-    if(SPACE.state!=='earth'){ SPACE.frame(dt,now); return; }   // space/moon takes over the frame; Earth paused
+    if(SPACE.state!=='earth'){ try{SPACE.frame(dt,now);}catch(e){console.error('[space]',e);} return; }   // space/moon takes over the frame; Earth paused
     watchFps(dt);
     const sp=chassisB.velocity.length();
     if(active&&driving){
