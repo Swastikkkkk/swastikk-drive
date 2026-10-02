@@ -3661,36 +3661,40 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return out}
   function drawFail(msg){pendingTrack=null;if(circGoEl)circGoEl.disabled=true;if(circErrEl)circErrEl.textContent=msg;drawPts=[];redrawPath()}
   function finishDraw(){
-    if(drawPts.length<8){drawFail('Draw a bigger loop.');return}
+    if(drawPts.length<6){drawFail('Draw a larger loop.');return}
     const first=drawPts[0],last=drawPts[drawPts.length-1];
-    const closeDist=Math.hypot(last.x-first.x,last.y-first.y);
     let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;drawPts.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)});
     const diag=Math.hypot(maxX-minX,maxY-minY);
-    if(diag<120){drawFail('Draw a bigger loop.');return}
-    if(closeDist>diag*.22){drawFail('Loop has to close - end near where you started.');return}
-    const closed=drawPts.slice();closed.push({x:first.x,y:first.y});
-    // target a fixed point count by picking the step from the path's own length, rather than
-    // resampling then truncating the array - truncating after the fact can chop off the closing
-    // stretch of the loop and silently hide a crossing that falls past the cutoff
+    if(diag<70){drawFail('Draw a larger circuit loop.');return}
+    
+    // Auto-close loop smoothly
+    const closed=drawPts.slice();
+    if(Math.hypot(last.x-first.x,last.y-first.y)>8){
+      closed.push({x:first.x,y:first.y});
+    }
+
     let rawLen=0;for(let i=1;i<closed.length;i++)rawLen+=Math.hypot(closed[i].x-closed[i-1].x,closed[i].y-closed[i-1].y);
     const step=Math.max(4,rawLen/110);
     const rs=resamplePath(closed,step);
-    if(rs.length<10){drawFail('Draw a bigger loop.');return}
+    if(rs.length<8){drawFail('Draw a larger loop.');return}
+
+    // Check self-intersections (allow endpoints)
     for(let i=0;i<rs.length-1;i++)for(let j=i+2;j<rs.length-1;j++){
-      if(i===0&&j===rs.length-2)continue;
+      if(i===0&&j>=rs.length-2)continue;
       if(segInt(rs[i],rs[i+1],rs[j],rs[j+1])){drawFail('Track crosses itself. Try a simpler loop.');return}}
-    for(let i=0;i<rs.length-1;i++){
-      const a=rs[(i-1+rs.length-1)%(rs.length-1)],b=rs[i],c=rs[i+1];
-      const v1x=b.x-a.x,v1y=b.y-a.y,v2x=c.x-b.x,v2y=c.y-b.y,l1=Math.hypot(v1x,v1y)||1,l2=Math.hypot(v2x,v2y)||1;
-      const cos=Math.max(-1,Math.min(1,(v1x*v2x+v1y*v2y)/(l1*l2))),ang=Math.acos(cos)*180/Math.PI;
-      if(ang>95){drawFail('Track has a sharp corner. Try drawing a wider turn.');return}}
+
     pendingTrack=normalizeLoop(rs.slice(0,rs.length-1));
     if(window.TrackEditor){
       window.TrackEditor.points = rs.slice(0,rs.length-1).map(p => ({ x: p.x, y: p.y }));
       window.TrackEditor.isClosed = true;
     }
     if(circGoEl)circGoEl.disabled=false;
-    if(circErrEl)circErrEl.textContent='Loop validated. Choose venue settings, then press GO.'}
+    const testB=$('#dcirctest'),saveB=$('#dcircsave'),shareB=$('#dcircshare');
+    if(testB)testB.disabled=false;
+    if(saveB)saveB.disabled=false;
+    if(shareB)shareB.disabled=false;
+    if(circErrEl)circErrEl.textContent='Loop validated! Press GO & Publish or Test Drive.';
+  }
   function generateVenue(){
     if(!pendingTrack)return;
     const seed=Math.max(1,Math.min(2147483647,Math.floor(Number(circSeedEl&&circSeedEl.value)||271828)));
