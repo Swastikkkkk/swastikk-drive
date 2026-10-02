@@ -1499,11 +1499,24 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     chassisB.mass=spec.mass;chassisB.updateMassProperties();
     vis.bodyIn.remove(PCAR.g);
     const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};
-    PCAR=spec.type==='ev'?buildEV(o):buildCar(Object.assign(o,{wagon:!!spec.wagon,wheels:false}));
+    if (spec.type==='f1' && window.CarBuilder && window.CarBuilder.buildF1) {
+      PCAR = window.CarBuilder.buildF1(o);
+    } else if (spec.type==='suv' && window.CarBuilder && window.CarBuilder.buildSUV) {
+      PCAR = window.CarBuilder.buildSUV(o);
+    } else if (spec.type==='bike' && window.CarBuilder && window.CarBuilder.buildBike) {
+      PCAR = window.CarBuilder.buildBike(o);
+    } else if (spec.type==='hypercar' && window.CarBuilder && window.CarBuilder.buildHypercar) {
+      PCAR = window.CarBuilder.buildHypercar(o);
+    } else if (spec.type==='ev') {
+      PCAR = buildEV(o);
+    } else {
+      PCAR = buildCar(Object.assign(o,{wagon:!!spec.wagon,wheels:false}));
+    }
     PCAR.g.position.y=.05-(V.rest-.07)-V.r;vis.bodyIn.add(PCAR.g);
     if(cubeRT)PCAR.g.traverse(m=>{if(m.material&&m.material.reflectivity!==undefined){m.material.envMap=cubeRT.texture;m.material.needsUpdate=true}});
     wv.car.forEach(k=>vis.car.remove(k.w));
-    wv={car:[0,1,2,3].map(i=>makeWheel(V.r,.36,i%2?-1:1,true,true))};wv.car.forEach(k=>vis.car.add(k.w));
+    const wheelWd = spec.type==='bike'?0.18:spec.type==='f1'?0.46:spec.type==='suv'?0.42:0.36;
+    wv={car:[0,1,2,3].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};wv.car.forEach(k=>vis.car.add(k.w));
     if(carShadow){carShadow.position.y=.05-(V.rest-.07)-.02;carShadow.scale.z=(spec.F-spec.B)/GARAGE_BASE_LEN}
     try{localStorage.setItem('sl_car',JSON.stringify({id:spec.id,paint:paintHex}))}catch(e){}
     if(mpCarNotify)mpCarNotify();
@@ -1581,7 +1594,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      const refreshList=()=>{$$('#dgcars li').forEach(li=>{const spec=garageOf(li.dataset.id),owned=unlocked.has(spec.id);
        li.classList.toggle('locked',!owned);
        li.innerHTML='<span class="n">'+spec.label+'</span><span class="s">'+
-         (owned?(spec.type==='ev'?'EV':'Petrol'):('Buy · '+spec.price))+'</span>'})};
+         (owned?(spec.type==='f1'?'F1 RACER':spec.type==='suv'?'4x4 SUV':spec.type==='bike'?'SUPERBIKE':spec.type==='hypercar'?'HYPERCAR':spec.type==='ev'?'EV':'Petrol'):('Buy · '+spec.price))+'</span>'})};
      const refresh=()=>{const spec=garageOf(curCarId);
        refreshList();
        $$('#dgcars li').forEach(li=>li.classList.toggle('on',li.dataset.id===curCarId));

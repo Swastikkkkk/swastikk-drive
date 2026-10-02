@@ -1,5 +1,5 @@
 /**
- * Procedural Vehicle 3D Mesh Generator: buildEV, buildCar, wheels, materials, and decals
+ * Procedural Vehicle 3D Mesh Generator: buildEV, buildCar, buildF1, buildSUV, buildBike, buildHypercar, wheels, materials, and decals
  */
 (function(window) {
   var CARENV = (function() {
@@ -29,18 +29,20 @@
 
   var CARMATS = [];
   var phong = function(c, o) {
-    var m = new THREE.MeshPhongMaterial(Object.assign({ color: c, specular: 0x3a3a3a, shininess: 60, envMap: CARENV, reflectivity: 0.1, combine: THREE.MixOperation }, o || {}));
+    var m = new THREE.MeshPhongMaterial(Object.assign({ color: c, specular: 0x4a4a4a, shininess: 85, envMap: CARENV, reflectivity: 0.25, combine: THREE.MixOperation }, o || {}));
     CARMATS.push(m);
     return m;
   };
 
-  var carGlassM = phong(0x080b0e, { specular: 0x8a8a8a, shininess: 110, reflectivity: 0.16, side: THREE.DoubleSide });
-  var chromeM = phong(0xd2d4d6, { specular: 0xffffff, shininess: 120, reflectivity: 0.7 });
-  var alloyM = phong(0xb2b5b8, { specular: 0xbbbbbb, shininess: 80, reflectivity: 0.42 });
-  var trimM = new THREE.MeshPhongMaterial({ color: 0x131313, specular: 0x1c1c1c, shininess: 18, side: THREE.DoubleSide });
+  var carGlassM = phong(0x06090d, { specular: 0xaaaaaa, shininess: 120, reflectivity: 0.25, side: THREE.DoubleSide });
+  var chromeM = phong(0xdcdfe2, { specular: 0xffffff, shininess: 140, reflectivity: 0.8 });
+  var carbonM = new THREE.MeshPhongMaterial({ color: 0x111114, specular: 0x333338, shininess: 40 });
+  var trimM = new THREE.MeshPhongMaterial({ color: 0x141416, specular: 0x222226, shininess: 24, side: THREE.DoubleSide });
   var plateM = new THREE.MeshLambertMaterial({ color: 0xefece4 });
-  var evGlassM = phong(0x040506, { specular: 0x9a9a9a, shininess: 120, reflectivity: 0.1 });
-  var npcHeadM = new THREE.MeshLambertMaterial({ color: 0xfff2c0, emissive: 0xfff2c0, emissiveIntensity: 1 });
+  var evGlassM = phong(0x040506, { specular: 0x9a9a9a, shininess: 120, reflectivity: 0.18 });
+  var goldM = phong(0xd4af37, { specular: 0xffdf78, shininess: 100, reflectivity: 0.6 });
+  var npcHeadM = new THREE.MeshLambertMaterial({ color: 0xfff2c0, emissive: 0xfff2c0, emissiveIntensity: 1.2 });
+  var tailM2 = new THREE.MeshLambertMaterial({ color: 0xff2020, emissive: 0xff1515, emissiveIntensity: 0.8 });
 
   function bakeGroup(root) {
     root.updateMatrixWorld(true);
@@ -80,7 +82,7 @@
       bg.computeBoundingSphere();
       var me = new THREE.Mesh(bg, m);
       me.userData.keep = true;
-      me.castShadow = (m !== carGlassM);
+      me.castShadow = (m !== carGlassM && m !== evGlassM);
       me.receiveShadow = false;
       root.add(me);
     });
@@ -149,7 +151,7 @@
       if (rx) o.rotation.x = rx;
       inn.add(o); return o;
     };
-    var seg = detail ? 44 : 22, rr = r * 0.7;
+    var seg = detail ? 40 : 20, rr = r * 0.7;
     var pr = [[rr, -wd*0.47], [r*0.8, -wd*0.5], [r*0.9, -wd*0.49], [r*0.965, -wd*0.44], [r*0.993, -wd*0.34], [r, -wd*0.2], [r, wd*0.2], [r*0.993, wd*0.34], [r*0.965, wd*0.44], [r*0.9, wd*0.49], [r*0.8, wd*0.5], [rr, wd*0.47]].map(function(p) { return new THREE.Vector2(p[0], p[1]); });
     put(new THREE.LatheGeometry(pr, seg).rotateZ(Math.PI / 2), tyreM2, 0);
     if (detail) {
@@ -186,11 +188,21 @@
     return { w: w, spin: spin };
   }
 
+  function addBox(g, geo, m, x, y, z, rx, ry, rz) {
+    var b = new THREE.Mesh(geo, m);
+    b.position.set(x, y, z);
+    if (rx) b.rotation.x = rx;
+    if (ry) b.rotation.y = ry;
+    if (rz) b.rotation.z = rz;
+    g.add(b);
+    return b;
+  }
+
+  /* ------------------- 1. STANDARD SEDAN / ROADSTER ------------------- */
   function buildCar(o) {
     var g = new THREE.Group(), body = new THREE.Group(); g.add(body);
     var r = o.r, zf = o.zf, zb = o.zb, F = o.F, B = o.B, W = o.W, A = r + 0.13, rc = r, sill = 0.27, belt = 0.9;
-    var paint = phong(o.paint), roofM = o.roof != null ? phong(o.roof, { reflectivity: 0.1, specular: 0x3a3a3a }) : paint;
-    var tailM2 = o.tail || new THREE.MeshLambertMaterial({ color: 0xff3b30, emissive: 0xff2a20, emissiveIntensity: 0.55 });
+    var paint = phong(o.paint), roofM = o.roof != null ? phong(o.roof, { reflectivity: 0.15, specular: 0x3a3a3a }) : paint;
     var headM3 = o.head || npcHeadM;
 
     var s = new THREE.Shape();
@@ -226,27 +238,312 @@
     var cab = new THREE.Mesh(crease(tumble(extrudeSide(cs, cw, cb)), 38), o.ev ? evGlassM : roofM);
     body.add(cab);
 
+    // Front headlights + rear light bar
+    addBox(body, new THREE.BoxGeometry(W * 0.3, 0.08, 0.12), headM3, W * 0.28, 0.65, F - 0.08, 0, -0.2);
+    addBox(body, new THREE.BoxGeometry(W * 0.3, 0.08, 0.12), headM3, -W * 0.28, 0.65, F - 0.08, 0, 0.2);
+    addBox(body, new THREE.BoxGeometry(W * 0.8, 0.06, 0.06), tailM2, 0, 0.84, B + 0.05);
+
     bakeGroup(body);
-    var wheels = [];
-    if (o.wheels) {
-      [[1, zf], [-1, zf], [1, zb], [-1, zb]].forEach(function(pair) {
-        var sx = pair[0], z = pair[1];
-        var k = makeWheel(r, o.ww || 0.3, sx, false);
-        k.w.position.set(sx * o.xw, r, z);
-        g.add(k.w);
-        wheels.push(k);
-      });
-    }
-    return { g: g, body: body, wheels: wheels, tail: tailM2, paint: paint };
+    return { g: g, body: body, wheels: [], tail: tailM2, paint: paint };
   }
 
   function buildEV(o) {
     return buildCar(Object.assign({ ev: true }, o));
   }
 
+  /* ------------------- 2. FORMULA 1 SINGLE SEATER RACER ------------------- */
+  function buildF1(o) {
+    var g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+    var paint = phong(o.paint, { shininess: 120, specular: 0x666666 });
+    var F = o.F || 2.7, B = o.B || -2.3, W = o.W || 2.0;
+
+    // Narrow aerodynamic nose cone
+    var nose = new THREE.Mesh(new THREE.ConeGeometry(0.24, F + 0.2, 16), paint);
+    nose.rotation.x = Math.PI / 2;
+    nose.position.set(0, 0.38, (F * 0.45));
+    body.add(nose);
+
+    // Cockpit & Monocoque tub
+    var tub = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.46, 2.2), paint);
+    tub.position.set(0, 0.45, 0.1);
+    body.add(tub);
+
+    // Halo safety structure above driver cockpit
+    var haloM = carbonM;
+    var halo = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.035, 8, 16, Math.PI), haloM);
+    halo.position.set(0, 0.85, 0.2);
+    halo.rotation.x = Math.PI / 2;
+    body.add(halo);
+
+    // Driver helmet in cockpit
+    var helmet = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 12), goldM);
+    helmet.position.set(0, 0.72, 0.15);
+    body.add(helmet);
+
+    // Sidepods with air intakes
+    [-1, 1].forEach(function(sd) {
+      var pod = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.38, 1.4), paint);
+      pod.position.set(sd * 0.62, 0.38, -0.2);
+      body.add(pod);
+      // Radiator intake hole
+      addBox(body, new THREE.BoxGeometry(0.38, 0.25, 0.08), carbonM, sd * 0.62, 0.4, 0.52);
+      // Bargeboards
+      addBox(body, new THREE.BoxGeometry(0.04, 0.34, 0.6), carbonM, sd * 0.92, 0.36, 0.4);
+    });
+
+    // Massive Front Wing with multi-tier elements and endplates
+    var fWing = new THREE.Mesh(new THREE.BoxGeometry(W * 0.96, 0.04, 0.45), carbonM);
+    fWing.position.set(0, 0.18, F - 0.12);
+    body.add(fWing);
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.BoxGeometry(0.04, 0.24, 0.52), paint, sd * (W * 0.48), 0.26, F - 0.12);
+    });
+
+    // Rear Wing with high downforce DRS flap and endplates
+    var rWing = new THREE.Mesh(new THREE.BoxGeometry(W * 0.75, 0.04, 0.38), carbonM);
+    rWing.position.set(0, 1.05, B + 0.1);
+    body.add(rWing);
+    var rFlap = new THREE.Mesh(new THREE.BoxGeometry(W * 0.75, 0.03, 0.22), paint);
+    rFlap.position.set(0, 1.15, B + 0.02);
+    rFlap.rotation.x = -0.25;
+    body.add(rFlap);
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.BoxGeometry(0.04, 0.75, 0.48), paint, sd * (W * 0.37), 0.85, B + 0.06);
+    });
+
+    // Rear Rain Safety LED
+    addBox(body, new THREE.BoxGeometry(0.12, 0.12, 0.08), tailM2, 0, 0.35, B - 0.08);
+
+    // Front and Rear Exposed Wishbone Suspension rods
+    var suspM = carbonM;
+    [[1, o.zf], [-1, o.zf], [1, o.zb], [-1, o.zb]].forEach(function(pair) {
+      var sx = pair[0], z = pair[1];
+      var arm = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.65, 8), suspM);
+      arm.position.set(sx * 0.55, 0.34, z);
+      arm.rotation.z = sx * 1.35;
+      body.add(arm);
+    });
+
+    bakeGroup(body);
+    return { g: g, body: body, wheels: [], tail: tailM2, paint: paint };
+  }
+
+  /* ------------------- 3. HEAVY RUGGED OFF-ROAD SUV 4x4 ------------------- */
+  function buildSUV(o) {
+    var g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+    var paint = phong(o.paint, { shininess: 65, specular: 0x222222 });
+    var F = o.F || 2.4, B = o.B || -2.3, W = o.W || 2.35;
+    var headM3 = o.head || npcHeadM;
+
+    // High ground clearance boxy lower body
+    var lower = new THREE.Mesh(new THREE.BoxGeometry(W - 0.1, 0.75, F - B - 0.2), paint);
+    lower.position.set(0, 0.72, (F + B) / 2);
+    body.add(lower);
+
+    // Heavy duty black underbody fender flares & bull bar
+    var bumperF = new THREE.Mesh(new THREE.BoxGeometry(W + 0.08, 0.32, 0.35), trimM);
+    bumperF.position.set(0, 0.5, F + 0.05);
+    body.add(bumperF);
+    // Bullbar metal grill guard
+    addBox(body, new THREE.TorusGeometry(0.35, 0.04, 8, 16, Math.PI), chromeM, 0, 0.65, F + 0.22, 0, 0, 0);
+
+    // Tall spacious cabin & panoramic roof
+    var cabin = new THREE.Mesh(new THREE.BoxGeometry(W - 0.26, 0.75, (F - B) * 0.58), paint);
+    cabin.position.set(0, 1.42, (F + B) / 2 - 0.25);
+    body.add(cabin);
+
+    // Large dark tinted windows
+    addBox(body, new THREE.BoxGeometry(W - 0.28, 0.45, 0.1), carGlassM, 0, 1.45, (F + B) / 2 + 0.75, 0.28, 0, 0); // windshield
+    addBox(body, new THREE.BoxGeometry(W - 0.28, 0.48, 0.1), carGlassM, 0, 1.45, B + 0.2, -0.15, 0, 0); // rear glass
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.BoxGeometry(0.08, 0.45, (F - B) * 0.5), carGlassM, sd * (W * 0.46), 1.45, (F + B) / 2 - 0.25);
+      // Heavy off-road rock sliders / side steps
+      addBox(body, new THREE.BoxGeometry(0.18, 0.08, F - B - 0.8), chromeM, sd * (W * 0.52), 0.36, (F + B) / 2);
+      // Wide wheel arch flares
+      addBox(body, new THREE.BoxGeometry(0.14, 0.28, 0.95), trimM, sd * (W * 0.48), 0.7, o.zf);
+      addBox(body, new THREE.BoxGeometry(0.14, 0.28, 0.95), trimM, sd * (W * 0.48), 0.7, o.zb);
+    });
+
+    // Roof rack with overland luggage rails & auxiliary high-beam light bar
+    addBox(body, new THREE.BoxGeometry(W * 0.75, 0.06, 1.8), trimM, 0, 1.82, (F + B) / 2 - 0.2);
+    // Roof light pods (4 LEDs)
+    for (var i = -1.5; i <= 1.5; i += 1) {
+      addBox(body, new THREE.BoxGeometry(0.16, 0.09, 0.08), headM3, i * 0.24, 1.88, (F + B) / 2 + 0.65);
+    }
+
+    // Rear Mounted Spare Wheel
+    var spare = makeWheel(o.r || 0.48, 0.35, 1, false);
+    spare.w.position.set(0, 0.95, B - 0.2);
+    body.add(spare.w);
+
+    // Front high-power headlights & rear LED vertical light columns
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.BoxGeometry(0.35, 0.16, 0.08), headM3, sd * (W * 0.32), 0.72, F + 0.02);
+      addBox(body, new THREE.BoxGeometry(0.08, 0.52, 0.06), tailM2, sd * (W * 0.44), 1.05, B + 0.08);
+    });
+
+    bakeGroup(body);
+    return { g: g, body: body, wheels: [], tail: tailM2, paint: paint };
+  }
+
+  /* ------------------- 4. AERODYNAMIC SUPERBIKE / MOTORCYCLE ------------------- */
+  function buildBike(o) {
+    var g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+    var paint = phong(o.paint, { shininess: 140, specular: 0xffffff });
+    var F = o.F || 1.6, B = o.B || -1.5, W = 0.9;
+    var headM3 = o.head || npcHeadM;
+
+    // Slim central fuel tank and aerodynamic fairing
+    var tank = new THREE.Mesh(new THREE.ConeGeometry(0.34, 1.2, 14), paint);
+    tank.rotation.x = -Math.PI / 2.3;
+    tank.position.set(0, 0.82, 0.25);
+    body.add(tank);
+
+    // Ergonomic Racing Seat & tail section
+    var seat = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.6), trimM);
+    seat.position.set(0, 0.75, -0.28);
+    body.add(seat);
+    var tailCowl = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.8, 12), paint);
+    tailCowl.rotation.x = Math.PI / 2.2;
+    tailCowl.position.set(0, 0.88, -0.72);
+    body.add(tailCowl);
+
+    // Front aerodynamic bubble windscreen
+    var screen = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 10, 0, Math.PI), carGlassM);
+    screen.rotation.x = -0.75;
+    screen.position.set(0, 0.98, 0.65);
+    body.add(screen);
+
+    // Front dual slanted LED headlights
+    addBox(body, new THREE.BoxGeometry(0.18, 0.06, 0.08), headM3, 0.12, 0.75, 0.85, -0.2, 0.2);
+    addBox(body, new THREE.BoxGeometry(0.18, 0.06, 0.08), headM3, -0.12, 0.75, 0.85, -0.2, -0.2);
+
+    // Engine block & exposed titanium exhaust pipe
+    var engineBlock = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.45, 0.65), carbonM);
+    engineBlock.position.set(0, 0.42, 0.1);
+    body.add(engineBlock);
+
+    var exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.9, 12), chromeM);
+    exhaust.rotation.x = -Math.PI / 2.7;
+    exhaust.position.set(0.26, 0.48, -0.5);
+    body.add(exhaust);
+
+    // Clip-on Handlebars with bar-end mirrors
+    var bar = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.78, 8), chromeM);
+    bar.rotation.z = Math.PI / 2;
+    bar.position.set(0, 0.94, 0.52);
+    body.add(bar);
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.SphereGeometry(0.05, 8, 8), carbonM, sd * 0.42, 0.96, 0.52);
+    });
+
+    // Front inverted telescopic forks
+    [-1, 1].forEach(function(sd) {
+      var fork = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.85, 10), goldM);
+      fork.rotation.x = -0.36;
+      fork.position.set(sd * 0.15, 0.5, o.zf);
+      body.add(fork);
+    });
+
+    // Single-sided swingarm at rear
+    var swingarm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.85), alloyM);
+    swingarm.position.set(-0.16, 0.38, (o.zb + 0.2) / 2);
+    body.add(swingarm);
+
+    // Rear slim tail light
+    addBox(body, new THREE.BoxGeometry(0.22, 0.04, 0.06), tailM2, 0, 0.92, B + 0.35);
+
+    bakeGroup(body);
+    return { g: g, body: body, wheels: [], tail: tailM2, paint: paint };
+  }
+
+  /* ------------------- 5. HYPERREALISTIC AGGRESSIVE HYPERCAR ------------------- */
+  function buildHypercar(o) {
+    var g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+    var paint = phong(o.paint, { shininess: 150, specular: 0xffffff, reflectivity: 0.35 });
+    var F = o.F || 2.5, B = o.B || -2.4, W = o.W || 2.38;
+    var headM3 = o.head || npcHeadM;
+
+    // Ultra-low slung carbon chassis bottom
+    var chassisPlate = new THREE.Mesh(new THREE.BoxGeometry(W - 0.04, 0.12, F - B + 0.2), carbonM);
+    chassisPlate.position.set(0, 0.22, (F + B) / 2);
+    body.add(chassisPlate);
+
+    // Sculpted hypercar body with sharp front splitter & hood air vents
+    var mainBody = new THREE.Mesh(new THREE.BoxGeometry(W - 0.1, 0.42, F - B - 0.4), paint);
+    mainBody.position.set(0, 0.48, (F + B) / 2);
+    body.add(mainBody);
+
+    // Sleek fighter-jet style cockpit dome
+    var dome = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), carGlassM);
+    dome.scale.set((W * 0.38), 0.52, 1.25);
+    dome.position.set(0, 0.8, -0.1);
+    body.add(dome);
+
+    // Front race splitter & aggressive intake tunnels
+    var splitter = new THREE.Mesh(new THREE.BoxGeometry(W + 0.06, 0.05, 0.55), carbonM);
+    splitter.position.set(0, 0.16, F + 0.08);
+    body.add(splitter);
+
+    // Aggressive Le Mans style Shark Fin running down the rear spine
+    var fin = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.55, 1.4), carbonM);
+    fin.position.set(0, 0.95, -0.9);
+    body.add(fin);
+
+    // Active Aero GT Rear Wing mounted on dual swan-neck struts
+    var wing = new THREE.Mesh(new THREE.BoxGeometry(W * 0.92, 0.05, 0.42), carbonM);
+    wing.position.set(0, 1.05, B + 0.15);
+    body.add(wing);
+    [-1, 1].forEach(function(sd) {
+      // Swan neck uprights
+      var strut = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.45, 0.18), carbonM);
+      strut.position.set(sd * 0.45, 0.85, B + 0.2);
+      strut.rotation.x = -0.22;
+      body.add(strut);
+      // Wing endplates with aero vortex generators
+      addBox(body, new THREE.BoxGeometry(0.03, 0.38, 0.52), paint, sd * (W * 0.46), 1.05, B + 0.15);
+      // Deep sculpted side-intake air ducts
+      addBox(body, new THREE.BoxGeometry(0.24, 0.35, 1.1), carbonM, sd * (W * 0.44), 0.48, -0.1);
+    });
+
+    // Rear giant race diffuser with 6 vertical strakes
+    var diffuser = new THREE.Mesh(new THREE.BoxGeometry(W * 0.8, 0.14, 0.55), carbonM);
+    diffuser.position.set(0, 0.22, B - 0.05);
+    diffuser.rotation.x = -0.15;
+    body.add(diffuser);
+    for (var k = -2.5; k <= 2.5; k += 1) {
+      addBox(body, new THREE.BoxGeometry(0.02, 0.2, 0.45), carbonM, k * 0.28, 0.25, B - 0.05);
+    }
+
+    // Quad central titanium exhaust pipes
+    [-0.14, -0.05, 0.05, 0.14].forEach(function(xOff) {
+      var ex = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.14, 12), chromeM);
+      ex.rotation.x = Math.PI / 2;
+      ex.position.set(xOff, 0.62, B - 0.06);
+      body.add(ex);
+    });
+
+    // Sleek razor-thin matrix laser headlights
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.BoxGeometry(0.42, 0.05, 0.18), headM3, sd * (W * 0.34), 0.54, F - 0.12, 0, sd * -0.28, 0);
+    });
+
+    // Continuous glowing Cyberpunk rear light strip
+    var rearLight = new THREE.Mesh(new THREE.BoxGeometry(W * 0.88, 0.04, 0.06), tailM2);
+    rearLight.position.set(0, 0.74, B);
+    body.add(rearLight);
+
+    bakeGroup(body);
+    return { g: g, body: body, wheels: [], tail: tailM2, paint: paint };
+  }
+
   window.CarBuilder = {
     buildCar: buildCar,
     buildEV: buildEV,
+    buildF1: buildF1,
+    buildSUV: buildSUV,
+    buildBike: buildBike,
+    buildHypercar: buildHypercar,
     makeWheel: makeWheel,
     bakeGroup: bakeGroup,
     crease: crease,
