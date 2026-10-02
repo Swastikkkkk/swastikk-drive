@@ -16,6 +16,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* ---------- damage system ---------- */
   let vehicleDamage=0;
   let damageEffects={engine:0,transmission:0,suspension:0,aero:0,tires:0};
+  /* ---------- fuel/tire wear system ---------- */
+  let fuelLevel=100;
+  let tireWear=[0,0,0,0];
+  let lastPitStop=0;
   /* ---------- coins: a simple economy, no backend - earn from laps/missions, spend on cars ---------- */
   let coins=(()=>{try{return Math.max(0,parseInt(localStorage.getItem('sl_coins'))||0)}catch(e){return 0}})();
   function saveCoins(){try{localStorage.setItem('sl_coins',String(coins))}catch(e){}}
@@ -2285,8 +2289,46 @@ const F=chassisB.force,T=chassisB.torque;
               toastMsg('Critical damage! Performance severely reduced');
             }else if(vehicleDamage>0.4){
               toastMsg('Vehicle damaged · performance reduced');
+}
+        /* ---------- fuel/tire wear system ---------- */
+        if(active&&driving){
+          // fuel consumption based on throttle and speed
+          if(fuelLevel>0){
+            const fuelConsumption=dt*(0.0001+f*0.0005+boost*0.001)*speed/100;
+            fuelLevel=Math.max(0,fuelLevel-fuelConsumption);
+            if(fuelLevel<5 && Math.random()<0.001){
+              toastMsg('Fuel critical! Find a pit stop');
+            }
+            if(fuelLevel<=0){
+              // engine dies
+              f=0; b=1;
+              toastMsg('Out of fuel! Coasting to stop');
             }
           }
+          // tire wear based on slip and speed
+          for(let i=0;i<wheelCount;i++){
+            const w=wi[i];
+            if(w.isInContact){
+              const slipFactor=Math.max(0,1-w.skidInfo||0);
+              const wearRate=dt*speed/1000*slipFactor*0.0001;
+              tireWear[i]=Math.min(1,tireWear[i]+wearRate);
+            }
+          }
+          // tire wear affects grip
+          const avgTireWear=tireWear.reduce((a,b)=>a+b,0)/wheelCount;
+          if(avgTireWear>0.3){
+            const wearMult=1-avgTireWear*0.5;
+            V.slip*=1+avgTireWear*0.5;
+          }
+          // pit stop logic (press P to pit)
+          if(key.p && speed<10 && fuelLevel<95){
+            fuelLevel=100;
+            tireWear=[0,0,0,0];
+            vehicleDamage=Math.max(0,vehicleDamage-0.2);
+            Object.keys(damageEffects).forEach(k=>{damageEffects[k]=Math.max(0,damageEffects[k]-0.1)});
+            toastMsg('Pit stop complete · Fuel & tires refreshed');
+          }
+        }
           // apply damage effects to vehicle performance
           if(vehicleDamage>0){
             const damageMult=1-vehicleDamage*0.8;
