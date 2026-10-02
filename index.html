@@ -235,9 +235,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 #dresults.on{display:grid;animation:dvin .35s cubic-bezier(.2,.8,.2,1)}
 #dreslist{list-style:none;margin:16px 0;padding:0;border-top:1px solid var(--line)}
 
-/* QR Modal */
-#dqr-modal{position:absolute;inset:0;z-index:7;display:none;place-items:center;background:rgba(6,7,11,.92);backdrop-filter:blur(8px);padding:24px}
-#dqr-modal.on{display:grid;animation:dvin .3s cubic-bezier(.2,.8,.2,1)}
+
 
 /* Custom Tracks Modal */
 #dcustom-tracks{position:absolute;inset:0;z-index:6;display:none;place-items:center;background:rgba(8,8,7,.88);backdrop-filter:blur(8px);padding:24px;overflow-y:auto}
@@ -461,7 +459,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
         <button id="dmpready" class="dbtn mono" style="background:#3f8a56;color:#fff;">I'm Ready</button>
         <button id="dmprace" class="dbtn mono">Start race</button>
         <button id="dmpcopy" class="dbtn mono">Copy link</button>
-        <button id="dmpqr" class="dbtn mono">Room QR</button>
+        
         <button id="dmpphone" class="dbtn mono">Phone Controller QR</button>
       </div>
 
@@ -486,14 +484,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
     </div>
   </div></div>
 
-  <!-- QR Code Modal -->
-  <div id="dqr-modal"><div class="bd-in" style="text-align:center;">
-    <h3 id="dqrtitle" class="disp" style="font-size:32px;margin:0 0 10px;">Join Room</h3>
-    <canvas id="dqrcanvas" width="220" height="220" style="background:#fff;border-radius:12px;padding:12px;display:block;margin:16px auto;"></canvas>
-    <div id="dqrdesc" class="mono bd-note" style="margin:10px 0;">Scan with phone camera to connect</div>
-    <input id="dqrcode-text" type="text" readonly style="width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:#f2eee6;padding:8px 12px;border-radius:6px;font-size:12px;font-family:monospace;margin-bottom:12px;" onclick="this.select()">
-    <button id="dqrclose" class="dbtn mono bd-x">Close &#10005;</button>
-  </div></div>
+  
 
   <div id="dcount" aria-live="polite"></div>
   <div id="dtoast"></div>
@@ -510,7 +501,6 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 <script src="assets/audio-manager.js"></script>
 <script src="assets/car-builder.js"></script>
 <script src="assets/track-drawer.js"></script>
-<script src="assets/qr.js"></script>
 <script src="assets/controller.js"></script>
 <script src="assets/race.js"></script>
 <script src="assets/editor.js"></script>
