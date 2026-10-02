@@ -3388,6 +3388,7 @@ const PLANETS={
     if(window.TrackEditor && window.TrackEditor.roadWidth) CIRC_W = window.TrackEditor.roadWidth;
     theme=theme||THEME_DEFAULT;
     let startLightsIM=null;const wallBodies=[];
+    const ownedMats=[];
     seed=Math.max(1,Math.floor(+seed)||271828);let rngState=seed>>>0;
     const seeded=()=>{rngState=(Math.imul(rngState,1664525)+1013904223)>>>0;return rngState/4294967296};
     const pts3=pts2D.map(q=>new THREE.Vector3(CIRC_X+q.x,CIRC_Y,CIRC_Z+q.y));
@@ -3421,7 +3422,7 @@ const PLANETS={
     // (barrier wall, grandstands, floodlights) with trees/rocks filling the gaps between stands.
     // Dedicated materials per build, not the world's shared groundM/leafM/trunkM, so weather
     // picked on the main map can't bleed into circuit colors, and each theme stays distinct.
-    const ownedMats=[groundMat];
+    ownedMats.push(groundMat);
     const runoff=circStrip(curve,CN,CIRC_W+4,.025,groundMat,rep);runoff.receiveShadow=true;root.add(runoff);
     const curbRed=M(theme.standTrim,{roughness:.75}),curbWhite=M(0xdad8d0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
     const curbGeo=new THREE.BoxGeometry(1.7,.18,Math.max(1.8,Math.min(4,curve.getLength()/CN)));
