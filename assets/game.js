@@ -133,6 +133,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   if('outputEncoding' in R)R.outputEncoding=THREE.sRGBEncoding;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=.98;
   const S=new THREE.Scene();S.background=new THREE.Color(0x0e0e0d);S.fog=new THREE.Fog(0x0e0e0d,55,170);
   const C=new THREE.PerspectiveCamera(50,W/H,.1,320);
+  /* ---------- rearview mirror camera ---------- */
+  const rearCam=new THREE.PerspectiveCamera(60,280/90,.5,200);
+  let rearMirrorOn=false;
+  const rearEl=document.getElementById('drear');
   let ZN={drag:0,fog:1,tint:[1,1,1]},fogFar0=170,fogNear0=55,hemi0=.55,sunI0=1.05;
   let progU=0;
   const hemi=new THREE.HemisphereLight(0xdfeaff,0x3c3a30,.55);S.add(hemi);
@@ -1625,7 +1629,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return {drag:d,fog:f,tint:[t0,t1,t2]}}
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
-  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -3147,6 +3151,16 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       cubeInit=true;cubeSun=sun.intensity;cubeX=car.position.x;cubeZ=car.position.z}
     if(active){ANOMALY.update(dt,now);SPACE.updateEarth()}
     R.render(S,C);if(active&&frameN%6===0)drawMap(mx2,mm.width,false);
+    /* ---------- rearview mirror PIP ---------- */
+    if(rearMirrorOn&&active&&driving&&!cineOn){
+      const mw=282,mh=92;
+      const mx=Math.round((W-mw)/2),my=Math.round(H-mh-12);
+      rearCam.position.copy(car.position).addScaledVector(fwd,-2).add(tmp.set(0,2.2,0));
+      rearCam.lookAt(tmp.copy(car.position).addScaledVector(fwd,-30).add(new THREE.Vector3(0,1.8,0)));
+      R.setViewport(mx,my,mw,mh);R.setScissor(mx,my,mw,mh);R.setScissorTest(true);
+      R.render(S,rearCam);
+      R.setScissorTest(false);R.setViewport(0,0,W,H);
+    }
     /* Grab the still immediately after the draw, in this same frame: the drawing buffer
        is not preserved past the end of it, so this is the only moment it can be read. */
     if(!active&&posterState===0&&++posterWarm>=4){
@@ -4005,6 +4019,36 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     };
   }
 
+  // --- Save Daily Leaderboard Time ---
+  function saveDailyTime(name, time) {
+    const dStr = new Date().toISOString().slice(0, 10);
+    const key = 'sl_daily_' + dStr;
+    let times = [];
+    try { times = JSON.parse(localStorage.getItem(key) || '[]'); } catch(_){}
+    times.push({name: name || 'Anonymous', time: time});
+    times.sort((a,b) => a.time - b.time);
+    times = times.slice(0, 50);
+    try { localStorage.setItem(key, JSON.stringify(times)); } catch(_){}
+  }
+  window.saveDailyTime = saveDailyTime;
+
+  // --- Mirror Button ---
+  { const mirrorBtn = document.getElementById('drearb');
+    if(mirrorBtn) mirrorBtn.onclick = () => {
+      rearMirrorOn = !rearMirrorOn;
+      if(rearEl) rearEl.style.display = rearMirrorOn ? 'block' : 'none';
+      toastMsg(rearMirrorOn ? 'Rearview mirror ON · Z to toggle' : 'Rearview mirror OFF');
+    };
+  }
+
+  // --- Back to Menu Button ---
+  { const backBtn = document.getElementById('dbackmenu');
+    if(backBtn) backBtn.onclick = () => {
+      const landing = document.getElementById('dlanding');
+      if(landing) landing.style.display = 'flex';
+    };
+  }
+
   requestAnimationFrame(loop);
   /* ---------- rooms: ghost cars over a shared channel ----------
      Everybody drives their own physics on their own machine. What travels is a small pose
@@ -4450,7 +4494,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function resize(){W=sec.clientWidth;H=sec.clientHeight;R.setPixelRatio(DPR());R.setSize(W,H,false);C.aspect=W/H;C.updateProjectionMatrix();if(sun.shadow)sun.shadow.needsUpdate=true}addEventListener('resize',resize);
   function enterDrive(){active=true;sec.classList.add('active');if(TOUCH)sec.classList.add('touch');resize();{const l=$('#dload');if(l)l.remove()}
     missEl.classList.add('on');driving=true;hud.classList.add('on');if(TOUCH)mob.classList.add('on');checkRot();
-    hint.textContent=TOUCH?'':'WASD drive · C camera · L time a lap · M map · R reset';
+    hint.textContent=TOUCH?'':'WASD drive · C camera · Z mirror · L time a lap · M map · R reset';
     {const {p,tg}=at(progU||0);C.position.set(p.x-tg.x*10,p.y+5,p.z-tg.z*10);look.set(p.x+tg.x*6,p.y+1,p.z+tg.z*6)}
     const m0=curMission();if(m0)setTimeout(()=>toastMsg('Mission \u00b7 '+m0.name),1200)}
   HF.paint(0,[1,1,1]);applyWx(true);applyQ();
