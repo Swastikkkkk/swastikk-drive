@@ -158,7 +158,7 @@
     };
     var seg = detail ? 40 : 20, rr = r * 0.7;
     var pr = [[rr, -wd*0.47], [r*0.8, -wd*0.5], [r*0.9, -wd*0.49], [r*0.965, -wd*0.44], [r*0.993, -wd*0.34], [r, -wd*0.2], [r, wd*0.2], [r*0.993, wd*0.34], [r*0.965, wd*0.44], [r*0.9, wd*0.49], [r*0.8, wd*0.5], [rr, wd*0.47]].map(function(p) { return new THREE.Vector2(p[0], p[1]); });
-    put(new THREE.LatheGeometry(pr, seg).rotateZ(Math.PI / 2), tyreM2, 0);
+    put(new THREE.LatheGeometry(pr, seg).rotateZ(Math.PI / 2), tireM2, 0);
     if (detail) {
       [-0.12, 0, 0.12].forEach(function(o) { put(new THREE.CylinderGeometry(r * 1.001, r * 1.001, 0.018, seg, 1, true).rotateZ(Math.PI / 2), grooveM, wd * o); });
     }
