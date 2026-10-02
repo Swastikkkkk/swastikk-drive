@@ -13,6 +13,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     car:{label:'Car',engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
   };
   let MODE='world';
+  /* ---------- damage system ---------- */
+  let vehicleDamage=0;
+  let damageEffects={engine:0,transmission:0,suspension:0,aero:0,tires:0};
   /* ---------- coins: a simple economy, no backend - earn from laps/missions, spend on cars ---------- */
   let coins=(()=>{try{return Math.max(0,parseInt(localStorage.getItem('sl_coins'))||0)}catch(e){return 0}})();
   function saveCoins(){try{localStorage.setItem('sl_coins',String(coins))}catch(e){}}
@@ -1977,7 +1980,7 @@ t.bd.position.set(x,y+.86,z);
     chassisB.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),Math.atan2(tg.x,tg.z));
     veh.wheelInfos.forEach(w=>{w.suspensionLength=w.suspensionRestLength;w.deltaRotation=0});
     for(let i=0;i<4;i++){veh.applyEngineForce(0,i);veh.setBrake(0,i)}
-    sub=0;inPond=false;steerActual=0;if(raceMode&&!lapArmed&&!lapVoid){lapVoid=true;lapEl.classList.add('void')}blip(330,.2)}
+    sub=0;inPond=false;steerActual=0;vehicleDamage=0;if(raceMode&&!lapArmed&&!lapVoid){lapVoid=true;lapEl.classList.add('void')}blip(330,.2)}
   function resetCarTo(target){
     const p=(target&&target.pos)?target.pos:((MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve).p:at(progU).p);
     const tg=(target&&target.tangent)?target.tangent:((MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve).tg:at(progU).tg);
@@ -2262,9 +2265,43 @@ t.bd.position.set(x,y+.86,z);
        // nothing above is allowed to hand the solver a NaN — that is what used to launch the car
 const F=chassisB.force,T=chassisB.torque;
         if(!isFinite(F.x)||!isFinite(F.y)||!isFinite(F.z))F.set(0,0,0);
-        if(!isFinite(T.x)||!isFinite(T.y)||!isFinite(T.z))T.set(0,0,0)}
-  }
-  /* ---------- bike-specific lean steering physics ---------- */
+        if(!isFinite(T.x)||!isFinite(T.y)||!isFinite(T.z))T.set(0,0,0)
+        /* ---------- damage system ---------- */
+        // collision damage detection
+        if(active&&driving){
+          const impactForce=Math.hypot(F.x,F.z);
+          if(impactForce>5000){
+            const damageAmount=Math.min(1,impactForce/50000);
+            vehicleDamage=Math.min(1,vehicleDamage+damageAmount);
+            // distribute damage to systems
+            if(Math.random()<0.3) damageEffects.engine=Math.min(1,damageEffects.engine+damageAmount*0.5);
+            if(Math.random()<0.2) damageEffects.transmission=Math.min(1,damageEffects.transmission+damageAmount*0.3);
+            if(Math.random()<0.4) damageEffects.suspension=Math.min(1,damageEffects.suspension+damageAmount*0.4);
+            if(Math.random()<0.2) damageEffects.aero=Math.min(1,damageEffects.aero+damageAmount*0.2);
+            if(Math.random()<0.3) damageEffects.tires=Math.min(1,damageEffects.tires+damageAmount*0.3);
+            // visual feedback
+            shake=Math.max(shake,damageAmount*2);
+            if(vehicleDamage>0.7){
+              toastMsg('Critical damage! Performance severely reduced');
+            }else if(vehicleDamage>0.4){
+              toastMsg('Vehicle damaged · performance reduced');
+            }
+          }
+          // apply damage effects to vehicle performance
+          if(vehicleDamage>0){
+            const damageMult=1-vehicleDamage*0.8;
+            V.engine*=damageMult;
+            V.slip*=1+vehicleDamage*0.5;
+            V.steer*=1-vehicleDamage*0.3;
+            V.max*=1-vehicleDamage*0.4;
+          }
+          // gradual repair over time (very slow)
+          if(vehicleDamage>0 && speed<5){
+            vehicleDamage=Math.max(0,vehicleDamage-dt*0.001);
+            Object.keys(damageEffects).forEach(k=>{damageEffects[k]=Math.max(0,damageEffects[k]-dt*0.0005)});
+          }
+        }
+}
   if(V.label==='Phantom Bike'){
     const wi=veh.wheelInfos;
     const speed=Math.hypot(chassisB.velocity.x,chassisB.velocity.z);
