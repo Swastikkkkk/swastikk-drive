@@ -1625,8 +1625,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return {drag:d,fog:f,tint:[t0,t1,t2]}}
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
-  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
-  addEventListener('keyup',e=>{const k=KMAP[e.code];if(k)key[k]=0});
+  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+  addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
   $('#dresetb').onclick=resetCar;
@@ -1683,11 +1683,12 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const rot=$('#drot');let rotDismissed=false;
   function checkRot(){rot.classList.toggle('on',active&&TOUCH&&innerHeight>innerWidth&&!rotDismissed&&!cineOn)}
   $('#drotx').onclick=()=>{rotDismissed=true;checkRot()};addEventListener('resize',checkRot);addEventListener('orientationchange',()=>setTimeout(()=>{resize();checkRot()},250));
-  /* C cycles the camera, like any driving game: chase, far chase, low chase, bonnet, bumper */
+  /* C cycles the camera, B or hold look-back glances behind */
   const CAMS=[{n:'Chase',d:9.5,h:4.8,k:1,lag:6.5,ahead:6,ly:1.05,fov:50},{n:'Far chase',d:15,h:7.5,k:1.2,lag:5,ahead:8,ly:1,fov:48},
-    {n:'Low chase',d:6.2,h:2.1,k:.6,lag:9,ahead:10,ly:.9,fov:58},{n:'Bonnet',fp:1,y:.5,z:1.1,fov:66},{n:'Bumper',fp:1,y:.02,z:2.5,fov:70}];
-  let camMode=0;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}
-  function cycleCam(){camMode=(camMode+1)%CAMS.length;try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' \u00b7 C to switch')}
+    {n:'Low chase',d:6.2,h:2.1,k:.6,lag:9,ahead:10,ly:.9,fov:58},{n:'Rear View',d:-9.5,h:4.8,k:1,lag:8,ahead:-14,ly:1.05,fov:55},
+    {n:'Bonnet',fp:1,y:.5,z:1.1,fov:66},{n:'Bumper',fp:1,y:.02,z:2.5,fov:70}];
+  let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}
+  function cycleCam(){camMode=(camMode+1)%CAMS.length;try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' · C to switch')}
   {const nb=document.getElementById('dnight');if(nb){const cb=nb.cloneNode(true);cb.id='dcam';cb.textContent='Camera';cb.title='Camera (C)';nb.after(cb);cb.onclick=()=>cycleCam()}}
   function resetCar(){const {p,tg}=(MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve):at(progU);PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
     chassisB.position.set(p.x,p.y+1.4,p.z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
@@ -3069,7 +3070,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(!cineOn&&!recapCam){
       if(chapEase>0)chapEase=Math.max(0,chapEase-dt*.7);
       const ce=chapEase*chapEase*(3-2*chapEase);
-      const CM=CAMS[camMode],pf=W<H?1.5:1;
+      const effCamMode = lookBehind ? 3 : camMode;
+      const CM=CAMS[effCamMode],pf=W<H?1.5:1;
+      const camDir = lookBehind ? tmp.copy(fwd).negate() : fwd;
       if(CM.fp){/* bonnet and bumper cams ride on the car itself */
         camT.set(0,CM.y,CM.z).applyQuaternion(car.quaternion).add(car.position);C.position.copy(camT);
         lookT.set(0,CM.y-.25,CM.z+18).applyQuaternion(car.quaternion).add(car.position)}
@@ -3078,7 +3081,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         C.position.lerp(camT,1-Math.exp(-dt*(active?CM.lag:3.2)));
         lookT.copy(car.position).addScaledVector(fwd,CM.ahead).add(tmp.set(0,CM.ly,0))}
       if(shake>.01){lookT.x+=(Math.random()-.5)*shake*.3;lookT.y+=(Math.random()-.5)*shake*.3;shake*=Math.pow(.08,dt)}
-      if(CAMS[camMode].fp)look.copy(lookT);else look.lerp(lookT,1-Math.exp(-dt*9));
+      if(CAMS[effCamMode].fp)look.copy(lookT);else look.lerp(lookT,1-Math.exp(-dt*9));
       C.lookAt(look);
       const st0=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0;
       camRoll+=(-st0*Math.min(1,sp/16)*.085-camRoll)*(1-Math.exp(-dt*5));
@@ -3890,6 +3893,112 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         }
       },600);
     }
+  }
+
+  // --- Landing Portal & Daily Track Conqueror Setup ---
+  {
+    const landing = document.getElementById('dlanding');
+    const playBtn = document.getElementById('dlnd-play');
+    const mpBtn = document.getElementById('dlnd-mp');
+    const dailyBtn = document.getElementById('dlnd-daily');
+    const editorBtn = document.getElementById('dlnd-editor');
+
+    if(playBtn) playBtn.onclick=()=>{
+      if(landing) landing.style.display='none';
+      if(!active) try{startEngine();}catch(_){}
+      toastMsg('Free Drive Mode · Press Menu for options');
+    };
+
+    if(mpBtn) mpBtn.onclick=()=>{
+      if(landing) landing.style.display='none';
+      if(!active) try{startEngine();}catch(_){}
+      const roomPanel = document.getElementById('dmp');
+      if(roomPanel) roomPanel.classList.add('on');
+    };
+
+    if(editorBtn) editorBtn.onclick=()=>{
+      if(landing) landing.style.display='none';
+      if(!active) try{startEngine();}catch(_){}
+      openDrawer();
+    };
+
+    // Daily Track Generator (Deterministic seed from today's UTC date)
+    function getDailySeed(){
+      const d = new Date();
+      return (d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate());
+    }
+
+    function buildDailyPoints(seed){
+      let s = seed % 2147483647;
+      const rnd = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+      const pts = [];
+      const count = 10;
+      const rx = 140 + rnd() * 60;
+      const rz = 100 + rnd() * 50;
+      for(let i=0; i<count; i++){
+        const a = (i / count) * Math.PI * 2;
+        const rad = (i % 2 === 0 ? 1 : 0.72) * (0.85 + rnd() * 0.3);
+        pts.push({
+          x: Math.cos(a) * rx * rad,
+          y: Math.sin(a) * rz * rad
+        });
+      }
+      return pts;
+    }
+
+    const dailyModal = document.getElementById('ddaily-modal');
+    const dailyClose = document.getElementById('ddaily-close');
+    const dailyStart = document.getElementById('ddaily-start');
+    const dailyDateEl = document.getElementById('ddaily-date');
+    const dailyListEl = document.getElementById('ddaily-list');
+
+    if(dailyBtn) dailyBtn.onclick=()=>{
+      const dStr = new Date().toISOString().slice(0, 10);
+      if(dailyDateEl) dailyDateEl.textContent = dStr;
+      // Load daily times from localStorage
+      let dailyTimes = [];
+      try {
+        dailyTimes = JSON.parse(localStorage.getItem('sl_daily_' + dStr) || '[]');
+      }catch(_){}
+      if(dailyListEl){
+        if(!dailyTimes.length){
+          dailyListEl.innerHTML = '<li style="padding:12px;color:rgba(255,255,255,.5);font-size:13px;">No times recorded yet today. Be the first!</li>';
+        } else {
+          dailyListEl.innerHTML = dailyTimes.map((r, i) => `
+            <li style="display:flex;justify-content:space-between;padding:10px 4px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;">
+              <span>${i+1}. ${esc(r.name)}</span>
+              <strong style="color:#d4a83a;font-family:monospace;">${fmtT(r.time)}</strong>
+            </li>
+          `).join('');
+        }
+      }
+      if(dailyModal) dailyModal.style.display = 'grid';
+    };
+
+    if(dailyClose) dailyClose.onclick=()=>{
+      if(dailyModal) dailyModal.style.display = 'none';
+    };
+
+    if(dailyStart) dailyStart.onclick=()=>{
+      if(dailyModal) dailyModal.style.display = 'none';
+      if(landing) landing.style.display = 'none';
+      if(!active) try{startEngine();}catch(_){}
+      const seed = getDailySeed();
+      const pts = buildDailyPoints(seed);
+      drawPts = pts;
+      const themes = ['meadow', 'mountain', 'desert', 'alpine', 'volcanic'];
+      const themeId = themes[seed % themes.length];
+      const theme = THEMES.find(t=>t.id===themeId) || THEME_DEFAULT;
+      buildCircuit(pts, theme, seed, {weather:'day', time:'day'});
+      enterCircuit();
+      toastMsg('Daily Track Generated · Conquer 3 Laps!');
+      if(window.RaceEngine) {
+        window.RaceEngine.setConfiguration('circuit', 3);
+        window.RaceEngine.startCountdown(0, (spawn)=>{
+          if(window.resetCarTo) window.resetCarTo(spawn);
+        });
+      }
+    };
   }
 
   requestAnimationFrame(loop);

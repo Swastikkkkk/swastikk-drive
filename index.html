@@ -269,6 +269,47 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
   <button id="dtravel" type="button" hidden>Enter UFO · E</button>
   <div id="dwrong" class="mono">Wrong way &middot; turn around</div>
 
+  <!-- Landing Portal Overlay -->
+  <div id="dlanding" style="position:fixed;inset:0;background:radial-gradient(circle at center,rgba(16,19,25,.88),rgba(6,7,11,.98));z-index:99;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;">
+    <div class="mono" style="color:#d4a83a;font-size:13px;letter-spacing:.25em;margin-bottom:8px;">HIGH PERFORMANCE RACING</div>
+    <h1 style="font-family:var(--serif);font-size:clamp(44px,7vw,84px);line-height:1;margin:0 0 12px;letter-spacing:-.03em;font-weight:700;color:#f2eee6;">SWASTIKK DRIVE</h1>
+    <p style="color:var(--bone);max-width:540px;font-size:15px;margin:0 0 32px;line-height:1.5;">Browser multiplayer racing engine with custom track drawing, procedural stadiums, planetary gravity, and real-time physics.</p>
+    
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;max-width:760px;width:100%;">
+      <button id="dlnd-play" class="dbtn" style="background:#f2eee6;color:#06070b;font-size:15px;font-weight:700;padding:16px 20px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 30px rgba(0,0,0,.5);"><span style="font-size:18px;">🏎️</span> Free Drive / Practice</button>
+      <button id="dlnd-mp" class="dbtn" style="background:#2f6fbf;color:#fff;font-size:15px;font-weight:700;padding:16px 20px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 30px rgba(47,111,191,.4);"><span style="font-size:18px;">👥</span> Multiplayer Lobby</button>
+      <button id="dlnd-daily" class="dbtn" style="background:#d4a83a;color:#06070b;font-size:15px;font-weight:700;padding:16px 20px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 30px rgba(212,168,58,.35);"><span style="font-size:18px;">🏆</span> Daily Track Conqueror</button>
+      <button id="dlnd-editor" class="dbtn" style="background:rgba(255,255,255,.08);color:#f2eee6;border:1px solid rgba(255,255,255,.2);font-size:15px;font-weight:700;padding:16px 20px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;"><span style="font-size:18px;">🛠️</span> Track Creator Studio</button>
+    </div>
+
+    <div class="mono" style="margin-top:32px;font-size:11px;color:var(--mute);display:flex;gap:20px;flex-wrap:wrap;justify-content:center;">
+      <span>[W/A/S/D] or [Arrows] Drive</span>
+      <span>[Space] Handbrake</span>
+      <span>[V/Q] Look Back</span>
+      <span>[C] Camera</span>
+      <span>[R] Respawn</span>
+    </div>
+  </div>
+
+  <!-- Daily Track Conqueror Modal & Leaderboard -->
+  <div id="ddaily-modal" style="position:fixed;inset:0;background:rgba(8,8,7,.88);backdrop-filter:blur(10px);z-index:98;display:none;place-items:center;padding:24px;">
+    <div class="bd-in" style="max-width:540px;">
+      <div class="mono" style="color:#d4a83a;">Global Daily Challenge</div>
+      <h3 class="disp" style="font-size:36px;margin:4px 0 10px;">Track of the Day</h3>
+      <div id="ddaily-info" style="font-size:13px;color:var(--bone);margin-bottom:16px;background:rgba(255,255,255,.05);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.1);">
+        <div><strong>Date:</strong> <span id="ddaily-date">Today</span></div>
+        <div><strong>Venue:</strong> <span id="ddaily-theme">Grand Meadow Circuit</span></div>
+        <div><strong>Rule:</strong> 3 Laps · Valid times verified by anti-cheat</div>
+      </div>
+      <div class="mono" style="color:var(--bone);margin-bottom:6px;">Daily Leaderboard</div>
+      <ol id="ddaily-list" style="list-style:none;margin:0 0 18px;padding:0;border-top:1px solid var(--line);max-height:220px;overflow-y:auto;"></ol>
+      <div style="display:flex;gap:10px;">
+        <button id="ddaily-start" class="dbtn mono" style="background:#d4a83a;color:#06070b;font-weight:700;flex:1;">Conquer Today's Track</button>
+        <button id="ddaily-close" class="dbtn mono bd-x" style="margin-top:0;">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Fastest Laps Leaderboard -->
   <div id="dboard"><div class="bd-in">
     <div class="mono" style="color:var(--bone)">Circuit &middot; 1 lap</div>

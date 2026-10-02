@@ -257,6 +257,21 @@
       this.state = 'finished';
       this.totalRaceTime = now - this.raceStartTime;
 
+      // Safe anti-cheat daily leaderboard persistence
+      var dStr = new Date().toISOString().slice(0, 10);
+      var minPossibleTime = 12000 * (this.totalLaps || 1); // Anti-cheat: each lap must take at least 12 seconds
+      if (this.totalRaceTime >= minPossibleTime) {
+        try {
+          var key = 'sl_daily_' + dStr;
+          var records = JSON.parse(localStorage.getItem(key) || '[]');
+          var myName = localStorage.getItem('sl_name') || 'Driver';
+          records.push({ name: myName, time: this.totalRaceTime, date: Date.now() });
+          records.sort(function(a, b) { return a.time - b.time; });
+          if (records.length > 20) records = records.slice(0, 20);
+          localStorage.setItem(key, JSON.stringify(records));
+        } catch(e) {}
+      }
+
       if (window.toastMsg) {
         window.toastMsg('RACE FINISHED! Final Time: ' + this.formatTime(this.totalRaceTime));
       }
