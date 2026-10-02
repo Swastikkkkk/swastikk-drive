@@ -1326,11 +1326,119 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       let dy=t.py==null?0:yaw-t.py;if(dy>Math.PI)dy-=Math.PI*2;if(dy<-Math.PI)dy+=Math.PI*2;t.py=yaw;
       const stA=Math.max(-.45,Math.min(.45,dy/Math.max(dt,.001)/Math.max(1,t.spd)*2.6));
       t.wa+=t.spd*dt/.42;const W4=t.car.wheels;for(let w=0;w<4;w++){W4[w].spin.rotation.x=t.wa;if(w<2)W4[w].w.rotation.y+=(stA-W4[w].w.rotation.y)*Math.min(1,dt*6)}
-      t.bd.position.set(x,y+.86,z);
+t.bd.position.set(x,y+.86,z);
       t.bd.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),yaw);
       t.bd.velocity.set(tg.x*t.spd,0,tg.z*t.spd);
-      t.bd.aabbNeedsUpdate=true}
+      t.bd.aabbNeedsUpdate=true}}
   }
+  /* ---------- AI Racing Traffic ---------- */
+  const aiRacers=[];
+  const AI_COUNT=4;
+  const AISkill=['rookie','amateur','pro','alien'];
+  function spawnAIRacers(){
+    aiRacers.length=0;
+    for(let i=0;i<AI_COUNT;i++){
+      const skill=AISkill[i];
+      const baseSpeed=6+skill.indexOf(skill)*3.5;
+      const aggression=0.3+skill.indexOf(skill)*0.2;
+      const overtakeThreshold=8-skill.indexOf(skill)*1.5;
+      const car=buildCar({paint:COLS[i%COLS.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
+      car.g.rotation.order='YXZ';S.add(car.g);
+      const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});
+      bd.addShape(new CANNON.Box(new CANNON.Vec3(.95,.62,2.05)));world.addBody(bd);
+      aiRacers.push({
+        u:(i+0.2)/AI_COUNT,
+        lane:0,
+        base:baseSpeed,
+        spd:0,
+        bd,
+        car,
+        skill,
+        aggression,
+        overtakeThreshold,
+        state:'racing',
+        targetLane:0,
+        overtakeTimer:0,
+        mistakeTimer:Math.random()*30,
+        lastOvertake:0
+      });
+    }
+  }
+  function updateAIRacers(dt,now){
+    if(!active||!driving)return;
+    for(let i=0;i<aiRacers.length;i++){
+      const ai=aiRacers[i];
+      const {p,tg,n}=at(ai.u);
+      const x=p.x+n.x*ai.lane,z=p.z+n.z*ai.lane,y=p.y;
+      let want=ai.base;
+      // check player proximity
+      if(active){
+        const dx=car.position.x-x,dz=car.position.z-z;
+        const ahead=dx*tg.x+dz*tg.z;
+        const off=Math.abs(dx*n.x+dz*n.z);
+        const d2=Math.hypot(dx,dz);
+        // overtaking logic
+        if(ahead>0&&ahead<ai.overtakeThreshold&&off<3.5&&ai.overtakeTimer<=0){
+          ai.targetLane=ai.lane>0?-1:1;
+          ai.overtakeTimer=3+Math.random()*2;
+          ai.state='overtaking';
+        }
+        if(ai.state==='overtaking'){
+          ai.lane=ai.targetLane;
+          ai.overtakeTimer-=dt;
+          if(ai.overtakeTimer<=0){
+            ai.state='racing';
+            ai.lane=0;
+          }
+        }
+        // defensive driving
+        if(ahead>0&&ahead<15&&off<3){
+          want=Math.min(want,ai.base*0.6);
+        }
+        // random mistakes
+        ai.mistakeTimer-=dt;
+        if(ai.mistakeTimer<=0){
+          ai.mistakeTimer=20+Math.random()*40;
+          want*=0.5+Math.random()*0.3;
+        }
+        // catch up if too far behind
+        const progDiff=progU-ai.u;
+        if(progDiff>0.15){
+          want*=1.3;
+        }else if(progDiff<-0.15){
+          want*=0.8;
+        }
+      }
+      // traffic lights
+      {let sd=Infinity;
+        for(let li=0;li<LIGHTS.length;li++){const L=LIGHTS[li];
+          if(lightPhase(L,now/1000)===0)continue;
+          let du=L.u-ai.u;if(du<0)du+=1;
+          const d=du*TLEN;if(d<30&&d<sd)sd=d}
+        if(sd<30)want=Math.min(want,Math.max(0,(sd-4)/9)*ai.base)}
+      ai.spd+=(want-ai.spd)*Math.min(1,dt*1.4);
+      ai.u=(ai.u+(ai.spd*dt)/TLEN)%1;
+      const yaw=Math.atan2(tg.x,tg.z);
+      const pitch=Math.atan2(hAt(ai.u+.004)-hAt(ai.u-.004),TLEN*.008);
+      const G=ai.car.g;G.position.set(x,y,z);G.rotation.set(-pitch,yaw,0);
+      const acc=(ai.spd-ai.pv)/Math.max(dt,.001);ai.pv=ai.spd;
+      ai.dive+=(Math.max(-.03,Math.min(.03,acc*.012))-ai.dive)*Math.min(1,dt*5);ai.car.body.rotation.x=ai.dive;
+      ai.car.tail.emissiveIntensity=(acc<-.6||ai.spd<.4)?1.9:.55;
+      let dy=ai.py==null?0:yaw-ai.py;if(dy>Math.PI)dy-=Math.PI*2;if(dy<-Math.PI)dy+=Math.PI*2;ai.py=yaw;
+      const stA=Math.max(-.45,Math.min(.45,dy/Math.max(dt,.001)/Math.max(1,ai.spd)*2.6));
+      ai.wa+=ai.spd*dt/.42;const W4=ai.car.wheels;for(let w=0;w<4;w++){W4[w].spin.rotation.x=ai.wa;if(w<2)W4[w].w.rotation.y+=(stA-W4[w].w.rotation.y)*Math.min(1,dt*6)}
+      ai.bd.position.set(x,y+.86,z);
+      ai.bd.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),yaw);
+      ai.bd.velocity.set(tg.x*ai.spd,0,tg.z*ai.spd);
+      ai.bd.aabbNeedsUpdate=true;
+      // update last overtake time
+      if(ai.state==='overtaking' && ai.overtakeTimer<=0){
+        ai.lastOvertake=now;
+      }
+    }
+  }
+  // Initialize AI racers
+  spawnAIRacers();
   /* ---------- animals: circling birds, grazing herds, ducks on the pond ---------- */
   function bird(){const g=new THREE.Group();const bm=new THREE.MeshBasicMaterial({color:0x232220,side:THREE.DoubleSide});
     const body=new THREE.Mesh(new THREE.ConeGeometry(.1,.46,6),bm);body.rotation.x=Math.PI/2;g.add(body);
@@ -1915,6 +2023,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {
      // traffic shows up on the map so you can see what you are racing into
      c.fillStyle='rgba(242,238,230,.75)';traffic.forEach(tc=>{const pt=at(tc.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?3.4:2.2,0,6.283);c.fill()})}
+     // AI racers on map
+     {c.fillStyle='rgba(255,100,100,.9)';aiRacers.forEach(ai=>{const pt=at(ai.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?4:2.5,0,6.283);c.fill();if(big){c.fillStyle='#fff';c.font='600 8px ui-monospace,monospace';c.textAlign='center';c.fillText(ai.skill.charAt(0).toUpperCase(),pt.x*sc,pt.z*sc+2);c.fillStyle='rgba(255,100,100,.9)'})}
     // the ring road
     {c.strokeStyle='rgba(242,238,230,.45)';c.lineWidth=big?3:2;
      c.beginPath();c.arc(RING.x*sc,RING.z*sc,RING.r*sc,0,6.283);c.stroke()}
@@ -3298,7 +3408,10 @@ const PLANETS={
         d.parts.forEach(p=>{p.im.setMatrixAt(p.idx,p.offset?dynIM2.multiplyMatrices(dynIM,p.offset):dynIM);dynITouched.add(p.im)})}
       dynITouched.forEach(im=>im.instanceMatrix.needsUpdate=true)}
     const tt=now/1000;
-    if(active&&driving&&MODE==='world')updTraffic(dt,now);
+    if(active&&driving&&MODE==='world'){
+      updTraffic(dt,now);
+      updateAIRacers(dt,now);
+    }
     if(active&&MODE==='world'){WORLDFX(dt,now);WORLD2(dt,now)}
     // the lamps only need repainting a few times a second to read as changing
     if(active&&frameN%5===0)updLights(now/1000);
