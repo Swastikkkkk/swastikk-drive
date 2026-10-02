@@ -273,25 +273,46 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
   <button id="dtravel" type="button" hidden>Enter UFO · E</button>
   <div id="dwrong" class="mono">Wrong way &middot; turn around</div>
 
-  <!-- Landing Portal Overlay -->
-  <div id="dlanding" style="position:fixed;inset:0;background:radial-gradient(circle at center,rgba(16,19,25,.88),rgba(6,7,11,.98));z-index:99;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;">
-    <div class="mono" style="color:#d4a83a;font-size:13px;letter-spacing:.25em;margin-bottom:8px;">HIGH PERFORMANCE RACING</div>
-    <h1 style="font-family:var(--serif);font-size:clamp(44px,7vw,84px);line-height:1;margin:0 0 12px;letter-spacing:-.03em;font-weight:700;color:#f2eee6;">SWASTIKK DRIVE</h1>
-    <p style="color:var(--bone);max-width:540px;font-size:15px;margin:0 0 32px;line-height:1.5;">Browser multiplayer racing engine with custom track drawing, procedural stadiums, planetary gravity, and real-time physics.</p>
-    
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;max-width:760px;width:100%;">
-      <button id="dlnd-play" class="dbtn" style="background:#f2eee6;color:#06070b;font-size:15px;font-weight:700;padding:16px 20px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 30px rgba(0,0,0,.5);"><span style="font-size:18px;">🏎️</span> Free Drive / Practice</button>
-      <button id="dlnd-mp" class="dbtn" style="background:#2f6fbf;color:#fff;font-size:15px;font-weight:700;padding:16px 20px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 30px rgba(47,111,191,.4);"><span style="font-size:18px;">👥</span> Multiplayer Lobby</button>
-      <button id="dlnd-daily" class="dbtn" style="background:#d4a83a;color:#06070b;font-size:15px;font-weight:700;padding:16px 20px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 30px rgba(212,168,58,.35);"><span style="font-size:18px;">🏆</span> Daily Track Conqueror</button>
-      <button id="dlnd-editor" class="dbtn" style="background:rgba(255,255,255,.08);color:#f2eee6;border:1px solid rgba(255,255,255,.2);font-size:15px;font-weight:700;padding:16px 20px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;"><span style="font-size:18px;">🛠️</span> Track Creator Studio</button>
+  <!-- Bottom-Right Dashboard Dock -->
+  <div id="dlanding" style="position:fixed;bottom:24px;right:24px;z-index:99;display:flex;flex-direction:column;gap:12px;width:min(340px,calc(100vw - 32px));pointer-events:none;">
+    <!-- Title banner (clean, minimal) -->
+    <div style="background:rgba(10,12,16,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(242,238,230,.15);border-radius:12px;padding:12px 14px;box-shadow:0 12px 36px rgba(0,0,0,.6);pointer-events:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div class="mono" style="font-size:9px;color:#d4a83a;letter-spacing:.18em;">SWASTIKK DRIVE</div>
+          <div style="font-family:var(--serif);font-size:16px;font-weight:600;color:var(--paper);line-height:1.2;">Select Mode</div>
+        </div>
+        <button id="dlnd-min" class="mono" style="background:rgba(255,255,255,.08);color:var(--bone);border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:4px 8px;font-size:10px;cursor:pointer;">Hide</button>
+      </div>
     </div>
 
-    <div class="mono" style="margin-top:32px;font-size:11px;color:var(--mute);display:flex;gap:20px;flex-wrap:wrap;justify-content:center;">
-      <span>[W/A/S/D] or [Arrows] Drive</span>
-      <span>[Space] Handbrake</span>
-      <span>[V/Q] Look Back</span>
-      <span>[C] Camera</span>
-      <span>[R] Respawn</span>
+    <!-- Options Box with explicit explanation of what each does -->
+    <div id="dlnd-box" style="background:rgba(10,12,16,.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(242,238,230,.14);border-radius:12px;padding:10px;box-shadow:0 16px 40px rgba(0,0,0,.7);display:flex;flex-direction:column;gap:8px;pointer-events:auto;">
+      
+      <button id="dlnd-play" class="dbtn" style="background:rgba(242,238,230,.92);color:var(--ink);border-radius:8px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:2px;">
+        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">🏎️ Free Drive / Practice</span>
+        <span class="mono" style="font-size:9px;color:rgba(6,7,11,.65);letter-spacing:0;text-transform:none;">Toggles open valley exploration, stunt park & UFO</span>
+      </button>
+
+      <button id="dlnd-mp" class="dbtn" style="background:#1f4b82;color:#fff;border-radius:8px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:2px;">
+        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">👥 Multiplayer Lobby</span>
+        <span class="mono" style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:0;text-transform:none;">Toggles room host/join, synced race, ghost cars & QR</span>
+      </button>
+
+      <button id="dlnd-daily" class="dbtn" style="background:#997320;color:#f2eee6;border-radius:8px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:2px;">
+        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">🏆 Daily Track Conqueror</span>
+        <span class="mono" style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:0;text-transform:none;">Toggles today's procedural track & saved leaderboard</span>
+      </button>
+
+      <button id="dlnd-editor" class="dbtn" style="background:rgba(255,255,255,.07);color:var(--paper);border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:2px;">
+        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">🛠️ Track Creator Studio</span>
+        <span class="mono" style="font-size:9px;color:var(--mute);letter-spacing:0;text-transform:none;">Toggles freehand drawing canvas & venue generator</span>
+      </button>
+
+      <!-- Quick keys reference -->
+      <div class="mono" style="font-size:9px;color:var(--mute2);padding:4px 6px 2px;line-height:1.4;border-top:1px solid rgba(255,255,255,.08);margin-top:2px;">
+        WASD Drive · Space Handbrake · Z Mirror · C Cam · R Reset
+      </div>
     </div>
   </div>
 

@@ -3916,10 +3916,20 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   // --- Landing Portal & Daily Track Conqueror Setup ---
   {
     const landing = document.getElementById('dlanding');
+    const minBtn = document.getElementById('dlnd-min');
+    const boxEl = document.getElementById('dlnd-box');
     const playBtn = document.getElementById('dlnd-play');
     const mpBtn = document.getElementById('dlnd-mp');
     const dailyBtn = document.getElementById('dlnd-daily');
     const editorBtn = document.getElementById('dlnd-editor');
+
+    if(minBtn && boxEl){
+      minBtn.onclick = () => {
+        const isHidden = boxEl.style.display === 'none';
+        boxEl.style.display = isHidden ? 'flex' : 'none';
+        minBtn.textContent = isHidden ? 'Hide' : 'Options';
+      };
+    }
 
     if(playBtn) playBtn.onclick=()=>{
       if(landing) landing.style.display='none';
