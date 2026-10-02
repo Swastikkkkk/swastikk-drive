@@ -2394,16 +2394,16 @@ const PLANETS={
           const d=Math.hypot(x-ccx,z-ccz)/(R*irr);
           if(d<1.35){
             const depth=R*0.16*ds;
-            const bowl = d<1 ? -Math.pow(1-d*d,floorFlatten) : 0;
-            const rim=Math.exp(-Math.pow((d-1)/0.17,rimSharpness))*(0.52+0.2*noise2(x*0.08,z*0.08));
+            const bowlBase=1-d*d; const bowl = d<1 && bowlBase>0 ? -Math.pow(Math.max(0,bowlBase),floorFlatten) : 0;
+            const rim=Math.exp(-Math.min(50,Math.pow(Math.max(0,(d-1)/0.17),rimSharpness)))*(0.52+0.2*noise2(x*0.08,z*0.08));
             const age=hash2(gx*2.3+so,gz*2.7-so),angle=Math.atan2(z-ccz,x-ccx);
             const rayAngle=hash2(gx+19.1+so,gz-8.7)*Math.PI*2,rays=Math.pow(Math.max(0,Math.cos(angle-rayAngle)),rayLength*12);
-            const ejecta=Math.exp(-Math.pow((d-1.2)/0.22*ejectaSpread,2))*(0.1+0.26*rays),peak=R>100&&d<0.17?(1-d/0.17)*0.2:0;
+            const ejecta=Math.exp(-Math.min(50,Math.pow(Math.max(0,(d-1.2)/0.22*ejectaSpread),2)))*(0.1+0.26*rays),peak=R>100&&d<0.17?(1-d/0.17)*0.2:0;
             h+=(bowl*depth+rim*depth*0.9+ejecta*depth+peak*depth)*(0.5+0.5*age);
           }
         }
       }
-      return h;
+      return isFinite(h)?h:0;
     }
 
     /* =====================================================================
