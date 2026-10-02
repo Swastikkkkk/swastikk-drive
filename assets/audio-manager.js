@@ -19,6 +19,7 @@
       try {
         var AC = new (window.AudioContext || window.webkitAudioContext)();
         this.AC = AC;
+        AC.resume();
         var T = AC.currentTime, sr = AC.sampleRate;
         var G = function(v) { var g = AC.createGain(); g.gain.value = v; return g; };
         var F = function(t, f, q) { var x = AC.createBiquadFilter(); x.type = t; x.frequency.value = f; if (q != null) x.Q.value = q; return x; };

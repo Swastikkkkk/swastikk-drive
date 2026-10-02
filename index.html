@@ -142,18 +142,22 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 .dbtn{border-radius:11px;padding:11px 15px;letter-spacing:.06em;backdrop-filter:blur(14px);background:rgba(242,238,230,.9)}
 .dbtn:hover{background:#fff}
 #dmap{box-shadow:0 10px 30px rgba(0,0,0,.35)}
-#dmenu{display:none}
+#dmenu{display:inline-block}
 .mchev{display:inline-block;transition:transform .2s}
 #dmenu[aria-expanded="true"] .mchev{transform:rotate(180deg)}
-#drive.touch #dmenu{display:inline-block}
-#drive.touch .drow{
+.drow{
   display:none;flex-direction:column;align-items:stretch;gap:6px;
   background:rgba(10,10,9,.9);backdrop-filter:blur(10px);
   border:1px solid rgba(242,238,230,.18);border-radius:14px;padding:8px;
   min-width:172px;
+  position:absolute;right:0;top:100%;margin-top:8px;z-index:10;
 }
-#drive.touch .drow.open{display:flex;animation:dvin .18s ease-out}
-#drive.touch .drow .dbtn{width:100%;text-align:center}
+.drow.open{display:flex;animation:dvin .18s ease-out}
+.drow .dbtn{width:100%;text-align:center}
+@media (hover:hover) and (min-width:901px){
+  .drow{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;position:absolute;right:0;top:100%;margin-top:8px}
+  .drow .dbtn{width:auto;text-align:center}
+}
 #dwx{display:none;align-self:flex-end;margin-top:8px;background:rgba(10,10,9,.9);backdrop-filter:blur(10px);border:1px solid rgba(242,238,230,.18);border-radius:14px;padding:10px;max-width:230px}
 #dwx.on{display:block;animation:dvin .18s ease-out}
 #dwxl{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}

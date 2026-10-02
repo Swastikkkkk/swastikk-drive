@@ -1539,7 +1539,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      the surface, wind that builds at speed, a proper tyre squeal, and a thud on impacts.
      Everything runs through one bus with a gentle compressor so nothing spikes. */
   let AC=null,SND=null;
-  function audioInit(){if(AC){try{if(AC.state==='suspended')AC.resume()}catch(e){}return}try{AC=new (window.AudioContext||window.webkitAudioContext)();
+  function audioInit(){if(AC){try{if(AC.state==='suspended')AC.resume()}catch(e){}return}try{AC=new (window.AudioContext||window.webkitAudioContext)();AC.resume();
     const T=AC.currentTime,sr=AC.sampleRate,G=v=>{const g=AC.createGain();g.gain.value=v;return g},
       F=(t,f,q)=>{const x=AC.createBiquadFilter();x.type=t;x.frequency.value=f;if(q!=null)x.Q.value=q;return x},
       O=(t,f)=>{const o=AC.createOscillator();o.type=t;o.frequency.value=f;o.start(T);return o},
@@ -4747,7 +4747,9 @@ updCircBtn();
     {const {p,tg}=at(progU||0);C.position.set(p.x-tg.x*10,p.y+5,p.z-tg.z*10);look.set(p.x+tg.x*6,p.y+1,p.z+tg.z*6)}
     const m0=curMission();if(m0)setTimeout(()=>toastMsg('Mission \u00b7 '+m0.name),1200)}
   HF.paint(0,[1,1,1]);applyWx(true);applyQ();
-  // browsers keep sound off until the first key press or tap
-  ['pointerdown','keydown','touchstart'].forEach(ev=>addEventListener(ev,()=>audioInit(),{passive:true}));
+  let _audioInited=false;
+  function maybeInitAudio(){if(!_audioInited){_audioInited=true;audioInit()}}
+  // Only init audio on real user gestures - remove passive flag
+  ['pointerdown','keydown','touchstart'].forEach(ev=>addEventListener(ev,maybeInitAudio));
   enterDrive();
 })();
