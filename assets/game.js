@@ -3076,33 +3076,36 @@ const PLANETS={
             lapStart=now;lapNo++;lapProg=0;lapVoid=false;offT=0;lapEl.classList.remove('void')}}
         if(frameN%4===0&&!lapArmed){lapT.textContent=fmtT(now-lapStart);lapN.textContent='Lap '+lapNo;
           for(let i=0;i<lapSecs.length;i++)lapSecs[i].classList.toggle('on',lapProg>(i+1)*.25-.25)}}
-      if(AC&&SND){const S=SND,T=AC.currentTime,vv=chassisB.velocity,spq=isFinite(sp)?sp:0,
+      if(AC&&SND){
+        const S=SND,T=AC.currentTime,vv=chassisB.velocity,spq=isFinite(sp)?sp:0,
           vf=vv.x*fwdScratch.x+vv.y*fwdScratch.y+vv.z*fwdScratch.z,r=Math.min(1.35,Math.abs(vf)/V.max),rev=vf<-.5,
           regen=b&&vf>1.5,load=f?1:regen?.55:(rev&&b)?.8:.1;let air=true;for(let i=0;i<4;i++)if(veh.wheelInfos[i].isInContact)air=false;
         S.bus.gain.setTargetAtTime(muted?0:.9,T,.03);
         S.tone.frequency.setTargetAtTime(sub>.05?420:18000,T,.12);
-        /* motor: one smooth whine, no gear shifts. Pitch follows wheel speed (spins up a
-           little in the air), level follows load, so lifting off goes quiet like a real EV */
-        S.ld+=(load-S.ld)*Math.min(1,dt*6);
-        const hz=(rev?100:120)+r*(rev?380:760)+(air&&f?110:0)+(boost?55:0);
-        S.m1.frequency.setTargetAtTime(hz,T,.06);S.m2.frequency.setTargetAtTime(hz*.5,T,.06);S.m3.frequency.setTargetAtTime(hz*3.02,T,.06);
-        S.g3.gain.setTargetAtTime(.03+(boost?.09:0)+S.ld*.03,T,.1);
-        S.mF.frequency.setTargetAtTime(650+S.ld*1400+r*900,T,.08);
-        S.mG.gain.setTargetAtTime((.015+S.ld*.14)*(.35+.85*Math.min(1.2,r*1.8+(f?.45:0))),T,.04);
-        // tyres on the surface: tarmac roar on the road, gravel hiss off it
-        const ground=air?0:Math.min(1,spq/V.max),off=offD>7+RWX?1:0;
-        S.rF.frequency.setTargetAtTime(200+ground*1000,T,.1);
-        S.rG.gain.setTargetAtTime(ground*(off?.05:.09),T,.1);
-        S.gG.gain.setTargetAtTime(ground*off*.075,T,.1);
-        // wind builds with the square of speed
-        const wv=Math.max(0,spq/V.max-.2);S.wG.gain.setTargetAtTime(Math.min(.075,wv*wv*.13),T,.15);S.wF.frequency.setTargetAtTime(480+spq*20,T,.2);
-        // squeal, only on tarmac and only past a small slip, so normal cornering stays quiet
-        let sk=0;for(let i=0;i<4;i++){const w=veh.wheelInfos[i];if(w.isInContact)sk=Math.max(sk,1-(w.skidInfo==null?1:w.skidInfo))}if(key.h&&spq>5)sk=Math.max(sk,.75);
-        sk=(spq<4||sub>.05||off)?0:Math.max(0,sk-.15)/.85;
-        S.sG.gain.setTargetAtTime(Math.min(.18,sk*.22),T,.03);
-        S.s1.frequency.setTargetAtTime(960+Math.random()*150+spq*4,T,.03);S.s2.frequency.setTargetAtTime(2100+Math.random()*240,T,.03)}
-      honk(!!key.horn);
-    }else{if(AC&&SND){const T=AC.currentTime;[SND.mG,SND.rG,SND.gG,SND.wG,SND.sG].forEach(g=>g.gain.setTargetAtTime(0,T,.06))}honk(false)}
+        // Use AudioManager for vehicle-specific audio
+        const vehicleType = (PCAR && PCAR.vehicleType) ? PCAR.vehicleType : (V.label === 'F1 Apex' ? 'f1' : V.label === 'Titan 4x4' ? 'suv' : V.label === 'Phantom Bike' ? 'bike' : V.label === 'Valkyrie LeMans' ? 'hypercar' : V.label === 'Volt GT' || V.label === 'Phantom' || V.label === 'Aster' ? 'ev' : 'car');
+        if (window.AudioManager && window.AudioManager.update) {
+          window.AudioManager.update(dt, spq, r * V.max, f, b, !air, vehicleType);
+        } else {
+          /* fallback: original EV-style motor */
+          S.ld+=(load-S.ld)*Math.min(1,dt*6);
+          const hz=(rev?100:120)+r*(rev?380:760)+(air&&f?110:0)+(boost?55:0);
+          S.m1.frequency.setTargetAtTime(hz,T,.06);S.m2.frequency.setTargetAtTime(hz*.5,T,.06);S.m3.frequency.setTargetAtTime(hz*3.02,T,.06);
+          S.g3.gain.setTargetAtTime(.03+(boost?.09:0)+S.ld*.03,T,.1);
+          S.mF.frequency.setTargetAtTime(650+S.ld*1400+r*900,T,.08);
+          S.mG.gain.setTargetAtTime((.015+S.ld*.14)*(.35+.85*Math.min(1.2,r*1.8+(f?.45:0))),T,.04);
+          const ground=air?0:Math.min(1,spq/V.max),off=offD>7+RWX?1:0;
+          S.rF.frequency.setTargetAtTime(200+ground*1000,T,.1);
+          S.rG.gain.setTargetAtTime(ground*(off?.05:.09),T,.1);
+          S.gG.gain.setTargetAtTime(ground*off*.075,T,.1);
+          const wv=Math.max(0,spq/V.max-.2);S.wG.gain.setTargetAtTime(Math.min(.075,wv*wv*.13),T,.15);S.wF.frequency.setTargetAtTime(480+spq*20,T,.2);
+          let sk=0;for(let i=0;i<4;i++){const w=veh.wheelInfos[i];if(w.isInContact)sk=Math.max(sk,1-(w.skidInfo==null?1:w.skidInfo))}if(key.h&&spq>5)sk=Math.max(sk,.75);
+          sk=(spq<4||sub>.05||off)?0:Math.max(0,sk-.15)/.85;
+          S.sG.gain.setTargetAtTime(Math.min(.18,sk*.22),T,.03);
+          S.s1.frequency.setTargetAtTime(960+Math.random()*150+spq*4,T,.03);S.s2.frequency.setTargetAtTime(2100+Math.random()*240,T,.03)
+        }
+        honk(!!key.horn);
+      }else{if(AC&&SND){const T=AC.currentTime;[SND.mG,SND.rG,SND.gG,SND.wG,SND.sG].forEach(g=>g.gain.setTargetAtTime(0,T,.06))}honk(false)}
     {const cp=chassisB.position,pp=PREV.p,dx=cp.x-pp.x,dy=cp.y-pp.y,dz=cp.z-pp.z;
      if(active&&driving&&PREV.ok&&dx*dx+dy*dy+dz*dz<36){const a=Math.min(1,physAcc/PSTEP);
        car.position.set(pp.x+dx*a,pp.y+dy*a,pp.z+dz*a);
@@ -3869,13 +3872,13 @@ const PLANETS={
   {const x=$('#dcircx'),cl=$('#dcircclear');
    if(x)x.onclick=closeDrawer;
   if(cl)cl.onclick=()=>{drawPts=[];pendingTrack=null;if(circGoEl)circGoEl.disabled=true;redrawPath();if(circErrEl)circErrEl.textContent=''}}
-  updCircBtn();
-  {const newVenue=$('#dmapsb');if(newVenue)newVenue.onclick=openDrawer;
-   const saved=(()=>{try{return JSON.parse(localStorage.getItem('sl_venue')||'null')}catch(e){return null}})();
-   if(saved){if(circSeedEl)circSeedEl.value=String(saved.seed||271828);const scenery=$('#dcircscenery'),weather=$('#dcircweather'),time=$('#dcirctime');
-     if(scenery&&scenery.querySelector('option[value="'+saved.scenery+'"]'))scenery.value=saved.scenery;
-     if(weather&&weather.querySelector('option[value="'+saved.weather+'"]'))weather.value=saved.weather;
-     if(time&&time.querySelector('option[value="'+saved.time+'"]'))time.value=saved.time}}
+updCircBtn();
+  // New venue button removed - now handled by Track button (dcircb)
+  const saved=(()=>{try{return JSON.parse(localStorage.getItem('sl_venue')||'null')}catch(e){return null}})();
+  if(saved){if(circSeedEl)circSeedEl.value=String(saved.seed||271828);const scenery=$('#dcircscenery'),weather=$('#dcircweather'),time=$('#dcirctime');
+    if(scenery&&scenery.querySelector('option[value="'+saved.scenery+'"]'))scenery.value=saved.scenery;
+    if(weather&&weather.querySelector('option[value="'+saved.weather+'"]'))weather.value=saved.weather;
+    if(time&&time.querySelector('option[value="'+saved.time+'"]'))time.value=saved.time}}
   {
     const smoothBtn=$('#dcircsmooth');
     if(smoothBtn)smoothBtn.onclick=()=>{
@@ -3920,11 +3923,7 @@ const PLANETS={
         }else toastMsg('Draw and close a track first');
       }
     };
-    const mgrBtn=$('#dtrkmanager');
-    if(mgrBtn)mgrBtn.onclick=()=>{
-      const modal=$('#dcustom-tracks');
-      if(modal){modal.classList.add('on');refreshCustomTracksUI()}
-    };
+    // Saved tracks manager button removed - use Track button to access
     const mgrClose=$('#dcustomx')||$('#dtrkclose');
     if(mgrClose)mgrClose.onclick=()=>{
       const modal=$('#dcustom-tracks');
