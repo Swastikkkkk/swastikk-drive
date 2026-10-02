@@ -1727,6 +1727,18 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function drawMap(c,size,big){const sc=size/2/(big?116*MK*LAND+14:60);c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);
     c.beginPath();c.arc(0,0,size/2-1,0,6.283);c.fillStyle='rgba(18,17,15,.88)';c.fill();c.clip();
     const q=chassisB.quaternion,yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
+    // circuit mode: the Earth map is meaningless here, so draw the custom track the player made
+    if(MODE==='circuit'&&circuit){const pts=circuit.CSAMP;
+      let a1=1e9,a2=-1e9,a3=1e9,a4=-1e9;for(const p of pts){if(p.x<a1)a1=p.x;if(p.x>a2)a2=p.x;if(p.z<a3)a3=p.z;if(p.z>a4)a4=p.z}
+      const ccx=(a1+a2)/2,ccz=(a3+a4)/2,ext=Math.max(a2-a1,a4-a3)/2+18,csc=(size/2-8)/ext;
+      if(!big){let d=(yaw+Math.PI-mapRot);d=Math.atan2(Math.sin(d),Math.cos(d));mapRot+=d*.1;c.rotate(mapRot);c.translate(-chassisB.position.x*csc,-chassisB.position.z*csc)}
+      else c.translate(-ccx*csc,-ccz*csc);
+      c.strokeStyle='rgba(242,238,230,.9)';c.lineWidth=big?5:3.5;c.lineJoin='round';c.beginPath();
+      pts.forEach((p,i)=>{i?c.lineTo(p.x*csc,p.z*csc):c.moveTo(p.x*csc,p.z*csc)});c.closePath();c.stroke();
+      if(circuit.startP){c.fillStyle='#f2b26b';c.beginPath();c.arc(circuit.startP.p.x*csc,circuit.startP.p.z*csc,big?5:3.4,0,6.283);c.fill()}
+      c.translate(chassisB.position.x*csc,chassisB.position.z*csc);c.rotate(Math.PI-yaw);
+      c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
+      c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
     if(!big){let d=(yaw+Math.PI-mapRot);d=Math.atan2(Math.sin(d),Math.cos(d));mapRot+=d*.1;c.rotate(mapRot);c.translate(-chassisB.position.x*sc,-chassisB.position.z*sc)}
     if(!mapCache)buildMapCache();
     {const s=MAPR*sc;c.drawImage(mapCache,-s,-s,s*2,s*2)}
@@ -2865,6 +2877,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
        if(sp>6)for(const r of RAMPS)if(!rampHit.has(r.id)&&Math.hypot(r.x-car.position.x,r.z-car.position.z)<4){rampHit.add(r.id);missSet('ramps',rampHit.size)}}
       /* ---- circuit lap tracking ---- */
       if(MODE==='circuit'&&circuit){
+        // start-light sequence: five reds build up one every ~0.5s, hold, then all go out = GO
+        if(circuit.lights&&!circuit.lightsDone&&circuit.lightsStart){const L=circuit.lights,e=(now-circuit.lightsStart)/1000;
+          let on;if(e<2.6)on=Math.min(5,Math.floor(e/0.5));else if(e<3.4+(circuit.lightsHold||0))on=5;else{on=-1;circuit.lightsDone=true;toastMsg('Lights out — go!')}
+          if(L.setColorAt){for(let i=0;i<5;i++)L.setColorAt(i,new THREE.Color(on<0?0x12a52a:(i<on?0xff1e0a:0x3a0e0e)));if(L.instanceColor)L.instanceColor.needsUpdate=true}}
         let best=1e9,bi=0;const {CSAMP,CN}=circuit;
         for(let i=0;i<CN;i++){const dx=CSAMP[i].x-chassisB.position.x,dz=CSAMP[i].z-chassisB.position.z,d=dx*dx+dz*dz;if(d<best){best=d;bi=i}}
         const u=bi/CN;
@@ -3137,7 +3153,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     // venue dressing creates a few CanvasTextures (advertising, screens) hung on owned
     // materials; dispose those alongside the material so a leave/redraw leaks nothing
     (circuit.ownedMats||[]).forEach(m=>{if(m.map&&m.map.dispose)m.map.dispose();m.dispose()});
-    if(circuit.groundBody)world.removeBody(circuit.groundBody);
+    // remove the ground plate AND every perimeter-wall body, so a redraw never leaves stray colliders
+    (circuit.bodies||(circuit.groundBody?[circuit.groundBody]:[])).forEach(b=>{try{world.removeBody(b)}catch(e){}});
     circuit=null}
   // default theme: the original green look for freehand-drawn tracks. Preset maps (see THEMES
   // below) override this per call; nothing about the freehand-draw flow changes.
@@ -3187,6 +3204,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function buildCircuit(pts2D,theme,seed,venue){ // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
     clearCircuit();
     theme=theme||THEME_DEFAULT;
+    let startLightsIM=null;const wallBodies=[];
     seed=Math.max(1,Math.floor(+seed)||271828);let rngState=seed>>>0;
     const seeded=()=>{rngState=(Math.imul(rngState,1664525)+1013904223)>>>0;return rngState/4294967296};
     const pts3=pts2D.map(q=>new THREE.Vector3(CIRC_X+q.x,CIRC_Y,CIRC_Z+q.y));
@@ -3200,7 +3218,12 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     // one flat plate under the whole loop - the simplest correct collision, matching how the
     // main map already treats off-road as a logical grip penalty rather than a physical wall
     let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;pts3.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z)});
-    const hx=(maxX-minX)/2+20,hz=(maxZ-minZ)/2+20,cx=(minX+maxX)/2,cz=(minZ+maxZ)/2;
+    const cx=(minX+maxX)/2,cz=(minZ+maxZ)/2;
+    // arena radius: the stadium wall ring sits at r0, and the ground plate is sized to reach past
+    // it, so there is solid collision ground EVERYWHERE inside the stadium. Combined with the solid
+    // perimeter wall below, the car can no longer drive off the plate edge and fall into the void.
+    const r0=Math.hypot((maxX-minX)/2,(maxZ-minZ)/2)+40;
+    const hx=r0+14,hz=r0+14;
     const groundMat=M(theme.ground,{roughness:.95});
     const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(hx*2,1,hz*2),groundMat);groundMesh.position.set(cx,CIRC_Y-.5,cz);groundMesh.receiveShadow=true;root.add(groundMesh);
     const groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Box(new CANNON.Vec3(hx,.5,hz)));groundBody.position.set(cx,CIRC_Y-.5,cz);world.addBody(groundBody);
@@ -3222,13 +3245,20 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const fieldMat=M(theme.field,{roughness:.98});ownedMats.push(fieldMat);
     const field=new THREE.Mesh(new THREE.PlaneGeometry((hx+160)*2,(hz+160)*2).rotateX(-Math.PI/2),fieldMat);
     field.position.set(cx,CIRC_Y-.49,cz);field.receiveShadow=true;root.add(field);
-    const r0=Math.hypot(hx,hz)+15;
     // perimeter barrier wall: one continuous strip just outside the paved plate, all the way round
     {const wallMat=M(0xd9d4c6,{roughness:.7});ownedMats.push(wallMat);
      const wallCurve=new THREE.CatmullRomCurve3(pts3.map(p=>{
          const d=new THREE.Vector3(p.x-cx,0,p.z-cz).normalize();
          return new THREE.Vector3(cx+d.x*(r0-4),CIRC_Y,cz+d.z*(r0-4))}),true,'catmullrom',.5);
-     const wall=circStrip(wallCurve,CN,1.1,1.1,wallMat,1);wall.castShadow=true;wall.receiveShadow=true;root.add(wall)}
+     const wall=circStrip(wallCurve,CN,1.1,1.1,wallMat,1);wall.castShadow=true;wall.receiveShadow=true;root.add(wall);
+     // make that same ring SOLID: a chain of static box bodies so the car is contained inside the
+     // stadium and bounces off the wall instead of leaving the venue. Tracked for removal on clear.
+     const WN=72,wh=3.5,wup=new CANNON.Vec3(0,1,0);
+     for(let i=0;i<WN;i++){const a=wallCurve.getPointAt(i/WN),b=wallCurve.getPointAt(((i+1)%WN)/WN);
+       const len=Math.hypot(b.x-a.x,b.z-a.z);
+       const body=new CANNON.Body({mass:0,material:gM});body.addShape(new CANNON.Box(new CANNON.Vec3(1,wh,len/2+.4)));
+       body.position.set((a.x+b.x)/2,CIRC_Y+wh,(a.z+b.z)/2);body.quaternion.setFromAxisAngle(wup,Math.atan2(b.x-a.x,b.z-a.z));
+       world.addBody(body);wallBodies.push(body)}}
     // Keep the grandstands close enough to read from the track, placed from its actual tangent.
     {const standN=Math.max(8,Math.min(16,Math.round(curve.getLength()/38)));
      const standMat=M(theme.stand,{roughness:.85}),trimMat=M(theme.standTrim,{roughness:.6});ownedMats.push(standMat,trimMat);
@@ -3316,8 +3346,12 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const towerGlass=new THREE.Mesh(new THREE.BoxGeometry(5.7,1.8,7.2),glassMat);towerGlass.position.set(pitSide+9.5,8.5,-8);pitRoot.add(towerGlass);
       const gantry=new THREE.Group();gantry.position.z=18;[-1,1].forEach(side=>{const post=new THREE.Mesh(new THREE.BoxGeometry(.28,6,.28),pitMat);post.position.set(side*(CIRC_W/2+4),3,0);gantry.add(post)});
       const bar=new THREE.Mesh(new THREE.BoxGeometry(CIRC_W+8,.42,.5),pitMat);bar.position.y=6;gantry.add(bar);
-      const startLights=new THREE.InstancedMesh(new THREE.SphereGeometry(.26,8,6),lampMat,5),lightMatrix=new THREE.Matrix4();
-      for(let i=0;i<5;i++){lightMatrix.makeTranslation((i-2)*1.7,6.55,0);startLights.setMatrixAt(i,lightMatrix)}startLights.instanceMatrix.needsUpdate=true;gantry.add(startLights);
+      // F1-style start gantry: five lights, bigger now, driven by instanceColor so they can run a
+      // real red-build-up -> lights-out sequence each time you enter (see the circuit loop block).
+      lampMat.color.setHex(0xffffff);
+      const startLights=new THREE.InstancedMesh(new THREE.SphereGeometry(.42,10,8),lampMat,5),lightMatrix=new THREE.Matrix4();
+      for(let i=0;i<5;i++){lightMatrix.makeTranslation((i-2)*1.9,6.7,0);startLights.setMatrixAt(i,lightMatrix);if(startLights.setColorAt)startLights.setColorAt(i,new THREE.Color(0x3a0e0e))}
+      startLights.instanceMatrix.needsUpdate=true;if(startLights.instanceColor)startLights.instanceColor.needsUpdate=true;gantry.add(startLights);startLightsIM=startLights;
       pitRoot.add(gantry);root.add(pitRoot);
     }
     /* ---------- professional venue dressing ----------
@@ -3511,7 +3545,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         const srMat=addMat(M(0x44423c)),sr=new THREE.Mesh(new THREE.PlaneGeometry(7,40).rotateX(-Math.PI/2),srMat);
         sr.position.set(cx+n.x*(r0+6),GY+.03,cz+n.z*(r0+6));sr.lookAt(px,GY,pz);sr.rotateX(-Math.PI/2);root.add(sr)});
     }
-    circuit={curve,CN,CSAMP,root,groundBody,startP,ownedMats,theme,seed,venue:venue||{weather:'day',time:'day'}};
+    circuit={curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies),lights:startLightsIM,startP,ownedMats,theme,seed,venue:venue||{weather:'day',time:'day'}};
     return circuit}
   function enterCircuit(){if(!circuit)return;
     worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
@@ -3537,9 +3571,13 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const venue=circuit.venue||{},weather=WEATHERS.some(w=>w.id===venue.weather)?venue.weather:'day',time=WEATHERS.some(w=>w.id===venue.time)?venue.time:'day';
     setWeather(weather,true);
     if(time!==weather){mood(time,.8);const weatherTarget=wxOf(weather);wxB.part=weatherTarget.part;wxB.slip=weatherTarget.slip;wxB.dust=weatherTarget.dust}
+    // kick off the start-light sequence, and hide the (Earth-only) mission card while racing here
+    circuit.lightsStart=performance.now();circuit.lightsDone=false;circuit.lightsHold=Math.random()*0.8;
+    if(missEl)missEl.classList.remove('on');
     toastMsg('Venue · '+th.name+' · seed '+circuit.seed);updCircBtn()}
   function leaveCircuit(){if(MODE!=='circuit')return;
     MODE='world';
+    if(missEl)missEl.classList.add('on');
     if(worldSave){PREV.ok=false;physAcc=0;chassisB.position.copy(worldSave.p);chassisB.quaternion.copy(worldSave.q);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0)}
     if(worldFogSave){S.fog.color.setHex(worldFogSave.fog);S.background.setHex(worldFogSave.bg);worldFogSave=null}
     if(worldGSave!=null){world.gravity.y=worldGSave;worldGSave=null}
