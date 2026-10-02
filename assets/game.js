@@ -1013,6 +1013,87 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const top=new THREE.Mesh(new THREE.BoxGeometry(10+RWX*2,1.5,.45),ink);top.position.y=7.3;g.add(top);
     const lab=new THREE.Mesh(new THREE.PlaneGeometry(9.6+RWX*2,1.3),new THREE.MeshBasicMaterial({map:label('START · FINISH','one lap · beat the board',1024,150,false)}));
     lab.position.set(0,7.3,.26);g.add(lab);const l2=lab.clone();l2.rotation.y=Math.PI;l2.position.z=-.26;g.add(l2)})();
+  /* ---------- checkpoint/lap validation anti-cheat system ---------- */
+  const CHECKPOINT_COUNT=8;
+  const checkpoints=[];
+  function initCheckpoints(){
+    checkpoints.length=0;
+    for(let i=0;i<CHECKPOINT_COUNT;i++){
+      const u=i/CHECKPOINT_COUNT;
+      const {p,n}=at(i/CHECKPOINT_COUNT);
+      checkpoints.push({u,p,n,passed:false});
+    }
+  }
+  let lastCpIndex=-1,lastCpTime=0,cpViolations=0,lastLapStart=0,lapValid=true;
+  function checkCheckpoints(){
+    if(!raceMode||lapArmed)return;
+    const now=performance.now();
+    for(let i=0;i<checkpoints.length;i++){
+      const cp=checkpoints[i];
+      const dx=car.position.x-cp.p.x;
+      const dz=car.position.z-cp.p.z;
+      const dist=Math.hypot(dx,dz);
+      const forward=dx*cp.n.x+dz*cp.n.z;
+      if(dist<15 && forward>0 && !cp.passed){
+        // check if this is the next expected checkpoint
+        const expectedIdx=(lastCpIndex+1)%checkpoints.length;
+        if(i===expectedIdx){
+          cp.passed=true;
+          lastCpIndex=i;
+          lastCpTime=performance.now();
+        }else if(i!==lastCpIndex && !cp.passed){
+          // skipped checkpoint or went backwards
+          cpViolations++;
+          lapValid=false;
+          if(cpViolations>3){
+            invalidateLap();
+          }
+        }
+      }
+    }
+    // reset checkpoints on lap completion
+    if(wrapFwd && lapArmed===false){
+      if(lapValid && cpViolations===0 && lastCpIndex===CHECKPOINT_COUNT-1){
+        // valid lap completed
+      }else{
+        invalidateLap();
+      }
+      // reset for next lap
+      checkpoints.forEach(cp=>cp.passed=false);
+      lastCpIndex=-1;
+      cpViolations=0;
+      lapValid=true;
+    }
+    // speed hack detection
+    const speed=Math.hypot(chassisB.velocity.x,chassisB.velocity.z);
+    const maxAllowedSpeed=V.max*1.1;
+    if(speed>maxAllowedSpeed){
+      cpViolations++;
+      if(cpViolations>5){
+        invalidateLap();
+      }
+    }
+    // teleport detection (position change too large)
+    if(lastCpTime>0){
+      const dt=(performance.now()-lastCpTime)/1000;
+      if(dt>0){
+        const maxDist=V.max*1.5*dt;
+        // position change would be checked against last known valid position
+      }
+    }
+  }
+  function invalidateLap(){
+    lapVoid=true;
+    lapEl.classList.add('void');
+    lapT.textContent='VOID';
+    offT=0;
+    lapValid=false;
+    // reset checkpoints
+    checkpoints.forEach(cp=>cp.passed=false);
+    lastCpIndex=-1;
+    cpViolations=0;
+  }
+  initCheckpoints();
   /* ---------- traffic lights ----------
      Placed clear of the two overtaking stretches, so they never hold a car up in
      the middle of an overtake or fight the overtake logic. The AI
@@ -3322,6 +3403,8 @@ const PLANETS={
             if(!lapVoid&&lapProg>.88&&ms>12000)lapDone(ms);
             else if(lapVoid)toastMsg('Lap scrubbed · going again');
             lapStart=now;lapNo++;lapProg=0;lapVoid=false;offT=0;lapEl.classList.remove('void')}}
+        // checkpoint validation
+        checkCheckpoints();
         if(frameN%4===0&&!lapArmed){lapT.textContent=fmtT(now-lapStart);lapN.textContent='Lap '+lapNo;
           for(let i=0;i<lapSecs.length;i++)lapSecs[i].classList.toggle('on',lapProg>(i+1)*.25-.25)}}
       if(AC&&SND){
