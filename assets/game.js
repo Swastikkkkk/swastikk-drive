@@ -2972,7 +2972,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         S.m1.frequency.setTargetAtTime(hz,T,.06);S.m2.frequency.setTargetAtTime(hz*.5,T,.06);S.m3.frequency.setTargetAtTime(hz*3.02,T,.06);
         S.g3.gain.setTargetAtTime(.03+(boost?.09:0)+S.ld*.03,T,.1);
         S.mF.frequency.setTargetAtTime(650+S.ld*1400+r*900,T,.08);
-        S.mG.gain.setTargetAtTime((.008+S.ld*.07)*(.3+.7*Math.min(1,r*1.6+(f?.25:0))),T,.07);
+        S.mG.gain.setTargetAtTime((.015+S.ld*.14)*(.35+.85*Math.min(1.2,r*1.8+(f?.45:0))),T,.04);
         // tyres on the surface: tarmac roar on the road, gravel hiss off it
         const ground=air?0:Math.min(1,spq/V.max),off=offD>7+RWX?1:0;
         S.rF.frequency.setTargetAtTime(200+ground*1000,T,.1);
@@ -2983,7 +2983,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         // squeal, only on tarmac and only past a small slip, so normal cornering stays quiet
         let sk=0;for(let i=0;i<4;i++){const w=veh.wheelInfos[i];if(w.isInContact)sk=Math.max(sk,1-(w.skidInfo==null?1:w.skidInfo))}if(key.h&&spq>5)sk=Math.max(sk,.75);
         sk=(spq<4||sub>.05||off)?0:Math.max(0,sk-.15)/.85;
-        S.sG.gain.setTargetAtTime(Math.min(.05,sk*.07),T,.05);
+        S.sG.gain.setTargetAtTime(Math.min(.18,sk*.22),T,.03);
         S.s1.frequency.setTargetAtTime(960+Math.random()*150+spq*4,T,.03);S.s2.frequency.setTargetAtTime(2100+Math.random()*240,T,.03)}
       honk(!!key.horn);
     }else{if(AC&&SND){const T=AC.currentTime;[SND.mG,SND.rG,SND.gG,SND.wG,SND.sG].forEach(g=>g.gain.setTargetAtTime(0,T,.06))}honk(false)}
@@ -3946,20 +3946,20 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       };
     }
 
-    if(playBtn) playBtn.onclick=()=>{
+    if(playBtn) playBtn.onclick=()=>{ try{audioInit();}catch(_){}
       if(landing) landing.style.display='none';
       if(!active) try{startEngine();}catch(_){}
       toastMsg('Free Drive Mode · Press Menu for options');
     };
 
-    if(mpBtn) mpBtn.onclick=()=>{
+    if(mpBtn) mpBtn.onclick=()=>{ try{audioInit();}catch(_){}
       if(landing) landing.style.display='none';
       if(!active) try{startEngine();}catch(_){}
       const roomPanel = document.getElementById('dmp');
       if(roomPanel) roomPanel.classList.add('on');
     };
 
-    if(editorBtn) editorBtn.onclick=()=>{
+    if(editorBtn) editorBtn.onclick=()=>{ try{audioInit();}catch(_){}
       if(landing) landing.style.display='none';
       if(!active) try{startEngine();}catch(_){}
       openDrawer();
@@ -3995,7 +3995,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const dailyDateEl = document.getElementById('ddaily-date');
     const dailyListEl = document.getElementById('ddaily-list');
 
-    if(dailyBtn) dailyBtn.onclick=()=>{
+    if(dailyBtn) dailyBtn.onclick=()=>{ try{audioInit();}catch(_){}
       const dStr = new Date().toISOString().slice(0, 10);
       if(dailyDateEl) dailyDateEl.textContent = dStr;
       // Load daily times from localStorage
@@ -4022,7 +4022,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       if(dailyModal) dailyModal.style.display = 'none';
     };
 
-    if(dailyStart) dailyStart.onclick=()=>{
+    if(dailyStart) dailyStart.onclick=()=>{ try{audioInit();}catch(_){}
       if(dailyModal) dailyModal.style.display = 'none';
       if(landing) landing.style.display = 'none';
       if(!active) try{startEngine();}catch(_){}
