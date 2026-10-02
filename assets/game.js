@@ -32,37 +32,37 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function earnCoins(n){coins+=n;saveCoins();updCoinsUI()}
   /* ---------- garage: 6 cars, 2 body kits (buildEV / buildCar) sharing the same physics rig ---------- */
   const GARAGE=[
-  {id:'aster',label:'Aster',type:'ev',blurb:'Balanced',mass:190,F:2.42,B:-2.36,W:2.3,price:0,
-   V:{engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
-   paints:[0x640c0e,0x14161b,0xd9d4c6,0x27476b]},
-  {id:'voltgt',label:'Volt GT',type:'ev',blurb:'Wide, low, fast',mass:198,F:2.4,B:-2.32,W:2.42,price:400,
-   V:{engine:760,max:34.5,slip:2.6,xw:1.14,zf:1.3,zb:-1.3,r:.42,rest:.36,steer:.5,roll:.016},
-   paints:[0x18345c,0x14161b,0xc7cbce,0x7a1620]},
-  {id:'phantom',label:'Phantom',type:'ev',blurb:'Longest, top speed, twitchy',mass:210,F:2.7,B:-2.62,W:2.28,price:600,
-   V:{engine:820,max:37.5,slip:2.1,xw:1.08,zf:1.55,zb:-1.55,r:.46,rest:.4,steer:.58,roll:.024},
-   paints:[0x121216,0x2c2c30,0xd9d4c6,0x5c1418]},
-  {id:'kestrel',label:'Kestrel',type:'car',blurb:'Sedan, agile',mass:165,F:2.05,B:-2.05,W:1.92,wagon:false,price:150,
-   V:{engine:600,max:29,slip:2.55,xw:.92,zf:1.15,zb:-1.15,r:.4,rest:.38,steer:.66,roll:.018},
-   paints:[0x1f7a3d,0x14161b,0xd9d4c6,0x27476b]},
-  {id:'ridgeback',label:'Ridgeback',type:'car',blurb:'Wagon, heavy, grippy',mass:235,F:2.2,B:-2.35,W:2.05,wagon:true,price:300,
-   V:{engine:640,max:27.5,slip:2.9,xw:1.0,zf:1.35,zb:-1.35,r:.44,rest:.44,steer:.48,roll:.026},
-   paints:[0x3a4550,0x14161b,0xd9d4c6,0x5c3a1e]},
-  {id:'mamba',label:'Mamba',type:'car',blurb:'Sedan, quick, loose',mass:175,F:2.1,B:-2.1,W:1.95,wagon:false,price:220,
-   V:{engine:700,max:31.5,slip:2.15,xw:.95,zf:1.2,zb:-1.2,r:.4,rest:.36,steer:.6,roll:.016},
-   paints:[0xb33a1e,0x14161b,0xd9d4c6,0x27476b]},
-  {id:'f1apex',label:'F1 Apex',type:'f1',blurb:'Formula 1 Single-Seater',mass:135,F:1.8,B:-1.7,W:1.6,price:10,
-   V:{engine:900,max:44,slip:3.6,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.8,roll:.01},
-   paints:[0xdc143c,0x1a1a2e,0xf0e68c,0x00ffff]},
-  {id:'titan4x4',label:'Titan 4x4',type:'suv',blurb:'Rugged Off-Road SUV',mass:290,F:2.5,B:-2.4,W:2.2,wagon:true,price:10,
-   V:{engine:680,max:28,slip:3.0,xw:1.2,zf:1.5,zb:-1.5,r:.52,rest:.52,steer:.45,roll:.03},
-   paints:[0x2d4a22,0x1a1a1a,0xd4a843,0x4a4a4a]},
-  {id:'phantombike',label:'Phantom Bike',type:'bike',blurb:'Aerodynamic Superbike',mass:110,F:1.5,B:-1.5,W:1.0,price:000,
-   V:{engine:850,max:42,slip:2.8,xw:0.42,zf:1.0,zb:-1.0,r:.35,rest:.3,steer:.9,roll:.005},
-   paints:[0x1a1a2e,0xff6b35,0x00d4aa,0xffd700]},
-  {id:'valkyrie',label:'Valkyrie LeMans',type:'hypercar',blurb:'Le Mans Hypercar',mass:165,F:2.0,B:-1.9,W:1.8,price:000,
-   V:{engine:1050,max:46.5,slip:3.2,xw:1.15,zf:1.35,zb:-1.35,r:.4,rest:.32,steer:.7,roll:.01},
-   paints:[0x0d1b2a,0xff0033,0x00ff88,0xffd700]},
-];
+    {id:'aster',label:'Aster',type:'ev',blurb:'Balanced',mass:190,F:2.42,B:-2.36,W:2.3,price:0,
+     V:{engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
+     paints:[0x640c0e,0x14161b,0xd9d4c6,0x27476b]},
+    {id:'voltgt',label:'Volt GT',type:'ev',blurb:'Wide, low, fast',mass:198,F:2.4,B:-2.32,W:2.42,price:400,
+     V:{engine:760,max:34.5,slip:2.6,xw:1.14,zf:1.3,zb:-1.3,r:.42,rest:.36,steer:.5,roll:.016},
+     paints:[0x18345c,0x14161b,0xc7cbce,0x7a1620]},
+    {id:'phantom',label:'Phantom',type:'ev',blurb:'Longest, top speed, twitchy',mass:210,F:2.7,B:-2.62,W:2.28,price:600,
+     V:{engine:820,max:37.5,slip:2.1,xw:1.08,zf:1.55,zb:-1.55,r:.46,rest:.4,steer:.58,roll:.024},
+     paints:[0x121216,0x2c2c30,0xd9d4c6,0x5c1418]},
+    {id:'kestrel',label:'Kestrel',type:'car',blurb:'Sedan, agile',mass:165,F:2.05,B:-2.05,W:1.92,wagon:false,price:150,
+     V:{engine:600,max:29,slip:2.55,xw:.92,zf:1.15,zb:-1.15,r:.4,rest:.38,steer:.66,roll:.018},
+     paints:[0x1f7a3d,0x14161b,0xd9d4c6,0x27476b]},
+    {id:'ridgeback',label:'Ridgeback',type:'car',blurb:'Wagon, heavy, grippy',mass:235,F:2.2,B:-2.35,W:2.05,wagon:true,price:300,
+     V:{engine:640,max:27.5,slip:2.9,xw:1.0,zf:1.35,zb:-1.35,r:.44,rest:.44,steer:.48,roll:.026},
+     paints:[0x3a4550,0x14161b,0xd9d4c6,0x5c3a1e]},
+    {id:'mamba',label:'Mamba',type:'car',blurb:'Sedan, quick, loose',mass:175,F:2.1,B:-2.1,W:1.95,wagon:false,price:220,
+     V:{engine:700,max:31.5,slip:2.15,xw:.95,zf:1.2,zb:-1.2,r:.4,rest:.36,steer:.6,roll:.016},
+     paints:[0xb33a1e,0x14161b,0xd9d4c6,0x27476b]},
+    {id:'f1apex',label:'F1 Apex',type:'f1',blurb:'Formula 1 Single-Seater',mass:135,F:1.8,B:-1.7,W:1.6,price:800,
+     V:{engine:900,max:44,slip:3.6,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.8,roll:.01},
+     paints:[0xdc143c,0x1a1a2e,0xf0e68c,0x00ffff]},
+    {id:'titan4x4',label:'Titan 4x4',type:'suv',blurb:'Rugged Off-Road SUV',mass:290,F:2.5,B:-2.4,W:2.2,wagon:true,price:500,
+     V:{engine:680,max:28,slip:3.0,xw:1.2,zf:1.5,zb:-1.5,r:.52,rest:.52,steer:.45,roll:.03},
+     paints:[0x2d4a22,0x1a1a1a,0xd4a843,0x4a4a4a]},
+    {id:'phantombike',label:'Phantom Bike',type:'bike',blurb:'Aerodynamic Superbike',mass:110,F:1.5,B:-1.5,W:1.0,price:600,
+     V:{engine:850,max:42,slip:2.8,xw:0.42,zf:1.0,zb:-1.0,r:.35,rest:.3,steer:.9,roll:.005},
+     paints:[0x1a1a2e,0xff6b35,0x00d4aa,0xffd700]},
+    {id:'valkyrie',label:'Valkyrie LeMans',type:'hypercar',blurb:'Le Mans Hypercar',mass:165,F:2.0,B:-1.9,W:1.8,price:1000,
+     V:{engine:1050,max:46.5,slip:3.2,xw:1.15,zf:1.35,zb:-1.35,r:.4,rest:.32,steer:.7,roll:.01},
+     paints:[0x0d1b2a,0xff0033,0x00ff88,0xffd700]},
+  ];
   const WEATHERS=[
     {id:'day',label:'Day',bg:0x9dc0dd,fog:[110,300],hemi:.62,sun:0xfff7e8,sunI:1.12,ground:0x5c6b44,leaf:0x39672b,part:null,slip:1,skyTop:0x4a86c6,skyBottom:0xc3d9ea,star:0,sunA:.7,terr:[1.06,1.1,.98],snow:0,water:0x2f6f8c,ridge:[.46,.53,.62]},
     {id:'dusk',label:'Dusk',bg:0x2e2418,fog:[80,240],hemi:.5,sun:0xffcf92,sunI:1.0,ground:0x3a3124,leaf:0x3d4a2c,part:null,slip:1,skyTop:0x3d4a72,skyBottom:0xd98f4e,star:.72,sunA:1,terr:[1.16,1,.82],snow:0,water:0x3c4f5e,ridge:[.3,.28,.3]},
@@ -1654,22 +1654,25 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return {drag:d,fog:f,tint:[t0,t1,t2]}}
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
-  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dcustom-tracks')&&$('#dcustom-tracks').classList.contains('on'))$('#dcustom-tracks').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dcustom-tracks')&&$('#dcustom-tracks').classList.contains('on'))$('#dcustom-tracks').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyG'){if(MODE==='surface'&&SURF&&SURF.gpsPins.length){const pins=SURF.gpsPins,idx=pins.indexOf(SURF.gpsTarget);SURF.gpsTarget=pins[(idx+1)%pins.length];toastMsg('GPS → '+SURF.gpsTarget.label);if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true)}return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
   $('#dresetb').onclick=resetCar;
 
-  /* ---------- tool menu: five buttons collapse behind one on touch ---------- */
+  /* ---------- tool menu: click menu shows all buttons, click again hides all but menu ---------- */
   {const mb=$('#dmenu'),row=$('#drow');
    const setMenu=o=>{row.classList.toggle('open',o);mb.setAttribute('aria-expanded',o?'true':'false')};
    mb.onclick=e=>{e.stopPropagation();setMenu(!row.classList.contains('open'))};
-   // any choice inside closes it, and so does a tap on the road
-   row.addEventListener('click',e=>{if(e.target.closest('.dbtn'))setMenu(false)});
+   // clicking a button inside does NOT close - only menu button toggles
+   // clicking outside on road closes menu
    addEventListener('pointerdown',e=>{
      if(!row.classList.contains('open'))return;
      if(!row.contains(e.target)&&e.target!==mb)setMenu(false);
    },true);}
+  // GPS button handler
+  const gpsBtn=$('#dgps');
+  if(gpsBtn)gpsBtn.onclick=()=>{if(MODE==='surface'&&SURF&&SURF.gpsPins.length){const pins=SURF.gpsPins,idx=pins.indexOf(SURF.gpsTarget);SURF.gpsTarget=pins[(idx+1)%pins.length];toastMsg('GPS → '+SURF.gpsTarget.label);if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true)}else{toastMsg('GPS only on planetary surface')}};
 
   /* ---------- tilt steering (phones only) ----------
      Reads gamma (left/right roll) and maps it to an analog steering value, so
@@ -1748,9 +1751,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const wrongEl=$('#dwrong');
   /* ---------- minimap ---------- */
   const MAPS=SAMP.filter((_,i)=>i%2===0);let mapRot=0;
-  /* The static half of the map (water, woods, road, hill) never changes, so draw it once
-     into an offscreen bitmap. Re-stroking 150 trees as canvas arcs several times a second
-     was costing real frames for a 180px widget. */
   const MAPR=116*MK*LAND+26;let mapCache=null;
   function buildMapCache(){
     const CS=720,k=(CS/2)/MAPR,cv2=document.createElement('canvas');cv2.width=cv2.height=CS;
@@ -1766,13 +1766,44 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     c.strokeStyle='rgba(120,240,230,.85)';c.beginPath();c.arc(VZ.ufo.x*k,VZ.ufo.z*k,VZ.ufo.r*k,0,6.283);c.stroke();
     mapCache=cv2;
   }
-  function drawMap(c,size,big){const sc=size/2/(big?116*MK*LAND+14:60);c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);
-    c.beginPath();c.arc(0,0,size/2-1,0,6.283);c.fillStyle='rgba(18,17,15,.88)';c.fill();c.clip();
-    const q=chassisB.quaternion,yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
-    // circuit mode: the Earth map is meaningless here, so draw the custom track the player made
-    if(MODE==='circuit'&&circuit){const pts=circuit.CSAMP;
+  function buildPlanetMapCache(cfg){
+    const CS=720, MAPR_P=8000, k=(CS/2)/MAPR_P, cv2=document.createElement('canvas'); cv2.width=cv2.height=CS;
+    const c=cv2.getContext('2d'); c.translate(CS/2,CS/2);
+    // planet road centerline samples (cached in S.road)
+    if(cfg && S.road && S.road.xs.length>2){
+      c.strokeStyle='#5a5750'; c.lineWidth=2.8*k;
+      c.beginPath();
+      const len=Math.min(S.road.xs.length, Math.floor(4000/DS)+2);
+      for(let i=0;i<len;i++){const x=S.road.xs[i]*k, z=S.road.zs[i]*k; i?c.lineTo(x,z):c.moveTo(x,z)}
+      c.stroke();
+    }
+    // crater field representation
+    c.fillStyle='rgba(180,180,170,.15)';
+    const grids=cfg.craters;
+    for(let gi=0;gi<grids.length;gi++){
+      const cell=grids[gi][0],minR=grids[gi][1],maxR=grids[gi][2],pr=grids[gi][4];
+      const cx=Math.floor(0/cell),cz=Math.floor(0/cell);
+      for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++){
+        const gx=cx+i,gz=cz+j,hsh=hash2(gx*1.7+gi*3.3+cfg.seed*0.001,gz*1.3-gi*2.1-cfg.seed*0.001);
+        if(hsh<1-pr) continue;
+        const ox=hash2(gx+3.1+gi+cfg.seed*0.001,gz+1.7-cfg.seed*0.001),oz=hash2(gx+5.3-cfg.seed*0.001,gz+9.1+gi);
+        const ccx=(gx+ox)*cell*k, ccz=(gz+oz)*cell*k;
+        const R=(minR+(maxR-minR)*hash2(gx+7.7-gi+cfg.seed*0.001,gz+2.9+gi))*k;
+        c.beginPath(); c.arc(ccx,ccz,R,0,6.283); c.fill();
+      }
+    }
+    return cv2;
+  }
+  let planetMapCache=null;
+  function drawMap(c,size,big){
+    const q=chassisB.quaternion, yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
+    // circuit mode: draw custom track
+    if(MODE==='circuit'&&circuit){
+      const pts=circuit.CSAMP;
       let a1=1e9,a2=-1e9,a3=1e9,a4=-1e9;for(const p of pts){if(p.x<a1)a1=p.x;if(p.x>a2)a2=p.x;if(p.z<a3)a3=p.z;if(p.z>a4)a4=p.z}
       const ccx=(a1+a2)/2,ccz=(a3+a4)/2,ext=Math.max(a2-a1,a4-a3)/2+18,csc=(size/2-8)/ext;
+      c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);
+      c.beginPath();c.arc(0,0,size/2-1,0,6.283);c.fillStyle='rgba(18,17,15,.88)';c.fill();c.clip();
       if(!big){let d=(yaw+Math.PI-mapRot);d=Math.atan2(Math.sin(d),Math.cos(d));mapRot+=d*.1;c.rotate(mapRot);c.translate(-chassisB.position.x*csc,-chassisB.position.z*csc)}
       else c.translate(-ccx*csc,-ccz*csc);
       c.strokeStyle='rgba(242,238,230,.9)';c.lineWidth=big?5:3.5;c.lineJoin='round';c.beginPath();
@@ -1781,6 +1812,41 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       c.translate(chassisB.position.x*csc,chassisB.position.z*csc);c.rotate(Math.PI-yaw);
       c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
       c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
+    // planet surface mode (Moon/Mars): only show planet features
+    if(MODE==='surface' && S.planet && PLANETS[S.planet]){
+      const cfg=PLANETS[S.planet];
+      const sc=size/2/8000;
+      c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);
+      c.beginPath();c.arc(0,0,size/2-1,0,6.283);c.fillStyle='rgba(10,10,15,.9)';c.fill();c.clip();
+      if(!big){let d=(yaw+Math.PI-mapRot);d=Math.atan2(Math.sin(d),Math.cos(d));mapRot+=d*.1;c.rotate(mapRot);c.translate(-chassisB.position.x*sc,-chassisB.position.z*sc)}
+      if(!planetMapCache)planetMapCache=buildPlanetMapCache(cfg);
+      {const s=8000*sc;c.drawImage(planetMapCache,-s,-s,s*2,s*2)}
+      // GPS waypoints
+      if(S.gpsPins && S.gpsPins.length){
+        c.fillStyle='#00ff88';c.font='600 10px ui-monospace,monospace';c.textAlign='center';
+        S.gpsPins.forEach((pin,i)=>{
+          const px=(pin.x-chassisB.position.x)*sc, pz=(pin.z-chassisB.position.z)*sc;
+          c.beginPath();c.arc(px,pz,big?6:4,0,6.283);c.fill();
+          if(big)c.fillText(pin.label,px,pz-10);
+        });
+      }
+      // active GPS route line
+      if(S.gpsTarget){
+        const tx=(S.gpsTarget.x-chassisB.position.x)*sc, tz=(S.gpsTarget.z-chassisB.position.z)*sc;
+        c.strokeStyle='rgba(0,255,136,.8)';c.lineWidth=big?3:2;c.setLineDash([10,6]);
+        c.beginPath();c.moveTo(0,0);c.lineTo(tx,tz);c.stroke();c.setLineDash([]);
+        // compass bearing
+        const bearing=Math.atan2(S.gpsTarget.x-chassisB.position.x, S.gpsTarget.z-chassisB.position.z);
+        c.fillStyle='#00ff88';c.font='600 11px ui-monospace,monospace';c.textAlign='right';
+        c.fillText('→ '+Math.round(bearing*180/Math.PI)+'°',size/2-8,-size/2+18);
+      }
+      c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);
+      c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
+      c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
+    // Earth world mode
+    const sc=size/2/(big?116*MK*LAND+14:60);
+    c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);
+    c.beginPath();c.arc(0,0,size/2-1,0,6.283);c.fillStyle='rgba(18,17,15,.88)';c.fill();c.clip();
     if(!big){let d=(yaw+Math.PI-mapRot);d=Math.atan2(Math.sin(d),Math.cos(d));mapRot+=d*.1;c.rotate(mapRot);c.translate(-chassisB.position.x*sc,-chassisB.position.z*sc)}
     if(!mapCache)buildMapCache();
     {const s=MAPR*sc;c.drawImage(mapCache,-s,-s,s*2,s*2)}
@@ -1789,10 +1855,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {
      // traffic shows up on the map so you can see what you are racing into
      c.fillStyle='rgba(242,238,230,.75)';traffic.forEach(tc=>{const pt=at(tc.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?3.4:2.2,0,6.283);c.fill()})}
-    // the ring road, drawn as the circle it is
+    // the ring road
     {c.strokeStyle='rgba(242,238,230,.45)';c.lineWidth=big?3:2;
      c.beginPath();c.arc(RING.x*sc,RING.z*sc,RING.r*sc,0,6.283);c.stroke()}
-    // the summit: a warm marker so the lookout reads as a real destination, pulsing once you're actually parked there
+    // the summit
     {c.fillStyle=atSummit?'#f2b26b':'#c98a4a';c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,big?5:3.4,0,6.283);c.fill();
      if(atSummit){c.strokeStyle='rgba(242,178,107,.8)';c.lineWidth=1.5;c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,(big?9:6)+Math.sin(t)*2,0,6.283);c.stroke()}
      if(big){c.fillStyle='#f2b26b';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.textAlign='left';c.fillText('SUMMIT',PEAK.x*sc+9,PEAK.z*sc+4)}}
@@ -1802,6 +1868,27 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke()}
   function toggleMap(){const on=!bigmap.classList.contains('on');bigmap.classList.toggle('on',on);driving=!on;for(const k in key)key[k]=0;if(on)drawMap(bmc.getContext('2d'),bmc.width,true)}
   mm.onclick=toggleMap;$('#dbigx').onclick=toggleMap;
+  // GPS: click on big map to set/clear target, right-click to add custom pin
+  bmc.oncontextmenu=e=>{e.preventDefault(); if(!bigmap.classList.contains('on')||!SURF)return;
+    const rect=bmc.getBoundingClientRect(), cx=e.clientX-rect.left, cy=e.clientY-rect.top;
+    const size=bmc.width, sc=size/2/8000;
+    const wx=(cx-size/2)/sc+SURF.pos.x, wz=(cy-size/2)/sc+SURF.pos.z;
+    const gh=groundH(SURF.cfg,SURF.road,wx,wz,0);
+    SURF.gpsPins.push({x:wx, z:wz, y:gh, label:'Pin', type:'custom'});
+    drawMap(bmc.getContext('2d'),bmc.width,true)};
+  bmc.onclick=e=>{
+    if(!bigmap.classList.contains('on')||!SURF)return;
+    const rect=bmc.getBoundingClientRect(), cx=e.clientX-rect.left, cy=e.clientY-rect.top;
+    const size=bmc.width, sc=size/2/8000;
+    const wx=(cx-size/2)/sc+SURF.pos.x, wz=(cy-size/2)/sc+SURF.pos.z;
+    // find nearest pin
+    let best=1e9, bi=-1; SURF.gpsPins.forEach((p,i)=>{const d=Math.hypot(p.x-wx,p.z-wz); if(d<best){best=d; bi=i}});
+    if(bi>=0 && best<2000/sc){ // clicked near a pin
+      if(SURF.gpsTarget===SURF.gpsPins[bi]){ SURF.gpsTarget=null; toastMsg('GPS cleared') }
+      else { SURF.gpsTarget=SURF.gpsPins[bi]; toastMsg('GPS → '+SURF.gpsTarget.label) }
+      drawMap(bmc.getContext('2d'),bmc.width,true);
+    }
+  };
   /* ---------- loop ---------- */
   const camT=new THREE.Vector3(),look=new THREE.Vector3(),fwd=new THREE.Vector3(),tmp=new THREE.Vector3(),lastV=new THREE.Vector3();
   let leanVf=0,leanA=0;const leanF=new CANNON.Vec3(),skUp=new THREE.Vector3(0,1,0),skN=new THREE.Vector3(),skQ=new THREE.Quaternion(),skQ2=new THREE.Quaternion(),skM=new THREE.Matrix4(),skP=new THREE.Vector3(),skS=new THREE.Vector3(1,1,1);
@@ -2173,22 +2260,24 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
        Units: 1 world unit ~= 1 metre. gravity in m/s^2 (scaled for feel).
        ===================================================================== */
     let moonGravityOn=false;
-    const PLANETS={
-      moon:{ name:'Moon', seed:271828, g:4.0,
-        bg:0x02030a, fog:null, sun:0xfff6e8, sunI:2.3, sunDir:[0.5,0.42,0.3], amb:0x0a0f1c, ambI:0.35,
-        ground:[0.40,0.38,0.35], groundNoise:0.10, rock:0x8d8a84, roadCol:0x3b3a37, dust:0xb8b4ab, rover:{body:0xd7dae2,cab:0x9fb6d8},
-        accel:24, vmax:40, boost:1.5, steer:1.7, ufoEvery:5000, earthInSky:true, dunes:0, atmo:0,
-        base1:[0.004,26], base2:[0.02,7],
-        craters:[[70,8,26,1.0,0.5],[180,34,78,1.9,0.42],[520,140,300,3.0,0.55]],
-        caption:'Moon - 1/6 g - infinite regolith road' },
-      mars:{ name:'Mars', seed:141421, g:7.0,
-        bg:0x180a06, fog:[300,1600], sun:0xffd9b0, sunI:1.9, sunDir:[0.4,0.5,0.25], amb:0x3a1b12, ambI:0.55,
-        ground:[0.62,0.32,0.18], groundNoise:0.08, rock:0x7a3b22, roadCol:0x5a3320, dust:0xc98a5a, rover:{body:0xc96a3a,cab:0xe0a060},
-        accel:18, vmax:34, boost:1.35, steer:1.5, ufoEvery:5000, earthInSky:false, dunes:1, atmo:1,
-        base1:[0.0035,30], base2:[0.018,9],
-        craters:[[90,10,30,0.9,0.4],[240,40,90,1.6,0.35],[600,150,320,2.6,0.4]],
-        caption:'Mars - 0.38 g - rover expedition route' },
-    };
+const PLANETS={
+  moon:{ name:'Moon', seed:271828, g:4.0,
+    bg:0x02030a, fog:null, sun:0xfff6e8, sunI:2.3, sunDir:[0.5,0.42,0.3], amb:0x0a0f1c, ambI:0.35,
+    ground:[0.40,0.38,0.35], groundNoise:0.12, rock:0x8d8a84, roadCol:0x3b3a37, dust:0xb8b4ab, rover:{body:0xd7dae2,cab:0x9fb6d8},
+    accel:24, vmax:40, boost:1.5, steer:1.7, ufoEvery:5000, earthInSky:true, dunes:0, atmo:0,
+    base1:[0.0035,28], base2:[0.018,6],
+    craters:[[70,8,26,1.0,0.5],[180,34,78,1.9,0.42],[520,140,300,3.0,0.55]],
+    craterRimSharpness:1.8, craterFloorFlatten:0.95, ejectaSpread:1.4, rayLength:2.2,
+    caption:'Moon - 1/6 g - infinite regolith road' },
+  mars:{ name:'Mars', seed:141421, g:7.0,
+    bg:0x180a06, fog:[300,1600], sun:0xffd9b0, sunI:1.9, sunDir:[0.4,0.5,0.25], amb:0x3a1b12, ambI:0.55,
+    ground:[0.62,0.32,0.18], groundNoise:0.08, rock:0x7a3b22, roadCol:0x5a3320, dust:0xc98a5a, rover:{body:0xc96a3a,cab:0xe0a060},
+    accel:18, vmax:34, boost:1.35, steer:1.5, ufoEvery:5000, earthInSky:false, dunes:1, atmo:1,
+    base1:[0.0035,30], base2:[0.018,9],
+    craters:[[90,10,30,0.9,0.4],[240,40,90,1.6,0.35],[600,150,320,2.6,0.4]],
+    craterRimSharpness:1.2, craterFloorFlatten:0.85, ejectaSpread:1.0, rayLength:1.5,
+    caption:'Mars - 0.38 g - rover expedition route' },
+};
 
     /* procedural surface height for any planet (rolling base + multi-scale craters + optional dunes) */
     function surfaceH(cfg,x,z){
@@ -2197,6 +2286,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
            +(fbm2(x*cfg.base2[0]-13-so,z*cfg.base2[0]+9+so)-0.5)*cfg.base2[1];
       if(cfg.dunes){ h+=Math.sin(x*0.02+fbm2(x*0.01,z*0.01)*6)*2.4*(0.5+0.5*fbm2(z*0.004,x*0.004)); }
       const grids=cfg.craters;
+      const rimSharpness=cfg.craterRimSharpness||1.2, floorFlatten=cfg.craterFloorFlatten||0.85, ejectaSpread=cfg.ejectaSpread||1.0, rayLength=cfg.rayLength||1.5;
       for(let gi=0;gi<grids.length;gi++){
         const cell=grids[gi][0],minR=grids[gi][1],maxR=grids[gi][2],ds=grids[gi][3],pr=grids[gi][4];
         const cx=Math.floor(x/cell),cz=Math.floor(z/cell);
@@ -2210,11 +2300,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
           const d=Math.hypot(x-ccx,z-ccz)/(R*irr);
           if(d<1.35){
             const depth=R*0.16*ds;
-            const bowl = d<1 ? -(1-d*d) : 0;
-            const rim=Math.exp(-Math.pow((d-1)/0.17,2))*(0.52+0.2*noise2(x*0.08,z*0.08));
+            const bowl = d<1 ? -Math.pow(1-d*d,floorFlatten) : 0;
+            const rim=Math.exp(-Math.pow((d-1)/0.17,rimSharpness))*(0.52+0.2*noise2(x*0.08,z*0.08));
             const age=hash2(gx*2.3+so,gz*2.7-so),angle=Math.atan2(z-ccz,x-ccx);
-            const rayAngle=hash2(gx+19.1+so,gz-8.7)*Math.PI*2,rays=Math.pow(Math.max(0,Math.cos(angle-rayAngle)),18);
-            const ejecta=Math.exp(-Math.pow((d-1.2)/0.22,2))*(0.1+0.26*rays),peak=R>100&&d<0.17?(1-d/0.17)*0.2:0;
+            const rayAngle=hash2(gx+19.1+so,gz-8.7)*Math.PI*2,rays=Math.pow(Math.max(0,Math.cos(angle-rayAngle)),rayLength*12);
+            const ejecta=Math.exp(-Math.pow((d-1.2)/0.22*ejectaSpread,2))*(0.1+0.26*rays),peak=R>100&&d<0.17?(1-d/0.17)*0.2:0;
             h+=(bowl*depth+rim*depth*0.9+ejecta*depth+peak*depth)*(0.5+0.5*age);
           }
         }
@@ -2437,6 +2527,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         dust,dgeo,dpos,dlife,dvel,emitDust,
         road:{xs:[],zs:[],len:0},
         stations,stationGeoReady,
+        // GPS navigation
+        gpsPins:[], gpsTarget:null,
         // kinematic driving state
         pos:new THREE.Vector3(0,0,0), vel:new THREE.Vector3(), vy:0, yaw:0, grounded:true, s:0, maxS:0,
         roadStamp:-1, tileStamp:'', land:0, q:new THREE.Quaternion(),
@@ -2656,6 +2748,18 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       C.far=20000; C.near=0.5; C.updateProjectionMatrix();
       go('arrive'); api._gRamp=0; silenceSnd(); ufoLand();
       say(cfg.caption);
+      // Initialize GPS pins for this planet (UFO stations every cfg.ufoEvery metres)
+      S.gpsPins = [];
+      S.gpsTarget = null;
+      // Add first few UFO stations as default pins
+      for(let i=1;i<=5;i++){
+        const sDist=i*cfg.ufoEvery;
+        const rp=roadAt(cfg,S.road,sDist);
+        const gh=groundH(cfg,S.road,rp.x,rp.z,0);
+        S.gpsPins.push({x:rp.x, z:rp.z, y:gh, label:'UFO '+i, type:'ufo'});
+      }
+      // Add a distant waypoint marker
+      S.gpsPins.push({x:roadAt(cfg,S.road,50000).x, z:roadAt(cfg,S.road,50000).z, y:groundH(cfg,S.road,roadAt(cfg,S.road,50000).x,roadAt(cfg,S.road,50000).z,0), label:'50km', type:'waypoint'});
     }
 
     api.updateEarth=function(){
