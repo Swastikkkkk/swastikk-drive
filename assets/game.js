@@ -3134,7 +3134,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     // circuit actually created its own copies of (tracked in ownedMats), never blanket-dispose
     // whatever a traverse happens to find, or the next redraw would break the main map's road
     circuit.root.traverse(o=>{if(o.geometry)o.geometry.dispose()});
-    (circuit.ownedMats||[]).forEach(m=>m.dispose());
+    // venue dressing creates a few CanvasTextures (advertising, screens) hung on owned
+    // materials; dispose those alongside the material so a leave/redraw leaks nothing
+    (circuit.ownedMats||[]).forEach(m=>{if(m.map&&m.map.dispose)m.map.dispose();m.dispose()});
     if(circuit.groundBody)world.removeBody(circuit.groundBody);
     circuit=null}
   // default theme: the original green look for freehand-drawn tracks. Preset maps (see THEMES
@@ -3235,16 +3237,27 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const seatIM=new THREE.InstancedMesh(new THREE.BoxGeometry(23,.82,1.75),trimMat,standN*5);seatIM.castShadow=true;seatIM.receiveShadow=true;root.add(seatIM);
     const roofIM=new THREE.InstancedMesh(new THREE.BoxGeometry(28,.48,10),standMat,standN);roofIM.castShadow=true;root.add(roofIM);
     const frameIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.42,6.5,.42),standMat,standN*4);frameIM.castShadow=true;root.add(frameIM);
-     const sM=new THREE.Matrix4(),sP=new THREE.Vector3(),sQ=new THREE.Quaternion(),sS=new THREE.Vector3(1,1,1),upAxis0=new THREE.Vector3(0,1,0);
+    // crowd: one little box per spectator, InstancedMesh with per-instance colour so the stands
+    // read as a packed, multicoloured crowd rather than a flat painted slab. ~one person per seat.
+    const COLS=LOW?6:9,ROWS=5,crowdMat=M(0xffffff,{roughness:1});ownedMats.push(crowdMat);
+    const crowdIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.62,.9,.55),crowdMat,standN*ROWS*COLS);crowdIM.castShadow=!LOW;root.add(crowdIM);
+    const CROWD=[0xe4572e,0xf3a712,0xd9d4c6,0x2f6f9e,0x3f8a56,0xb8322f,0x5c4b8a,0xe0bd58,0x4a4e57,0xcc5f8f];
+    const sM=new THREE.Matrix4(),sP=new THREE.Vector3(),sQ=new THREE.Quaternion(),sS=new THREE.Vector3(1,1,1),cS=new THREE.Vector3(1,1,1),upAxis0=new THREE.Vector3(0,1,0),cCol=new THREE.Color(),seatCol=new THREE.Color();let crowdN=0;
     for(let i=0;i<standN;i++){const {p,tg,n}=circAt((i+.5)/standN,curve),side=i%2?1:-1,offset=CIRC_W/2+13+seeded()*5;
        const x=p.x+n.x*side*offset,z=p.z+n.z*side*offset;
        sQ.setFromAxisAngle(upAxis0,Math.atan2(cx-x,cz-z));
        sP.set(x,CIRC_Y-.5+.4,z);sM.compose(sP,sQ,sS);standIM.setMatrixAt(i,sM);
        sP.set(x,CIRC_Y-.5+4.4,z);sM.compose(sP,sQ,sS);trimIM.setMatrixAt(i,sM);
        sP.set(x,CIRC_Y-.5+7.7,z-1.5);sM.compose(sP,sQ,sS);roofIM.setMatrixAt(i,sM);
-       for(let row=0;row<5;row++){const seatOffset=new THREE.Vector3(0,1.15+row*1.08,3.8-row*1.65).applyQuaternion(sQ);sP.set(x+seatOffset.x,CIRC_Y-.5+seatOffset.y,z+seatOffset.z);sM.compose(sP,sQ,sS);seatIM.setMatrixAt(i*5+row,sM)}
+       for(let row=0;row<ROWS;row++){const seatOffset=new THREE.Vector3(0,1.15+row*1.08,3.8-row*1.65).applyQuaternion(sQ);sP.set(x+seatOffset.x,CIRC_Y-.5+seatOffset.y,z+seatOffset.z);sM.compose(sP,sQ,sS);seatIM.setMatrixAt(i*5+row,sM);
+         if(seatIM.setColorAt){const sh=.82+seeded()*.3;seatIM.setColorAt(i*5+row,seatCol.setRGB(sh,sh,sh))}
+         for(let col=0;col<COLS;col++){const lx=(col/(COLS-1)-.5)*21,po=new THREE.Vector3(lx,1.15+row*1.08+.86,3.8-row*1.65).applyQuaternion(sQ);
+           sP.set(x+po.x,CIRC_Y-.5+po.y,z+po.z);cS.set(1,.85+seeded()*.4,1);sM.compose(sP,sQ,cS);crowdIM.setMatrixAt(crowdN,sM);
+           if(crowdIM.setColorAt)crowdIM.setColorAt(crowdN,cCol.setHex(CROWD[(seeded()*CROWD.length)|0]));crowdN++}}
        for(let post=0;post<4;post++){const localX=post%2?11:-11,localZ=post<2?3.4:-4.4,frameOffset=new THREE.Vector3(localX,3.2,localZ).applyQuaternion(sQ);sP.set(x+frameOffset.x,CIRC_Y-.5+frameOffset.y,z+frameOffset.z);sM.compose(sP,sQ,sS);frameIM.setMatrixAt(i*4+post,sM)}}
-     standIM.instanceMatrix.needsUpdate=true;trimIM.instanceMatrix.needsUpdate=true;seatIM.instanceMatrix.needsUpdate=true;roofIM.instanceMatrix.needsUpdate=true;frameIM.instanceMatrix.needsUpdate=true}
+     crowdIM.count=crowdN;
+     standIM.instanceMatrix.needsUpdate=true;trimIM.instanceMatrix.needsUpdate=true;seatIM.instanceMatrix.needsUpdate=true;roofIM.instanceMatrix.needsUpdate=true;frameIM.instanceMatrix.needsUpdate=true;crowdIM.instanceMatrix.needsUpdate=true;
+     if(crowdIM.instanceColor)crowdIM.instanceColor.needsUpdate=true;if(seatIM.instanceColor)seatIM.instanceColor.needsUpdate=true}
     // floodlight pylons, fewer than grandstands, interspersed around the same ring
     {const lampMat=M(0x2a2a2a,{roughness:.6}),lensMat=new THREE.MeshBasicMaterial({color:0xfff3d6});ownedMats.push(lampMat,lensMat);
     const lampN=Math.max(6,Math.round(curve.getLength()/70));
@@ -3306,6 +3319,197 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const startLights=new THREE.InstancedMesh(new THREE.SphereGeometry(.26,8,6),lampMat,5),lightMatrix=new THREE.Matrix4();
       for(let i=0;i<5;i++){lightMatrix.makeTranslation((i-2)*1.7,6.55,0);startLights.setMatrixAt(i,lightMatrix)}startLights.instanceMatrix.needsUpdate=true;gantry.add(startLights);
       pitRoot.add(gantry);root.add(pitRoot);
+    }
+    /* ---------- professional venue dressing ----------
+       Everything below turns the bare loop into a motorsport venue: starting grid, a main
+       grandstand on the start straight, tyre walls + Armco through the corners, perimeter
+       fencing, marshal posts, camera + race-control towers, advertising, a sponsor bridge and
+       an outer car park. It is all decoration (off-road here is a logical grip penalty, same as
+       the main map, so none of it needs a physics body), all instanced where it repeats, all
+       seeded off the same RNG so a seed reproduces the venue exactly, all added to `root` and
+       all tracked in `ownedMats`. Each feature is wrapped in safe() so a single failing prop can
+       never stop the race from starting - the worst case is a slightly barer, still-drivable
+       circuit (acceptance criteria 39/43). */
+    {
+      const addMat=m=>{ownedMats.push(m);return m};
+      const safe=fn=>{try{fn()}catch(e){if(typeof console!=='undefined')console.warn('venue prop skipped:',e&&e.message)}};
+      const GY=CIRC_Y;                 // ground surface top sits at ~CIRC_Y
+      const up=new THREE.Vector3(0,1,0),MX=new THREE.Matrix4(),P=new THREE.Vector3(),Q=new THREE.Quaternion(),SC=new THREE.Vector3(1,1,1),COL=new THREE.Color();
+      const L=curve.getLength(),HALF=CIRC_W/2;
+      // one dense pass of the track: point, tangent, left-normal and how hard it is turning here
+      const SN=Math.max(48,Math.min(300,CN)),SA=[];
+      for(let i=0;i<SN;i++)SA.push(circAt(i/SN,curve));
+      const turn=new Array(SN),curl=new Array(SN);
+      for(let i=0;i<SN;i++){const t0=SA[(i-1+SN)%SN].tg,t1=SA[(i+1)%SN].tg;
+        turn[i]=Math.acos(Math.max(-1,Math.min(1,t0.x*t1.x+t0.z*t1.z)));
+        curl[i]=t0.x*t1.z-t0.z*t1.x}                 // >0 turning left, so the OUTSIDE is to the right
+      const outSide=i=>curl[i]>0?-1:1;               // sign on the left-normal n that points off-track outward
+      // corner apices: non-max-suppressed local maxima of the turn rate
+      const corners=[],CTHR=.05,CGAP=Math.max(4,Math.round(SN/16));
+      for(let i=0;i<SN;i++){if(turn[i]<CTHR)continue;let mx=true;
+        for(let k=-2;k<=2;k++)if(turn[(i+k+SN)%SN]>turn[i]+1e-6){mx=false;break}
+        if(mx&&!corners.some(c=>Math.min(Math.abs(c-i),SN-Math.abs(c-i))<CGAP))corners.push(i)}
+      // longest low-curvature run = the straight that gets the sponsor bridge
+      let bStart=0,bLen=0,cStart=0,cLen=0;
+      for(let i=0;i<SN*2;i++){const j=i%SN;if(turn[j]<.02){if(cLen===0)cStart=j;cLen++;if(cLen>bLen){bLen=cLen;bStart=cStart}}else cLen=0}
+      const straightMid=(bStart+Math.floor(Math.min(bLen,SN)/2))%SN;
+      // a bright sign/banner texture drawn procedurally (no external assets, no real brands)
+      const signTex=(word,bg,fg)=>{const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');
+        g.fillStyle=bg;g.fillRect(0,0,256,64);g.fillStyle=fg;g.font='bold 42px Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';
+        g.fillText(word,128,36);g.strokeStyle=fg;g.lineWidth=4;g.strokeRect(6,6,244,52);
+        const t=new THREE.CanvasTexture(c);if(R&&R.capabilities&&R.capabilities.getMaxAnisotropy)t.anisotropy=Math.min(4,R.capabilities.getMaxAnisotropy());return t};
+      const WORDS=['SPEED','TURBO','RACING','DRIVE','MOTORSPORT','GRAND PRIX','CIRCUIT','APEX','V12','NITRO','PODIUM','CHAMPIONSHIP'];
+      const ADCOL=[[0xb8322f,0xffffff],[0x2f6f9e,0xffffff],[0xd4a83a,0x15140f],[0x3f8a56,0xffffff],[0x1a1a1e,0xf3a712],[0x5c4b8a,0xffffff]];
+
+      // --- starting grid + finish line: painted on the start straight, just above the road ---
+      safe(()=>{
+        const yaw=Math.atan2(startP.tg.x,startP.tg.z),gridMat=addMat(new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.9,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3}));
+        const slots=8,slotGeo=new THREE.PlaneGeometry(1.1,3.4).rotateX(-Math.PI/2),gridIM=new THREE.InstancedMesh(slotGeo,gridMat,slots*2);root.add(gridIM);
+        Q.setFromAxisAngle(up,yaw);let gi=0;
+        for(let r=0;r<slots;r++)for(const s of [-1,1]){
+          const back=-6-r*8,lane=s*(HALF*.5);
+          const off=new THREE.Vector3(lane,0,back).applyQuaternion(Q);
+          P.set(startP.p.x+off.x,GY+.12,startP.p.z+off.z);MX.compose(P,Q,SC);gridIM.setMatrixAt(gi++,MX)}
+        gridIM.instanceMatrix.needsUpdate=true;
+        // chequered finish band across the road
+        const chk=16,chkGeo=new THREE.PlaneGeometry(CIRC_W/chk,1.4).rotateX(-Math.PI/2),chkW=addMat(new THREE.MeshBasicMaterial({color:0xf2eee6})),chkK=addMat(new THREE.MeshBasicMaterial({color:0x15140f}));
+        const cW=new THREE.InstancedMesh(chkGeo,chkW,chk*2),cK=new THREE.InstancedMesh(chkGeo,chkK,chk*2);root.add(cW,cK);let wN=0,kN=0;
+        for(let row=0;row<2;row++)for(let c=0;c<chk;c++){const lane=(c/(chk-1)-.5)*CIRC_W,fwd=row*1.5;
+          const off=new THREE.Vector3(lane,0,fwd).applyQuaternion(Q);P.set(startP.p.x+off.x,GY+.13,startP.p.z+off.z);MX.compose(P,Q,SC);
+          if((c+row)%2)cW.setMatrixAt(wN++,MX);else cK.setMatrixAt(kN++,MX)}
+        cW.count=wN;cK.count=kN;cW.instanceMatrix.needsUpdate=true;cK.instanceMatrix.needsUpdate=true});
+
+      // --- main grandstand: larger, multi-tier, opposite the pits on the start straight, + a big screen ---
+      safe(()=>{
+        const n=startP.n,sgn=1,base=HALF+20;                 // pit box sits on the other side (-n), so put the main stand on +n
+        const mx0=startP.p.x+n.x*sgn*base,mz0=startP.p.z+n.z*sgn*base,yaw=Math.atan2(startP.p.x-mx0,startP.p.z-mz0);
+        const g=new THREE.Group();g.position.set(mx0,GY,mz0);g.rotation.y=yaw;root.add(g);
+        const bodyMat=addMat(M(theme.stand)),trimMat=addMat(M(theme.standTrim)),glassMat=addMat(M(0x9db9c1)),roofMat=addMat(M(theme.stand));
+        // three stacked seating decks
+        for(let d=0;d<3;d++){const deck=new THREE.Mesh(new THREE.BoxGeometry(46,2.4,9-d*1.2),bodyMat);deck.position.set(0,2+d*3.4,-d*3.4);deck.castShadow=true;deck.receiveShadow=true;g.add(deck);
+          const band=new THREE.Mesh(new THREE.BoxGeometry(46,.6,9.3-d*1.2),trimMat);band.position.set(0,3.3+d*3.4,-d*3.4);g.add(band)}
+        // crowd on the main stand
+        const COLS=LOW?18:26,ROWS=6,cm=addMat(M(0xffffff)),cim=new THREE.InstancedMesh(new THREE.BoxGeometry(.6,.9,.55),cm,COLS*ROWS);cim.castShadow=!LOW;g.add(cim);
+        const PAL=[0xe4572e,0xf3a712,0xd9d4c6,0x2f6f9e,0x3f8a56,0xb8322f,0x5c4b8a,0xe0bd58];let ci=0;
+        for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){P.set((c/(COLS-1)-.5)*43,3.4+r*1.5,2.2-r*1.3);MX.compose(P,new THREE.Quaternion(),SC);cim.setMatrixAt(ci,MX);
+          if(cim.setColorAt)cim.setColorAt(ci,COL.setHex(PAL[(seeded()*PAL.length)|0]));ci++}
+        cim.instanceMatrix.needsUpdate=true;if(cim.instanceColor)cim.instanceColor.needsUpdate=true;
+        // cantilever roof on columns
+        const roof=new THREE.Mesh(new THREE.BoxGeometry(50,.7,16),roofMat);roof.position.set(0,15.5,-4);roof.castShadow=true;g.add(roof);
+        [-22,-7,7,22].forEach(cx0=>{const col=new THREE.Mesh(new THREE.BoxGeometry(.8,15,.8),bodyMat);col.position.set(cx0,7.5,-8.5);g.add(col)});
+        // VIP glass box under the roof
+        const vip=new THREE.Mesh(new THREE.BoxGeometry(20,3,4),glassMat);vip.position.set(0,13,-7.5);g.add(vip);
+        // big screen facing the track, bright so it reads day or night
+        safe(()=>{const scr=addMat(new THREE.MeshBasicMaterial({map:signTex('LIVE','#0a0a0a','#5cf2ff'),side:THREE.DoubleSide}));
+          const panel=new THREE.Mesh(new THREE.PlaneGeometry(13,7),scr);panel.position.set(-30,12,2.2);panel.rotation.y=-0.5;g.add(panel);
+          const frame=new THREE.Mesh(new THREE.BoxGeometry(14,8,.5),addMat(M(0x15140f)));frame.position.set(-30,12,1.9);frame.rotation.y=-0.5;g.add(frame)});
+        // sponsor band along the stand front
+        safe(()=>{const w=ADCOL[(seeded()*ADCOL.length)|0];const band=addMat(new THREE.MeshBasicMaterial({map:signTex(WORDS[(seeded()*WORDS.length)|0],'#'+w[0].toString(16).padStart(6,'0'),'#'+w[1].toString(16).padStart(6,'0')),side:THREE.DoubleSide}));
+          const b=new THREE.Mesh(new THREE.PlaneGeometry(44,2.2),band);b.position.set(0,1.4,4.6);g.add(b)});
+      });
+
+      // --- race-control / timing tower near the start, set back on the pit side ---
+      safe(()=>{
+        const n=startP.n,base=HALF+26,tx=startP.p.x-n.x*base,tz=startP.p.z-n.z*base;
+        const g=new THREE.Group();g.position.set(tx,GY,tz);g.rotation.y=Math.atan2(startP.p.x-tx,startP.p.z-tz);root.add(g);
+        const bodyMat=addMat(M(theme.stand)),glassMat=addMat(M(0x9db9c1)),winMat=addMat(new THREE.MeshBasicMaterial({color:0x2a3138}));
+        const shaft=new THREE.Mesh(new THREE.BoxGeometry(7,22,7),bodyMat);shaft.position.y=11;shaft.castShadow=true;g.add(shaft);
+        for(let f=0;f<5;f++){const band=new THREE.Mesh(new THREE.BoxGeometry(7.3,1.6,7.3),f===4?glassMat:winMat);band.position.y=4+f*4;g.add(band)}
+        const top=new THREE.Mesh(new THREE.BoxGeometry(9,3.5,9),glassMat);top.position.y=23.5;top.castShadow=true;g.add(top);
+        const ant=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,6,6),bodyMat);ant.position.y=28.5;g.add(ant);
+        // timing board facing the straight
+        safe(()=>{const scr=addMat(new THREE.MeshBasicMaterial({map:signTex('P1  1:23.4','#0a0a0a','#f3a712'),side:THREE.DoubleSide}));
+          const b=new THREE.Mesh(new THREE.PlaneGeometry(6,1.6),scr);b.position.set(0,24,4.6);g.add(b)});
+      });
+
+      // --- tyre barriers: stacked tyres on the OUTSIDE of every corner ---
+      safe(()=>{
+        const rubber=addMat(M(0x1b1a18)),cap=corners.length*22;if(!cap)return;
+        const tyreGeo=new THREE.CylinderGeometry(.75,.75,.55,10).rotateX(Math.PI/2);  // lay the tyre flat-faced toward the track
+        const im=new THREE.InstancedMesh(tyreGeo,rubber,cap);im.castShadow=!LOW;root.add(im);let k=0;
+        corners.forEach(ci=>{for(let d=-4;d<=4;d+=2){const i=(ci+d+SN)%SN,a=SA[i],s=outSide(i),off=HALF+1.6;
+          const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.tg.x,a.tg.z);Q.setFromAxisAngle(up,yaw);
+          for(let row=0;row<2&&k<cap;row++){P.set(bx,GY+.4+row*.58,bz);MX.compose(P,Q,SC);im.setMatrixAt(k++,MX)}}});
+        im.count=k;im.instanceMatrix.needsUpdate=true});
+
+      // --- Armco rail: posts + rail following the outside of the corners ---
+      safe(()=>{
+        const metal=addMat(M(0xb9bcc2)),cap=corners.length*20;if(!cap)return;
+        const railIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.2,.5,3.2),metal,cap),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.18,1.1,.18),metal,cap);
+        railIM.castShadow=!LOW;root.add(railIM,postIM);let r=0;
+        corners.forEach(ci=>{for(let d=-6;d<=6;d++){const i=(ci+d+SN)%SN,a=SA[i],s=outSide(i),off=HALF+3.2;
+          if(r>=cap)break;const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.tg.x,a.tg.z);Q.setFromAxisAngle(up,yaw);
+          P.set(bx,GY+.8,bz);MX.compose(P,Q,SC);railIM.setMatrixAt(r,MX);
+          P.set(bx,GY+.55,bz);MX.compose(P,Q,SC);postIM.setMatrixAt(r,MX);r++}});
+        railIM.count=r;postIM.count=r;railIM.instanceMatrix.needsUpdate=true;postIM.instanceMatrix.needsUpdate=true});
+
+      // --- debris fencing: posts + a faint mesh panel on the spectator side, all the way round ---
+      safe(()=>{
+        const postMat=addMat(M(0x3a3a3a)),meshMat=addMat(new THREE.MeshBasicMaterial({color:0xb9bcc2,transparent:true,opacity:.14,side:THREE.DoubleSide}));
+        const fenceN=Math.max(24,Math.round(L/16)),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,4,.16),postMat,fenceN);postIM.castShadow=!LOW;root.add(postIM);
+        const panelGeo=new THREE.PlaneGeometry(1,3.4),panelIM=new THREE.InstancedMesh(panelGeo,meshMat,fenceN);root.add(panelIM);let fn=0;
+        for(let i=0;i<fenceN;i++){const a=circAt(i/fenceN,curve),s=i%2?1:-1,off=HALF+9;
+          const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.tg.x,a.tg.z);Q.setFromAxisAngle(up,yaw);
+          P.set(bx,GY+2,bz);MX.compose(P,Q,SC);postIM.setMatrixAt(fn,MX);
+          // panel plane: default normal is +Z; rotate an extra 90deg so its WIDTH runs along the
+          // tangent (fence parallel to the track) and its normal faces the track, not across it
+          const seg=L/fenceN,Qp=new THREE.Quaternion().setFromAxisAngle(up,yaw+Math.PI/2);
+          P.set(bx,GY+2.2,bz);SC.set(seg,1,1);MX.compose(P,Qp,SC);panelIM.setMatrixAt(fn,MX);SC.set(1,1,1);fn++}
+        postIM.count=fn;panelIM.count=fn;postIM.instanceMatrix.needsUpdate=true;panelIM.instanceMatrix.needsUpdate=true});
+
+      // --- marshal posts at corners: a little booth with a bright flag ---
+      safe(()=>{
+        const booth=addMat(M(0xd9d4c6)),roofMat=addMat(M(0xb8322f)),flagMat=addMat(new THREE.MeshBasicMaterial({color:0xf3a712,side:THREE.DoubleSide}));
+        const picks=corners.slice(0,LOW?5:10);
+        picks.forEach(ci=>{const a=SA[ci],s=outSide(ci),off=HALF+6;const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.p.x-bx+a.tg.x,a.p.z-bz+a.tg.z);
+          const g=new THREE.Group();g.position.set(bx,GY,bz);g.rotation.y=Math.atan2(a.tg.x,a.tg.z);root.add(g);
+          const b=new THREE.Mesh(new THREE.BoxGeometry(2.4,2.2,1.6),booth);b.position.y=1.1;b.castShadow=!LOW;g.add(b);
+          const rf=new THREE.Mesh(new THREE.BoxGeometry(2.7,.3,1.9),roofMat);rf.position.y=2.35;g.add(rf);
+          const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,3,6),booth);pole.position.set(1.4,1.5,0);g.add(pole);
+          const fl=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.7),flagMat);fl.position.set(1.95,2.6,0);g.add(fl)})});
+
+      // --- camera towers at the hardest corners and the main straight ---
+      safe(()=>{
+        const poleMat=addMat(M(0x2a2a2a)),camMat=addMat(M(0x15140f)),lens=addMat(new THREE.MeshBasicMaterial({color:0x5cf2ff}));
+        const picks=corners.slice(0,LOW?3:6).concat([straightMid]);
+        picks.forEach(ci=>{const a=SA[ci],s=outSide(ci),off=HALF+11;const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off;
+          const g=new THREE.Group();g.position.set(bx,GY,bz);g.rotation.y=Math.atan2(a.p.x-bx,a.p.z-bz);root.add(g);
+          const pole=new THREE.Mesh(new THREE.CylinderGeometry(.14,.2,9,8),poleMat);pole.position.y=4.5;pole.castShadow=!LOW;g.add(pole);
+          const cam=new THREE.Mesh(new THREE.BoxGeometry(.9,.7,1.4),camMat);cam.position.set(0,9.2,.4);g.add(cam);
+          const l=new THREE.Mesh(new THREE.CircleGeometry(.22,10),lens);l.position.set(0,9.2,1.12);g.add(l)})});
+
+      // --- advertising hoardings around the barrier ring + on the main straight edge ---
+      safe(()=>{
+        const adN=LOW?8:14;
+        for(let i=0;i<adN;i++){safe(()=>{const w=ADCOL[(seeded()*ADCOL.length)|0],word=WORDS[(seeded()*WORDS.length)|0];
+          const mat=addMat(new THREE.MeshBasicMaterial({map:signTex(word,'#'+w[0].toString(16).padStart(6,'0'),'#'+w[1].toString(16).padStart(6,'0')),side:THREE.DoubleSide}));
+          const ang=i/adN*Math.PI*2,rr=r0-2,bx=cx+Math.cos(ang)*rr,bz=cz+Math.sin(ang)*rr;
+          const b=new THREE.Mesh(new THREE.PlaneGeometry(10,2.4),mat);b.position.set(bx,GY+1.4,bz);b.rotation.y=Math.atan2(cx-bx,cz-bz);root.add(b);
+          const legMat=addMat(M(0x3a3a3a));const leg=new THREE.Mesh(new THREE.BoxGeometry(10,.3,.3),legMat);leg.position.set(bx,GY+.25,bz);leg.rotation.y=b.rotation.y;root.add(leg)})}});
+
+      // --- sponsor bridge spanning the main straight ---
+      safe(()=>{
+        const a=SA[straightMid],s=HALF+2,legMat=addMat(M(theme.stand)),w=ADCOL[(seeded()*ADCOL.length)|0];
+        const g=new THREE.Group();g.position.copy(a.p);g.position.y=GY;g.rotation.y=Math.atan2(a.tg.x,a.tg.z);root.add(g);
+        [-1,1].forEach(sd=>{const leg=new THREE.Mesh(new THREE.BoxGeometry(1.4,9,1.4),legMat);leg.position.set(sd*s,4.5,0);leg.castShadow=!LOW;g.add(leg)});
+        const beam=new THREE.Mesh(new THREE.BoxGeometry(2*s+3,2.2,2.6),legMat);beam.position.y=9.5;beam.castShadow=!LOW;g.add(beam);
+        safe(()=>{const mat=addMat(new THREE.MeshBasicMaterial({map:signTex(WORDS[(seeded()*WORDS.length)|0],'#'+w[0].toString(16).padStart(6,'0'),'#'+w[1].toString(16).padStart(6,'0')),side:THREE.DoubleSide}));
+          const b=new THREE.Mesh(new THREE.PlaneGeometry(2*s+2,1.8),mat);b.position.set(0,9.5,1.35);g.add(b)})});
+
+      // --- outer car park: an asphalt apron dotted with parked cars, out past the stands ---
+      safe(()=>{
+        const n=startP.n,base=r0+34,px=cx+n.x*base,pz=cz+n.z*base;
+        const lotMat=addMat(M(0x2b2a27)),lot=new THREE.Mesh(new THREE.PlaneGeometry(70,46).rotateX(-Math.PI/2),lotMat);lot.position.set(px,GY+.02,pz);lot.receiveShadow=true;root.add(lot);
+        const CARS=LOW?28:54,carMat=addMat(M(0xffffff)),carIM=new THREE.InstancedMesh(new THREE.BoxGeometry(2,1.3,4.3),carMat,CARS);carIM.castShadow=!LOW;root.add(carIM);
+        const CP=[0xb8322f,0x2f6f9e,0xd9d4c6,0x3a3a3a,0xd4a83a,0x3f8a56,0xe4572e,0x8a8f98];let k=0;
+        const cols=9,rows=Math.ceil(CARS/cols);
+        for(let r=0;r<rows&&k<CARS;r++)for(let c=0;c<cols&&k<CARS;c++){const lx=(c-cols/2)*6.4,lz=(r-rows/2)*10;
+          P.set(px+lx,GY+.65,pz+lz);Q.setFromAxisAngle(up,(r%2)*Math.PI);MX.compose(P,Q,SC);carIM.setMatrixAt(k,MX);
+          if(carIM.setColorAt)carIM.setColorAt(k,COL.setHex(CP[(seeded()*CP.length)|0]));k++}
+        carIM.instanceMatrix.needsUpdate=true;if(carIM.instanceColor)carIM.instanceColor.needsUpdate=true;
+        // a short service road linking the lot back toward the venue
+        const srMat=addMat(M(0x44423c)),sr=new THREE.Mesh(new THREE.PlaneGeometry(7,40).rotateX(-Math.PI/2),srMat);
+        sr.position.set(cx+n.x*(r0+6),GY+.03,cz+n.z*(r0+6));sr.lookAt(px,GY,pz);sr.rotateX(-Math.PI/2);root.add(sr)});
     }
     circuit={curve,CN,CSAMP,root,groundBody,startP,ownedMats,theme,seed,venue:venue||{weather:'day',time:'day'}};
     return circuit}
