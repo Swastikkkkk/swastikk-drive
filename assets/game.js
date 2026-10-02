@@ -2191,8 +2191,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const ROADHALF=7;            // half road width
     const FEATHER=9;             // terrain blend-out beyond the tarmac
     function roadHeading(cfg,s){
+      // A proper straight rover road: heading stays 0, so the road runs dead straight along +Z
+      // and its corridor (carved flat by groundH) is an easy, continuous drivable strip. A whisper
+      // of curve is kept so it still reads as a road through the terrain rather than a ruler line.
       const k=cfg.seed*0.0007;
-      return Math.sin(s*0.00090+k)*0.55 + Math.sin(s*0.00031+k*2.0)*0.90 + Math.sin(s*0.00017+1.3)*0.35;
+      return Math.sin(s*0.00012+k)*0.08;
     }
     function ensureRoad(cfg,road,sMax){
       while((road.len-1)*DS < sMax+DS){
@@ -3545,7 +3548,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         const srMat=addMat(M(0x44423c)),sr=new THREE.Mesh(new THREE.PlaneGeometry(7,40).rotateX(-Math.PI/2),srMat);
         sr.position.set(cx+n.x*(r0+6),GY+.03,cz+n.z*(r0+6));sr.lookAt(px,GY,pz);sr.rotateX(-Math.PI/2);root.add(sr)});
     }
-    circuit={curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies),lights:startLightsIM,startP,ownedMats,theme,seed,venue:venue||{weather:'day',time:'day'}};
+    circuit={curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies),lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue:venue||{weather:'day',time:'day'}};
     return circuit}
   function enterCircuit(){if(!circuit)return;
     worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
@@ -3653,6 +3656,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const theme=THEMES.find(t=>t.id===scenery)||THEME_DEFAULT,venue={weather,time};
     try{localStorage.setItem('sl_venue',JSON.stringify({seed,scenery,weather,time}))}catch(e){}
     buildCircuit(pendingTrack,theme,seed,venue);closeDrawer();enterCircuit();updCircBtn();
+    // record (and, if already in a room, broadcast) this venue so friends build + race the same one
+    try{if(MP&&MP.shareVenue)MP.shareVenue({pts:pendingTrack,seed,scenery,weather,time})}catch(e){}
   }
   if(circGoEl)circGoEl.onclick=generateVenue;
   {const randomButton=$('#dcircrandom');if(randomButton)randomButton.onclick=()=>{if(circSeedEl)circSeedEl.value=String(1+Math.floor(Math.random()*2147483646))}}
@@ -3664,7 +3669,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   // element, so it would briefly enter-then-leave the circuit (with the save/restore/toast noise
   // that implies) before the drawer opened. A half-working shortcut is worse than not having one;
   // redrawing needs a page reload for now (see ROADMAP.md).
-  if(circBtn)circBtn.onclick=()=>{if(MODE==='circuit'){leaveCircuit();return}if(circuit){enterCircuit();return}openDrawer()};
+  if(circBtn)circBtn.onclick=()=>{if(MODE==='circuit'){leaveCircuit();return}
+    if(circuit){enterCircuit();try{if(MP&&MP.shareVenue&&circuit.pts)MP.shareVenue({pts:circuit.pts,seed:circuit.seed,scenery:circuit.theme.id,weather:circuit.venue.weather,time:circuit.venue.time})}catch(e){}return}
+    openDrawer()};
   {const x=$('#dcircx'),cl=$('#dcircclear');
    if(x)x.onclick=closeDrawer;
   if(cl)cl.onclick=()=>{drawPts=[];pendingTrack=null;if(circGoEl)circGoEl.disabled=true;redrawPath();if(circErrEl)circErrEl.textContent=''}}
@@ -3692,6 +3699,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     let room=null,net=null,status='off',peers=new Map(),lastSend=0,lastHi=0,lastUI=0,lastPing=0,pingSeq=0,pendingPings=new Map(),
       race={id:'',st:0,t0:0,d0:0,rp:0,lastU:0,slot:0,ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0},
         myFin=0;
+    // the shared custom venue: the host broadcasts the drawn track so everyone builds + races the
+    // SAME circuit. Because the circuit always sits at the same world offset and is seeded, every
+    // client's geometry lines up, so the existing world-space ghost poses already match on it.
+    let lastVenue=null,mpVenueKey='';
     const $$1=s=>document.querySelector(s);
     const el={btn:$$1('#droom'),panel:$$1('#dmp'),out:$$1('#dmp-out'),inn:$$1('#dmp-in'),name:$$1('#dmpname'),code:$$1('#dmpcode'),
       join:$$1('#dmpjoin'),mk:$$1('#dmpnew'),copy:$$1('#dmpcopy'),race:$$1('#dmprace'),leave:$$1('#dmpleave'),x:$$1('#dmpx'),
@@ -3805,7 +3816,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         if(P.gh){const was=P.gh;killGhost(P);P.gh=makeGhost(P.car,was.col,P.n);
           P.gh.g.position.copy(P.tp);P.gh.g.quaternion.copy(P.tq);P.gh.g.visible=was.g.visible;P.gh.tg.visible=was.tg.visible}}}
       switch(m.k){
-        case 'hi':if(!m.r)sendHi(true);syncRace(P,m);break;
+        case 'hi':if(!m.r){sendHi(true);if(lastVenue&&isHost())send(Object.assign({k:'trk'},lastVenue))}syncRace(P,m);break;
+        case 'trk':adoptVenue(m);break;
         case 's':{
           if(!Array.isArray(m.p)||!Array.isArray(m.q))return;
           const x=num(m.p[0],-1e4,1e4,0),y=num(m.p[1],-500,2000,0),z=num(m.p[2],-1e4,1e4,0);
@@ -3853,6 +3865,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     /* ----- race: a shared countdown, everyone on the grid, first round the loop wins ----- */
     function slotOf(){const a=sorted();const i=a.findIndex(m=>m.id===me.id);return i<0?0:i}
     function gridTo(slot,n){
+      // on a custom venue, grid on the circuit's own start line instead of the Earth loop
+      if(MODE==='circuit'&&circuit){const sp=circuit.startP,back=8+slot*7,lat=(slot%2?1:-1)*(CIRC_W*0.26);
+        const x=sp.p.x-sp.tg.x*back+sp.n.x*lat,z=sp.p.z-sp.tg.z*back+sp.n.z*lat;
+        PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
+        chassisB.position.set(x,sp.p.y+1.4,z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
+        chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0);chassisB.linearDamping=.01;chassisB.angularDamping=.4;
+        chassisB.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),Math.atan2(sp.tg.x,sp.tg.z));
+        veh.wheelInfos.forEach(w=>{w.suspensionLength=w.suspensionRestLength;w.deltaRotation=0});
+        for(let i=0;i<4;i++){veh.applyEngineForce(0,i);veh.setBrake(0,i)}
+        sub=0;inPond=false;steerActual=0;race.hold={x,z,q:chassisB.quaternion.clone()};
+        C.position.set(x-sp.tg.x*10,sp.p.y+5,z-sp.tg.z*10);look.set(x+sp.tg.x*6,sp.p.y+1,z+sp.tg.z*6);return}
       const lat=(slot-(n-1)/2)*3.1,u=.985;
       const q=at(u-(slot%2)*(6/LEN)),x=q.p.x+q.n.x*lat,z=q.p.z+q.n.z*lat;
       PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
@@ -3897,10 +3920,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         if(all||race.endAt&&now>race.endAt){race.st=3;ui()}return}
       if(race.st!==2)return;
       if(now-race.lastP>=100){race.lastP=now;
-        const rn=roadNear(car.position.x,car.position.z);
+        const onCirc=MODE==='circuit'&&circuit,rn=onCirc?circProg():roadNear(car.position.x,car.position.z);
         if(race.lastU<0){race.lastU=rn.u;race.d0=rn.u>.5?rn.u-1:rn.u;race.rp=0}
         else{let du=rn.u-race.lastU;if(du<-.5)du+=1;else if(du>.5)du-=1;
-          if(!rn.branch&&Math.abs(du)<.06&&rn.d<16+RWX*1.5)race.rp+=du;race.lastU=rn.u}
+          if(!rn.branch&&Math.abs(du)<.06&&rn.d<(onCirc?24:16+RWX*1.5))race.rp+=du;race.lastU=rn.u}
         if(!myFin&&race.d0+race.rp>=1){myFin=now-race.t0;race.ms=myFin;race.fins++;send({k:'fin',rid:race.id,ms:Math.round(myFin)});
           blip(880,.4,.14);setTimeout(()=>blip(1175,.5,.12),140);
           let pl=1;peers.forEach(p=>{if(p.fin&&p.fin<myFin)pl++});
@@ -4003,7 +4026,34 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      if(m)setTimeout(()=>{me.n=savedName();join(m[1])},300)}
     function carChanged(){if(room)sendHi(true)}
     mpCarNotify=carChanged;
-    return {tick,join,leave,LOG,get on(){return !!room},get state(){return {room,status,peers,race,me}},_dbg:{sorted}}
+    /* ----- shared custom venue ----- */
+    const venueKey=(pts,seed)=>seed+':'+pts.length+':'+Math.round(pts[0].x)+','+Math.round(pts[0].y);
+    function inRoom(){return !!room}
+    // called from the drawer's GO (and from re-entering a venue in a room): tell everyone the track
+    function shareVenue(cfg){try{
+      if(!cfg||!Array.isArray(cfg.pts)||cfg.pts.length<8)return;
+      lastVenue={pts:cfg.pts.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2)]),seed:cfg.seed|0,scn:cfg.scenery,wx:cfg.weather,tm:cfg.time};
+      mpVenueKey=venueKey(cfg.pts,cfg.seed|0);
+      if(room&&status==='up')send(Object.assign({k:'trk'},lastVenue));
+    }catch(e){lg('shareVenue',e&&e.message)}}
+    // received someone else's venue: build the identical circuit and drop into it
+    function adoptVenue(m){try{
+      if(!Array.isArray(m.pts)||m.pts.length<8||m.pts.length>400)return;
+      const pts=m.pts.map(a=>({x:num(a&&a[0],-1e4,1e4,0),y:num(a&&a[1],-1e4,1e4,0)}));
+      const seed=num(m.seed,1,2147483647,271828),key=venueKey(pts,seed);
+      if(key===mpVenueKey&&MODE==='circuit')return;         // already on this exact venue
+      mpVenueKey=key;lastVenue={pts:m.pts,seed,scn:m.scn,wx:m.wx,tm:m.tm};
+      const theme=THEMES.find(t=>t.id===m.scn)||THEME_DEFAULT;
+      const weather=WEATHERS.some(w=>w.id===m.wx)?m.wx:'day';
+      const time=['day','dusk','sunset','night'].indexOf(m.tm)>=0?m.tm:'day';
+      buildCircuit(pts,theme,seed,{weather,time});enterCircuit();
+      toast2('Joined the room venue');
+    }catch(e){lg('adoptVenue',e&&e.message)}}
+    // single-lap progress (0..1) around the custom circuit, for the race finish line
+    function circProg(){const S=circuit;if(!S)return{u:0,d:999,branch:false};
+      const {CSAMP,CN}=S;let b=1e9,bi=0;for(let i=0;i<CN;i++){const dx=CSAMP[i].x-car.position.x,dz=CSAMP[i].z-car.position.z,d=dx*dx+dz*dz;if(d<b){b=d;bi=i}}
+      return{u:bi/CN,d:Math.sqrt(b),branch:false}}
+    return {tick,join,leave,LOG,shareVenue,inRoom,get on(){return !!room},get state(){return {room,status,peers,race,me}},_dbg:{sorted}}
   })();
   /* ---------- go ---------- */
   function resize(){W=sec.clientWidth;H=sec.clientHeight;R.setPixelRatio(DPR());R.setSize(W,H,false);C.aspect=W/H;C.updateProjectionMatrix();if(sun.shadow)sun.shadow.needsUpdate=true}addEventListener('resize',resize);
