@@ -2450,11 +2450,11 @@ const PLANETS={
     }
     // terrain height with a flattened, drivable road corridor carved into it
     function groundH(cfg,road,x,z,sHint){
-      const base=surfaceH(cfg,x,z);
-      if(!isFinite(base)) return 0;
+      let base=surfaceH(cfg,x,z);
+      if(!isFinite(base)) base=0;
       const nr=nearestRoad(cfg,road,x,z,sHint);
       if(nr.d<ROADHALF+FEATHER){
-        const corridor=surfaceH(cfg,nr.cx,nr.cz);
+        let corridor=surfaceH(cfg,nr.cx,nr.cz);
         if(!isFinite(corridor)) return base;
         const t=nr.d<ROADHALF?0:(nr.d-ROADHALF)/FEATHER;
         const k=t*t*(3-2*t);                 // smoothstep blend back to open terrain
@@ -2664,7 +2664,8 @@ const PLANETS={
       if(S.rocks){ const span=GRID*TILE; let seed=(Math.abs(((pcx*73856093)^(pcz*19349663)))%2147483647)||1; const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
         const rdm=new THREE.Matrix4(),rpv=new THREE.Vector3(),rqv=new THREE.Quaternion(),rsv=new THREE.Vector3(),ry0=new THREE.Vector3(0,1,0);
         for(let i=0;i<S.ROCKN;i++){ const rx=S.pos.x+(rnd()-0.5)*span, rz=S.pos.z+(rnd()-0.5)*span; const nr=nearestRoad(cfg,S.road,rx,rz,S.s); const sz=0.6+Math.pow(rnd(),3)*7.5;
-          const ryv=(nr.d<10)?-9999:groundH(cfg,S.road,rx,rz,S.s)+sz*0.3; rpv.set(rx,ryv,rz); rqv.setFromAxisAngle(ry0,rnd()*6.283); rsv.set(sz,sz*(0.55+rnd()*0.7),sz*(0.7+rnd()*0.5)); rdm.compose(rpv,rqv,rsv); S.rocks.setMatrixAt(i,rdm); }
+          let ryv=(nr.d<10)?-9999:groundH(cfg,S.road,rx,rz,S.s)+sz*0.3; if(!isFinite(ryv)) ryv=0;
+          rpv.set(rx,ryv,rz); rqv.setFromAxisAngle(ry0,rnd()*6.283); rsv.set(sz,sz*(0.55+rnd()*0.7),sz*(0.7+rnd()*0.5)); rdm.compose(rpv,rqv,rsv); S.rocks.setMatrixAt(i,rdm); }
         S.rocks.instanceMatrix.needsUpdate=true; }
     }
 
@@ -2678,7 +2679,8 @@ const PLANETS={
       const verts=[], idx=[]; let row=0;
       for(let s=s0;s<=s1;s+=step){
         const r=roadAt(cfg,S.road,s);
-        const yC=groundH(cfg,S.road,r.x,r.z,S.s)+0.18;
+        let yC=groundH(cfg,S.road,r.x,r.z,S.s)+0.18;
+        if(!isFinite(yC)) yC=0;
         verts.push(r.x+r.nx*ROADHALF, yC, r.z+r.nz*ROADHALF);
         verts.push(r.x-r.nx*ROADHALF, yC, r.z-r.nz*ROADHALF);
         if(row>0){const b=(row-1)*2;idx.push(b,b+1,b+2, b+1,b+3,b+2);}
@@ -2690,7 +2692,8 @@ const PLANETS={
       if(S.stripeGeo){ const sv=[], sidx=[]; let q=0;
         for(let s=Math.ceil(s0/9)*9; s<=s1; s+=9){ if((((s/9)|0)%2)) continue;
           const a=roadAt(cfg,S.road,s), bq=roadAt(cfg,S.road,s+4.5), hw=0.5;
-          const ya=groundH(cfg,S.road,a.x,a.z,S.s)+0.24, yb=groundH(cfg,S.road,bq.x,bq.z,S.s)+0.24;
+          let ya=groundH(cfg,S.road,a.x,a.z,S.s)+0.24, yb=groundH(cfg,S.road,bq.x,bq.z,S.s)+0.24;
+          if(!isFinite(ya)) ya=0; if(!isFinite(yb)) yb=0;
           sv.push(a.x+a.nx*hw,ya,a.z+a.nz*hw, a.x-a.nx*hw,ya,a.z-a.nz*hw, bq.x+bq.nx*hw,yb,bq.z+bq.nz*hw, bq.x-bq.nx*hw,yb,bq.z-bq.nz*hw);
           const b=q*4; sidx.push(b,b+1,b+2, b+1,b+3,b+2); q++; }
         S.stripeGeo.setAttribute('position',new THREE.Float32BufferAttribute(sv,3)); S.stripeGeo.setIndex(sidx); S.stripeGeo.computeVertexNormals(); }
@@ -2700,7 +2703,8 @@ const PLANETS={
       for(let s=start;s<=s1 && n<40;s+=80){
         const r=roadAt(cfg,S.road,s), side=((s/80)|0)%2?1:-1;
         const x=r.x+r.nx*(ROADHALF+1)*side, z=r.z+r.nz*(ROADHALF+1)*side;
-        rp.set(x,groundH(cfg,S.road,x,z,S.s)+0.5,z); dm.compose(rp,rq,rs); S.refl.setMatrixAt(n++,dm);
+        let y=groundH(cfg,S.road,x,z,S.s)+0.5; if(!isFinite(y)) y=0;
+        rp.set(x,y,z); dm.compose(rp,rq,rs); S.refl.setMatrixAt(n++,dm);
       }
       for(;n<40;n++){rp.set(0,-9999,0);dm.compose(rp,rq,rs);S.refl.setMatrixAt(n,dm);}
       S.refl.instanceMatrix.needsUpdate=true;
