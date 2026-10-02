@@ -3879,7 +3879,7 @@ updCircBtn();
   if(saved){if(circSeedEl)circSeedEl.value=String(saved.seed||271828);const scenery=$('#dcircscenery'),weather=$('#dcircweather'),time=$('#dcirctime');
     if(scenery&&scenery.querySelector('option[value="'+saved.scenery+'"]'))scenery.value=saved.scenery;
     if(weather&&weather.querySelector('option[value="'+saved.weather+'"]'))weather.value=saved.weather;
-    if(time&&time.querySelector('option[value="'+saved.time+'"]'))time.value=saved.time}}
+    if(time&&time.querySelector('option[value="'+saved.time+'"]'))time.value=saved.time;}
   {
     const smoothBtn=$('#dcircsmooth');
     if(smoothBtn)smoothBtn.onclick=()=>{
