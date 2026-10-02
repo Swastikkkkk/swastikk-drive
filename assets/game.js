@@ -1527,8 +1527,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     PCAR.g.position.y=.05-(V.rest-.07)-V.r;vis.bodyIn.add(PCAR.g);
     if(cubeRT)PCAR.g.traverse(m=>{if(m.material&&m.material.reflectivity!==undefined){m.material.envMap=cubeRT.texture;m.material.needsUpdate=true}});
     wv.car.forEach(k=>vis.car.remove(k.w));
-    const wheelWd = spec.type==='bike'?0.18:spec.type==='f1'?0.46:spec.type==='suv'?0.42:0.36;
-    wv={car:[0,1,2,3].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};wv.car.forEach(k=>vis.car.add(k.w));
+    if(spec.type==='bike'){
+      const wheelWd = 0.18;
+      wv={car:[0,1].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
+    }else{
+      const wheelWd = spec.type==='bike'?0.18:spec.type==='f1'?0.46:spec.type==='suv'?0.42:0.36;
+      wv={car:[0,1,2,3].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
+    }
+    wv.car.forEach(k=>vis.car.add(k.w));
     if(carShadow){carShadow.position.y=.05-(V.rest-.07)-.02;carShadow.scale.z=(spec.F-spec.B)/GARAGE_BASE_LEN}
     try{localStorage.setItem('sl_car',JSON.stringify({id:spec.id,paint:paintHex}))}catch(e){}
     if(mpCarNotify)mpCarNotify();
@@ -2027,20 +2033,23 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
          block runs sixty times a second, and the version that allocated a dozen Vec3s
          and two arrays per frame handed the collector a steady drip of garbage for no
          reason — which is exactly the kind of thing that shows up as stutter. */
-      {const wi=veh.wheelInfos,STATIC=chassisB.mass*Math.abs(world.gravity.y)/4;
+      {const wi=veh.wheelInfos;
+    const isBike=V.label==='Phantom Bike';
+    const wheelCount=isBike?2:4;
+    const STATIC=chassisB.mass*Math.abs(world.gravity.y)/wheelCount;
        UPV.set(0,1,0);chassisB.quaternion.vmult(UPV,bodyUp);
-       for(let i=0;i<wi.length;i++){const w=wi[i],rest=w.suspensionRestLength||1;
+       for(let i=0;i<wheelCount;i++){const w=wi[i],rest=w.suspensionRestLength||1;
          const sf=+w.suspensionForce;
          wLoad[i]=w.isInContact&&isFinite(sf)?Math.max(0,sf):0;
          wComp[i]=w.isInContact?Math.max(0,Math.min(1,w.suspensionLength/rest)):1}
-       // anti-roll bars — front axle is wheels 0/1, rear is 2/3. Unrolled, so no closure per frame.
-       if(!inPond)for(let ax=0;ax<2;ax++){
-         const l=ax*2,r=l+1,k=ax?ARB_R:ARB_F;
-         // both wheels on the axle have to be down, or landing off a ramp gets jumpy
-         if(!wi[l].isInContact||!wi[r].isInContact||!wi[l].raycastResult||!wi[r].raycastResult)continue;
-         const fN=(wComp[l]-wComp[r])*k;if(!isFinite(fN)||Math.abs(fN)<1)continue;
-         bodyUp.scale(-fN,fScratch);chassisB.applyForce(fScratch,wi[l].raycastResult.hitPointWorld);
-         bodyUp.scale(fN,fScratch);chassisB.applyForce(fScratch,wi[r].raycastResult.hitPointWorld)}
+// anti-roll bars — front axle is wheels 0/1, rear is 2/3. Unrolled, so no closure per frame.
+        if(!inPond && !isBike)for(let ax=0;ax<2;ax++){
+          const l=ax*2,r=l+1,k=ax?ARB_R:ARB_F;
+          // both wheels on the axle have to be down, or landing off a ramp gets jumpy
+          if(!wi[l].isInContact||!wi[r].isInContact||!wi[l].raycastResult||!wi[r].raycastResult)continue;
+          const fN=(wComp[l]-wComp[r])*k;if(!isFinite(fN)||Math.abs(fN)<1)continue;
+          bodyUp.scale(-fN,fScratch);chassisB.applyForce(fScratch,wi[l].raycastResult.hitPointWorld);
+          bodyUp.scale(fN,fScratch);chassisB.applyForce(fScratch,wi[r].raycastResult.hitPointWorld)}
        /* Aero is drag only, applied at the centre of mass so it cannot pitch the car.
           Downforce was tried and thrown out: on springs this soft it squashed the
           suspension until the floor grounded out, which cost half the top speed and
@@ -2054,15 +2063,43 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
        lvScratch.copy(chassisB.velocity);chassisB.quaternion.conjugate(qScratch);qScratch.vmult(lvScratch,lvScratch);
        const lateral=Math.min(1,Math.abs(lvScratch.x)/8),rearGrip=key.h?.58:1,
              grip=V.slip*wx.slip*(1-sub*.72)*(1+gradeNow*.55)*(1+lateral*.22);
-       for(let i=0;i<wi.length;i++){
+       for(let i=0;i<wheelCount;i++){
          // load sensitivity: grip climbs with load, but slower than the load does
          const lr=STATIC>0?wLoad[i]/STATIC:1;
          const ls=wi[i].isInContact?Math.max(.4,Math.pow(Math.min(LOAD_CAP,lr),LOAD_EXP)):1;
          wi[i].frictionSlip=grip*(i>1?rearGrip:1)*(isFinite(ls)?ls:1)}
        // nothing above is allowed to hand the solver a NaN — that is what used to launch the car
-       const F=chassisB.force,T=chassisB.torque;
-       if(!isFinite(F.x)||!isFinite(F.y)||!isFinite(F.z))F.set(0,0,0);
-       if(!isFinite(T.x)||!isFinite(T.y)||!isFinite(T.z))T.set(0,0,0)}
+const F=chassisB.force,T=chassisB.torque;
+        if(!isFinite(F.x)||!isFinite(F.y)||!isFinite(F.z))F.set(0,0,0);
+        if(!isFinite(T.x)||!isFinite(T.y)||!isFinite(T.z))T.set(0,0,0)}
+  }
+  /* ---------- bike-specific lean steering physics ---------- */
+  if(V.label==='Phantom Bike'){
+    const wi=veh.wheelInfos;
+    const speed=Math.hypot(chassisB.velocity.x,chassisB.velocity.z);
+    if(speed>1){
+      const leanInput=(key.l?1:0)-(key.r?1:0);
+      const leanAngle=leanInput*0.4*Math.min(1,speed/40);
+      const yaw=chassisB.quaternion.y;
+      const leanQuat=new CANNON.Quaternion();
+      leanQuat.setFromAxisAngle(new CANNON.Vec3(0,0,1),leanAngle);
+      const targetQuat=new CANNON.Quaternion();
+      targetQuat.copy(chassisB.quaternion);
+      targetQuat.mult(leanQuat,targetQuat);
+      chassisB.quaternion.slerp(targetQuat,0.15);
+      // counter-steering: front wheel turns opposite to lean at low speed
+      const steerAngle=-leanAngle*0.3*(1-Math.min(1,speed/30));
+      if(wi[0]&&wi[1]){
+        wi[0].steering=steerAngle;
+        wi[1].steering=steerAngle;
+      }
+      // reduce lean at low speed
+      if(speed<5){
+        const uprightQuat=new CANNON.Quaternion().setFromAxisAngle(new CANNON.Vec3(0,0,1),0);
+        chassisB.quaternion.slerp(uprightQuat,0.05);
+      }
+    }
+  }
   }
   world.addEventListener('preStep',()=>{PREV.p.copy(chassisB.position);PREV.q.copy(chassisB.quaternion);PREV.ok=true;
     if(active&&driving)physStep(PSTEP)});
@@ -3246,7 +3283,9 @@ const PLANETS={
     waterNorm.offset.set(now/26000,now/17000);
     // wheels
     const wi=veh.wheelInfos,wl=wv.car;
-    wl.forEach((k,i)=>{const c=wi[i].chassisConnectionPointLocal;k.w.position.set(c.x*.9,.05-wi[i].suspensionLength,c.z);k.w.rotation.set(0,i<2?wi[i].steering:0,0);k.spin.rotation.x=wi[i].rotation});
+    const isBike=V.label==='Phantom Bike';
+    const visualWheelCount=isBike?2:4;
+    wl.forEach((k,i)=>{if(i>=visualWheelCount)return;const c=wi[i].chassisConnectionPointLocal;k.w.position.set(c.x*.9,.05-wi[i].suspensionLength,c.z);k.w.rotation.set(0,i<2?wi[i].steering:0,0);k.spin.rotation.x=wi[i].rotation});
     if(active&&MP.on)MP.tick(now,dt);
     if(frameN%10===0){const ni=Math.max(0,Math.min(1.8,(.85-sun.intensity)*3.2));if(carHL)carHL.intensity=ni;headM.emissiveIntensity=1+ni*.5;npcHeadM.emissiveIntensity=.9+ni*.6;if(beams){const o=Math.min(.5,ni*.3);beams.m.opacity=o;beams.list.forEach(b=>b.visible=o>.02)};CLOUDM.opacity=.2+.6*Math.min(1,sun.intensity)}
     if(active)for(let i=0;i<dyn.length;i++){const d=dyn[i];if(d.body.sleepState===2&&frameN%30)continue;d.mesh.position.copy(d.body.position);d.mesh.quaternion.copy(d.body.quaternion);if(d.body.position.y<-5){d.body.position.copy(d.home);d.body.quaternion.copy(d.q);d.body.velocity.set(0,0,0);d.body.angularVelocity.set(0,0,0)}}
