@@ -2451,9 +2451,11 @@ const PLANETS={
     // terrain height with a flattened, drivable road corridor carved into it
     function groundH(cfg,road,x,z,sHint){
       const base=surfaceH(cfg,x,z);
+      if(!isFinite(base)) return 0;
       const nr=nearestRoad(cfg,road,x,z,sHint);
       if(nr.d<ROADHALF+FEATHER){
         const corridor=surfaceH(cfg,nr.cx,nr.cz);
+        if(!isFinite(corridor)) return base;
         const t=nr.d<ROADHALF?0:(nr.d-ROADHALF)/FEATHER;
         const k=t*t*(3-2*t);                 // smoothstep blend back to open terrain
         return corridor+(base-corridor)*k;
@@ -2651,7 +2653,8 @@ const PLANETS={
         const pos=mesh.geometry.attributes.position, col=mesh.geometry.attributes.color, gr=cfg.ground;
         for(let v=0;v<pos.count;v++){
           const wx=ox+pos.getX(v), wz=oz+pos.getZ(v);
-          const y=groundH(cfg,S.road,wx,wz,S.s);
+          let y=groundH(cfg,S.road,wx,wz,S.s);
+          if(!isFinite(y)) y=0;
           pos.setY(v,y);
           const shade=1+ (noise2(wx*0.05,wz*0.05)-0.5)*cfg.groundNoise + Math.max(0,y)*0.002;
           col.setXYZ(v, gr[0]*shade, gr[1]*shade, gr[2]*shade);
