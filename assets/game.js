@@ -1629,7 +1629,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return {drag:d,fog:f,tint:[t0,t1,t2]}}
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
-  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dcustom-tracks')&&$('#dcustom-tracks').classList.contains('on'))$('#dcustom-tracks').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -3796,14 +3796,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const modal=$('#dcustom-tracks');
       if(modal){modal.classList.add('on');refreshCustomTracksUI()}
     };
-    const mgrClose=$('#dtrkclose');
+    const mgrClose=$('#dcustomx')||$('#dtrkclose');
     if(mgrClose)mgrClose.onclick=()=>{
       const modal=$('#dcustom-tracks');
       if(modal)modal.classList.remove('on');
     };
-    const impBtn=$('#dtrkimport');
+    const impBtn=$('#dtrkcodebtn')||$('#dtrkimport');
     if(impBtn)impBtn.onclick=()=>{
-      const codeInput=$('#dtrkimportcode');
+      const codeInput=$('#dtrkcodein')||$('#dtrkimportcode');
       const code=codeInput?codeInput.value.trim():'';
       if(code&&window.TrackEditor&&window.TrackEditor.importTrackCode){
         if(window.TrackEditor.importTrackCode(code)){
@@ -3816,6 +3816,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
             generateVenue();
           }
         }else toastMsg('Invalid track code');
+      } else if(code) {
+        toastMsg('Track code format not supported');
       }
     };
     const modeDraw=$('#dcircmodedraw'),modeEdit=$('#dcircmodeedit'),modeObs=$('#dcircmodeobs');
