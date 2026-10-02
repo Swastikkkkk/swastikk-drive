@@ -3106,6 +3106,7 @@ const PLANETS={
         }
         honk(!!key.horn);
       }else{if(AC&&SND){const T=AC.currentTime;[SND.mG,SND.rG,SND.gG,SND.wG,SND.sG].forEach(g=>g.gain.setTargetAtTime(0,T,.06))}honk(false)}
+    }
     {const cp=chassisB.position,pp=PREV.p,dx=cp.x-pp.x,dy=cp.y-pp.y,dz=cp.z-pp.z;
      if(active&&driving&&PREV.ok&&dx*dx+dy*dy+dz*dz<36){const a=Math.min(1,physAcc/PSTEP);
        car.position.set(pp.x+dx*a,pp.y+dy*a,pp.z+dz*a);
