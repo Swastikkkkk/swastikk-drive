@@ -1148,6 +1148,7 @@ async function submitToLeaderboard(ms,vehicle){
     if(acPosHistory.length>600)acPosHistory.shift();
     if(acInputHistory.length>600)acInputHistory.shift();
   }
+  window.recordAntiCheatState = recordAntiCheatState;
   function validateAntiCheat(){
     if(!active||!driving||!acLastValidPos)return;
     const now=performance.now();
@@ -1298,6 +1299,7 @@ async function submitToLeaderboard(ms,vehicle){
     if(detail){const cg=new THREE.Group();cg.scale.x=sx;w.add(cg);
       const c=new THREE.Mesh(new THREE.TorusGeometry(rr*.66,.055,6,10,1.1).rotateY(Math.PI/2),calM);c.scale.set(1.6,1,1);c.rotation.x=-.2;c.position.set(wd*.12,0,0);cg.add(c)}
     return {w,spin}}
+  window.makeWheel = makeWheel;
   /* o: paint, roof (colour or null), r wheel radius, zf/zb axle z, F/B nose and tail z, W width, xw/ww wheel track and width, wagon, head/tail materials, wheels */
   function buildCar(o){const g=new THREE.Group(),body=new THREE.Group();g.add(body);
     const {r,zf,zb,F,B,W}=o,A=r+.13,rc=r,sill=.27,belt=.9;
@@ -1463,6 +1465,8 @@ async function submitToLeaderboard(ms,vehicle){
     {const pl=new THREE.Mesh(new THREE.BoxGeometry(.52,.12,.012),plateM);pl.position.set(0,.62,B-.014);body.add(pl)}
     bakeGroup(body);
     return {g,body,wheels:[],tail:tailM2,paint,rev:revM}}
+  window.buildCar = buildCar;
+  window.buildEV = buildEV;
   /* ---------- traffic: other cars actually driving the loop ---------- */
   const traffic=[];
   const TRAFFIC_COLORS=[0x1f3b73,0xb9bcbf,0x1b1b1d,0xe8e6e0,0x2e4a3a,0x6e1a1c,0xc4bca6];
