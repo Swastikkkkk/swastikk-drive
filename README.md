@@ -22,7 +22,7 @@ Cars cost 150–600 coins. The Garage shows "Buy · price" on anything you haven
 
 ## Draw your own track
 
-Open Menu, then "Draw track". Freehand-draw a closed loop on the screen; it gets checked (does it close up, does it cross itself, is any corner too sharp) and, if it's valid, built into a real drivable track — asphalt, a bit of scenery around it, lap counting — somewhere off on its own away from the main map. The same button becomes "Go to track" once you have one, and "Back to world" while you're on it. There's currently no way to replace a circuit once you've drawn one without reloading the page, and no AI, checkpoints, or saved-circuits list yet — see `ROADMAP.md` if you want the full state of this feature.
+Open Menu, then "Draw track". Freehand-draw a closed loop on the screen; it gets checked (does it close up, does it cross itself, is any corner too sharp) and, if it's valid, built into a real drivable track — asphalt, a bit of scenery around it, lap counting — somewhere off on its own away from the main map. The same button becomes "Go to track" once you have one, and "Back to world" while you're on it. The **Laps** option (1, 2, 3, 5 or 10) in the draw panel is the race's lap count. Pressing GO on your own starts a real race on the circuit: grid, start lights, then exactly that many laps. The lap counter only advances when you drive through every checkpoint gate in order and in the right direction and then cross the start/finish line; skipping a gate, cutting across, reversing over the line or an impossibly fast lap are not counted, and driving the wrong way shows WRONG WAY. In a room, the host's lap setting is the one that applies and it is frozen once the countdown starts. See `ROADMAP.md` for what is still missing (saved-circuit list, etc.).
 
 ## Controls
 
@@ -40,6 +40,10 @@ Open Menu, then "Draw track". Freehand-draw a closed loop on the screen; it gets
 | R | reset the car |
 
 On a phone it shows on-screen steering, gas, brake and boost. Landscape works best.
+
+### Phone as a controller
+
+In a room, every player (host or guest) has **Connect phone** in the room panel. It shows that player's own QR code; the link carries the room, the player id and a random secret token made for that player, and the game only obeys phone packets that match all three, so one phone can only ever drive its own player. The panel shows WAITING FOR PHONE / CONNECTED / CONTROLLER DISCONNECTED, the keyboard keeps working, and if the phone stops sending for a second its input goes neutral so the throttle never sticks.
 
 ## Racing friends
 

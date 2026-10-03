@@ -15,7 +15,8 @@
     isControllerMode: false,
     activeConnection: false,
     lastReceivedTime: 0,
-    timeoutMs: 2500,
+    timeoutMs: 1000,        // phone stops talking -> input goes neutral after 1 s, so throttle never sticks
+    everConnected: false,
     currentInput: {
       f: 0, b: 0, l: 0, r: 0, h: 0, boost: 0, horn: 0, cam: 0, reset: 0, steerAnalog: 0
     },
@@ -30,7 +31,8 @@
       var isCtrl = params.get('controller') === 'true' || params.get('ctrl') === '1';
       var room = (params.get('room') || '').toUpperCase().trim();
       var token = params.get('token') || ('c-' + Math.random().toString(36).substr(2, 6));
-      this.target = params.get('to') || '';   // id of the laptop this phone drives
+      this.target = params.get('to') || '';   // id of the player (laptop) this phone drives
+      this.playerName = (params.get('pn') || '').slice(0, 14);
 
       this.isControllerMode = isCtrl;
       this.roomCode = room;
@@ -45,9 +47,17 @@
     // RECEIVER (PC GAME SIDE)
     // ----------------------------------------------------
     onControllerInput: function(input) {
+      // never trust the wire: copy only known fields, coerce to numbers and clamp
+      var n = function(v, lo, hi) { v = +v; return isFinite(v) ? Math.max(lo, Math.min(hi, v)) : 0; };
+      input = input || {};
       this.lastReceivedTime = performance.now();
       this.activeConnection = true;
-      this.currentInput = input;
+      this.everConnected = true;
+      this.currentInput = {
+        f: n(input.f, 0, 1), b: n(input.b, 0, 1), l: n(input.l, 0, 1), r: n(input.r, 0, 1), h: n(input.h, 0, 1),
+        boost: n(input.boost, 0, 1), horn: n(input.horn, 0, 1), cam: n(input.cam, 0, 1), reset: n(input.reset, 0, 1),
+        steerAnalog: n(input.steerAnalog, -1, 1)
+      };
     },
 
     isPhoneConnected: function() {
@@ -104,7 +114,8 @@
       // Header
       var header = document.createElement('div');
       header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:rgba(255,255,255,0.06);border-radius:10px;font-size:12px;font-family:monospace;letter-spacing:0.1em;';
-      header.innerHTML = '<div>ROOM: <b id="c-room" style="color:#f2eee6;font-size:15px;">' + (room || 'NO ROOM') + '</b></div><div id="c-status" style="color:#d4a83a;">CONNECTING...</div>';
+      var esc = function(t) { return String(t).replace(/[&<>"]/g, function(c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); };
+      header.innerHTML = '<div>ROOM: <b id="c-room" style="color:#f2eee6;font-size:15px;">' + esc(room || 'NO ROOM') + '</b>' + (PhoneController.playerName ? ' &middot; PLAYER: <b style="color:#f2eee6">' + esc(PhoneController.playerName) + '</b>' : '') + '</div><div id="c-status" style="color:#d4a83a;">CONNECTING...</div>';
       container.appendChild(header);
 
       // Status Bar & Tilt controls
@@ -187,7 +198,7 @@
             if (m.event === 'phx_reply' && m.payload && m.payload.status === 'ok') {
               joined = true;
               statusEl.style.color = '#3f8a56';
-              statusEl.textContent = PhoneController.target ? 'CONNECTED' : 'RESCAN QR ON LAPTOP';
+              statusEl.textContent = (PhoneController.target && token) ? 'CONNECTED' : 'RESCAN QR ON LAPTOP';
               // Send initial handshake
               sendInput();
             }
@@ -196,8 +207,9 @@
 
         ws.onclose = function() {
           joined = false;
+          try { ws.onclose = null; } catch (_) {}
           statusEl.style.color = '#ff3b30';
-          statusEl.textContent = 'DISCONNECTED';
+          statusEl.textContent = 'CONTROLLER DISCONNECTED · RECONNECTING';
           setTimeout(connect, 2000);
         };
       }
@@ -273,7 +285,7 @@
       // Gyroscope / Device Orientation Steering
       var tiltBtn = document.getElementById('btn-tilt');
       var calibBtn = document.getElementById('btn-calib');
-      var steerCluster = document.getElementById('steer-cluster');
+      var steerCluster = document.getElementById('c-steer');
       var tiltActive = false;
       var tiltCenter = 0;
 

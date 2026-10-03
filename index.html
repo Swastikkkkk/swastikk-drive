@@ -394,6 +394,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
       <label>Scenery<select id="dcircscenery"><option value="meadow">Lush green</option><option value="mountain">Mountain</option><option value="desert">Desert</option><option value="coastal">Coastal</option><option value="forest">Forest</option><option value="alpine">Alpine</option><option value="tropical">Tropical</option><option value="rocky">Rocky</option><option value="autumn">Autumn</option><option value="snow">Snow</option><option value="volcanic">Volcanic</option><option value="night">Night</option></select></label>
       <label>Obstacle<select id="dcircobstype"><option value="speed_breaker">Speed breaker</option><option value="blocker">Roadblock</option><option value="ramp">Jump ramp</option></select></label>
       <label>Road width<select id="dcircwidth"><option value="12">Narrow (12 m)</option><option value="16" selected>Standard (16 m)</option><option value="20">Wide (20 m)</option><option value="24">Super-wide (24 m)</option></select></label>
+      <label>Laps<select id="dcirclaps"><option value="1">1 lap</option><option value="2">2 laps</option><option value="3" selected>3 laps</option><option value="5">5 laps</option><option value="10">10 laps</option></select></label>
       <label>Weather<select id="dcircweather"><option value="day">Clear</option><option value="rain">Rain</option><option value="storm">Storm</option><option value="fog">Fog</option><option value="snow">Light snow</option><option value="blizzard">Heavy snow</option><option value="sand">Sandstorm</option></select></label>
       <label>Time<select id="dcirctime"><option value="day">Morning</option><option value="dusk">Dawn</option><option value="sunset">Sunset</option><option value="night">Night</option></select></label>
       <label>Seed<input id="dcircseed" type="number" min="1" max="2147483647" value="271828" inputmode="numeric"></label>
@@ -470,7 +471,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
         <button id="dmprace" class="dbtn mono">Start race</button>
         <button id="dmpcopy" class="dbtn mono">Copy link</button>
         
-        <button id="dmpphone" class="dbtn mono">Phone Controller QR</button>
+        <button id="dmpphone" class="dbtn mono">Connect phone</button><span id="dmpphonest" class="mono" style="align-self:center;font-size:11px;color:var(--bone)"></span>
       </div>
 
       <div id="dmpracestatus" aria-live="polite"></div>
