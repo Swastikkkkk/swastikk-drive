@@ -1005,7 +1005,25 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     toastMsg((isBest?'New best lap · ':'Lap · ')+fmtT(ms)+' · +'+reward+' coins');
     if(ms<LAP_TARGET)missSet('lap',1);
     lapB.textContent='Best '+fmtT(bestMs);
-    setTimeout(()=>lapEl.classList.remove('best'),2600)}
+    setTimeout(()=>lapEl.classList.remove('best'),2600);
+    // submit to global leaderboard
+    submitToLeaderboard(ms,V.label);
+}
+async function submitToLeaderboard(ms,vehicle){
+    const name=localStorage.getItem('sl_name')||'Anon';
+    const entry={n:name,ms,veh:vehicle,at:Date.now()};
+    try{
+      const res=await fetch('https://oceaylrebzflgyxfjqfb.supabase.co/rest/v1/leaderboard',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'apikey':'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs',
+          'Authorization':'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'
+        },
+        body:JSON.stringify(entry)
+      });
+      if(res.ok)toastMsg('Time uploaded to global leaderboard!');
+    }catch(e){console.warn('Leaderboard submit failed:',e)}
   /* ---------- start / finish gantry ---------- */
   (function(){const {p,ry,n}=at(0);
     // painted line
