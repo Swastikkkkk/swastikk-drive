@@ -2368,7 +2368,7 @@ t.bd.position.set(x,y+.86,z);
            const dg=Math.min(chassisB.mass*8,vs*vs*AERO_DRAG);
            fScratch.set(-vv.x/vs*dg,0,-vv.z/vs*dg);chassisB.applyForce(fScratch,chassisB.position)}}
        lvScratch.copy(chassisB.velocity);chassisB.quaternion.conjugate(qScratch);qScratch.vmult(lvScratch,lvScratch);
-const lateral=Math.min(1,Math.abs(lvScratch.x)/8),
+let lateral=Math.min(1,Math.abs(lvScratch.x)/8),
       rearGrip=key.h?.58:1,
       // weather effects on grip
       weatherGripMult=wx.slip,
