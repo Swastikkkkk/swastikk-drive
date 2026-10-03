@@ -1042,6 +1042,7 @@ async function submitToLeaderboard(ms,vehicle){
       });
       if(res.ok)toastMsg('Time uploaded to global leaderboard!');
     }catch(e){console.warn('Leaderboard submit failed:',e)}
+  }
   /* ---------- start / finish gantry ---------- */
   (function(){const {p,ry,n}=at(0);
     // painted line
@@ -1516,7 +1517,6 @@ t.bd.position.set(x,y+.86,z);
       t.bd.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),yaw);
       t.bd.velocity.set(tg.x*t.spd,0,tg.z*t.spd);
       t.bd.aabbNeedsUpdate=true}}
-  }
   /* ---------- AI Racing Traffic ---------- */
   const aiRacers=[];
   const AI_COUNT=4;
