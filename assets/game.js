@@ -3850,6 +3850,7 @@ const PLANETS={
             earnCoins(10);
             toastMsg('Lap '+circLap+' · '+fmtT(t)+' · +10 coins')}
           circU0=u}
+        if(frameN%45===0&&circuit.hazeTo)circuit.hazeTo(S.fog.color);   // follow weather/time-of-day fog changes
         if(frameN%20===0)hint.textContent='Circuit · lap '+(circLap+1)+(circBest?' · best '+fmtT(circBest):'')+' · Track button to leave'}
       CAI.update(dt,now);
       if(window.RaceEngine && window.RaceEngine.active){
@@ -4117,7 +4118,9 @@ const PLANETS={
     /* the light of the current stretch. Captured once the weather has set its own values, then pulled
        toward whatever band of the loop the car is in. */
     {const z=ZN,e=.08;
-     S.fog.far+=(fogFar0*z.fog-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,z.fog)-S.fog.near)*e;
+     // a custom venue is open ground out to the mountains, so clear weather there gets a much longer view than the tight valley map
+     const fk=MODE==='circuit'&&fogFar0>=200?3.6:1,fn=fk>1?2.4:1;
+     S.fog.far+=(fogFar0*z.fog*fk-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,z.fog)*fn-S.fog.near)*e;
      const lt=(z.tint[0]+z.tint[1]+z.tint[2])/3;
      if(wxB.id==='storm'){ltT-=dt;if(ltT<=0){ltT=2.5+Math.random()*7;flashV=1;thunderAt=now+300+Math.random()*1800}}
      if(flashV>0){flashV=Math.max(0,flashV-dt*(flashV>.6?3:2.2));if(flashV<.35&&Math.random()<.35)flashV=Math.min(1,flashV+.5*Math.random())}
@@ -4194,8 +4197,8 @@ const PLANETS={
     circuit=null}
   // default theme: the original green look for freehand-drawn tracks. Preset maps (see THEMES
   // below) override this per call; nothing about the freehand-draw flow changes.
-  const THEME_DEFAULT={id:'meadow',name:'Meadow',ground:0x2c3a26,field:0x2f4a28,trunk:0x3a2c20,leaf:0x33402c,
-    tree:'pine',stand:0x3a3934,standTrim:0xb8322f,fog:0x0e0e0d,sky:0x0e0e0d};
+  const THEME_DEFAULT={id:'meadow',name:'Meadow',ground:0x37662a,field:0x4f8a2e,trunk:0x5a4128,leaf:0x2f6a26,
+    tree:'pine',stand:0x3a3934,standTrim:0xb8322f,fog:0xb7cde0,sky:0x8fbfe6};   // daylight greens and a pale blue haze (it used to be near-black)
   // scale+center a closed loop (array of {x,y}, NOT repeating the first point at the end) so its
   // perimeter matches the standard circuit length - shared by the freehand drawer and the presets
   // below, so both produce the same size of track regardless of how big/small the input was drawn
@@ -4245,7 +4248,7 @@ const PLANETS={
     CIRC_W=Math.max(8,Math.min(30,+venue.width||(window.TrackEditor&&window.TrackEditor.roadWidth)||16));venue.width=CIRC_W;
     const ELEV=CIRC_ELEV[venue.elev]||0;venue.elev=CIRC_ELEV[venue.elev]!=null?venue.elev:'flat';
     theme=theme||THEME_DEFAULT;
-    let startLightsIM=null;const wallBodies=[];
+    let startLightsIM=null,circuit_hazeFn=null;const wallBodies=[];
     const ownedMats=[];
     seed=Math.max(1,Math.floor(+seed)||271828);let rngState=seed>>>0;
     const seeded=()=>{rngState=(Math.imul(rngState,1664525)+1013904223)>>>0;return rngState/4294967296};
@@ -4292,7 +4295,7 @@ const PLANETS={
     if(!ELEV){
       groundMesh=new THREE.Mesh(new THREE.BoxGeometry(hx*2,1,hz*2),groundMat);groundMesh.position.set(cx,CIRC_Y-.5,cz);groundMesh.receiveShadow=true;root.add(groundMesh);
       groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Box(new CANNON.Vec3(hx,.5,hz)));groundBody.position.set(cx,CIRC_Y-.5,cz);world.addBody(groundBody);
-      field=new THREE.Mesh(new THREE.PlaneGeometry((hx+160)*2,(hz+160)*2).rotateX(-Math.PI/2),fieldMat);
+      field=new THREE.Mesh(new THREE.PlaneGeometry((hx+2600)*2,(hz+2600)*2).rotateX(-Math.PI/2),fieldMat);
       field.position.set(cx,CIRC_Y-.49,cz);field.receiveShadow=true;root.add(field);
     }else{
       /* hills: one physics heightfield + matching render mesh over the whole arena (same build as the
@@ -4307,10 +4310,46 @@ const PLANETS={
       for(let a=0;a<mx-1;a++)for(let b=0;b<mx-1;b++){const k=a*mx+b;idx.push(k,k+1,k+mx,k+1,k+mx+1,k+mx)}
       const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(idx);tg.computeVertexNormals();
       groundMesh=new THREE.Mesh(tg,groundMat);groundMesh.receiveShadow=true;root.add(groundMesh);
-      field=new THREE.Mesh(new THREE.PlaneGeometry((half+200)*2,(half+200)*2).rotateX(-Math.PI/2),fieldMat);
+      field=new THREE.Mesh(new THREE.PlaneGeometry((half+2600)*2,(half+2600)*2).rotateX(-Math.PI/2),fieldMat);
       field.position.set(cx,lo-.6,cz);field.receiveShadow=true;root.add(field);
     }
     groundMesh.userData.fixedY=field.userData.fixedY=true;groundMesh.userData.onTrack=field.userData.onTrack=true;
+    /* ---------- natural terrain look ----------
+       Physics keeps its flat slab (or the road-following heightfield on hilly venues). What you SEE is a smooth,
+       vertex-coloured surface: grass/dirt/rock variation, a grain texture, and rolling hills that begin well clear of
+       the road and rise into a bowl at the edge of the arena, so the horizon is land instead of a flat plate.
+       Everything is seeded by the venue seed, so every driver in a room sees the same landscape. */
+    const nOff=(seed%997)*.37,ctr=new THREE.Color(theme.ground),cfl=new THREE.Color(theme.field),cdirt=new THREE.Color(theme.trunk).lerp(new THREE.Color(0x8a7656),.55),crock=new THREE.Color(0x77736c);
+    const paleTheme=theme.id==='snow'||theme.id==='alpine';
+    const visH=(x,z)=>{
+      const d=Math.min(trackDist(x,z,110),110),ramp=SM((d-70)/60),rr=Math.hypot(x-cx,z-cz);
+      const bowl=SM((rr-r0)/60)*(1-SM((rr-r0-80)/60))*16;       // hills around the arena that settle back to the plain
+      return ramp*((fbm2(x*.011+nOff,z*.011-nOff)-.86)*13+(fbm2(x*.04-nOff,z*.04+nOff)-.86)*3)+bowl*(.55+.9*noise2(x*.02+nOff,z*.02))};
+    const terrainMat=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(128,.08,1,.56)});ownedMats.push(terrainMat);
+    function decorate(geo){
+      geo.computeVertexNormals();
+      const P=geo.attributes.position,N=geo.attributes.normal,n=P.count,col=new Float32Array(n*3),uv=new Float32Array(n*2);
+      for(let k=0;k<n;k++){
+        const x=P.getX(k),z=P.getZ(k),sl=1-N.getY(k),d=Math.min(trackDist(x,z,60),60);
+        const patch=SM((noise2(x*.02+nOff,z*.02-nOff)-.5)/.35),fine=noise2(x*.31,z*.31)-.5,mid=noise2(x*.09-nOff,z*.09)-.5;
+        let r=LRP(ctr.r,cfl.r,patch),g=LRP(ctr.g,cfl.g,patch),b=LRP(ctr.b,cfl.b,patch);
+        const m=(1+fine*.2+mid*.42)*.86;r*=m;g*=m*(1+mid*.12);b*=m*(1-mid*.1);   // lighter and darker grass, a touch yellower where dry
+        const dirt=paleTheme?0:SM((sl-.05)/.14)*.65;r=LRP(r,cdirt.r,dirt);g=LRP(g,cdirt.g,dirt);b=LRP(b,cdirt.b,dirt);
+        const rock=SM((sl-.16)/.14)*.8;r=LRP(r,crock.r,rock);g=LRP(g,crock.g,rock);b=LRP(b,crock.b,rock);
+        const edge=SM((CIRC_W/2+16-d)/12)*.4;r=LRP(r,crock.r*.85,edge);g=LRP(g,crock.g*.85,edge);b=LRP(b,crock.b*.85,edge);   // gravel/worn ground beside the pavement
+        col[k*3]=r;col[k*3+1]=g;col[k*3+2]=b;uv[k*2]=x/36;uv[k*2+1]=z/36}
+      geo.setAttribute('color',new THREE.BufferAttribute(col,3));geo.setAttribute('uv',new THREE.BufferAttribute(uv,2))}
+    /* One visual terrain for flat and hilly venues alike: the road-following heights (hilly) or the flat base, plus
+       the outer hills. (The old hilly-venue ground mesh was wound upside-down and culled, so what you actually saw
+       was the flat plane below it.) The physics slab / heightfield stays the collision body. */
+    {
+      const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=[];
+      for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;pos[k+1]=(ELEV?groundAt(x,z):CIRC_Y)-.03+visH(x,z);pos[k+2]=z}
+      for(let i=0;i<n2-1;i++)for(let j=0;j<n2-1;j++){const a=i*n2+j,b=(i+1)*n2+j;idx.push(a,a+1,b,b,a+1,b+1)}
+      const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(idx);decorate(tg);
+      const terrainMesh=new THREE.Mesh(tg,terrainMat);terrainMesh.receiveShadow=true;terrainMesh.userData.fixedY=terrainMesh.userData.onTrack=true;root.add(terrainMesh);
+      groundMesh.visible=false}
+    const gy=(x,z)=>CIRC_Y+visH(x,z);                 // where props sit: the visual ground (ELEV venues are lifted by the settle pass later)
     roadStrip.userData.onTrack=edgeStrip.userData.onTrack=true;
     const runoff=circStrip(curve,CN,CIRC_W+4,.035,groundMat,rep,hFn);runoff.receiveShadow=true;root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
     const curbRed=M(theme.standTrim,{roughness:.75}),curbWhite=M(0xdad8d0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
@@ -4384,37 +4423,72 @@ const PLANETS={
        lP.set(x,CIRC_Y-.5+4.5,z);lM.compose(lP,lQ,lS);poleIM.setMatrixAt(i,lM);
        lP.set(x,CIRC_Y-.5+9.2,z);lM.compose(lP,lQ,lS);lensIM.setMatrixAt(i,lM)}
      poleIM.instanceMatrix.needsUpdate=true;lensIM.instanceMatrix.needsUpdate=true}
-    // trees or rocks (per theme) fill the gaps between grandstands, same radius band as before
+    /* ---------- trees, bushes and rocks ----------
+       Placed in groves (noise-driven density) in the fields beside the track and in a belt outside the wall, never
+       on the pavement. Sizes, tilt, colour and species mix vary per instance; everything is instanced, so the whole
+       lot is a handful of draw calls. Seeded, so every client grows the same trees. */
     if(theme.tree!=='none'){
-      const trunkMat=M(theme.trunk,{roughness:.9}),leafMat=M(theme.leaf,{roughness:.95});ownedMats.push(trunkMat,leafMat);
-      const treeN=Math.max(30,Math.min(110,Math.round(curve.getLength()/5)));
-      const isRock=theme.tree==='rock';
-      const trunkGeo=isRock?new THREE.DodecahedronGeometry(1,0):new THREE.CylinderGeometry(.18,.24,2.2,6);
-      const leafGeo=theme.tree==='palm'?new THREE.ConeGeometry(1.1,2.2,6):new THREE.ConeGeometry(1.3,3.4,7);
-      const trunkIM=new THREE.InstancedMesh(trunkGeo,trunkMat,treeN);trunkIM.castShadow=true;root.add(trunkIM);
-      const leafIM=isRock?null:new THREE.InstancedMesh(leafGeo,leafMat,treeN);if(leafIM){leafIM.castShadow=true;root.add(leafIM)}
-      const tM=new THREE.Matrix4(),tP=new THREE.Vector3(),tQ=new THREE.Quaternion(),tS=new THREE.Vector3(1,1,1),upAxis=new THREE.Vector3(0,1,0);
-      const r1=r0+130;
-      for(let i=0;i<treeN;i++){
-        const a=seeded()*Math.PI*2,rr=r0+40+seeded()*(r1-r0-40);
-        const x=cx+Math.cos(a)*rr,z=cz+Math.sin(a)*rr;
-        tQ.setFromAxisAngle(upAxis,seeded()*Math.PI*2);
-        tP.set(x,CIRC_Y-.5+(isRock?.6:1.1),z);tM.compose(tP,tQ,tS.setScalar(isRock?.7+seeded()*.8:.82+seeded()*.45));trunkIM.setMatrixAt(i,tM);
-        if(leafIM){tP.set(x,CIRC_Y-.5+2.6,z);tM.compose(tP,tQ,tS.set(1,1,1));leafIM.setMatrixAt(i,tM)}}
-      trunkIM.instanceMatrix.needsUpdate=true;if(leafIM)leafIM.instanceMatrix.needsUpdate=true}
-    {
-      const ridgeN=LOW?8:14,ridgeMat=M(theme.ground,{roughness:1,flatShading:true}),ridgeGeo=new THREE.DodecahedronGeometry(1,1),ridgeIM=new THREE.InstancedMesh(ridgeGeo,ridgeMat,ridgeN);
-      ownedMats.push(ridgeMat);ridgeIM.receiveShadow=true;ridgeIM.castShadow=!LOW;
-      const ridgeP=new THREE.Vector3(),ridgeQ=new THREE.Quaternion(),ridgeS=new THREE.Vector3(),ridgeM=new THREE.Matrix4(),ridgeUp=new THREE.Vector3(0,1,0);
-      for(let i=0;i<ridgeN;i++){
-        const a=(i/ridgeN)*Math.PI*2+(seeded()-.5)*.24,r=r0+100+seeded()*45,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
-        const w=34+seeded()*42,h=11+seeded()*29,d=24+seeded()*38;
-        ridgeP.set(x,CIRC_Y-1+h*.42,z);ridgeQ.setFromAxisAngle(ridgeUp,seeded()*Math.PI);
-        ridgeS.set(w,h,d);ridgeM.compose(ridgeP,ridgeQ,ridgeS);ridgeIM.setMatrixAt(i,ridgeM);
-        if(ridgeIM.setColorAt){const shade=.72+seeded()*.34;ridgeIM.setColorAt(i,new THREE.Color().setRGB(shade,shade,shade))}
-      }
-      ridgeIM.instanceMatrix.needsUpdate=true;if(ridgeIM.instanceColor)ridgeIM.instanceColor.needsUpdate=true;root.add(ridgeIM);
-    }
+      const kind=theme.tree,isRock=kind==='rock',isPalm=kind==='palm';
+      const trunkMat=M(theme.trunk,{roughness:.9}),leafMat=M(0xffffff,{roughness:.95});ownedMats.push(trunkMat,leafMat);
+      const maxN=LOW?110:300,spots=[];
+      for(let tries=0;spots.length<maxN&&tries<maxN*60;tries++){
+        let x,z;
+        if(seeded()<.7){                       // groves in the fields beside the track, 30+ m off the pavement and inside the wall
+          const i=Math.floor(seeded()*DN),a=seeded()*Math.PI*2,dd=CIRC_W/2+30+seeded()*seeded()*85;x=DX[i]+Math.cos(a)*dd;z=DZ[i]+Math.sin(a)*dd;
+          if(trackDist(x,z,110)<CIRC_W/2+30||Math.hypot(x-cx,z-cz)>r0-8)continue}
+        else{                                  // a belt of woodland outside the wall
+          const a=seeded()*Math.PI*2,rad=r0+8+seeded()*160;x=cx+Math.cos(a)*rad;z=cz+Math.sin(a)*rad}
+        const dens=SM((noise2(x*.018+nOff,z*.018-nOff)-.3)/.3);
+        if(seeded()>dens*.95+.05)continue;
+        spots.push([x,z,seeded(),seeded(),seeded()])}
+      const n=spots.length,up=new THREE.Vector3(0,1,0),qa=new THREE.Quaternion(),qb=new THREE.Quaternion(),eu=new THREE.Euler(),pv=new THREE.Vector3(),sv=new THREE.Vector3(),mx=new THREE.Matrix4(),col=new THREE.Color(),base=new THREE.Color(theme.leaf);
+      const mk=(geo,mat,count,shadow)=>{const im=new THREE.InstancedMesh(geo,mat,Math.max(1,count));im.castShadow=!!shadow&&!LOW;im.userData.i=0;root.add(im);return im};   // count is set once at the end (setColorAt sizes its buffer from it)
+      const put=(im,x,y,z,sx,sy,sz,yaw,tilt,c)=>{const i=im.userData.i;if(i>=im.instanceMatrix.count)return;
+        eu.set(tilt*Math.cos(yaw),yaw,tilt*Math.sin(yaw));qa.setFromEuler(eu);pv.set(x,y,z);sv.set(sx,sy,sz);mx.compose(pv,qa,sv);
+        im.setMatrixAt(i,mx);if(c)im.setColorAt(i,c);im.userData.i=i+1};
+      const fin=im=>{if(!im)return;im.count=im.userData.i;im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true};
+      const leafCol=(r1,r2,r3)=>col.copy(base).offsetHSL((r1-.5)*.05,(r2-.5)*.14,(r3-.5)*.2);
+      if(isRock){
+        const rIM=mk(new THREE.IcosahedronGeometry(1,1),M(0xffffff,{roughness:.98}),n,true);
+        spots.forEach(([x,z,r1,r2,r3])=>{const sc=.8+r1*r1*3.2;const t=.5+r2*.2;col.set(theme.leaf).multiplyScalar(.8+r3*.45);
+          put(rIM,x,gy(x,z)+sc*.25,z,sc*(1+r3*.5),sc*(.55+r2*.35),sc*(.9+r1*.4),r1*6.28,.18,col)});
+        fin(rIM)}
+      else{
+        const trunkIM=mk(new THREE.CylinderGeometry(.14,.26,1,6),trunkMat,n,true);
+        const tiers=isPalm?[]:[mk(new THREE.ConeGeometry(1.45,2.3,9),leafMat,n,true),mk(new THREE.ConeGeometry(1.1,2.1,9),leafMat,n,true),mk(new THREE.ConeGeometry(.72,1.8,9),leafMat,n,true)];
+        const crown=isPalm?mk(new THREE.IcosahedronGeometry(1,1),leafMat,n*2,true):null;
+        const bushIM=mk(new THREE.IcosahedronGeometry(1,1),leafMat,Math.round(n*1.1),false);
+        spots.forEach(([x,z,r1,r2,r3],i)=>{const y0=gy(x,z)-.15,sc=.7+r1*r1*1.5+(r3>.93?.7:0),h=isPalm?5.5*sc:3.1*sc,yaw=r2*6.28,tilt=(r3-.5)*.1;
+          put(trunkIM,x,y0+h/2,z,sc,h,sc,yaw,tilt,null);
+          if(isPalm){put(crown,x,y0+h+.2,z,2.3*sc,.55*sc,2.3*sc,yaw,tilt,leafCol(r1,r2,r3));put(crown,x+Math.cos(yaw)*.5,y0+h+.6,z+Math.sin(yaw)*.5,1.5*sc,.4*sc,1.5*sc,yaw+1,tilt,leafCol(r2,r3,r1))}
+          else{const c=leafCol(r1,r2,r3),w=1+(r2-.5)*.25;
+            put(tiers[0],x,y0+h*.52,z,sc*w,sc,sc*w,yaw,tilt,c);put(tiers[1],x,y0+h*.78,z,sc*w,sc,sc*w,yaw+.6,tilt,c);put(tiers[2],x,y0+h*1.02,z,sc*w,sc,sc*w,yaw+1.2,tilt,c)}
+          // a bush or two at the foot of some trees
+          if(r2>.45){const bs=.6+r3*.9;put(bushIM,x+Math.cos(yaw)*(1.6+r1),y0+bs*.3,z+Math.sin(yaw)*(1.6+r1),bs*1.3,bs*.8,bs*1.1,yaw,0,leafCol(r3,r1,r2).multiplyScalar(.9))}});
+        [trunkIM,bushIM,crown].concat(tiers).forEach(fin)}
+      // scattered boulders in every venue so the ground is not just trees
+      {const rN=LOW?18:46,rIM=mk(new THREE.IcosahedronGeometry(1,1),M(0xffffff,{roughness:.98}),rN,true);
+        for(let i=0,tries=0;i<rN&&tries<rN*30;tries++){const x=cx+(seeded()-.5)*2*(r0+120),z=cz+(seeded()-.5)*2*(r0+120),d=trackDist(x,z,110);
+          const rr=seeded(),r2=seeded();if(Math.hypot(x-cx,z-cz)<r0+8&&(d<CIRC_W/2+18||d>105)){continue}
+          const sc=.5+rr*rr*2.6;col.setHex(0x77736c).multiplyScalar(.75+r2*.45);put(rIM,x,gy(x,z)+sc*.2,z,sc*1.2,sc*.65,sc,seeded()*6.28,.15,col);i++}
+        fin(rIM)}}
+    /* ---------- distant mountain ranges ----------
+       Two layered rings of ridged peaks well beyond the arena, shaded rock to snow and hazed toward the fog colour
+       with distance; the nearer one is darker and sharper. Unlit and fog-free (pre-hazed), because they sit past the
+       fog distance; hazeTo() re-tints them whenever the weather changes the fog colour. */
+    {const layers=[{R:r0+380,H:LOW?60:78,haze:.5,rows:3},{R:r0+700,H:LOW?110:150,haze:.74,rows:3}],SEG=LOW?72:132,mtn=[];
+      layers.forEach((L,li)=>{const rows=L.rows,pos=[],cl=[],idx=[],bc=[],snowLine=theme.id==='desert'||theme.id==='tropical'||theme.id==='coastal'?9:.62;
+        for(let i=0;i<=SEG;i++){const a=i/SEG*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a);
+          const ridge=1-Math.abs(fbm2(ca*5+li*9+nOff,sa*5-nOff)/1.72*2-1),h=L.H*(.35+ridge*.9)*(.8+.4*noise2(ca*13+li*3,sa*13)),r=L.R+noise2(ca*3+li,sa*3)*40;
+          for(let k=0;k<rows;k++){const t=k/(rows-1),y=CIRC_Y-14+t*(h+14);pos.push(cx+ca*r,y,cz+sa*r);
+            const shade=.78+noise2(i*.7+k*3.1+li*5,k*1.9)*.4,snow=t>.7&&t/(1)*ridge>snowLine*.62?1:0;
+            const rc=new THREE.Color(theme.ground).lerp(crock,.55).multiplyScalar(shade*(.62+t*.5)).lerp(new THREE.Color(0xf4f6f8),snow*.85*(paleTheme?1:.9));
+            bc.push(rc.r,rc.g,rc.b,L.haze*(1-t*.3));cl.push(rc.r,rc.g,rc.b)}
+          if(i<SEG)for(let k=0;k<rows-1;k++){const q=i*rows+k;idx.push(q,q+1,q+rows,q+1,q+rows+1,q+rows)}}
+        const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(cl,3));g.setIndex(idx);
+        const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,fog:false,side:THREE.DoubleSide}));m.frustumCulled=false;m.renderOrder=-1;m.userData.fixedY=m.userData.onTrack=true;root.add(m);ownedMats.push(m.material);mtn.push({g,bc})});
+      circuit_hazeFn=(fc)=>{mtn.forEach(({g,bc})=>{const a=g.attributes.color.array;for(let v=0;v<a.length/3;v++){const k=v*4,h=bc[k+3];a[v*3]=bc[k]+(fc.r-bc[k])*h;a[v*3+1]=bc[k+1]+(fc.g-bc[k+1])*h;a[v*3+2]=bc[k+2]+(fc.b-bc[k+2])*h}g.attributes.color.needsUpdate=true})};
+      circuit_hazeFn(new THREE.Color(theme.fog))}
     const startP=circAt(0,curve);
     const flagMat=new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.85,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});ownedMats.push(flagMat);
     const flag=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,1.6).rotateX(-Math.PI/2),flagMat);
@@ -4705,7 +4779,7 @@ const PLANETS={
       if(o.isInstancedMesh&&o.userData.solidInst){const si=o.userData.solidInst;for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);const e=fpI.elements;if(e[0]===0&&e[5]===0&&e[10]===0)continue;
         fpM.multiplyMatrices(o.matrixWorld,fpI).multiply(new THREE.Matrix4().makeTranslation(0,si.yo,0));addSolid(fpM,si.hx,si.hy,si.hz)}}});
     stadiumBodies=stadiumBodies.concat(solidBodies);
-    circuit={curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies),lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,cleared:removed};
+    circuit={hazeTo:circuit_hazeFn,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies),lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,cleared:removed};
     if(window.RaceEngine){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
     return circuit}
   function enterCircuit(){if(!circuit)return;
@@ -4736,8 +4810,11 @@ const PLANETS={
     // kick off the start-light sequence, and hide the (Earth-only) mission card while racing here
     circuit.lightsStart=performance.now();circuit.lightsDone=false;circuit.lightsHold=Math.random()*0.8;
     if(missEl)missEl.classList.remove('on');
+    C.far=1800;C.updateProjectionMatrix();                  // the venue's ground and mountains run out to the horizon
+    if(circuit.hazeTo)circuit.hazeTo(S.fog.color);
     toastMsg('Venue · '+th.name+' · seed '+circuit.seed);updCircBtn()}
   function leaveCircuit(){if(MODE!=='circuit')return;
+    C.far=320;C.updateProjectionMatrix();
     MODE='world';
     if(window.RaceEngine)window.RaceEngine.stopRace();try{CAI.clear()}catch(e){}
     if(missEl)missEl.classList.add('on');
