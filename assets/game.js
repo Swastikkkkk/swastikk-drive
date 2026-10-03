@@ -2852,7 +2852,7 @@ const F=chassisB.force,T=chassisB.torque;
     const gravBtn=document.createElement('button');
     gravBtn.className='dbtn mono';
     gravBtn.style.cssText='position:fixed;right:max(8px,env(safe-area-inset-right,0px));top:calc(54px + env(safe-area-inset-top,0px));z-index:41;display:none';
-    gravBtn.textContent='Low gravity: off';
+    gravBtn.textContent='Low gravity: on';
     gravBtn.onclick=()=>{ moonGravityOn=!moonGravityOn; gravBtn.textContent='Low gravity: '+(moonGravityOn?'on':'off'); };
     sec.appendChild(gravBtn);
 
@@ -2899,12 +2899,12 @@ const F=chassisB.force,T=chassisB.torque;
        One row per world. Adding a planet is adding a row here, not a system.
        Units: 1 world unit ~= 1 metre. gravity in m/s^2 (scaled for feel).
        ===================================================================== */
-    let moonGravityOn=false;
+    let moonGravityOn=true;       // a planet's own gravity is the default; the button can switch back to 1 g
 const PLANETS={
   moon:{ name:'Moon', seed:271828, g:4.0,
     bg:0x000000, fog:null, sun:0xfff6ea, sunI:1.55, sunDir:[0.62,0.3,0.42], amb:0x8a96aa, ambI:0.05, hemi:[0x3a4256,0x2a2826,0.16],
     ground:[0.4,0.396,0.39], groundNoise:0.16, rock:0x5f5c57, roadCol:0x3a3936, dust:0xb8b4ab, detail:'regolith',
-    accel:24, vmax:44, boost:1.5, steer:1.7, ufoEvery:2000, earthInSky:true, dunes:0, atmo:0,
+    accel:24, vmax:44, boost:1.5, steer:1.7, grip:3.0, camBack:15, camUp:6.5, ufoEvery:2000, earthInSky:true, dunes:0, atmo:0,
     // long smooth swells (the slow-roads look) with only a light sprinkling of craters
     base1:[0.0016,46], base2:[0.006,9],
     craters:[[60,4,12,.16,.32],[260,18,46,.12,.3]],
@@ -2912,14 +2912,14 @@ const PLANETS={
   mars:{ name:'Mars', seed:141421, g:7.0,
     bg:0xb07a52, fog:[300,2400], sun:0xffe6cc, sunI:1.45, sunDir:[0.45,0.5,0.3], amb:0xd9a37a, ambI:0.12, hemi:[0xc98a5e,0x4a2416,0.42],
     sky:[0x6e4129,0xc4875a], ground:[0.56,0.29,0.16], groundNoise:0.16, rock:0x5a2a19, roadCol:0x4a2a1b, dust:0xc98a5a, detail:'sand',
-    accel:18, vmax:38, boost:1.35, steer:1.5, ufoEvery:2000, earthInSky:false, dunes:1, atmo:1,
+    accel:18, vmax:38, boost:1.35, steer:1.5, grip:3.8, ufoEvery:2000, earthInSky:false, dunes:1, atmo:1,
     base1:[0.0018,40], base2:[0.008,8],
     craters:[[90,6,16,.15,.25],[300,20,50,.12,.3]],
     caption:'Mars · 0.38 g · Jezero crater route' },
   europa:{ name:'Europa', seed:173205, g:3.2,
     bg:0x000000, fog:null, sun:0xeef4ff, sunI:1.3, sunDir:[-0.55,0.32,0.5], amb:0x9fb4cc, ambI:0.06, hemi:[0x40506a,0x30343c,0.22],
     ground:[0.78,0.79,0.82], groundNoise:0.1, rock:0x9a8f86, roadCol:0x5b5651, dust:0xdfe6ee, detail:'ice', cracks:1,
-    accel:20, vmax:40, boost:1.4, steer:1.6, ufoEvery:2000, earthInSky:false, jupiter:true, dunes:0, atmo:0,
+    accel:20, vmax:40, boost:1.4, steer:1.6, grip:1.6, ufoEvery:2000, earthInSky:false, jupiter:true, dunes:0, atmo:0,
     base1:[0.0014,28], base2:[0.007,4],
     craters:[[400,20,60,.06,.15]],
     caption:'Europa · 0.13 g · ice shell over a hidden ocean' },
@@ -3349,23 +3349,52 @@ const PLANETS={
       S.rover.quaternion.slerp(_qt,1-Math.pow(ease,dt));
       // ride height eases over small bumps instead of snapping to every height change
       S.visY=S.visY==null||Math.abs(S.visY-S.pos.y)>3?S.pos.y:S.visY+(S.pos.y-S.visY)*Math.min(1,dt*12);
-      S.rover.position.set(S.pos.x,S.visY,S.pos.z).add(new THREE.Vector3(0,-1.1,0).applyQuaternion(S.rover.quaternion));
+      S.comp=(S.comp||0)*Math.exp(-dt*4.5);   // suspension compresses on landing, then settles
+      S.rover.position.set(S.pos.x,S.visY-S.comp,S.pos.z).add(new THREE.Vector3(0,-1.1,0).applyQuaternion(S.rover.quaternion));
     }
     /* =================== GENERALIZED SURFACE DRIVING (kinematic) =================== */
     const _up=new THREE.Vector3(0,1,0), _n=new THREE.Vector3(), _qa=new THREE.Quaternion(), _qy=new THREE.Quaternion(), _qt=new THREE.Quaternion();
     function driveSurface(dt){
       const S=SURF, cfg=S.cfg, p=S.pos;
+      /* Surface driving (Moon, Mars, Europa). Velocity is split into a part along the heading and a part
+         sideways. Tyres kill the sideways part at a rate set by the surface (cfg.grip), so the rover turns
+         where it points, with a bit of float on loose regolith, and the handbrake lets it slide on purpose.
+         Gravity does not scale engine force or grip here: it sets jump height, air time and landings. */
+      const dtc=Math.min(dt,1/30);                     // a stalled frame (tab switch) must not throw the rover around
       const throttle=(key.f?1:0)-(key.b?1:0);
-      const kv=v=>v===true?1:(+v>0?Math.min(1,+v):0),steer=kv(key.l)-kv(key.r);
+      const kv=v=>v===true?1:(+v>0?Math.min(1,+v):0),steerIn=kv(key.l)-kv(key.r);
+      const gnd=S.grounded;
+      S.steerS=(S.steerS||0)+(steerIn-(S.steerS||0))*(1-Math.exp(-dtc*(steerIn?9:12)));   // wheel eases, never snaps
+      const hx=Math.sin(S.yaw), hz=Math.cos(S.yaw);
+      const vf0=S.vel.x*hx+S.vel.z*hz;
+      // yaw needs the rover to be rolling, tapers off with speed, and flips when backing up
+      const turn=Math.min(1,Math.abs(vf0)/5)/(1+Math.abs(vf0)/cfg.vmax*1.1);
+      const yawGoal=S.steerS*cfg.steer*turn*(vf0<-0.5?-1:1)*(gnd?1:0.35);
+      S.yawRate=(S.yawRate||0)+(yawGoal-(S.yawRate||0))*(1-Math.exp(-dtc*7));
+      S.yaw+=S.yawRate*dtc;
+      const fx=Math.sin(S.yaw), fz=Math.cos(S.yaw), sx=fz, sz=-fx;
+      let vf=S.vel.x*fx+S.vel.z*fz, vl=S.vel.x*sx+S.vel.z*sz;
+      const boost=key.boost?cfg.boost:1, ACC=cfg.accel*boost, vmax=cfg.vmax*boost;
+      if(gnd){
+        let ax=0;
+        if(throttle>0){ax=ACC*Math.max(0,1-Math.pow(Math.max(0,vf)/vmax,3)); if(vf<-0.5)ax+=cfg.accel*1.6}
+        else if(throttle<0){
+          if(vf>1)ax=-cfg.accel*1.6;                                   // brake first, reverse only once nearly stopped
+          else ax=-cfg.accel*0.55*Math.max(0,1-Math.pow(Math.max(0,-vf)/(vmax*0.35),3));
+        }
+        // rolling resistance, plus drag that only matters where there is an atmosphere
+        const drag=0.55+Math.abs(vf)*Math.abs(vf)*(cfg.atmo?0.0012:0.00008);
+        const dv=Math.min(Math.abs(vf),drag*dtc)*Math.sign(vf);
+        vf+=ax*dtc-(throttle?dv*0.35:dv);
+        if(key.h){const hb=Math.min(Math.abs(vf),7*dtc)*Math.sign(vf);vf-=hb}
+        vl*=Math.exp(-(cfg.grip||3.2)*(key.h?0.22:1)*dtc);          // tyre grip: sideways speed bleeds off
+      } else {
+        vf*=Math.exp(-0.01*dtc); vl*=Math.exp(-0.01*dtc);            // airborne: nothing grips, nothing drags much
+      }
+      if(!isFinite(vf)||!isFinite(vl)){vf=0;vl=0}
+      { const m=Math.hypot(vf,vl),cap=vmax*1.25; if(m>cap){vf*=cap/m;vl*=cap/m} }
+      S.vel.x=fx*vf+sx*vl; S.vel.z=fz*vf+sz*vl;
       const speed=Math.hypot(S.vel.x,S.vel.z);
-      S.yaw += steer*cfg.steer*dt*(0.35+Math.min(1,speed*0.08));
-      const fx=Math.sin(S.yaw), fz=Math.cos(S.yaw);
-      const ACC=cfg.accel*(key.boost?cfg.boost:1);
-      S.vel.x += fx*throttle*ACC*dt; S.vel.z += fz*throttle*ACC*dt;
-      const vmax=cfg.vmax*(key.boost?cfg.boost:1), sp2=Math.hypot(S.vel.x,S.vel.z);
-      if(sp2>vmax){S.vel.x*=vmax/sp2;S.vel.z*=vmax/sp2;}
-      if(S.grounded){ const drag=throttle?0.995:0.985; S.vel.x*=drag; S.vel.z*=drag; }
-      else { S.vel.x*=0.999; S.vel.z*=0.999; }
       p.x+=S.vel.x*dt; p.z+=S.vel.z*dt;
       // ground under the four corners of the rover's footprint: its height and tilt come from these,
       // so a sharp bump under one point can no longer spin it onto its side
@@ -3383,7 +3412,7 @@ const PLANETS={
       } else {
         S.vy -= G*dt; p.y += S.vy*dt;
         if(p.y<=gy){ const impact=-S.vy; p.y=gy; S.vy=0; S.grounded=true;
-          if(impact>3){ S.emitDust(p.x,gy-1.1,p.z,22,Math.min(10,impact*0.8),0.8); S.land=Math.min(0.4,impact*0.03); try{thud(Math.min(1,impact*0.05));}catch(e){} } }
+          if(impact>3){ S.emitDust(p.x,gy-1.1,p.z,22,Math.min(10,impact*0.8),0.8); S.land=Math.min(0.4,impact*0.03); S.comp=Math.min(0.5,impact*0.05); try{thud(Math.min(1,impact*0.05));}catch(e){} } }
       }
       // HARD FLOOR: the rover can never sit below the surface ("under the map")
       if(p.y<gy){ p.y=gy; if(S.vy<0)S.vy=0; S.grounded=true; }
@@ -3417,7 +3446,7 @@ const PLANETS={
       S.sunL.target.position.copy(p); S.sunL.position.copy(p).add(new THREE.Vector3(cfg.sunDir[0],cfg.sunDir[1],cfg.sunDir[2]).multiplyScalar(400));
 
       // camera chase
-      const back=12, upH=5.5;
+      const back=(cfg.camBack||12)+Math.min(6,speed*0.1), upH=cfg.camUp||5.5;   // wider on the Moon so jumps read
       const goal=new THREE.Vector3(p.x-fx*back, p.y+upH, p.z-fz*back);
       C.position.lerp(goal, 1-Math.pow(0.0015,dt));
       if(S.land>0){ C.position.y+=Math.sin(t*60)*S.land; S.land*=0.85; }
@@ -4677,12 +4706,12 @@ const PLANETS={
         fpM.multiplyMatrices(o.matrixWorld,fpI).multiply(new THREE.Matrix4().makeTranslation(0,si.yo,0));addSolid(fpM,si.hx,si.hy,si.hz)}}});
     stadiumBodies=stadiumBodies.concat(solidBodies);
     circuit={curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies),lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,cleared:removed};
-    if(window.RaceEngine){const laps=(typeof MP!=='undefined'&&MP.getLaps)?MP.getLaps():3;window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
+    if(window.RaceEngine){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
     return circuit}
   function enterCircuit(){if(!circuit)return;
     worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
     MODE='circuit';circU0=-1;circLap=0;circBest=null;circLapT0=performance.now();
-    if(window.RaceEngine&&circuit){const laps=(typeof MP!=='undefined'&&MP.getLaps)?MP.getLaps():3;window.RaceEngine.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps})}
+    if(window.RaceEngine&&circuit){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps,roadWidth:CIRC_W})}
     const {p,tg}=circuit.startP;
     PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
     chassisB.position.set(p.x,p.y+1.4,p.z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
@@ -4778,6 +4807,17 @@ const PLANETS={
         rows.sort((p,q)=>p.finishTime-q.finishTime);rows.forEach((r,i)=>r.position=i+1);RE.leaderboard=rows}}
     return {start,clear,update,get on(){return on}};
   })();
+  /* One lap count. In a room the host's choice (#dmplaps) is authoritative; on your own it is the draw-track
+     panel's Laps setting. buildCircuit, enterCircuit and the race start all read it through here. */
+  const raceCfg={laps:3};
+  function lapsCfg(){const inRoom=typeof MP!=='undefined'&&MP&&MP.on;return Math.max(1,Math.min(50,inRoom&&MP.getLaps?MP.getLaps():raceCfg.laps))}
+  function restartSoloRace(){
+    if(MODE!=='circuit'||!circuit||!window.RaceEngine)return;
+    const RE=window.RaceEngine;RE.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps:lapsCfg(),roadWidth:CIRC_W});RE.isDaily=!!circuit.daily;
+    RE.closeResultsModal();
+    circuit.lightsDone=false;circuit.lightsStart=performance.now();
+    RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:circuit.startP.tg})});CAI.start(3)}
+  window.restartSoloRace=restartSoloRace;
   const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
   const circCx=circCv?circCv.getContext('2d'):null;
   let drawPts=[],drawingNow=false,pendingTrack=null,drawRS=[],drawObs=[],drawTool='draw';
@@ -4878,11 +4918,16 @@ const PLANETS={
     const weather=choose(weatherEl?weatherEl.value:'day',WEATHERS.map(w=>w.id));
     const time=choose(timeEl?timeEl.value:'day',['day','dusk','sunset','night']);
     const size=selVal('#dcircsize','large'),width=+selVal('#dcircwidth','16')||16,elev=selVal('#dcircelev','rolling');
+    // the Laps choice becomes the race's lap count; in a room the host's pick is pushed to everyone
+    raceCfg.laps=Math.max(1,Math.min(50,parseInt(selVal('#dcirclaps','3'),10)||3));
+    try{if(typeof MP!=='undefined'&&MP.on&&MP.isHostNow&&MP.isHostNow()){const l=$('#dmplaps');if(l){l.value=String(raceCfg.laps);l.dispatchEvent(new Event('change'))}}}catch(e){}
     if(drawRS.length>=8)pendingTrack=normalizeLoop(drawRS,CIRC_SIZES[size]||CIRC_LEN);
     const obstacles=drawObs.map(o=>({t:o.t,u:+o.u.toFixed(4),s:o.s}));
     const theme=THEMES.find(t=>t.id===scenery)||THEME_DEFAULT,venue={weather,time,width,elev,obstacles};
     try{localStorage.setItem('sl_venue',JSON.stringify({seed,scenery,weather,time,size,width,elev}))}catch(e){}
     buildCircuit(pendingTrack,theme,seed,venue);closeDrawer();enterCircuit();updCircBtn();
+    // alone, GO starts the race itself (grid, lights, N laps). In a room the host starts it from the room panel.
+    if(!(typeof MP!=='undefined'&&MP.on))restartSoloRace();
     // record (and, if already in a room, broadcast) this venue so friends build + race the same one
     try{if(MP&&MP.shareVenue)MP.shareVenue({pts:pendingTrack,seed,scenery,weather,time,width,elev,obstacles})}catch(e){}
   }
@@ -4934,7 +4979,6 @@ updCircBtn();
       if(!pendingTrack&&drawPts.length>=8)finishDraw();
       if(pendingTrack){
         generateVenue();
-        if(window.RaceEngine){window.RaceEngine.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:circuit.startP.tg})});CAI.start(3)}
       }else toastMsg('Draw and close a circuit first');
     };
     const saveBtn=$('#dcircsave');
@@ -4954,6 +4998,7 @@ updCircBtn();
           const url=location.origin+location.pathname+'?track='+code;
           if(window.AppQR&&$('#dqr-modal')){
             window.AppQR.render($('#dqrcanvas'),url);
+            $('#dqr-modal').dataset.mode='track';
             $('#dqrdesc').textContent='Scan or copy this custom track code:';
             $('#dqrcode-text').value=code;
             $('#dqr-modal').classList.add('on');
@@ -5368,7 +5413,9 @@ updCircBtn();
     }
     function onMsg(m){
       // phone gamepad packets: only the laptop the QR code was made for obeys them
-      if(m&&m.k==='ctrl'){if(room&&m.to===me.id&&window.PhoneController)window.PhoneController.onControllerInput(m.input||{});return}
+      // Each player has their own secret controller token. A packet is only obeyed if it names THIS player AND carries
+      // this player's token, so a phone paired to one car (or one room) can never steer another.
+      if(m&&m.k==='ctrl'){if(room&&m.to===me.id&&typeof m.token==='string'&&m.token===ctrlToken()&&window.PhoneController)window.PhoneController.onControllerInput(m.input||{});return}
       if(!m||typeof m!=='object'||m.id===me.id||typeof m.id!=='string'||!room)return;
       const now=performance.now();
       // only a hello or a pose can introduce someone, and only with a join time to place them in the room
@@ -5574,6 +5621,10 @@ updCircBtn();
        hoisted function declarations, so the wrapper replaced this one and then called itself forever.) */
     function uiBase(){
       if(el.btn)el.btn.textContent=room?('Multiplayer · '+room):'Multiplayer';if(window.__updModes)window.__updModes();
+      // Race settings belong to the host and are frozen once a race is counting down or running, so nobody can
+      // change 3 laps to 10 halfway through; guests just see what the host chose.
+      {const frozen=race.st===1||race.st===2||race.st===4,host=!room||isHost();
+       ['#dmplaps','#dmpmap'].forEach(sel=>{const e=$(sel);if(e)e.disabled=frozen||!host})}
       if(el.out)el.out.style.display=room?'none':'block';
       if(el.inn)el.inn.style.display=room?'block':'none';
       if(el.codeOut)el.codeOut.textContent=room||'';
@@ -5585,7 +5636,7 @@ updCircBtn();
         if(racing)rows.sort((a,b)=>a.watching?1:b.watching?-1:a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:b.d-a.d);
         const lead=Math.max.apply(null,rows.filter(P=>!P.fin).map(P=>P.d).concat([0]));
         let h='';rows.forEach((P,i)=>{let timing=P.watching?'Spectating':P.fin?fmtT(P.fin):racing?(P.off?'Connecting':P.d>=lead-1e-4?'Leading':'-'+Math.max(0,Math.round((lead-P.d)*(MODE==='circuit'&&circuit?circuit.curve.getLength():TLEN)))+' m'):(P.off?'Joining':'Ready');
-          const ping=P.me?'':P.ping==null?'Ping…':P.ping+' ms';
+          const ping=P.me?(window.PhoneController&&window.PhoneController.isPhoneConnected()?'Phone':'Keyboard'):P.ping==null?'Ping…':P.ping+' ms';
           h+='<li class="'+(P.me?'me':'')+'"><i style="background:'+HEX(P.c)+'"></i><span class="mp-driver">'+(racing?'<em>'+(P.fin?i+1:'')+'</em>':'')+esc(P.n)+(P.me?' (you)':'')+'</span><span class="mp-timing">'+timing+(ping?' · '+ping:'')+
             (host&&!P.me?'<button class="kick" type="button" data-id="'+P.id+'" title="Remove from room" aria-label="Remove '+esc(P.n)+' from room">&times;</button>':'')+'</span></li>'});
         el.list.innerHTML=h}
@@ -5728,28 +5779,45 @@ function carChanged(){if(room)sendHi(true)}
       if(!room)return;
       const modal=document.getElementById('dqr-modal');
       if(modal&&window.AppQR){
-        window.AppQR.render(document.getElementById('dqrcanvas'),invite());
+        modal.dataset.mode='invite';window.AppQR.render(document.getElementById('dqrcanvas'),invite());
         const desc=document.getElementById('dqrdesc');if(desc)desc.textContent='Room code: '+room;
         const ct=document.getElementById('dqrcode-text');if(ct)ct.value=invite();
         modal.classList.add('on');
       }else prompt('Invite link:',invite());
     }}
+    // Per-player controller session: the token is random, made once per tab and reused, so clicking the button
+    // again shows the same QR instead of creating a second session.
+    let _ctrlTok='';
+    function ctrlToken(){if(_ctrlTok)return _ctrlTok;
+      try{const a=new Uint8Array(12);crypto.getRandomValues(a);_ctrlTok=Array.from(a,x=>x.toString(16).padStart(2,'0')).join('')}
+      catch(e){_ctrlTok=(Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+Date.now().toString(36)).slice(0,24)}
+      return _ctrlTok}
+    function controllerUrl(){return location.origin+location.pathname+'?controller=true&room='+encodeURIComponent(room)+'&to='+encodeURIComponent(me.id)+'&token='+ctrlToken()+'&pn='+encodeURIComponent(myName())}
+    let phoneStTimer=0;
+    function phoneStatusText(){const PC=window.PhoneController;
+      return PC&&PC.isPhoneConnected()?'CONNECTED':(PC&&PC.everConnected?'CONTROLLER DISCONNECTED · scan again or press Reconnect on the phone':'WAITING FOR PHONE')}
+    function paintPhoneStatus(){const desc=document.getElementById('dqrdesc'),modal=document.getElementById('dqr-modal');
+      if(desc&&modal&&modal.dataset.mode==='phone')desc.textContent='Player: '+myName()+' · Room '+room+' · '+phoneStatusText();
+      const b=document.getElementById('dmpphonest');if(b)b.textContent=room?('Controller: '+(window.PhoneController&&window.PhoneController.isPhoneConnected()?'phone':'keyboard')):''}
     {const phoneBtn=$$1('#dmpphone');if(phoneBtn)phoneBtn.onclick=()=>{
-      if(!room)return;
-      const url=location.origin+location.pathname+'?controller=true&room='+room+'&to='+encodeURIComponent(me.id);
+      if(!room){note('Join a room first');return}
+      const url=controllerUrl();
       const modal=document.getElementById('dqr-modal');
       if(modal&&window.AppQR){
+        modal.dataset.mode='phone';
         window.AppQR.render(document.getElementById('dqrcanvas'),url);
-        const desc=document.getElementById('dqrdesc');if(desc)desc.textContent='Scan to use phone as controller';
         const ct=document.getElementById('dqrcode-text');if(ct)ct.value=url;
+        paintPhoneStatus();clearInterval(phoneStTimer);phoneStTimer=setInterval(paintPhoneStatus,500);
         modal.classList.add('on');
       }else prompt('Phone controller URL:',url);
     }}
+    setInterval(()=>{if(room)paintPhoneStatus()},1000);
     {const qrCopy=document.getElementById('dqrcopy');if(qrCopy)qrCopy.onclick=()=>{const t=document.getElementById('dqrcode-text');if(!t)return;t.select();
       const done=()=>{qrCopy.textContent='Copied';setTimeout(()=>qrCopy.textContent='Copy',1500)};
       try{navigator.clipboard.writeText(t.value).then(done,()=>{document.execCommand('copy');done()})}catch(e){try{document.execCommand('copy');done()}catch(_){}}}}
-    {const qrClose=document.getElementById('dqrclose');if(qrClose)qrClose.onclick=()=>{const m=document.getElementById('dqr-modal');if(m)m.classList.remove('on')}}
-    {const rematch=document.getElementById('dresrematch');if(rematch)rematch.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');requestRace()}}
+    {const qrClose=document.getElementById('dqrclose');if(qrClose)qrClose.onclick=()=>{const m=document.getElementById('dqr-modal');clearInterval(phoneStTimer);if(m){m.classList.remove('on');m.dataset.mode=''}}}
+    {const rematch=document.getElementById('dresrematch');if(rematch)rematch.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');if(room)requestRace();else restartSoloRace()}}
+    {const rc=document.getElementById('dresclose');if(rc)rc.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');if(window.RaceEngine)window.RaceEngine.closeResultsModal()}}
     {const resLobby=document.getElementById('dreslobby');if(resLobby)resLobby.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');openPanel()}}
     // show results modal when race.st becomes 3
     let _uiResultShown=false;
@@ -5770,7 +5838,7 @@ function carChanged(){if(room)sendHi(true)}
       if(list)list.innerHTML=rows.map((r,i)=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span>${i+1}. ${r.n}${r.me?' (you)':''}</span><span>${r.fin?fmtT(r.fin):'DNF'}</span></div>`).join('');
       m.classList.add('on');
     }
-    return {tick,join,leave,LOG,shareVenue,inRoom,getLaps,getPeers,isHolding,get on(){return !!room},get state(){return {room,status,peers,race,me}},_dbg:{sorted}}
+    return {tick,join,leave,LOG,shareVenue,inRoom,getLaps,getPeers,isHolding,isHostNow:()=>isHost(),get on(){return !!room},get state(){return {room,status,peers,race,me}},_dbg:{sorted}}
   })();
   /* ---------- go ---------- */
   function resize(){W=sec.clientWidth;H=sec.clientHeight;R.setPixelRatio(DPR());R.setSize(W,H,false);C.aspect=W/H;C.updateProjectionMatrix();if(sun.shadow)sun.shadow.needsUpdate=true}addEventListener('resize',resize);

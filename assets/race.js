@@ -19,6 +19,13 @@
     totalRaceTime: null,
     finished: false,
     finalPosition: 1,
+    trackLength: 0,        // metres, from the actual centreline
+    minLapMs: 8000,        // a lap faster than this is physically impossible, so it is not counted
+    centerline: [],        // dense samples of the road centre, used for the off-track test
+    cdIdx: 0,
+    prevPos: null,         // last frame's position, for plane-crossing tests
+    wrongWayT: 0,
+    wrongWay: false,
 
     // Starting grid & Spawns
     gridSlots: [], // [{x, y, z, yaw}]
@@ -46,7 +53,7 @@
 
     initTrack: function(mode, curve, samples, opts) {
       this.mode = mode || 'circuit';
-      if (opts && opts.laps) this.totalLaps = Math.max(1, parseInt(opts.laps, 10) || 3);
+      if (opts && opts.laps) this.totalLaps = Math.max(1, Math.min(50, parseInt(opts.laps, 10) || 3));
       if (curve) {
         this.setupTrackCheckpoints(curve, 16, (opts && opts.roadWidth) || 12);
         if (curve.getPointAt) {
@@ -78,6 +85,10 @@
       this.isOutOfBounds = false;
       this.lastSafeCheckpoint = null;
       this.leaderboard = [];
+      this.prevPos = null;
+      this.wrongWayT = 0;
+      this.wrongWay = false;
+      this.showWrongWay(false);
     },
 
     setConfiguration: function(mode, totalLaps) {
@@ -109,6 +120,20 @@
         });
       }
       this.lastSafeCheckpoint = this.checkpoints[0];
+
+      // True road centreline. The off-track test used to measure the distance to the nearest
+      // *gate*, which sits ~150 m from the next one on a 2.4 km lap, so mid-straight cars looked "off track".
+      this.centerline = [];
+      this.trackLength = curve.getLength ? curve.getLength() : 0;
+      var n = Math.max(64, Math.min(600, Math.round((this.trackLength || 1200) / 8)));
+      for (var j = 0; j < n; j++) {
+        var q = curve.getPointAt(j / n);
+        this.centerline.push({ x: q.x, z: q.z, y: q.y });
+      }
+      this.cdIdx = 0;
+      this.roadHalf = roadWidth / 2;
+      // ~290 km/h is faster than any car here can lap at; anything quicker is a skipped section
+      this.minLapMs = Math.max(8000, (this.trackLength / 80) * 1000);
     },
 
     setupGridSpawns: function(startP, count, roadWidth) {
@@ -185,38 +210,89 @@
       }
 
       if (this.state === 'racing') {
-        this.checkCheckpointsAndLaps(carPos, carFwd, now);
+        var prev = this.prevPos;
+        // a respawn or grid reset moves the car instantly; that must not count as driving through a gate
+        if (prev && Math.hypot(carPos.x - prev.x, carPos.z - prev.z) > 40) prev = null;
+        this.checkCheckpointsAndLaps(carPos, prev, now);
+        this.checkWrongWay(carPos, prev, dt);
         this.checkTrackBoundaries(carPos, dt, onRespawnTrigger);
         this.updateHud(now);
       }
+      this.prevPos = { x: carPos.x, z: carPos.z };
     },
 
-    checkCheckpointsAndLaps: function(carPos, carFwd, now) {
-      if (this.finished || this.checkpoints.length === 0) return;
+    // Driving against the flow of the track for more than a second shows WRONG WAY.
+    checkWrongWay: function(carPos, prev, dt) {
+      if (!prev || !this.checkpoints.length || !(dt > 0)) return;
+      var vx = (carPos.x - prev.x) / dt, vz = (carPos.z - prev.z) / dt;
+      var sp = Math.hypot(vx, vz), cp = null, bd = 1e12;
+      for (var i = 0; i < this.checkpoints.length; i++) {
+        var g = this.checkpoints[i], d = (g.pos.x - carPos.x) * (g.pos.x - carPos.x) + (g.pos.z - carPos.z) * (g.pos.z - carPos.z);
+        if (d < bd) { bd = d; cp = g; }
+      }
+      var against = cp && sp > 6 && (vx * cp.tangent.x + vz * cp.tangent.z) / sp < -0.45;
+      this.wrongWayT = against ? this.wrongWayT + dt : Math.max(0, this.wrongWayT - dt * 2);
+      var on = this.wrongWayT > 1.0;
+      if (on !== this.wrongWay) { this.wrongWay = on; this.showWrongWay(on); }
+    },
 
-      var totalCp = this.checkpoints.length;
-      // check the next gate and the one after it, so one gate missed on a wide line or after a
-      // respawn doesn't freeze lap counting for the rest of the race (skipping two still won't count)
-      for (var k = 0; k < 2; k++) {
-        var targetCpIdx = (this.currentCheckpoint + k) % totalCp;
-        var targetCp = this.checkpoints[targetCpIdx];
-        var dx = carPos.x - targetCp.pos.x;
-        var dz = carPos.z - targetCp.pos.z;
-        var dist = Math.hypot(dx, dz);
-        var dotFwd = dx * targetCp.tangent.x + dz * targetCp.tangent.z;
-        if (dist < targetCp.width && Math.abs(dotFwd) < 7.0) {
-          this.lastSafeCheckpoint = targetCp;
-          this.currentCheckpoint += k + 1;
-          // the lap ends on the start/finish line (gate 0) once the other gates have been passed
-          if (targetCpIdx === 0 && this.currentCheckpoint > totalCp) {
-            this.currentCheckpoint = 1;
-            this.onLapCompleted(now);
+    showWrongWay: function(on) {
+      var el = document.getElementById('dwrongway');
+      if (!el) {
+        if (!on) return;
+        el = document.createElement('div');
+        el.id = 'dwrongway';
+        el.style.cssText = 'position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:50;pointer-events:none;' +
+          'padding:8px 22px;border-radius:8px;background:rgba(200,40,30,.88);color:#fff;font:700 22px/1 ui-monospace,monospace;letter-spacing:.2em';
+        el.textContent = 'WRONG WAY';
+        document.body.appendChild(el);
+      }
+      el.style.display = on ? 'block' : 'none';
+    },
+
+    /* Gates are crossed as planes, in order, in the direction of travel.
+       currentCheckpoint counts gates passed this lap: 0 = start line not crossed yet, 1 = start line crossed,
+       N = every gate passed and only the finish line (gate 0) is left. The gate that counts next is always
+       currentCheckpoint % N, so skipping one, cutting across the infield, or rolling backwards over the line
+       can never advance the lap. */
+    checkCheckpointsAndLaps: function(carPos, prev, now) {
+      if (this.finished || this.checkpoints.length === 0 || !prev) return;
+      var N = this.checkpoints.length;
+      var want = this.currentCheckpoint % N;
+      var cp = this.checkpoints[want];
+      if (this.crossesGate(cp, prev, carPos)) {
+        this.lastSafeCheckpoint = cp;
+        if (want === 0 && this.currentCheckpoint >= N) {
+          var lapMs = now - this.lapStartTime;
+          if (lapMs < this.minLapMs) {
+            if (window.toastMsg) window.toastMsg('Lap not counted: too fast');
             return;
           }
-          if (window.soundBlip) window.soundBlip(680 + (targetCpIdx * 30), 0.12, 0.08);
-          return;
+          this.currentCheckpoint = 1;
+          this.onLapCompleted(now);
+        } else {
+          this.currentCheckpoint++;
+          if (want !== 0 && window.soundBlip) window.soundBlip(680 + (want * 30), 0.12, 0.08);
         }
+        return;
       }
+      // Told clearly when a gate was missed (the next one along was crossed instead)
+      var after = this.checkpoints[(want + 1) % N];
+      if (this.currentCheckpoint > 0 && this.crossesGate(after, prev, carPos) && now - (this._missToast || 0) > 3000) {
+        this._missToast = now;
+        if (window.toastMsg) window.toastMsg('Missed checkpoint ' + want + ' · go back through it');
+      }
+    },
+
+    crossesGate: function(cp, a, b) {
+      var tg = cp.tangent, nx = cp.normal.x, nz = cp.normal.z;
+      var s0 = (a.x - cp.pos.x) * tg.x + (a.z - cp.pos.z) * tg.z;
+      var s1 = (b.x - cp.pos.x) * tg.x + (b.z - cp.pos.z) * tg.z;
+      if (!(s0 < 0 && s1 >= 0)) return false;       // wrong direction, or no crossing this frame
+      var t = s0 / (s0 - s1);
+      var px = a.x + (b.x - a.x) * t, pz = a.z + (b.z - a.z) * t;
+      var lat = Math.abs((px - cp.pos.x) * nx + (pz - cp.pos.z) * nz);
+      return lat <= cp.width * 0.6;
     },
 
     onLapCompleted: function(now) {
@@ -229,13 +305,14 @@
       }
 
       if (this.mode === 'circuit') {
-        if (this.currentLap >= this.totalLaps) {
-          // Finished the race!
+        // lapTimes.length laps are done; the race ends exactly when that reaches totalLaps
+        if (this.lapTimes.length >= this.totalLaps) {
+          this.currentLap = this.totalLaps;
           this.onRaceFinished(now);
         } else {
-          this.currentLap++;
+          this.currentLap = this.lapTimes.length + 1;
           if (window.toastMsg) {
-            window.toastMsg('Lap ' + (this.currentLap - 1) + ' · ' + this.formatTime(lapTime) + ' · Lap ' + this.currentLap + '/' + this.totalLaps);
+            window.toastMsg('Lap ' + this.lapTimes.length + ' · ' + this.formatTime(lapTime) + ' · Lap ' + this.currentLap + '/' + this.totalLaps + (this.currentLap === this.totalLaps ? ' · final lap' : ''));
           }
           if (window.soundBlip) {
             window.soundBlip(880, 0.25, 0.12);
@@ -283,26 +360,32 @@
     // ----------------------------------------------------
     // TRACK BOUNDARIES & RESPAWN
     // ----------------------------------------------------
+    nearestCenterDist: function(x, z) {
+      var c = this.centerline, n = c.length;
+      if (!n) return 0;
+      var best = 1e12, bi = this.cdIdx;
+      // the car moves a little each frame, so look near where it was; fall back to a full scan if that is far off
+      for (var pass = 0; pass < 2; pass++) {
+        var span = pass ? n : 24;
+        for (var k = -span; k <= span; k += 1) {
+          var i = ((this.cdIdx + k) % n + n) % n, dx = x - c[i].x, dz = z - c[i].z, d = dx * dx + dz * dz;
+          if (d < best) { best = d; bi = i; }
+        }
+        if (best < 40 * 40) break;
+      }
+      this.cdIdx = bi;
+      return Math.sqrt(best);
+    },
+
     checkTrackBoundaries: function(carPos, dt, onRespawnTrigger) {
       if (this.checkpoints.length === 0) return;
-
-      // Find distance to closest checkpoint or road centerline
-      var minDist = 1e9;
-      var closestCp = null;
-      for (var i = 0; i < this.checkpoints.length; i++) {
-        var cp = this.checkpoints[i];
-        var d = Math.hypot(carPos.x - cp.pos.x, carPos.z - cp.pos.z);
-        if (d < minDist) {
-          minDist = d;
-          closestCp = cp;
-        }
-      }
-
-      var maxAllowedDist = (closestCp ? closestCp.width : 20) + 12;
+      var minDist = this.nearestCenterDist(carPos.x, carPos.z);
+      var maxAllowedDist = (this.roadHalf || 8) + 22;
       var oobEl = document.getElementById('doob');
 
-      // Check if vehicle is off-road or falling under ground
-      if (minDist > maxAllowedDist || carPos.y < -15 || isNaN(carPos.y)) {
+      // Off the world: well away from the road, below the ground, or the position is no longer a number
+      var bad = !isFinite(carPos.x) || !isFinite(carPos.y) || !isFinite(carPos.z);
+      if (bad || minDist > maxAllowedDist || carPos.y < -15) {
         this.offRoadTimer += dt;
         this.isOutOfBounds = true;
         var remain = Math.max(0, this.maxOffRoadSeconds - this.offRoadTimer);
@@ -312,7 +395,7 @@
           oobEl.textContent = 'TRACK LIMIT EXCEEDED · RESPAWNING IN ' + remain.toFixed(1) + 's';
         }
 
-        if (this.offRoadTimer >= this.maxOffRoadSeconds || carPos.y < -15 || isNaN(carPos.y)) {
+        if (this.offRoadTimer >= this.maxOffRoadSeconds || carPos.y < -15 || bad) {
           this.triggerRespawn(onRespawnTrigger);
         }
       } else {
@@ -332,13 +415,17 @@
 
       var respawnTarget = this.lastSafeCheckpoint || (this.checkpoints.length > 0 ? this.checkpoints[0] : null);
       if (respawnTarget && onRespawnTrigger) {
-        var yaw = Math.atan2(respawnTarget.tangent.x, respawnTarget.tangent.z);
+        var rx = respawnTarget.pos.x - respawnTarget.tangent.x * 4;   // 4 m behind the gate plane, so driving off again crosses it in the right direction
+        var rz = respawnTarget.pos.z - respawnTarget.tangent.z * 4;
+        var ry = respawnTarget.pos.y + 1.2;
+        // resetCarTo reads {pos, tangent}; the old {x,y,z,yaw} shape was ignored, so respawns never used the checkpoint
         onRespawnTrigger({
-          x: respawnTarget.pos.x,
-          y: respawnTarget.pos.y + 1.2,
-          z: respawnTarget.pos.z,
-          yaw: yaw
+          pos: { x: rx, y: ry - 1.2, z: rz },
+          tangent: respawnTarget.tangent,
+          x: rx, y: ry, z: rz,
+          yaw: Math.atan2(respawnTarget.tangent.x, respawnTarget.tangent.z)
         });
+        this.prevPos = null;
         if (window.toastMsg) window.toastMsg('Vehicle respawned at safe track checkpoint');
       }
     },
@@ -450,6 +537,22 @@
           '<span style="font-family:monospace;font-size:13px;color:#f2eee6;">' + (r.finishTime ? RaceEngine.formatTime(r.finishTime) : 'DNF') + '</span>';
         list.appendChild(li);
       });
+
+      // completed laps only, for this driver
+      var lapsEl = document.getElementById('dreslaps');
+      if (!lapsEl) {
+        lapsEl = document.createElement('div');
+        lapsEl.id = 'dreslaps';
+        lapsEl.className = 'mono';
+        lapsEl.style.cssText = 'margin-top:14px;font-size:12px;line-height:1.7;color:#f2eee6;';
+        list.parentNode.insertBefore(lapsEl, list.nextSibling);
+      }
+      var self = this, html = '';
+      this.lapTimes.forEach(function(t, i) {
+        html += '<div style="display:flex;justify-content:space-between"><span>LAP ' + (i + 1) + (t === self.bestLapTime ? ' · best' : '') + '</span><span>' + self.formatTime(t) + '</span></div>';
+      });
+      if (this.totalRaceTime) html += '<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.15);margin-top:4px;padding-top:4px"><b>TOTAL · ' + this.totalLaps + ' LAP' + (this.totalLaps > 1 ? 'S' : '') + '</b><b>' + this.formatTime(this.totalRaceTime) + '</b></div>';
+      lapsEl.innerHTML = html;
 
       modal.style.display = 'grid';
       this.state = 'results';
