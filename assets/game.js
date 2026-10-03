@@ -2259,8 +2259,23 @@ t.bd.position.set(x,y+.86,z);
            const dg=Math.min(chassisB.mass*8,vs*vs*AERO_DRAG);
            fScratch.set(-vv.x/vs*dg,0,-vv.z/vs*dg);chassisB.applyForce(fScratch,chassisB.position)}}
        lvScratch.copy(chassisB.velocity);chassisB.quaternion.conjugate(qScratch);qScratch.vmult(lvScratch,lvScratch);
-       const lateral=Math.min(1,Math.abs(lvScratch.x)/8),rearGrip=key.h?.58:1,
-             grip=V.slip*wx.slip*(1-sub*.72)*(1+gradeNow*.55)*(1+lateral*.22);
+const lateral=Math.min(1,Math.abs(lvScratch.x)/8),rearGrip=key.h?.58:1,
+              // weather effects on grip
+              weatherGripMult=wx.slip,
+              const lateral=Math.min(1,Math.abs(lvScratch.x)/8),rearGrip=key.h?.58:1,
+              // weather effects on grip
+              weatherGripMult=wx.slip,
+              grip=V.slip*weatherGripMult*(1-sub*.72)*(1+gradeNow*.55)*(1+lateral*.22);
+        // additional weather-specific grip modifiers
+        if(wxB.part==='rain' || wxB.part==='storm'){
+          grip*=0.6; // wet roads
+        }else if(wxB.part==='snow' || wxB.part==='blizzard'){
+          grip*=0.3; // icy roads
+        }else if(wxB.part==='fog'){
+          grip*=0.8; // reduced visibility
+        }else if(wxB.part==='sand'){
+          grip*=0.7; // sandy roads
+        }
        for(let i=0;i<wheelCount;i++){
          // load sensitivity: grip climbs with load, but slower than the load does
          const lr=STATIC>0?wLoad[i]/STATIC:1;
