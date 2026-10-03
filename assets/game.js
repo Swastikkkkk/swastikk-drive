@@ -2318,7 +2318,7 @@ t.bd.position.set(x,y+.86,z);
   const shD=new THREE.Vector3(),shR=new THREE.Vector3(),shU=new THREE.Vector3();
   function physStep(h){
       // anti-cheat recording
-      recordAntiCheatState();
+      window.recordAntiCheatState();
       if(sub>0){
         // buoyancy scales with how submerged it is and is capped under its own weight, so it wallows instead of taking off
         const lift=chassisB.mass*24*sub*.88;
