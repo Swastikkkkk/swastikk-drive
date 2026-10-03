@@ -39,6 +39,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   // (mission-done, lap-done, etc), since the single-element toast would otherwise overwrite itself
   function earnCoins(n){coins+=n;saveCoins();updCoinsUI()}
   /* ---------- garage: 6 cars, 2 body kits (buildEV / buildCar) sharing the same physics rig ---------- */
+  /* Supabase project used for multiplayer rooms and the global boards. This is the public "anon" key: it is
+     meant to ship in the browser, and what it can do is limited by the database's row-level security policies.
+     Defined once here so every caller shares it. */
+  const SUPA={url:'https://oceaylrebzflgyxfjqfb.supabase.co',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'};
   const GARAGE=[
     {id:'aster',label:'Aster',type:'ev',blurb:'Balanced',mass:190,F:2.42,B:-2.36,W:2.3,price:0,
      V:{engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
@@ -1041,12 +1045,12 @@ async function submitToLeaderboard(ms,vehicle){
     const name=localStorage.getItem('sl_name')||'Anon';
     const entry={n:name,ms,veh:vehicle,at:Date.now()};
     try{
-      const res=await fetch('https://oceaylrebzflgyxfjqfb.supabase.co/rest/v1/leaderboard',{
+      const res=await fetch(SUPA.url+'/rest/v1/leaderboard',{
         method:'POST',
         headers:{
           'Content-Type':'application/json',
-          'apikey':'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs',
-          'Authorization':'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'
+          'apikey':SUPA.key,
+          'Authorization':'Bearer '+SUPA.key
         },
         body:JSON.stringify(entry)
       });
@@ -5499,7 +5503,7 @@ updCircBtn();
   // --- Daily Track: the UTC day the track belongs to; global board if the backend has the table, else this device ---
   function dailyDay(){return new Date().toISOString().slice(0,10)}
   window.DailyBoard=(function(){
-    const URL_='https://oceaylrebzflgyxfjqfb.supabase.co/rest/v1/daily_times',KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs';
+    const URL_=SUPA.url+'/rest/v1/daily_times',KEY=SUPA.key;
     const H={'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+KEY};
     async function fetch_(day){try{const r=await fetch(URL_+'?select=name,ms,best_ms&day=eq.'+day+'&order=ms.asc&limit=200',{headers:H});if(!r.ok)return null;
       return (await r.json()).map(x=>({name:x.name,time:x.ms,best:x.best_ms}))}catch(e){return null}}
@@ -5539,7 +5543,7 @@ updCircBtn();
      code and nothing is stored; a channel exists only while somebody is on it. */
   const MP=(function(){
     const CFG={ws:'wss://oceaylrebzflgyxfjqfb.supabase.co/realtime/v1/websocket',
-      key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'};
+      key:SUPA.key};
     const MAXP=4,HZ=10,STALE=6500,PAL=[0x1f5fbf,0x2f9e5b,0xd9a12a,0x7a3fb0],HEX=c=>'#'+c.toString(16).padStart(6,'0');
     const LOCAL=/[?&]net=local\b/.test(location.search);
     const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',rid=n=>{let s='';for(let i=0;i<n;i++)s+=ALPH[Math.random()*32|0];return s};
