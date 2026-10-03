@@ -1828,8 +1828,11 @@ t.bd.position.set(x,y+.86,z);
     applyVehicle();
     chassisB.mass=spec.mass;chassisB.updateMassProperties();
     if(PCAR)vis.bodyIn.remove(PCAR.g);
-    const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};
-    if (spec.type==='f1' && window.CarBuilder && window.CarBuilder.buildF1) {
+    const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,xw:V.xw,head:headM,tail:tailM};
+    // lofted bodies (assets/vehicles.js) for every model it knows; the EVs and the F1 keep their own builders
+    if (window.VehicleKit && window.VehicleKit.has(spec.id)) {
+      PCAR = window.VehicleKit.build(spec.id, o);
+    } else if (spec.type==='f1' && window.CarBuilder && window.CarBuilder.buildF1) {
       PCAR = window.CarBuilder.buildF1(o);
     } else if (spec.type==='suv' && window.CarBuilder && window.CarBuilder.buildSUV) {
       PCAR = window.CarBuilder.buildSUV(o);
@@ -3926,7 +3929,7 @@ const PLANETS={
       /* Brakes are plumbed the way a real car's are: front biased under normal braking,
          because that is where the weight goes when you slow down, and the handbrake on
          the rear axle only, which is what lets it rotate the car instead of just stopping it. */
-      const svc=Math.max(coast,gradeBrake,govBrake,braking?16:0);
+      const svc=Math.max(coast,gradeBrake,govBrake,braking?16*(V.brake||1):0);
       for(let i=0;i<4;i++){const fr=i<2;veh.setBrake(Math.max(svc*(fr?1.25:.75),key.h?(fr?0:52):0),i)}
       // hard ceiling: if it is still climbing past the cap, damp the velocity directly
       if(sp>vmax*1.18&&!inPond){const s=vmax*1.18/sp;chassisB.velocity.x*=s;chassisB.velocity.z*=s}
@@ -4113,8 +4116,8 @@ const PLANETS={
     const visualWheelCount=isBike?2:isTruck?6:4;
     wl.forEach((k,i)=>{if(i>=visualWheelCount)return;
       /* physics has 4 wheels; extra visual wheels (truck's second rear axle) follow the rear pair, one wheel-width further forward */
-      const j=i<wi.length?i:2+(i%2),w=wi[j];if(!w)return;const c=w.chassisConnectionPointLocal,dz=i<wi.length?0:V.r*2.3;
-      k.w.position.set(c.x*.9,.05-w.suspensionLength,c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation});
+      const j=isBike?i*2:i<wi.length?i:2+(i%2),w=wi[j];if(!w)return;const c=w.chassisConnectionPointLocal,dz=isBike||i<wi.length?0:V.r*2.3;
+      k.w.position.set(isBike?0:c.x*.9,.05-w.suspensionLength,c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation});
     if(active&&MP.on)MP.tick(now,dt);
     if(frameN%10===0){
       const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
