@@ -195,31 +195,26 @@
       if (this.finished || this.checkpoints.length === 0) return;
 
       var totalCp = this.checkpoints.length;
-      var targetCpIdx = this.currentCheckpoint % totalCp;
-      var targetCp = this.checkpoints[targetCpIdx];
-
-      // Distance to target checkpoint
-      var dx = carPos.x - targetCp.pos.x;
-      var dz = carPos.z - targetCp.pos.z;
-      var dist = Math.hypot(dx, dz);
-
-      // Check crossing plane
-      var dotFwd = dx * targetCp.tangent.x + dz * targetCp.tangent.z;
-      
-      // If car is close enough to target checkpoint plane
-      if (dist < targetCp.width && Math.abs(dotFwd) < 7.0) {
-        // Advanced past this checkpoint
-        this.lastSafeCheckpoint = targetCp;
-        this.currentCheckpoint++;
-
-        // Sound trigger
-        if (window.soundBlip) {
-          window.soundBlip(680 + (targetCpIdx * 30), 0.12, 0.08);
-        }
-
-        // Did we complete a full sequence?
-        if (this.currentCheckpoint >= totalCp) {
-          this.onLapCompleted(now);
+      // check the next gate and the one after it, so one gate missed on a wide line or after a
+      // respawn doesn't freeze lap counting for the rest of the race (skipping two still won't count)
+      for (var k = 0; k < 2; k++) {
+        var targetCpIdx = (this.currentCheckpoint + k) % totalCp;
+        var targetCp = this.checkpoints[targetCpIdx];
+        var dx = carPos.x - targetCp.pos.x;
+        var dz = carPos.z - targetCp.pos.z;
+        var dist = Math.hypot(dx, dz);
+        var dotFwd = dx * targetCp.tangent.x + dz * targetCp.tangent.z;
+        if (dist < targetCp.width && Math.abs(dotFwd) < 7.0) {
+          this.lastSafeCheckpoint = targetCp;
+          this.currentCheckpoint += k + 1;
+          // the lap ends on the start/finish line (gate 0) once the other gates have been passed
+          if (targetCpIdx === 0 && this.currentCheckpoint > totalCp) {
+            this.currentCheckpoint = 1;
+            this.onLapCompleted(now);
+            return;
+          }
+          if (window.soundBlip) window.soundBlip(680 + (targetCpIdx * 30), 0.12, 0.08);
+          return;
         }
       }
     },
@@ -228,7 +223,6 @@
       var lapTime = now - this.lapStartTime;
       this.lapTimes.push(lapTime);
       this.lapStartTime = now;
-      this.currentCheckpoint = 0; // Reset checkpoint sequence for next lap
 
       if (!this.bestLapTime || lapTime < this.bestLapTime) {
         this.bestLapTime = lapTime;
@@ -260,7 +254,7 @@
       // Safe anti-cheat daily leaderboard persistence
       var dStr = new Date().toISOString().slice(0, 10);
       var minPossibleTime = 12000 * (this.totalLaps || 1); // Anti-cheat: each lap must take at least 12 seconds
-      if (this.totalRaceTime >= minPossibleTime) {
+      if (this.isDaily && this.totalRaceTime >= minPossibleTime) {
         try {
           var key = 'sl_daily_' + dStr;
           var records = JSON.parse(localStorage.getItem(key) || '[]');
@@ -432,7 +426,7 @@
       if (posEl) {
         posEl.style.display = (this.state === 'racing' || this.state === 'finished') ? 'block' : 'none';
         var total = Math.max(1, this.leaderboard.length);
-        posEl.textContent = 'P' + this.finalPosition + ' / ' + total;
+        posEl.textContent = 'P' + (this.finalPosition || 1) + ' / ' + total;
       }
     },
 
