@@ -1827,6 +1827,28 @@ t.bd.position.set(x,y+.86,z);
   let curCarId='aster',mpCarNotify=null;
   const GARAGE_BASE_LEN=2.42-(-2.36);
   function garageOf(id){return GARAGE.find(g=>g.id===id)||GARAGE[0]}
+  /* the body mesh for one garage entry; shared by the car you drive and the garage preview */
+  function makeBody(spec,o){
+    // lofted bodies (assets/vehicles.js) for every model it knows; the EVs and the F1 keep their own builders
+    if (window.VehicleKit && window.VehicleKit.has(spec.id)) {
+      return window.VehicleKit.build(spec.id, o);
+    } else if (spec.type==='f1' && window.CarBuilder && window.CarBuilder.buildF1) {
+      return window.CarBuilder.buildF1(o);
+    } else if (spec.type==='suv' && window.CarBuilder && window.CarBuilder.buildSUV) {
+      return window.CarBuilder.buildSUV(o);
+    } else if (spec.type==='bike' && window.CarBuilder && window.CarBuilder.buildBike) {
+      return window.CarBuilder.buildBike(o);
+    } else if (spec.type==='hypercar' && window.CarBuilder && window.CarBuilder.buildHypercar) {
+      return window.CarBuilder.buildHypercar(o);
+    } else if (spec.type==='truck' && window.CarBuilder && window.CarBuilder.buildTruck) {
+      return window.CarBuilder.buildTruck(o);
+    } else if (spec.type==='ev') {
+      return buildEV(o);
+    } else {
+      return buildCar(Object.assign(o,{wagon:!!spec.wagon,wheels:false}));
+    }
+  }
+  function wheelWdOf(spec){return spec.type==='bike'?.18:spec.type==='truck'?.5:spec.type==='f1'?.46:spec.type==='suv'?.42:.36}
   function setCar(id,paint,quiet){
     const spec=garageOf(id);curCarId=spec.id;
     const paintHex=paint!=null?paint:spec.paints[0];
@@ -1835,37 +1857,12 @@ t.bd.position.set(x,y+.86,z);
     chassisB.mass=spec.mass;chassisB.updateMassProperties();
     if(PCAR)vis.bodyIn.remove(PCAR.g);
     const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,xw:V.xw,head:headM,tail:tailM};
-    // lofted bodies (assets/vehicles.js) for every model it knows; the EVs and the F1 keep their own builders
-    if (window.VehicleKit && window.VehicleKit.has(spec.id)) {
-      PCAR = window.VehicleKit.build(spec.id, o);
-    } else if (spec.type==='f1' && window.CarBuilder && window.CarBuilder.buildF1) {
-      PCAR = window.CarBuilder.buildF1(o);
-    } else if (spec.type==='suv' && window.CarBuilder && window.CarBuilder.buildSUV) {
-      PCAR = window.CarBuilder.buildSUV(o);
-    } else if (spec.type==='bike' && window.CarBuilder && window.CarBuilder.buildBike) {
-      PCAR = window.CarBuilder.buildBike(o);
-    } else if (spec.type==='hypercar' && window.CarBuilder && window.CarBuilder.buildHypercar) {
-      PCAR = window.CarBuilder.buildHypercar(o);
-    } else if (spec.type==='truck' && window.CarBuilder && window.CarBuilder.buildTruck) {
-      PCAR = window.CarBuilder.buildTruck(o);
-    } else if (spec.type==='ev') {
-      PCAR = buildEV(o);
-    } else {
-      PCAR = buildCar(Object.assign(o,{wagon:!!spec.wagon,wheels:false}));
-    }
+    PCAR=makeBody(spec,o);
     PCAR.g.position.y=.05-(V.rest-.07)-V.r;vis.bodyIn.add(PCAR.g);
     if(cubeRT)PCAR.g.traverse(m=>{if(m.material&&m.material.reflectivity!==undefined){m.material.envMap=cubeRT.texture;m.material.needsUpdate=true}});
     if(wv)wv.car.forEach(k=>vis.car.remove(k.w));
-    if(spec.type==='bike'){
-      const wheelWd = 0.18;
-      wv={car:[0,1].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
-    }else if(spec.type==='truck'){
-      const wheelWd = 0.5;
-      wv={car:[0,1,2,3,4,5].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
-    }else{
-      const wheelWd = spec.type==='bike'?0.18:spec.type==='f1'?0.46:spec.type==='suv'?0.42:0.36;
-      wv={car:[0,1,2,3].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
-    }
+    const nW=spec.type==='bike'?2:spec.type==='truck'?6:4,wheelWd=wheelWdOf(spec);
+    wv={car:Array.from({length:nW},(_,i)=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
     wv.car.forEach(k=>vis.car.add(k.w));
     if(carShadow){carShadow.position.y=.05-(V.rest-.07)-.02;carShadow.scale.z=(spec.F-spec.B)/GARAGE_BASE_LEN}
     try{localStorage.setItem('sl_car',JSON.stringify({id:spec.id,paint:paintHex}))}catch(e){}
@@ -1965,43 +1962,152 @@ t.bd.position.set(x,y+.86,z);
      addEventListener('pointerdown',e=>{if(!wx.classList.contains('on'))return;if(!wx.contains(e.target)&&e.target!==wb)setOpen(false)});
      $$('#dwxl button').forEach(b=>b.classList.toggle('on',b.dataset.w==='auto'))
    }}
-  /* ---------- garage ---------- */
-  {const gb=$('#dgarageb'),gp=$('#dgarage'),gx=$('#dgaragex'),gl=$('#dgcars'),gpaints=$('#dgpaints'),gname=$('#dgname'),gblurb=$('#dgblurb'),gcoins=$('#dgcoins');
-   if(gb&&gp&&gl){
+  /* ---------- garage ----------
+     A carousel: one car at a time with its name on top, a 3D model you can drag round 360°
+     in the middle and its stats below. Swipe or use the arrows to move between cars, then
+     pick one. The preview has its own small WebGL renderer, so it only runs while the garage
+     is open and costs nothing while driving. */
+  {const gb=$('#dgarageb'),gp=$('#dgarage'),gx=$('#dgaragex'),gpaints=$('#dgpaints'),gname=$('#dgname'),gblurb=$('#dgblurb'),gcoins=$('#dgcoins'),
+     gview=$('#dgview'),gcv=$('#dgcanvas'),gcname=$('#dgcname'),gcclass=$('#dgcclass'),gcount=$('#dgcount'),gdots=$('#dgdots'),gstats=$('#dgstats'),gpick=$('#dgpick');
+   if(gb&&gp&&gview){
      let curPaint=GARAGE[0].paints[0],hadSave=false;
      try{const s=JSON.parse(localStorage.getItem('sl_car')||'null');
        if(s&&garageOf(s.id)){hadSave=true;curPaint=s.paint!=null?s.paint:garageOf(s.id).paints[0];setCar(s.id,curPaint,true)}}catch(e){}
-     GARAGE.forEach(spec=>{const li=document.createElement('li');li.dataset.id=spec.id;gl.appendChild(li)});
      updCoinsUI=()=>{if(gcoins)gcoins.textContent=coins+' coins'};
-     const refreshList=()=>{$$('#dgcars li').forEach(li=>{const spec=garageOf(li.dataset.id),owned=unlocked.has(spec.id);
-       li.classList.toggle('locked',!owned);
-       li.innerHTML='<span class="n">'+spec.label+'</span><span class="s">'+
-         (owned?(spec.type==='f1'?'F1 RACER':spec.type==='suv'?'4x4 SUV':spec.type==='bike'?'SUPERBIKE':spec.type==='hypercar'?'HYPERCAR':spec.type==='ev'?'EV':'Petrol'):('Buy · '+spec.price))+'</span>'})};
-     const refresh=()=>{const spec=garageOf(curCarId);
-       refreshList();
-       $$('#dgcars li').forEach(li=>li.classList.toggle('on',li.dataset.id===curCarId));
-       gblurb.textContent=spec.label+' · '+spec.blurb;
-       gpaints.innerHTML='';spec.paints.forEach(c=>{const b=document.createElement('button');
-         b.style.background='#'+c.toString(16).padStart(6,'0');b.dataset.p=c;
-         b.classList.toggle('on',c===curPaint);gpaints.appendChild(b)});
+     const CLASS={f1:'F1 racer',suv:'4x4 SUV',bike:'Superbike',hypercar:'Hypercar',ev:'Electric',truck:'Truck'};
+     const classOf=spec=>CLASS[spec.type]||'Petrol';
+     /* stats as 0..1 against the rest of the garage, so the bars compare the cars to each other */
+     const raw=spec=>({top:spec.V.max,acc:spec.V.engine/spec.mass,hand:spec.V.slip*(.6+spec.V.steer),mass:spec.mass});
+     const RNG={};GARAGE.forEach(sp=>{const r=raw(sp);for(const k in r){const q=RNG[k]||(RNG[k]=[1e9,-1e9]);q[0]=Math.min(q[0],r[k]);q[1]=Math.max(q[1],r[k])}});
+     const norm=(k,v)=>{const q=RNG[k];return q[1]>q[0]?.14+.86*(v-q[0])/(q[1]-q[0]):.6};
+     let idx=Math.max(0,GARAGE.findIndex(g=>g.id===curCarId)),viewPaint=curPaint;
+     GARAGE.forEach(()=>gdots.appendChild(document.createElement('i')));
+     /* ---- preview renderer ---- */
+     let PR=null,PS=null,PC=null,PM=null,rig=null,yaw=-.6,vyaw=0,auto=true,autoT=0,raf=0,lastT=0;
+     const ownMats=[],ownGeos=[];
+     const initPreview=()=>{if(PR)return true;
+       try{PR=new THREE.WebGLRenderer({canvas:gcv,alpha:true,antialias:true})}catch(e){PR=null;return false}
+       PR.setPixelRatio(Math.min(devicePixelRatio||1,2));PR.setClearColor(0,0);
+       if('outputEncoding' in PR)PR.outputEncoding=THREE.sRGBEncoding;PR.toneMapping=THREE.ACESFilmicToneMapping;PR.toneMappingExposure=.98;
+       PR.shadowMap.enabled=true;PR.shadowMap.type=THREE.PCFSoftShadowMap;
+       PS=new THREE.Scene();PC=new THREE.PerspectiveCamera(30,1,.1,100);
+       PS.add(new THREE.HemisphereLight(0xdfe8ff,0x3a332a,.42));
+       const key=new THREE.DirectionalLight(0xfff4e0,.85);key.position.set(4,8,5);key.castShadow=true;
+       key.shadow.mapSize.set(1024,1024);Object.assign(key.shadow.camera,{left:-5,right:5,top:5,bottom:-5,near:1,far:25});key.shadow.bias=-.0005;key.shadow.radius=4;PS.add(key);
+       const rim=new THREE.DirectionalLight(0xa8c4ff,.55);rim.position.set(-6,3,-5);PS.add(rim);
+       const fl=new THREE.Mesh(new THREE.CircleGeometry(6,48).rotateX(-Math.PI/2),new THREE.ShadowMaterial({opacity:.38}));fl.receiveShadow=true;PS.add(fl);
+       // the drive renderer's reflection cube lives in another WebGL context, so the preview gets a still studio one of its own
+       const face=(top,bot)=>{const c=document.createElement('canvas');c.width=c.height=16;const x=c.getContext('2d'),gr=x.createLinearGradient(0,0,0,16);gr.addColorStop(0,top);gr.addColorStop(1,bot);x.fillStyle=gr;x.fillRect(0,0,16,16);return c};
+       const side=face('#8d96a3','#2a2724');PM=new THREE.CubeTexture([side,side,face('#d8dde4','#d8dde4'),face('#1a1a1a','#1a1a1a'),side,side]);PM.needsUpdate=true;
+       return true};
+     const dropModel=()=>{if(!rig)return;PS.remove(rig);rig=null;
+       ownMats.forEach(m=>m.dispose());ownGeos.forEach(g=>g.dispose());ownMats.length=0;ownGeos.length=0};
+     const buildModel=()=>{if(!PR)return;dropModel();
+       const spec=GARAGE[idx],v=spec.V,isBike=spec.type==='bike',isTruck=spec.type==='truck';
+       rig=new THREE.Group();
+       const cm0=CARMATS.length;
+       const body=makeBody(spec,{paint:viewPaint,r:v.r,zf:v.zf,zb:v.zb,F:spec.F,B:spec.B,W:spec.W,xw:v.xw,head:headM,tail:tailM});
+       rig.add(body.g);
+       const n=isBike?2:isTruck?6:4,wd=wheelWdOf(spec);
+       for(let i=0;i<n;i++){const k=makeWheel(v.r,wd,i%2?-1:1,true,true);
+         const front=isBike?i===0:i<2,z=isBike?(i===0?v.zf:v.zb):i<4?(i<2?v.zf:v.zb):v.zb+v.r*2.3;
+         k.w.position.set(isBike?0:(i%2?-1:1)*v.xw*.9,v.r,z);if(front)k.w.rotation.y=.28;rig.add(k.w)}
+       const seen=new Map();
+       rig.traverse(m=>{if(!m.isMesh)return;m.castShadow=true;if(m.geometry&&!ownGeos.includes(m.geometry))ownGeos.push(m.geometry);
+         const swap=mt=>{if(!mt)return mt;if(seen.has(mt))return seen.get(mt);const c=mt.clone();
+           if('envMap' in c)c.envMap=('reflectivity' in c)?PM:null;ownMats.push(c);seen.set(mt,c);return c};
+         m.material=Array.isArray(m.material)?m.material.map(swap):swap(m.material)});
+       CARMATS.length=Math.min(CARMATS.length,cm0);   // the preview works on clones; the originals must not join the drive car's reflection list
+       // centre it on the turntable and frame the camera to its size
+       const bb=new THREE.Box3().setFromObject(rig),c=bb.getCenter(new THREE.Vector3()),sz=bb.getSize(new THREE.Vector3());
+       rig.children.forEach(ch=>{ch.position.x-=c.x;ch.position.z-=c.z});rig.position.y=-bb.min.y;
+       const holder=new THREE.Group();holder.add(rig);PS.add(holder);rig=holder;
+       const L=Math.max(sz.x,sz.z,sz.y*1.6);PC.userData.d=L*1.55+1.2;PC.userData.h=sz.y*.45;
+       rig.rotation.y=yaw};
+     const sizePreview=()=>{if(!PR)return;const w=gview.clientWidth||300,h=gview.clientHeight||200;PR.setSize(w,h,false);PC.aspect=w/h;PC.updateProjectionMatrix()};
+     const frame=t=>{raf=0;if(!gp.classList.contains('on')){stopPreview();return}
+       const dt=Math.min(.05,lastT?(t-lastT)/1000:.016);lastT=t;
+       if(!dragging){if(auto&&t>autoT)vyaw+=(.5-vyaw)*Math.min(1,dt*2);else vyaw*=Math.pow(.04,dt);yaw+=vyaw*dt}
+       if(rig)rig.rotation.y=yaw;
+       const d=(PC.userData.d||6)/Math.min(1,PC.aspect*.9),hh=PC.userData.h||.6;
+       PC.position.set(0,hh+d*.32,d);PC.lookAt(0,hh*.8,0);
+       PR.render(PS,PC);raf=requestAnimationFrame(frame)};
+     const startPreview=()=>{if(!initPreview())return;sizePreview();if(!rig)buildModel();if(!raf){lastT=0;raf=requestAnimationFrame(frame)}};
+     function stopPreview(){if(raf)cancelAnimationFrame(raf);raf=0}
+     addEventListener('resize',()=>{if(gp.classList.contains('on'))sizePreview()});
+     /* ---- the page around it ---- */
+     const paintPaints=()=>{const spec=GARAGE[idx];gpaints.innerHTML='';spec.paints.forEach(c=>{const b=document.createElement('button');
+         b.style.background='#'+c.toString(16).padStart(6,'0');b.dataset.p=c;b.setAttribute('aria-label','Paint');
+         b.classList.toggle('on',c===viewPaint);gpaints.appendChild(b)})};
+     const refresh=()=>{const spec=GARAGE[idx],owned=unlocked.has(spec.id),r=raw(spec);
+       gcname.textContent=spec.label;gcclass.textContent=classOf(spec);gcount.textContent=(idx+1)+' / '+GARAGE.length;
+       [...gdots.children].forEach((d,i)=>{d.classList.toggle('on',i===idx);d.classList.toggle('own',GARAGE[i].id===curCarId)});
+       const row=(lb,k,txt)=>'<div class="gg-st"><span>'+lb+'</span><b><i style="width:'+Math.round(norm(k,r[k])*100)+'%"></i></b><span>'+txt+'</span></div>';
+       const ten=k=>(norm(k,r[k])*10).toFixed(1)+' / 10',wt=norm('mass',r.mass);
+       gstats.innerHTML=row('Top speed','top',Math.round(spec.V.max*3.6)+' km/h')+row('Acceleration','acc',ten('acc'))+
+         row('Handling','hand',ten('hand'))+row('Weight','mass',wt<.4?'Light':wt<.7?'Medium':'Heavy');
+       gblurb.textContent=spec.blurb;
+       paintPaints();
+       gpick.classList.remove('sel','buy');
+       if(!owned){gpick.textContent='Buy · '+spec.price+' coins';gpick.classList.add('buy')}
+       else if(spec.id===curCarId&&viewPaint===curPaint){gpick.textContent='Selected · drive';gpick.classList.add('sel')}
+       else gpick.textContent='Drive this car';
        updCoinsUI()};
+     const go=(d,flick)=>{idx=(idx+d+GARAGE.length)%GARAGE.length;const spec=GARAGE[idx];
+       viewPaint=spec.id===curCarId?curPaint:spec.paints[0];
+       // a short spin in the swipe direction makes the change feel like the turntable moved
+       vyaw=flick?-d*2.4:vyaw;auto=true;autoT=performance.now()+600;
+       refresh();if(PR)buildModel()};
+     const setOpen=o=>{gp.classList.toggle('on',o);
+       if(o){try{gname.value=localStorage.getItem('sl_name')||''}catch(e){}
+         idx=Math.max(0,GARAGE.findIndex(g=>g.id===curCarId));viewPaint=curPaint;refresh();if(rig)dropModel();
+         requestAnimationFrame(startPreview)}
+       else stopPreview()};
      refresh();
-     const setOpen=o=>{gp.classList.toggle('on',o);if(o){try{gname.value=localStorage.getItem('sl_name')||''}catch(e){}refresh()}};
      gb.onclick=()=>setOpen(true);
      gx.onclick=()=>setOpen(false);
      gp.addEventListener('click',e=>{if(e.target===gp)setOpen(false)});
-     gl.addEventListener('click',e=>{const li=e.target.closest('li[data-id]');if(!li)return;
-       const spec=garageOf(li.dataset.id);
+     $('#dgprev').onclick=()=>go(-1,true);$('#dgnext').onclick=()=>go(1,true);
+     gpick.onclick=()=>{const spec=GARAGE[idx];
        if(!unlocked.has(spec.id)){
          if(coins>=spec.price){coins-=spec.price;saveCoins();unlocked.add(spec.id);saveUnlocked();
-           toastMsg('Bought '+spec.label+' · -'+spec.price+' coins');
-           curPaint=spec.paints[0];setCar(spec.id,curPaint);refresh()}
+           toastMsg('Bought '+spec.label+' · -'+spec.price+' coins');curPaint=viewPaint;setCar(spec.id,curPaint);refresh()}
          else toastMsg('Need '+(spec.price-coins)+' more coins for '+spec.label);
          return}
-       curPaint=spec.paints[0];setCar(spec.id,curPaint);refresh()});
+       const same=spec.id===curCarId&&viewPaint===curPaint;
+       if(!same){curPaint=viewPaint;setCar(spec.id,curPaint)}
+       setOpen(false)};
      gpaints.addEventListener('click',e=>{const b=e.target.closest('button[data-p]');if(!b)return;
-       curPaint=+b.dataset.p;setCar(curCarId,curPaint);$$('#dgpaints button').forEach(x=>x.classList.toggle('on',x===b))});
+       viewPaint=+b.dataset.p;
+       // repainting the car you already drive applies straight away
+       if(GARAGE[idx].id===curCarId&&unlocked.has(curCarId)){curPaint=viewPaint;setCar(curCarId,curPaint,true)}
+       refresh();if(PR)buildModel()});
      gname.addEventListener('change',()=>{const nm=(gname.value||'').trim().slice(0,14);try{if(nm)localStorage.setItem('sl_name',nm)}catch(e){}});
+     /* drag turns the car; a quick flick sideways moves to the next one */
+     let dragging=false,px=0,py=0,sx0=0,st0=0,pid=null,sideways=null,trail=[];
+     gview.addEventListener('pointerdown',e=>{dragging=true;pid=e.pointerId;px=sx0=e.clientX;py=e.clientY;st0=performance.now();sideways=null;auto=false;vyaw=0;trail=[[st0,e.clientX]];
+       gview.classList.add('drag');try{gview.setPointerCapture(pid)}catch(_){}});
+     gview.addEventListener('pointermove',e=>{if(!dragging||e.pointerId!==pid)return;
+       const dx=e.clientX-px,dy=e.clientY-py;
+       if(sideways===null&&Math.hypot(e.clientX-sx0,dy)>6)sideways=Math.abs(e.clientX-sx0)>Math.abs(e.clientY-py);
+       px=e.clientX;py=e.clientY;const now=performance.now();trail.push([now,e.clientX]);while(trail.length>2&&now-trail[0][0]>110)trail.shift();
+       if(sideways===false)return;
+       const k=6.5/Math.max(220,gview.clientWidth);yaw+=dx*k;vyaw=vyaw*.5+dx*k*30});
+     const up=e=>{if(!dragging||e.pointerId!==pid)return;dragging=false;gview.classList.remove('drag');
+       const now=performance.now(),ddx=e.clientX-sx0,dtm=now-st0,t0=trail[0]||[st0,sx0],vel=(e.clientX-t0[1])/Math.max(16,now-t0[0]);
+       // a flick: a quick short swipe, or a fast release at the end of a longer drag
+       if(sideways&&Math.abs(ddx)>55&&(dtm<350||Math.abs(vel)>1.1)&&Math.sign(vel||ddx)===Math.sign(ddx)){yaw-=ddx*6.5/Math.max(220,gview.clientWidth);vyaw=0;go(ddx<0?1:-1,true)}
+       else autoT=performance.now()+2500,auto=true};
+     gview.addEventListener('pointerup',up);gview.addEventListener('pointercancel',up);
+     /* swipes on the title or stats change car too */
+     let tx=null,ty=0;
+     [gstats,$('.gg-head')].forEach(el=>{el.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+       el.addEventListener('touchend',e=>{if(tx==null)return;const t=e.changedTouches[0],dx=t.clientX-tx,dy=t.clientY-ty;tx=null;
+         if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)*1.4)go(dx<0?1:-1,true)},{passive:true})});
+     addEventListener('keydown',e=>{if(!gp.classList.contains('on')||(e.target&&e.target.tagName==='INPUT'))return;
+       if(e.code==='ArrowLeft'||e.code==='KeyA'){go(-1,true);e.preventDefault();e.stopImmediatePropagation()}
+       else if(e.code==='ArrowRight'||e.code==='KeyD'){go(1,true);e.preventDefault();e.stopImmediatePropagation()}
+       else if(e.code==='Enter'){gpick.click();e.preventDefault();e.stopImmediatePropagation()}},true);
      if(!hadSave)setTimeout(()=>setOpen(true),900)
    }}
   /* ---------- input ---------- */
@@ -3896,7 +4002,11 @@ const PLANETS={
   })();
 
   const phoneSt={on:false,cam:false,reset:false};let rcSince=0;
+  const garageEl=$('#dgarage');
   function loop(now){requestAnimationFrame(loop);
+    /* the garage covers the screen and runs its own preview, so solo play holds still underneath it
+       (physics and all, so nothing happens to the car while you choose); a room keeps running */
+    if(garageEl.classList.contains('on')){let inRoom=false;try{inRoom=!!MP.on}catch(_){}if(!inRoom){last=now;return}}
     if(active!==wasActive){
       wasActive=active;
       if(active){poster.style.display='none'}

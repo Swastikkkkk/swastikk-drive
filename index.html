@@ -242,16 +242,47 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 
 #dcircerr{position:absolute;top:calc(46px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);color:#c94f3f;pointer-events:none;text-align:center;max-width:80vw;z-index:5}
 #dcircbtns{position:absolute;bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);display:flex;gap:10px;flex-wrap:wrap;justify-content:center;z-index:5}
-#dgcars{list-style:none;margin:14px 0 0;padding:0;border-top:1px solid var(--line)}
-#dgcars li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line);cursor:pointer}
-#dgcars li.on{background:rgba(212,168,58,.12)}
-#dgcars li:hover{background:rgba(242,238,230,.06)}
-#dgcars li.locked{opacity:.6}
-#dgcars .n{font-family:var(--serif);font-weight:600;font-size:19px}
-#dgcars .s{color:var(--mute);font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;text-align:right}
-#dgcars li.locked .s{color:var(--paper)}
-#dgcoins{color:var(--paper);margin-top:6px}
-#dgpaints{display:flex;gap:9px;margin-top:16px}
+#dgarage .gg-in{width:min(560px,100%);margin:auto;color:var(--paper)}
+.gg-top{display:flex;align-items:center;gap:10px}
+.gg-top>div.mono{flex:1;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#dgname{width:130px;height:32px;padding:0 10px;background:#171816;color:var(--paper);border:1px solid rgba(242,238,230,.24);font:500 12px var(--mono)}
+#dgaragex{flex:0 0 auto;width:auto;min-width:0;padding:7px 12px}
+#dgname{flex:0 1 130px;min-width:80px}
+.gg-head{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;margin-top:14px;text-align:center}
+.gg-title h3{margin:2px 0;font-size:clamp(28px,7vw,44px);line-height:1}
+#dgcclass{color:var(--bone)}#dgcount{color:var(--mute);font-size:10px}
+.gg-arr{width:44px;height:44px;border-radius:50%;border:1px solid rgba(242,238,230,.3);background:rgba(242,238,230,.06);color:var(--paper);font-size:28px;line-height:1;cursor:pointer;padding:0 0 4px}
+.gg-arr:hover{background:rgba(242,238,230,.16)}
+#dgview{position:relative;margin-top:8px;height:min(38vh,300px);min-height:170px;border-radius:14px;overflow:hidden;background:radial-gradient(ellipse at 50% 70%,rgba(242,238,230,.13),rgba(242,238,230,0) 70%);touch-action:pan-y;cursor:grab}
+#dgview.drag{cursor:grabbing}
+#dgcanvas{width:100%;height:100%;display:block}
+.gg-hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;color:var(--mute);font-size:9px;pointer-events:none}
+#dgdots{display:flex;justify-content:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+#dgdots i{width:6px;height:6px;border-radius:50%;background:rgba(242,238,230,.25)}
+#dgdots i.on{background:var(--paper);transform:scale(1.35)}
+#dgdots i.own{background:rgba(242,238,230,.5)}
+#dgstats{display:grid;gap:8px;margin-top:14px}
+.gg-st{display:grid;grid-template-columns:96px 1fr 76px;align-items:center;gap:10px;font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.gg-st b{display:block;height:6px;border-radius:3px;background:rgba(242,238,230,.12);overflow:hidden}
+.gg-st b i{display:block;height:100%;background:linear-gradient(90deg,#d4a83a,#f2eee6);border-radius:3px;transition:width .35s cubic-bezier(.2,.8,.2,1)}
+.gg-st span:last-child{color:var(--paper);text-align:right}
+#dgpick{width:100%;margin-top:14px;padding:13px;font-size:12px}
+#dgpick.sel{opacity:.6}
+#dgpick.buy{background:#d4a83a;color:#111}
+@media (max-height:620px){#dgview{height:34vh}.gg-head{margin-top:6px}#dgstats{gap:5px;margin-top:8px}}
+#dgarage{padding:16px}
+@media (max-height:540px) and (min-width:600px){
+  /* landscape phone: the car on the left, everything about it on the right */
+  #dgarage{padding:10px 14px}
+  #dgarage .gg-in{width:min(900px,100%);display:grid;grid-template-columns:1.15fr 1fr;column-gap:18px;
+    grid-template-areas:"top top" "view head" "view dots" "view paints" "view stats" "view blurb" "view pick"}
+  .gg-top{grid-area:top}.gg-head{grid-area:head;margin-top:4px}#dgview{grid-area:view;height:calc(100vh - 70px);min-height:0;margin-top:8px}
+  #dgdots{grid-area:dots;margin-top:4px}#dgpaints{grid-area:paints;margin-top:8px}#dgstats{grid-area:stats;margin-top:8px;gap:5px}
+  #dgblurb{grid-area:blurb;margin-top:6px}#dgpick{grid-area:pick;margin-top:8px;padding:10px}
+  .gg-title h3{font-size:30px}.gg-arr{width:38px;height:38px;font-size:24px}#dgpaints button{width:26px;height:26px}
+  .gg-st{grid-template-columns:84px 1fr 64px}
+}
+#dgpaints{display:flex;gap:9px;margin-top:12px;justify-content:center}
 #dgpaints button{width:32px;height:32px;border-radius:50%;border:2px solid rgba(242,238,230,.28);cursor:pointer;padding:0}
 #dgpaints button.on{border-color:var(--paper);box-shadow:0 0 0 2px rgba(8,8,7,.86),0 0 0 3px var(--paper)}
 
@@ -373,15 +404,23 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
   </div></div>
 
   <!-- Garage -->
-  <div id="dgarage"><div class="bd-in">
-    <div class="mono" style="color:var(--bone)">Garage</div>
-    <h3 class="disp">Choose your car</h3>
-    <div class="mono" id="dgcoins">0 coins</div>
-    <div class="bd-me"><input id="dgname" maxlength="14" placeholder="Your name" aria-label="Your name" autocomplete="nickname"></div>
-    <ul id="dgcars"></ul>
-    <div class="mono bd-note" id="dgblurb">-</div>
+  <div id="dgarage" role="dialog" aria-label="Garage"><div class="gg-in">
+    <div class="gg-top">
+      <div class="mono" style="color:var(--bone)">Garage · <span id="dgcoins">0 coins</span></div>
+      <input id="dgname" maxlength="14" placeholder="Your name" aria-label="Your name" autocomplete="nickname">
+      <button id="dgaragex" class="dbtn mono" aria-label="Close garage">&#10005;</button>
+    </div>
+    <div class="gg-head">
+      <button id="dgprev" class="gg-arr" aria-label="Previous car">&#8249;</button>
+      <div class="gg-title"><div class="mono" id="dgcclass">-</div><h3 class="disp" id="dgcname">-</h3><div class="mono" id="dgcount">1 / 1</div></div>
+      <button id="dgnext" class="gg-arr" aria-label="Next car">&#8250;</button>
+    </div>
+    <div id="dgview"><canvas id="dgcanvas"></canvas><div class="mono gg-hint">Drag to turn 360° · swipe to change car</div></div>
+    <div id="dgdots"></div>
     <div id="dgpaints"></div>
-    <button id="dgaragex" class="dbtn mono bd-x">Close &#10005;</button>
+    <div id="dgstats"></div>
+    <div class="mono bd-note" id="dgblurb">-</div>
+    <button id="dgpick" class="dbtn mono">Drive this car</button>
   </div></div>
 
   <!-- Track Editor / Drawer -->
