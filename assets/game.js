@@ -1505,6 +1505,13 @@ t.bd.position.set(x,y+.86,z);
           const d=du*TLEN;if(d<30&&d<sd)sd=d}
         if(sd<30)want=Math.min(want,Math.max(0,(sd-4)/9)*ai.base)}
       ai.spd+=(want-ai.spd)*Math.min(1,dt*1.4);
+      // night-time AI behavior
+      const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
+      if(isNight){
+        ai.base*=0.85; // slower at night
+        ai.aggression*=0.7; // less aggressive
+        ai.overtakeThreshold*=1.3; // more cautious overtaking
+      }
       ai.u=(ai.u+(ai.spd*dt)/TLEN)%1;
       const yaw=Math.atan2(tg.x,tg.z);
       const pitch=Math.atan2(hAt(ai.u+.004)-hAt(ai.u-.004),TLEN*.008);
@@ -3574,7 +3581,22 @@ const PLANETS={
     const visualWheelCount=isBike?2:4;
     wl.forEach((k,i)=>{if(i>=visualWheelCount)return;const c=wi[i].chassisConnectionPointLocal;k.w.position.set(c.x*.9,.05-wi[i].suspensionLength,c.z);k.w.rotation.set(0,i<2?wi[i].steering:0,0);k.spin.rotation.x=wi[i].rotation});
     if(active&&MP.on)MP.tick(now,dt);
-    if(frameN%10===0){const ni=Math.max(0,Math.min(1.8,(.85-sun.intensity)*3.2));if(carHL)carHL.intensity=ni;headM.emissiveIntensity=1+ni*.5;npcHeadM.emissiveIntensity=.9+ni*.6;if(beams){const o=Math.min(.5,ni*.3);beams.m.opacity=o;beams.list.forEach(b=>b.visible=o>.02)};CLOUDM.opacity=.2+.6*Math.min(1,sun.intensity)}
+    if(frameN%10===0){
+      const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
+      const ni=isNight ? 1.8 : Math.max(0,Math.min(1.8,(.85-sun.intensity)*3.2));
+      if(carHL)carHL.intensity=ni;
+      headM.emissiveIntensity=1+ni*.5;
+      npcHeadM.emissiveIntensity=.9+ni*.6;
+      if(beams){const o=Math.min(.5,ni*.3);beams.m.opacity=o;beams.list.forEach(b=>b.visible=o>.02)};
+      CLOUDM.opacity=.2+.6*Math.min(1,sun.intensity);
+      // night gameplay effects
+      if(isNight && !nightOn){
+        nightOn=true;
+        if(wxLock!=='night')toastMsg('Night driving · headlights required');
+      }else if(!isNight && nightOn){
+        nightOn=false;
+      }
+    }
     if(active)for(let i=0;i<dyn.length;i++){const d=dyn[i];if(d.body.sleepState===2&&frameN%30)continue;d.mesh.position.copy(d.body.position);d.mesh.quaternion.copy(d.body.quaternion);if(d.body.position.y<-5){d.body.position.copy(d.home);d.body.quaternion.copy(d.q);d.body.velocity.set(0,0,0);d.body.angularVelocity.set(0,0,0)}}
     if(active&&dynI.length){dynITouched.clear();
       for(let i=0;i<dynI.length;i++){const d=dynI[i];if(d.body.sleepState===2&&frameN%30)continue;
