@@ -88,6 +88,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      V:{engine:850,max:38,slip:3.3,xw:1.0,zf:1.3,zb:-1.3,r:.38,rest:.33,steer:.75,roll:.012},
      paints:[0x0066cc,0xf0e68c,0xd4a83a,0x1a1a2e]},
   ];
+  /* every car free for now: flip to false to bring prices back (nothing is saved, so nobody keeps them) */
+  const FREE_CARS=true;
+  if(FREE_CARS)GARAGE.forEach(c=>unlocked.add(c.id));
   const WEATHERS=[
     {id:'day',label:'Day',bg:0x9dc0dd,fog:[110,300],hemi:.62,sun:0xfff7e8,sunI:1.12,ground:0x5c6b44,leaf:0x39672b,part:null,slip:1,skyTop:0x4a86c6,skyBottom:0xc3d9ea,star:0,sunA:.7,terr:[1.06,1.1,.98],snow:0,water:0x2f6f8c,ridge:[.46,.53,.62]},
     {id:'dusk',label:'Dusk',bg:0x2e2418,fog:[80,240],hemi:.5,sun:0xffcf92,sunI:1.0,ground:0x3a3124,leaf:0x3d4a2c,part:null,slip:1,skyTop:0x3d4a72,skyBottom:0xd98f4e,star:.72,sunA:1,terr:[1.16,1,.82],snow:0,water:0x3c4f5e,ridge:[.3,.28,.3]},
@@ -1069,7 +1072,7 @@ async function submitToLeaderboard(ms,vehicle){
     }
   }
   let lastCpIndex=-1,lastCpTime=0,cpViolations=0,lastLapStart=0,lapValid=true;
-  function checkCheckpoints(){
+  function checkCheckpoints(wrapFwd){
     if(!raceMode||lapArmed)return;
     const now=performance.now();
     for(let i=0;i<checkpoints.length;i++){
@@ -1179,7 +1182,7 @@ async function submitToLeaderboard(ms,vehicle){
       cpViolations+=2;
     }
     // wall hack detection - check if car is inside terrain
-    const terrainHeight=groundH(wxOf(wxB.id),S.road,car.position.x,car.position.z,progU);
+    const terrainHeight=terrainH(car.position.x,car.position.z);
     if(car.position.y<terrainHeight-2){
       console.warn('[AntiCheat] Underground detected');
       cpViolations+=2;
@@ -1792,7 +1795,13 @@ t.bd.position.set(x,y+.86,z);
      paint and glass pick up the actual trees, sky and road around you */
   let cubeCam=null,cubeRT=null,cubeFace=0,cubeInit=false,cubeSun=0,cubeX=0,cubeZ=0;
   /* nothing that wears the reflection may be drawn into it, or the GPU reads and writes one texture at once */
-  const hideCars=v=>{car.visible=v;for(let i=0;i<traffic.length;i++)traffic[i].car.g.visible=v};
+  const cubeHidden=[];
+  const hideCars=v=>{
+    if(!v){cubeHidden.length=0;const tex=cubeRT&&cubeRT.texture;
+      S.traverseVisible(o=>{const m=o.material;if(!m||!tex)return;
+        if(Array.isArray(m)?m.some(x=>x&&x.envMap===tex):m.envMap===tex)cubeHidden.push(o)});
+      car.visible=false;for(let i=0;i<cubeHidden.length;i++)cubeHidden[i].visible=false}
+    else{car.visible=true;for(let i=0;i<cubeHidden.length;i++)cubeHidden[i].visible=true;cubeHidden.length=0}};
   if(!LOW){try{cubeRT=new THREE.WebGLCubeRenderTarget(128,{format:THREE.RGBFormat,generateMipmaps:true,minFilter:THREE.LinearMipmapLinearFilter});cubeCam=new THREE.CubeCamera(1,420,cubeRT);S.add(cubeCam);
     CARMATS.forEach(m=>{m.envMap=cubeRT.texture;m.needsUpdate=true})}catch(e){cubeCam=null}}
   const V=VEHS.car;
@@ -1965,10 +1974,10 @@ t.bd.position.set(x,y+.86,z);
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
   addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dcustom-tracks')&&$('#dcustom-tracks').classList.contains('on'))$('#dcustom-tracks').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyG'){
-      if(MODE==='surface'&&SURF&&SURF.gpsPins.length){
-        const pins=SURF.gpsPins,idx=pins.indexOf(SURF.gpsTarget);
-        SURF.gpsTarget=pins[(idx+1)%pins.length];
-        toastMsg('GPS → '+SURF.gpsTarget.label);
+      if(MODE==='surface'&&SPACE.SURF&&SPACE.SURF.gpsPins.length){
+        const pins=SPACE.SURF.gpsPins,idx=pins.indexOf(SPACE.SURF.gpsTarget);
+        SPACE.SURF.gpsTarget=pins[(idx+1)%pins.length];
+        toastMsg('GPS → '+SPACE.SURF.gpsTarget.label);
         if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true)
       }else if(MODE==='world'){
         if(!window.earthGPS){
@@ -2010,10 +2019,10 @@ t.bd.position.set(x,y+.86,z);
   // GPS button handler
   const gpsBtn=$('#dgps');
   if(gpsBtn)gpsBtn.onclick=()=>{
-    if(MODE==='surface'&&SURF&&SURF.gpsPins.length){
-      const pins=SURF.gpsPins,idx=pins.indexOf(SURF.gpsTarget);
-      SURF.gpsTarget=pins[(idx+1)%pins.length];
-      toastMsg('GPS → '+SURF.gpsTarget.label);
+    if(MODE==='surface'&&SPACE.SURF&&SPACE.SURF.gpsPins.length){
+      const pins=SPACE.SURF.gpsPins,idx=pins.indexOf(SPACE.SURF.gpsTarget);
+      SPACE.SURF.gpsTarget=pins[(idx+1)%pins.length];
+      toastMsg('GPS → '+SPACE.SURF.gpsTarget.label);
       if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true)
     }else if(MODE==='world'){
       if(!window.earthGPS){
@@ -2136,7 +2145,7 @@ t.bd.position.set(x,y+.86,z);
     if(cfg && S.road && S.road.xs.length>2){
       c.strokeStyle='#5a5750'; c.lineWidth=2.8*k;
       c.beginPath();
-      const len=Math.min(S.road.xs.length, Math.floor(4000/DS)+2);
+      const len=Math.min(S.road.xs.length, Math.floor(4000/SPACE.DS)+2);
       for(let i=0;i<len;i++){const x=S.road.xs[i]*k, z=S.road.zs[i]*k; i?c.lineTo(x,z):c.moveTo(x,z)}
       c.stroke();
     }
@@ -2176,8 +2185,8 @@ t.bd.position.set(x,y+.86,z);
       c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
       c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
     // planet surface mode (Moon/Mars): only show planet features
-    if(MODE==='surface' && S.planet && PLANETS[S.planet]){
-      const cfg=PLANETS[S.planet];
+    if(MODE==='surface' && S.planet && SPACE.PLANETS[S.planet]){
+      const cfg=SPACE.PLANETS[S.planet];
       const sc=size/2/8000;
       c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);
       c.beginPath();c.arc(0,0,size/2-1,0,6.283);c.fillStyle='rgba(10,10,15,.9)';c.fill();c.clip();
@@ -2256,11 +2265,11 @@ t.bd.position.set(x,y+.86,z);
     if(!bigmap.classList.contains('on'))return;
     const rect=bmc.getBoundingClientRect(), cx=e.clientX-rect.left, cy=e.clientY-rect.top;
     const size=bmc.width;
-    if(MODE==='surface' && SURF){
+    if(MODE==='surface' && SPACE.SURF){
       const sc=size/2/8000;
-      const wx=(cx-size/2)/sc+SURF.pos.x, wz=(cy-size/2)/sc+SURF.pos.z;
-      const gh=groundH(SURF.cfg,SURF.road,wx,wz,0);
-      SURF.gpsPins.push({x:wx, z:wz, y:gh, label:'Pin', type:'custom'});
+      const wx=(cx-size/2)/sc+SPACE.SURF.pos.x, wz=(cy-size/2)/sc+SPACE.SURF.pos.z;
+      const gh=SPACE.groundH(SPACE.SURF.cfg,SPACE.SURF.road,wx,wz,0);
+      SPACE.SURF.gpsPins.push({x:wx, z:wz, y:gh, label:'Pin', type:'custom'});
       drawMap(bmc.getContext('2d'),bmc.width,true)
     }else if(MODE==='world'){
       const sc=size/2/(116*MK*LAND+14);
@@ -2274,13 +2283,13 @@ t.bd.position.set(x,y+.86,z);
     if(!bigmap.classList.contains('on'))return;
     const rect=bmc.getBoundingClientRect(), cx=e.clientX-rect.left, cy=e.clientY-rect.top;
     const size=bmc.width;
-    if(MODE==='surface' && SURF){
+    if(MODE==='surface' && SPACE.SURF){
       const sc=size/2/8000;
-      const wx=(cx-size/2)/sc+SURF.pos.x, wz=(cy-size/2)/sc+SURF.pos.z;
-      let best=1e9, bi=-1; SURF.gpsPins.forEach((p,i)=>{const d=Math.hypot(p.x-wx,p.z-wz); if(d<best){best=d; bi=i}});
+      const wx=(cx-size/2)/sc+SPACE.SURF.pos.x, wz=(cy-size/2)/sc+SPACE.SURF.pos.z;
+      let best=1e9, bi=-1; SPACE.SURF.gpsPins.forEach((p,i)=>{const d=Math.hypot(p.x-wx,p.z-wz); if(d<best){best=d; bi=i}});
       if(bi>=0 && best<2000/sc){
-        if(SURF.gpsTarget===SURF.gpsPins[bi]){ SURF.gpsTarget=null; toastMsg('GPS cleared') }
-        else { SURF.gpsTarget=SURF.gpsPins[bi]; toastMsg('GPS → '+SURF.gpsTarget.label) }
+        if(SPACE.SURF.gpsTarget===SPACE.SURF.gpsPins[bi]){ SPACE.SURF.gpsTarget=null; toastMsg('GPS cleared') }
+        else { SPACE.SURF.gpsTarget=SPACE.SURF.gpsPins[bi]; toastMsg('GPS → '+SPACE.SURF.gpsTarget.label) }
         drawMap(bmc.getContext('2d'),bmc.width,true);
       }
     }else if(MODE==='world'){
@@ -2316,6 +2325,9 @@ t.bd.position.set(x,y+.86,z);
   let gradeNow=0,physAcc=0;const PSTEP=1/60;
   const PREV={p:new CANNON.Vec3(),q:new CANNON.Quaternion(),ok:false},qA=new THREE.Quaternion(),qB=new THREE.Quaternion();
   const shD=new THREE.Vector3(),shR=new THREE.Vector3(),shU=new THREE.Vector3();
+  /* damage/fuel/tyre-wear block below was never wired up (it referenced variables that do not
+     exist here, and compounded V.engine/V.max down every physics step). Off until it is rebuilt. */
+  const DAMAGE_SYSTEM=false;
   function physStep(h){
       // anti-cheat recording
       window.recordAntiCheatState();
@@ -2396,7 +2408,8 @@ const F=chassisB.force,T=chassisB.torque;
         // collision damage detection
         if(active&&driving){
           const impactForce=Math.hypot(F.x,F.z);
-          if(impactForce>5000){
+          if(DAMAGE_SYSTEM&&impactForce>5000){
+            let f=key.f?1:0,b=key.b?1:0;const boost=key.boost?1:0,dt=h,speed=Math.hypot(chassisB.velocity.x,chassisB.velocity.z)*3.6;
             const damageAmount=Math.min(1,impactForce/50000);
             vehicleDamage=Math.min(1,vehicleDamage+damageAmount);
             // distribute damage to systems
@@ -3446,6 +3459,9 @@ const PLANETS={
         arr[i*3]+=S.dvel[i].x*dt;arr[i*3+1]+=S.dvel[i].y*dt;arr[i*3+2]+=S.dvel[i].z*dt; if(S.dlife[i]<=0)arr[i*3+1]=-9999; } }
       S.dgeo.attributes.position.needsUpdate=true;
     }
+    /* the map + GPS code outside this module reads these */
+    api.PLANETS=PLANETS;api.DS=DS;api.groundH=groundH;
+    Object.defineProperty(api,'SURF',{get:()=>SURF});
     return api;
   })();
 
@@ -3607,7 +3623,7 @@ const PLANETS={
             else if(lapVoid)toastMsg('Lap scrubbed · going again');
             lapStart=now;lapNo++;lapProg=0;lapVoid=false;offT=0;lapEl.classList.remove('void')}}
         // checkpoint validation
-        checkCheckpoints();
+        checkCheckpoints(wrapFwd);
         if(frameN%4===0&&!lapArmed){lapT.textContent=fmtT(now-lapStart);lapN.textContent='Lap '+lapNo;
           for(let i=0;i<lapSecs.length;i++)lapSecs[i].classList.toggle('on',lapProg>(i+1)*.25-.25)}}
       if(AC&&SND){
@@ -4625,20 +4641,20 @@ updCircBtn();
 
     if(playBtn) playBtn.onclick=()=>{ try{audioInit();}catch(_){}
       if(landing) landing.style.display='none';
-      if(!active) try{startEngine();}catch(_){}
+      if(!active) try{enterDrive();}catch(_){}
       toastMsg('Free Drive Mode · Press Menu for options');
     };
 
     if(mpBtn) mpBtn.onclick=()=>{ try{audioInit();}catch(_){}
       if(landing) landing.style.display='none';
-      if(!active) try{startEngine();}catch(_){}
+      if(!active) try{enterDrive();}catch(_){}
       const roomPanel = document.getElementById('dmp');
       if(roomPanel) roomPanel.classList.add('on');
     };
 
     if(editorBtn) editorBtn.onclick=()=>{ try{audioInit();}catch(_){}
       if(landing) landing.style.display='none';
-      if(!active) try{startEngine();}catch(_){}
+      if(!active) try{enterDrive();}catch(_){}
       openDrawer();
     };
 
@@ -4702,7 +4718,7 @@ updCircBtn();
     if(dailyStart) dailyStart.onclick=()=>{ try{audioInit();}catch(_){}
       if(dailyModal) dailyModal.style.display = 'none';
       if(landing) landing.style.display = 'none';
-      if(!active) try{startEngine();}catch(_){}
+      if(!active) try{enterDrive();}catch(_){}
       const seed = getDailySeed();
       const pts = buildDailyPoints(seed);
       drawPts = pts;
@@ -5267,8 +5283,12 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   HF.paint(0,[1,1,1]);applyWx(true);applyQ();
   let _audioInited=false;
-  function maybeInitAudio(){if(!_audioInited){_audioInited=true;audioInit()}}
+  function maybeInitAudio(){
+    if(navigator.userActivation&&!navigator.userActivation.isActive)return;   // not a gesture Chrome accepts yet
+    audioInit();try{const M=window.AudioManager;if(M&&M.AC&&M.AC.state==='suspended')M.AC.resume()}catch(e){}
+    if(AC&&AC.state==='running'&&!_audioInited){_audioInited=true;AUDIO_EVS.forEach(ev=>removeEventListener(ev,maybeInitAudio))}}
   // Only init audio on real user gestures - remove passive flag
-  ['pointerdown','keydown','touchstart'].forEach(ev=>addEventListener(ev,maybeInitAudio));
+  const AUDIO_EVS=['pointerdown','pointerup','keydown','touchend','click'];
+  AUDIO_EVS.forEach(ev=>addEventListener(ev,maybeInitAudio));
   enterDrive();
 })();

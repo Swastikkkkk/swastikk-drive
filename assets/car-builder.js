@@ -693,6 +693,9 @@
   }
 
   /* ------------------- 7. HEAVY HAULER TRUCK ------------------- */
+  /* mud-flap rubber: game.js has its own, but that one is not in scope here since the split */
+  var rubber = new THREE.MeshLambertMaterial({ color: 0x1b1a18 });
+  var tyreM2 = new THREE.MeshPhongMaterial({ color: 0x161616, specular: 0x2c2c2c, shininess: 9 });
   function buildTruck(o) {
     var g = new THREE.Group(), body = new THREE.Group(); g.add(body);
     var paint = phong(o.paint, { shininess: 60, specular: 0x222222 });
