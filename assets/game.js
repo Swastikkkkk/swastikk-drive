@@ -116,7 +116,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let R;
   try{R=new THREE.WebGLRenderer({canvas:cv,antialias:!LOW,powerPreference:'high-performance'})}
   catch(e){show3DFallback();return}
-  R.shadowMap.enabled=!LOW;R.shadowMap.type=THREE.PCFSoftShadowMap;
+  R.shadowMap.enabled=!LOW;R.shadowMap.type=THREE.PCFSoftShadowMap;R.debug.checkShaderErrors=false;
   /* One quality: Ultra, and it is not a menu. Everything the old tiers used to switch off
      is simply on — shadows, grass, dust, stars, the full particle budget. The only thing
      that still varies is the pixel-ratio cap, because resolution is the one cost that
@@ -134,15 +134,15 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      stuttered for ~2.5s before reaching the cheapest tier. The first drop is now quick
      and the second only slightly slower; the upgrade stays deliberately slow so quality
      can't oscillate. */
-  const Q_UP_MS=3000;let qGoodT=0,qBadT=0;
+  let Q_UP_MS=4000;let qGoodT=0,qBadT=0;
   const qDownMs=()=>qTier===0?450:900;
   function tierCfg(t){
-    return t===2?{dpr:.75,shadow:false,shEvery:6}
+    return t===2?{dpr:.75,shadow:!LOW,shEvery:8}
          : t===1?{dpr:LOW?1.0:1.05,shadow:!LOW,shEvery:5}
          :        {dpr:ULTRA.dpr,shadow:true,shEvery:2};
   }
   function setTier(t){
-    if(t===qTier)return;qTier=t;const c=tierCfg(t);
+    if(t===qTier)return;if(t>qTier)Q_UP_MS=Math.min(30000,Q_UP_MS*2);qTier=t;const c=tierCfg(t);
     R.setPixelRatio(Math.min(devicePixelRatio||1,c.dpr));R.setSize(W,H,false);
     R.shadowMap.enabled=c.shadow;if(sun){sun.castShadow=c.shadow;sun.shadow.needsUpdate=true}
     ULTRA.shEvery=c.shEvery;
@@ -972,7 +972,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function missSet(id,v){const m=MISSIONS.find(x=>x.id===id);if(!m||m.done)return;
     if(v<=m.prog)return;m.prog=v;
     if(m.prog>=m.goal){m.done=true;missSave();earnCoins(50);blip(680,.3,.13);toastMsg('Mission done · '+m.name+' · +50 coins');
-      const nx=curMission();if(nx)setTimeout(()=>toastMsg('Next up · '+nx.name),1900);else setTimeout(()=>toastMsg('Every mission cleared. Built different.'),1900)}
+      }
     else blip(560,.16,.1);
     missUI()}
   missUI();
@@ -3450,14 +3450,13 @@ const PLANETS={
   })();
 
   function loop(now){requestAnimationFrame(loop);
-    const r=sec.getBoundingClientRect();
     if(active!==wasActive){
       wasActive=active;
       if(active){poster.style.display='none'}
       else{posterState=0;posterWarm=0}   // take a fresh still: the weather may have moved on
     }
     if(!active){
-      if(r.bottom<0||r.top>innerHeight||document.hidden){last=now;return}
+      {const r=sec.getBoundingClientRect();if(r.bottom<0||r.top>innerHeight||document.hidden){last=now;return}}
       if(posterState===1){last=now;return}          // the still is up; there is nothing to draw
       // 1 = warming up for the still, rendered near full res so it is not a blurry one.
       // 2 = the still failed, so fall back to the old low-res throttled redraw.
@@ -5259,12 +5258,13 @@ function carChanged(){if(room)sendHi(true)}
   /* ---------- go ---------- */
   function resize(){W=sec.clientWidth;H=sec.clientHeight;R.setPixelRatio(DPR());R.setSize(W,H,false);C.aspect=W/H;C.updateProjectionMatrix();if(sun.shadow)sun.shadow.needsUpdate=true}addEventListener('resize',resize);
   function enterDrive(){active=true;sec.classList.add('active');if(TOUCH)sec.classList.add('touch');resize();{const l=$('#dload');if(l)l.remove()}
-    missEl.classList.add('on');driving=true;hud.classList.add('on');if(TOUCH)mob.classList.add('on');checkRot();
+    driving=true;hud.classList.add('on');if(TOUCH)mob.classList.add('on');checkRot();
     hint.textContent=TOUCH?'':'WASD drive · C camera · Z mirror · L time a lap · M map · R reset';
     {const {p,tg}=at(progU||0);C.position.set(p.x-tg.x*10,p.y+5,p.z-tg.z*10);look.set(p.x+tg.x*6,p.y+1,p.z+tg.z*6)}
-    const m0=curMission();if(m0)setTimeout(()=>toastMsg('Mission \u00b7 '+m0.name),1200)
-    if(typeof spawnAIRacers==='function')spawnAIRacers();
-    if(!PCAR)setCar(curCarId,GARAGE[0].paints[0],true);}
+        if(typeof spawnAIRacers==='function')spawnAIRacers();
+    if(!PCAR)setCar(curCarId,GARAGE[0].paints[0],true);
+    /* compile every material now instead of the first time it scrolls into view mid-drive */
+    try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   HF.paint(0,[1,1,1]);applyWx(true);applyQ();
   let _audioInited=false;
   function maybeInitAudio(){if(!_audioInited){_audioInited=true;audioInit()}}
