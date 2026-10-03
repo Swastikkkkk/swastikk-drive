@@ -1119,6 +1119,63 @@ async function submitToLeaderboard(ms,vehicle){
     cpViolations=0;
   }
   initCheckpoints();
+  /* ---------- anti-cheat system ---------- */
+  let acPosHistory=[],acInputHistory=[],acLastValidPos=null,acLastValidTime=0;
+  function recordAntiCheatState(){
+    if(!active||!driving)return;
+    const pos=car.position.clone();
+    const inputs={f:key.f,b:key.b,l:key.l,r:key.r,h:key.h,boost:key.boost};
+    acPosHistory.push({pos,time:performance.now()});
+    acInputHistory.push({inputs,time:performance.now()});
+    if(acPosHistory.length>600)acPosHistory.shift();
+    if(acInputHistory.length>600)acInputHistory.shift();
+  }
+  function validateAntiCheat(){
+    if(!active||!driving||!acLastValidPos)return;
+    const now=performance.now();
+    const dt=(now-acLastValidTime)/1000;
+    if(dt<0.1)return;
+    // position change validation
+    const dx=car.position.x-acLastValidPos.x;
+    const dz=car.position.z-acLastValidPos.z;
+    const dist=Math.hypot(dx,dz);
+    const maxDist=V.max*1.5*dt/1000;
+    if(dist>maxDist+5){
+      console.warn('[AntiCheat] Teleport detected:',dist,'max:',maxDist);
+      cpViolations+=3;
+      if(cpViolations>5)invalidateLap();
+      car.position.copy(acLastValidPos);
+      return;
+    }
+    // input validation - check for impossible inputs
+    const recentInputs=acInputHistory.slice(-60);
+    let simultaneousInputs=0;
+    recentInputs.forEach(i=>{
+      if(i.inputs.f && i.inputs.b)simultaneousInputs++;
+      if(i.inputs.l && i.inputs.r)simultaneousInputs++;
+    });
+    if(simultaneousInputs>45){
+      console.warn('[AntiCheat] Impossible input pattern detected');
+      cpViolations+=2;
+    }
+    // wall hack detection - check if car is inside terrain
+    const terrainHeight=groundH(wxOf(wxB.id),S.road,car.position.x,car.position.z,progU);
+    if(car.position.y<terrainHeight-2){
+      console.warn('[AntiCheat] Underground detected');
+      cpViolations+=2;
+      car.position.y=terrainHeight+1;
+    }
+    acLastValidPos=car.position.clone();
+    acLastValidTime=now;
+  }
+  // server-side validation for multiplayer
+  function validatePeer(P){
+    if(!P.got)return true;
+    if(!P.tp)return true;
+    const speed=Math.hypot(P.vx,P.vz);
+    if(speed>V.max*1.2)return false;
+    return true;
+  }
   /* ---------- traffic lights ----------
      Placed clear of the two overtaking stretches, so they never hold a car up in
      the middle of an overtake or fight the overtake logic. The AI
@@ -2235,6 +2292,8 @@ t.bd.position.set(x,y+.86,z);
   const PREV={p:new CANNON.Vec3(),q:new CANNON.Quaternion(),ok:false},qA=new THREE.Quaternion(),qB=new THREE.Quaternion();
   const shD=new THREE.Vector3(),shR=new THREE.Vector3(),shU=new THREE.Vector3();
   function physStep(h){
+      // anti-cheat recording
+      recordAntiCheatState();
       if(sub>0){
         // buoyancy scales with how submerged it is and is capped under its own weight, so it wallows instead of taking off
         const lift=chassisB.mass*24*sub*.88;
@@ -2410,6 +2469,9 @@ const F=chassisB.force,T=chassisB.torque;
       }
     }
   }
+  }
+  // anti-cheat validation
+  validateAntiCheat();
   }
   world.addEventListener('preStep',()=>{PREV.p.copy(chassisB.position);PREV.q.copy(chassisB.quaternion);PREV.ok=true;
     if(active&&driving)physStep(PSTEP)});
