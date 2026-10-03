@@ -153,6 +153,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(t===qTier)return;if(t>qTier)Q_UP_MS=Math.min(30000,Q_UP_MS*2);qTier=t;const c=tierCfg(t);
     R.setPixelRatio(Math.min(devicePixelRatio||1,c.dpr));R.setSize(W,H,false);
     R.shadowMap.enabled=c.shadow;if(sun){sun.castShadow=c.shadow;sun.shadow.needsUpdate=true}
+    if(carShadow)carShadow.visible=!c.shadow;
     ULTRA.shEvery=c.shEvery;
   }
   function watchFps(dt){
@@ -169,6 +170,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     R.setPixelRatio(Math.min(devicePixelRatio||1,c.dpr));R.setSize(W,H,false);
     R.shadowMap.enabled=c.shadow;
     if(typeof sun!=='undefined'&&sun){sun.castShadow=c.shadow;sun.shadow.needsUpdate=true}
+    try{if(carShadow)carShadow.visible=!c.shadow}catch(e){}   // may run before the contact blob exists
     if(SCN.grass)SCN.grass.visible=true;
     if(SCN.dust)SCN.dust.visible=true;
     if(SCN.stars)SCN.stars.visible=true;
@@ -185,7 +187,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let ZN={drag:0,fog:1,tint:[1,1,1]},fogFar0=170,fogNear0=55,hemi0=.55,sunI0=1.05;
   let progU=0;
   const hemi=new THREE.HemisphereLight(0xdfeaff,0x3c3a30,.55);S.add(hemi);
-  const sun=new THREE.DirectionalLight(0xfff2dd,1.05);sun.position.set(18,34,12);sun.castShadow=!LOW;sun.shadow.mapSize.set(LOW?512:1024,LOW?512:1024);sun.shadow.autoUpdate=false;sun.shadow.bias=-.0006;Object.assign(sun.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:110});S.add(sun);S.add(sun.target);
+  const sun=new THREE.DirectionalLight(0xfff2dd,1.05);sun.position.set(18,34,12);sun.castShadow=!LOW;sun.shadow.mapSize.set(LOW?512:1024,LOW?512:1024);sun.shadow.autoUpdate=false;sun.shadow.bias=-.0004;sun.shadow.normalBias=.035;Object.assign(sun.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:110});S.add(sun);S.add(sun.target);
   const SUN_DIR=new THREE.Vector3(18,34,12).normalize();
   const MOON_DIR=new THREE.Vector3(-20,26,-14).normalize(); // rides opposite the sun
   const SUN_OFF_DEFAULT=new THREE.Vector3(18,34,12);
@@ -1798,7 +1800,7 @@ t.bd.position.set(x,y+.86,z);
   let carShadow=null;
   {const c=document.createElement('canvas');c.width=64;c.height=128;const x=c.getContext('2d'),g=x.createRadialGradient(32,64,4,32,64,62);g.addColorStop(0,'rgba(0,0,0,.75)');g.addColorStop(.6,'rgba(0,0,0,.35)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,64,128);
    const sh=new THREE.Mesh(new THREE.PlaneGeometry(2.9,5.4).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}));
-   sh.position.y=.05-(VEHS.car.rest-.07)-.02;sh.renderOrder=1;vis.car.add(sh);carShadow=sh}
+   sh.position.y=.05-(VEHS.car.rest-.07)-.02;sh.renderOrder=1;vis.car.add(sh);carShadow=sh;sh.visible=!R.shadowMap.enabled}
   /* real headlights once the light drops: one spot on the road ahead, no shadow */
   let carHL=null;if(!LOW){carHL=new THREE.SpotLight(0xfff1d6,0,70,.52,.55,1.1);carHL.position.set(0,.1,2.3);carHL.target.position.set(0,-1.4,16);vis.car.add(carHL);vis.car.add(carHL.target)}
   /* light you can see: two soft beams in front of the car after dark */
@@ -3298,7 +3300,7 @@ const PLANETS={
       if(cfg.hemi) sc.add(new THREE.HemisphereLight(cfg.hemi[0],cfg.hemi[1],cfg.hemi[2]));
       const sunDir=new THREE.Vector3(cfg.sunDir[0],cfg.sunDir[1],cfg.sunDir[2]).normalize();
       const sunL=new THREE.DirectionalLight(cfg.sun,cfg.sunI); sunL.position.copy(sunDir).multiplyScalar(400);
-      sunL.castShadow=!LOW; if(!LOW){sunL.shadow.mapSize.set(2048,2048);sunL.shadow.bias=-.0008;Object.assign(sunL.shadow.camera,{left:-120,right:120,top:120,bottom:-120,near:1,far:1000});}
+      sunL.castShadow=!LOW; if(!LOW){sunL.shadow.mapSize.set(2048,2048);sunL.shadow.bias=-.0006;sunL.shadow.normalBias=.05;Object.assign(sunL.shadow.camera,{left:-120,right:120,top:120,bottom:-120,near:1,far:1000});}
       sc.add(sunL); sc.add(sunL.target);
       // everything in the sky rides along with the rover, so it never drifts on a long drive
       const skyG=new THREE.Group();sc.add(skyG);
@@ -4331,7 +4333,10 @@ const PLANETS={
      if(flashV>0){flashV=Math.max(0,flashV-dt*(flashV>.6?3:2.2));if(flashV<.35&&Math.random()<.35)flashV=Math.min(1,flashV+.5*Math.random())}
      if(thunderAt&&now>=thunderAt){thunderAt=0;thud(.9)}
      hemi.intensity+=((hemi0*lt+flashV*1.5)-hemi.intensity)*(flashV>.02?.7:e);sun.intensity+=(sunI0*Math.min(1.25,lt)-sun.intensity)*e}
-    if(R.shadowMap.enabled){const se=ULTRA.shEvery;if(se&&frameN%se===0)sun.shadow.needsUpdate=true}
+    /* the car's own shadow has to be redrawn every frame while it moves, or it trails behind the car and jumps when
+       the map is next refreshed; a parked car only needs the slower refresh. The lowest quality tier halves it. */
+    if(R.shadowMap.enabled){const se=ULTRA.shEvery,moving=chassisB.velocity.length()>.4||Math.abs(chassisB.angularVelocity.y)>.05,every=moving?(qTier>=2?2:1):se;
+      if(every&&frameN%every===0)sun.shadow.needsUpdate=true}
     /* reflections are captured whole, only when the light changes or you have driven somewhere new:
        no per-frame cost, and no half-updated cube that flickers as you move */
     if(cubeCam&&active&&(!cubeInit||(frameN%90===0&&(Math.abs(sun.intensity-cubeSun)>.12||Math.hypot(car.position.x-cubeX,car.position.z-cubeZ)>140)))){

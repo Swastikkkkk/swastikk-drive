@@ -76,7 +76,7 @@
     g.setIndex(idx);
     g.computeVertexNormals();
     var m = new THREE.Mesh(g, mat);
-    m.castShadow = true; m.receiveShadow = true;
+    m.castShadow = true; m.receiveShadow = false;   // the body casts; it doesn't shade itself (stripes on curved panels)
     return m;
   }
 
