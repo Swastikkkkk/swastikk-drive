@@ -2048,7 +2048,7 @@ t.bd.position.set(x,y+.86,z);
         if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true);
       }else if(MODE==='circuit'||SPACE.state!=='earth')NAV.toggle();
       return
-    }if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+    }if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -2305,6 +2305,27 @@ t.bd.position.set(x,y+.86,z);
      The route is recomputed several times a second, so leaving the road or turning round just reroutes (with a
      "rejoin the road" leg first). A heading-up compass card shows which way to steer, the next turn and the distance,
      and the route is drawn on the minimap and the big map. G / the GPS button picks the Earth destination. */
+  /* ---------- HUD layout ----------
+     Things that live at the top of the screen are placed in order, and anything that would overlap one placed
+     before it is moved down below it. Fixed: the rear-view mirror (its picture is rendered at a fixed spot) and the
+     minimap / menu column. Movable, in order: GPS banner, lap panel, race position, room standings. The room
+     standings sit in the right-hand column, under the minimap. Works at any screen size. */
+  function layoutHud(){
+    const base=sec.getBoundingClientRect(),placed=[],vis=e=>e&&e.offsetParent!==null&&getComputedStyle(e).display!=='none'&&getComputedStyle(e).visibility!=='hidden';
+    const fixed=[document.getElementById('drear'),document.querySelector('.dright'),document.getElementById('dpmap')];
+    fixed.forEach(e=>{if(vis(e))placed.push(e.getBoundingClientRect())});
+    // the one-line key hint at the top left stops short of the mirror instead of running under it
+    {const h=document.getElementById('dhint'),m=fixed[0];if(h){if(vis(m)&&vis(h)){const hr=h.getBoundingClientRect(),mr=m.getBoundingClientRect();
+      h.style.maxWidth=Math.max(0,mr.left-hr.left-14)+'px';h.style.overflow='hidden';h.style.textOverflow='ellipsis';h.style.whiteSpace='nowrap'}else h.style.maxWidth=''}}
+    ['dnav','dlap','dpos','dmpr'].forEach(id=>{const e=document.getElementById(id);if(!vis(e))return;
+      if(id==='dmpr'){e.style.left='auto';e.style.right='var(--gut,16px)';e.style.transform='none';e.style.maxWidth='min(300px,calc(100vw - 32px))'}
+      e.style.top='';let r=e.getBoundingClientRect(),dy=0;
+      for(let k=0;k<6;k++){let moved=false;
+        for(const p of placed){if(r.left<p.right&&r.right>p.left&&r.top+dy<p.bottom&&r.bottom+dy>p.top){dy=p.bottom+8-r.top;moved=true}}
+        if(!moved)break}
+      if(dy>0)e.style.top=(r.top-base.top+dy)+'px';
+      placed.push({left:r.left,right:r.right,top:r.top+dy,bottom:r.bottom+dy})})}
+  addEventListener('resize',()=>setTimeout(layoutHud,50));
   const NAV=(function(){
     let G=null,route=null,lastCalc=0,hidden=false,last=null;
     const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),brg=(ax,az,bx,bz)=>Math.atan2(bx-ax,bz-az);
@@ -2378,7 +2399,7 @@ t.bd.position.set(x,y+.86,z);
         '#dnav .md{font:700 22px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;letter-spacing:-.01em;white-space:nowrap}'+
         '#dnav .mt{font:600 12px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;opacity:.85;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
         '#dnav .sub{font:500 10px/1.3 ui-monospace,Menlo,monospace;letter-spacing:.06em;opacity:.55;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase}'+
-        'body.navon #dmpr{top:calc(84px + env(safe-area-inset-top,0px))}';
+        '@media (max-width:700px){#dnav{min-width:0;gap:8px;padding:6px 8px}#dnav .md{font-size:17px}#dnav .cp{display:none}}';
       document.head.appendChild(css);
       const d=document.createElement('div');d.id='dnav';
       d.innerHTML='<div class="ic"><canvas width="96" height="96" style="width:48px;height:48px"></canvas></div><div style="min-width:0"><div class="md"></div><div class="mt"></div><div class="sub"></div></div><canvas class="cp" width="96" height="96" style="width:48px;height:48px"></canvas>';
@@ -2408,9 +2429,10 @@ t.bd.position.set(x,y+.86,z);
         md.textContent=g.kind==='straight'?fmtD(g.remain):g.manD?fmtD(g.manD):g.man;
         mt.textContent=g.kind==='straight'?'Follow the road':g.manD?g.man:(g.kind==='rejoin'?'Head for the green line':'');
         sub.textContent=R.label+' · '+fmtD(g.remain)}
-      function show(on){d.classList.toggle('on',on);document.body.classList.toggle('navon',on)}
+      function show(on){if(d.classList.contains('on')!==on){d.classList.toggle('on',on);setTimeout(layoutHud,0)}}
       return {render,show}})();
     function tick(dt,now){
+      if(frameN%10===0)layoutHud();
       if(now-lastCalc>350){lastCalc=now;try{route=compute()}catch(e){route=null}
         if(route&&route.target){const g=guidance(route);if(g.remain<22){toastMsg('Arrived · '+route.target.label);window.earthGpsTarget=null;route=null}}}
       const show=!!route&&!hidden&&active&&(driving||SPACE.state!=='earth');
@@ -2953,7 +2975,7 @@ const F=chassisB.force,T=chassisB.torque;
       'text-transform:uppercase;pointer-events:none;opacity:0;transition:opacity .3s;text-shadow:0 2px 12px rgba(0,0,0,.8)';
     sec.appendChild(odo);
     // planet minimap: the road around you, UFO stations, and an arrow to the next one
-    const pmap=document.createElement('canvas');pmap.width=pmap.height=180;
+    const pmap=document.createElement('canvas');pmap.id='dpmap';pmap.width=pmap.height=180;
     pmap.style.cssText='position:fixed;right:max(12px,env(safe-area-inset-right,0px));top:calc(100px + env(safe-area-inset-top,0px));width:150px;height:150px;z-index:40;border-radius:50%;display:none;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.45)';
     sec.appendChild(pmap);const pmx=pmap.getContext('2d');pmap.style.cursor='pointer';pmap.style.pointerEvents='auto';pmap.title='Open map (M)';pmap.onclick=()=>toggleMap();
     /* the full-screen map (M) on a planet: this world's road, the UFO stations along it and where you are.
@@ -5566,7 +5588,7 @@ updCircBtn();
   { const mirrorBtn = document.getElementById('drearb');
     if(mirrorBtn) mirrorBtn.onclick = () => {
       rearMirrorOn = !rearMirrorOn;
-      if(rearEl) rearEl.style.display = rearMirrorOn ? 'block' : 'none';
+      if(rearEl) rearEl.style.display = rearMirrorOn ? 'block' : 'none';setTimeout(layoutHud,0);
       toastMsg(rearMirrorOn ? 'Rearview mirror ON · Z to toggle' : 'Rearview mirror OFF');
     };
   }

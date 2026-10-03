@@ -122,6 +122,7 @@
       var topBar = document.createElement('div');
       topBar.style.cssText = 'display:flex;gap:10px;margin-top:10px;justify-content:space-between;align-items:center;';
       topBar.innerHTML = '<button id="btn-tilt" style="background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;">GYRO STEER: OFF</button>' +
+        '<button id="btn-sens" style="display:none;background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;">SENS</button>' +
         '<button id="btn-calib" style="display:none;background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;">CALIBRATE</button>' +
         '<div style="display:flex;gap:6px;"><button id="btn-cam" style="background:rgba(255,255,255,0.12);color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;">CAM</button>' +
         '<button id="btn-reset" style="background:rgba(180,40,40,0.4);color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;">RESPAWN</button></div>';
@@ -291,14 +292,20 @@
          gentle curve so small turns are fine and full lock is a real turn. */
       var tiltBtn = document.getElementById('btn-tilt');
       var calibBtn = document.getElementById('btn-calib');
+      var sensBtn = document.getElementById('btn-sens');
       var steerCluster = document.getElementById('c-steer');
       var tiltActive = false;
       var tiltCenter = 0;        // roll (degrees) that counts as straight ahead
       var rollNow = 0;           // latest smoothed roll, degrees
       var haveRoll = false;
       var needCenter = false;
-      var TILT_RANGE = 38;       // degrees of wheel turn for full lock
-      var DEAD = 2;              // degrees ignored around centre
+      // how far you turn the phone for full lock. It was 38 degrees, which made small hand movements steer hard;
+      // the default is now 60, with Low / Med / High on the SENS button (remembered on this phone)
+      var SENS = [{ n: 'LOW', range: 80 }, { n: 'MED', range: 60 }, { n: 'HIGH', range: 42 }];
+      var sensI = 1; try { var sv = +localStorage.getItem('ctrl_sens'); if (sv >= 0 && sv < 3) sensI = sv; } catch (_) {}
+      var TILT_RANGE = SENS[sensI].range;
+      var DEAD = 4;              // degrees ignored around centre: holding the phone, hands always move a little
+      var outPrev = 0;
       var lastScreenAngle = null;
 
       function screenAngle() {
@@ -322,15 +329,18 @@
         if (!haveRoll) { rollNow = roll; haveRoll = true; }
         else {
           var dlt = roll - rollNow; if (dlt > 180) dlt -= 360; if (dlt < -180) dlt += 360;
-          rollNow += dlt * 0.35;                              // smoothing: steady hands, still quick
+          rollNow += dlt * 0.2;                               // smoothing: steadier, still responsive
           if (rollNow > 180) rollNow -= 360; if (rollNow < -180) rollNow += 360;
         }
         if (needCenter) { tiltCenter = rollNow; needCenter = false; }
         var rel = rollNow - tiltCenter; if (rel > 180) rel -= 360; if (rel < -180) rel += 360;
         var mag = Math.max(0, Math.abs(rel) - DEAD) / (TILT_RANGE - DEAD);
         mag = Math.min(1, mag);
-        mag = Math.pow(mag, 1.25);                            // gentle curve
-        inputState.steerAnalog = (rel < 0 ? -1 : 1) * mag;
+        mag = Math.pow(mag, 1.7);                             // fine control near the centre, full lock still reachable
+        var out = (rel < 0 ? -1 : 1) * mag;
+        out = outPrev + Math.max(-0.06, Math.min(0.06, out - outPrev));   // no sudden jumps between readings
+        outPrev = out;
+        inputState.steerAnalog = Math.abs(out) < 0.01 ? 0 : out;
       }
 
       tiltBtn.onclick = function() {
@@ -349,9 +359,10 @@
         tiltBtn.textContent = on ? 'GYRO STEER: ON' : 'GYRO STEER: OFF';
         tiltBtn.style.background = on ? '#3f8a56' : 'rgba(255,255,255,0.12)';
         calibBtn.style.display = on ? 'block' : 'none';
+        sensBtn.style.display = on ? 'block' : 'none';
         steerCluster.style.opacity = on ? '0.35' : '1.0';
         if (on) {
-          haveRoll = false; needCenter = true; lastScreenAngle = screenAngle();   // whatever angle you hold now is straight
+          haveRoll = false; needCenter = true; outPrev = 0; lastScreenAngle = screenAngle();   // whatever angle you hold now is straight
           window.addEventListener('deviceorientation', onOrientation, true);
         } else {
           window.removeEventListener('deviceorientation', onOrientation, true);
@@ -359,9 +370,16 @@
         }
       }
 
+      function paintSens() { sensBtn.textContent = 'SENS: ' + SENS[sensI].n; }
+      sensBtn.onclick = function() {
+        sensI = (sensI + 1) % SENS.length; TILT_RANGE = SENS[sensI].range; paintSens();
+        try { localStorage.setItem('ctrl_sens', String(sensI)); } catch (_) {}
+        if (navigator.vibrate) try { navigator.vibrate(12); } catch (_) {}
+      };
+      paintSens();
       calibBtn.onclick = function() {
         if (haveRoll) tiltCenter = rollNow; else needCenter = true;
-        inputState.steerAnalog = 0;
+        inputState.steerAnalog = 0; outPrev = 0;
         if (navigator.vibrate) try { navigator.vibrate([20, 50, 20]); } catch(_) {}
       };
 
