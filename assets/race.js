@@ -517,26 +517,38 @@
       }
     },
 
+    // the rows of the results card; rivals still on track show "racing" until they really finish
+    renderResultRows: function(list) {
+      list.innerHTML = '';
+      var me = '';
+      try { me = (localStorage.getItem('sl_name') || '').trim(); } catch (e) {}
+      var board = this.leaderboard.length > 0 ? this.leaderboard : [{ position: 1, name: 'You', finishTime: this.totalRaceTime || 0, isMe: true }];
+      var esc = function(t) { return String(t).replace(/[&<>"]/g, function(c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+      board.forEach(function(r) {
+        var li = document.createElement('li');
+        li.style.cssText = 'display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:12px 6px;border-bottom:1px solid rgba(255,255,255,0.1);font-weight:600;' + (r.isMe ? 'background:rgba(212,168,58,0.15);' : '');
+        var done = !r.racing && r.finishTime;
+        var posBadge = !done ? '–' : r.position === 1 ? '🥇 1st' : r.position === 2 ? '🥈 2nd' : r.position === 3 ? '🥉 3rd' : (r.position + 'th');
+        var label = r.isMe ? (me || 'You') + ' (you)' : (r.name || 'Driver');
+        li.innerHTML = '<span style="font-size:14px;color:#d4a83a;">' + posBadge + '</span>' +
+          '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(label) + '</span>' +
+          '<span style="font-family:monospace;font-size:13px;color:' + (done ? '#f2eee6' : 'rgba(242,238,230,.55)') + ';">' + (r.racing ? 'racing…' : r.finishTime ? RaceEngine.formatTime(r.finishTime) : 'DNF') + '</span>';
+        list.appendChild(li);
+      });
+    },
+
+    refreshResults: function() {
+      var modal = document.getElementById('dresults'), list = document.getElementById('dreslist');
+      if (modal && list && modal.classList.contains('on') && this.state === 'results') this.renderResultRows(list);
+    },
+
     showResultsModal: function() {
       var modal = document.getElementById('dresults');
       if (!modal) return;
       var list = document.getElementById('dreslist');
       if (!list) return;
 
-      list.innerHTML = '';
-      var board = this.leaderboard.length > 0 ? this.leaderboard : [{
-        position: 1, name: 'You', finishTime: this.totalRaceTime || 0, isMe: true
-      }];
-
-      board.forEach(function(r) {
-        var li = document.createElement('li');
-        li.style.cssText = 'display:grid;grid-template-columns:32px 1fr auto;gap:12px;align-items:center;padding:12px 6px;border-bottom:1px solid rgba(255,255,255,0.1);font-weight:600;' + (r.isMe ? 'background:rgba(212,168,58,0.15);' : '');
-        var posBadge = r.position === 1 ? '🥇 1st' : r.position === 2 ? '🥈 2nd' : r.position === 3 ? '🥉 3rd' : (r.position + 'th');
-        li.innerHTML = '<span style="font-size:14px;color:#d4a83a;">' + posBadge + '</span>' +
-          '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (r.name || 'Driver') + (r.isMe ? ' (You)' : '') + '</span>' +
-          '<span style="font-family:monospace;font-size:13px;color:#f2eee6;">' + (r.finishTime ? RaceEngine.formatTime(r.finishTime) : 'DNF') + '</span>';
-        list.appendChild(li);
-      });
+      this.renderResultRows(list);
 
       // completed laps only, for this driver
       var lapsEl = document.getElementById('dreslaps');

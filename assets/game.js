@@ -5032,9 +5032,13 @@ const PLANETS={
       // live position, and the full standings once you cross the line
       const pp=playerProg();let pos=1;cars.forEach(a=>{if(RE.finished?(a.fin&&a.fin<RE.totalRaceTime):a.prog>pp)pos++});
       RE.finalPosition=pos;if(!RE.finished)RE.leaderboard=new Array(cars.length+1).fill(0);
-      if(RE.finished&&!boardSet){boardSet=true;const tNow=now-RE.raceStartTime;
-        const rows=[{name:'You',finishTime:RE.totalRaceTime,isMe:true}].concat(cars.map(a=>({name:a.name,finishTime:a.fin||Math.round(tNow+(laps-a.prog)*L/Math.max(8,a.vmax*.8)*1000)})));
-        rows.sort((p,q)=>p.finishTime-q.finishTime);rows.forEach((r,i)=>r.position=i+1);RE.leaderboard=rows}}
+      /* standings after you finish: rivals keep driving their laps, and each one's time appears only when it
+         actually crosses the line (no projected times). Refreshed whenever another rival finishes. */
+      if(RE.finished){const nFin=cars.filter(a=>a.fin).length;
+        if(!boardSet||nFin!==boardSet.n){boardSet={n:nFin};
+          const rows=[{name:'You',finishTime:RE.totalRaceTime,isMe:true}].concat(cars.map(a=>({name:a.name,finishTime:a.fin||null,racing:!a.fin,prog:a.prog})));
+          rows.sort((p,q)=>p.finishTime&&q.finishTime?p.finishTime-q.finishTime:p.finishTime?-1:q.finishTime?1:q.prog-p.prog);
+          rows.forEach((r,i)=>r.position=i+1);RE.leaderboard=rows;if(RE.refreshResults)RE.refreshResults()}}}
     return {start,clear,update,get on(){return on}};
   })();
   /* One lap count. In a room the host's choice (#dmplaps) is authoritative; on your own it is the draw-track
