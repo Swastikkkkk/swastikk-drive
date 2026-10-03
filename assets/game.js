@@ -1771,7 +1771,7 @@ t.bd.position.set(x,y+.86,z);
   const add=(g,geo,m,x,y,z,sh=true)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=sh;g.add(o);return o};
   const headM=M(0xfff2c0,{emissive:0xfff2c0,emissiveIntensity:1.3}),tailM=M(0xff3b30,{emissive:0xff3b30,emissiveIntensity:.5});
   let PCAR=null;
-  let wv={car:[0,1,2,3].map(i=>makeWheel(VEHS.car.r,.36,i%2?-1:1,true,true))};wv.car.forEach(k=>vis.car.add(k.w));
+  let wv=null;
   /* soft contact shadow so the car sits on the road instead of hovering over it */
   let carShadow=null;
   {const c=document.createElement('canvas');c.width=64;c.height=128;const x=c.getContext('2d'),g=x.createRadialGradient(32,64,4,32,64,62);g.addColorStop(0,'rgba(0,0,0,.75)');g.addColorStop(.6,'rgba(0,0,0,.35)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,64,128);
@@ -1803,7 +1803,7 @@ t.bd.position.set(x,y+.86,z);
     Object.assign(V,spec.V);V.label=spec.label;
     applyVehicle();
     chassisB.mass=spec.mass;chassisB.updateMassProperties();
-    vis.bodyIn.remove(PCAR.g);
+    if(PCAR)vis.bodyIn.remove(PCAR.g);
     const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};
     if (spec.type==='f1' && window.CarBuilder && window.CarBuilder.buildF1) {
       PCAR = window.CarBuilder.buildF1(o);
@@ -1822,7 +1822,7 @@ t.bd.position.set(x,y+.86,z);
     }
     PCAR.g.position.y=.05-(V.rest-.07)-V.r;vis.bodyIn.add(PCAR.g);
     if(cubeRT)PCAR.g.traverse(m=>{if(m.material&&m.material.reflectivity!==undefined){m.material.envMap=cubeRT.texture;m.material.needsUpdate=true}});
-    wv.car.forEach(k=>vis.car.remove(k.w));
+    if(wv)wv.car.forEach(k=>vis.car.remove(k.w));
     if(spec.type==='bike'){
       const wheelWd = 0.18;
       wv={car:[0,1].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
