@@ -3356,7 +3356,7 @@ const PLANETS={
     function driveSurface(dt){
       const S=SURF, cfg=S.cfg, p=S.pos;
       const throttle=(key.f?1:0)-(key.b?1:0);
-      const steer=(key.l?1:0)-(key.r?1:0);
+      const kv=v=>v===true?1:(+v>0?Math.min(1,+v):0),steer=kv(key.l)-kv(key.r);
       const speed=Math.hypot(S.vel.x,S.vel.z);
       S.yaw += steer*cfg.steer*dt*(0.35+Math.min(1,speed*0.08));
       const fx=Math.sin(S.yaw), fz=Math.cos(S.yaw);
