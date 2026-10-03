@@ -1841,7 +1841,7 @@ t.bd.position.set(x,y+.86,z);
       wv={car:[0,1].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
     }else if(spec.type==='truck'){
       const wheelWd = 0.5;
-      wv={car:[0,1,2,3,4,5].map(i=>makeWheel(V.r,wheelWd,i%3?-1:1,true,true))};
+      wv={car:[0,1,2,3,4,5].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
     }else{
       const wheelWd = spec.type==='bike'?0.18:spec.type==='f1'?0.46:spec.type==='suv'?0.42:0.36;
       wv={car:[0,1,2,3].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
@@ -1857,6 +1857,36 @@ t.bd.position.set(x,y+.86,z);
      the surface, wind that builds at speed, a proper tyre squeal, and a thud on impacts.
      Everything runs through one bus with a gentle compressor so nothing spikes. */
   let AC=null,SND=null;
+  /* One engine voice per car. ICE cars run a gearbox model (revs climb, drop on each upshift);
+     EVs get a single-speed whine. Numbers are firing frequencies in Hz, not rpm.
+       w: oscillator waveforms [main, sub-octave, harmonic]   mix: their levels
+       h: harmonic multiple   filt: [base, range, Q]   lfo: [rate Hz, depth Hz] roughness
+       vol: overall level      turbo: whistle level (0 = none) */
+  const ENGINES={
+    aster:      {ev:1,lo:120,hi:820, w:['sine','triangle','sine'],    mix:[.6,.3,.05],h:3.02,filt:[650,2300,.7],lfo:[4.3,1.4],vol:.15},
+    voltgt:     {ev:1,lo:170,hi:1250,w:['sine','sine','triangle'],    mix:[.55,.15,.12],h:4.1,filt:[900,3400,1.4],lfo:[6,1],vol:.13},
+    phantom:    {ev:1,lo:85, hi:620, w:['triangle','sine','sine'],    mix:[.7,.45,.06],h:2.5,filt:[500,1800,.9],lfo:[3,2],vol:.17},
+    kestrel:    {lo:28, hi:230, gears:5, w:['sawtooth','triangle','sine'],mix:[.55,.35,.08],h:2,  filt:[600,1700,1],  lfo:[6,1.5], vol:.11},
+    ridgeback:  {lo:22, hi:150, gears:5, w:['square','sawtooth','sine'], mix:[.35,.55,.06],h:2,  filt:[380,850,.8],  lfo:[9,3],   vol:.12},
+    mamba:      {lo:32, hi:310, gears:6, w:['sawtooth','sawtooth','sine'],mix:[.5,.2,.12],h:2,  filt:[850,2700,2],  lfo:[8,1.2], vol:.11},
+    f1apex:     {lo:130,hi:1250,gears:8, w:['sawtooth','sawtooth','sine'],mix:[.55,.12,.2],h:2,  filt:[1400,5200,2.2],lfo:[24,4], vol:.09},
+    titan4x4:   {lo:38, hi:250, gears:4, w:['sawtooth','square','sine'], mix:[.4,.65,.04],h:1.5,filt:[330,900,.9],  lfo:[5,6],   vol:.14},
+    phantombike:{lo:48, hi:480, gears:6, w:['sawtooth','square','sine'], mix:[.5,.3,.15],h:2,  filt:[1100,3600,3],  lfo:[13,3],  vol:.12},
+    valkyrie:   {lo:85, hi:920, gears:7, w:['sawtooth','triangle','sine'],mix:[.5,.3,.18],h:1.5,filt:[1200,4200,1.6],lfo:[10,2], vol:.1, turbo:.025},
+    rx7spirit:  {lo:42, hi:460, gears:5, w:['square','sawtooth','sine'], mix:[.45,.2,.1], h:3,  filt:[950,3000,4],  lfo:[30,2],  vol:.1},
+    skyline:    {lo:40, hi:350, gears:6, w:['sawtooth','triangle','sine'],mix:[.55,.25,.1],h:3,  filt:[750,2400,1.4],lfo:[7,1.5], vol:.11, turbo:.05},
+    countach:   {lo:62, hi:610, gears:5, w:['sawtooth','sawtooth','triangle'],mix:[.5,.3,.15],h:1.5,filt:[900,3300,1.2],lfo:[4,1.5],vol:.11},
+    truck:      {lo:17, hi:92,  gears:10,w:['square','sawtooth','sine'], mix:[.4,.6,.05], h:2,  filt:[240,520,.7],  lfo:[3.5,4], vol:.16, turbo:.06, turboHz:900},
+    classicmini:{lo:36, hi:270, gears:4, w:['square','triangle','sine'], mix:[.45,.3,.08],h:2,  filt:[600,1500,3],  lfo:[14,3],  vol:.1},
+    gt40:       {lo:46, hi:330, gears:5, w:['sawtooth','square','sine'], mix:[.45,.6,.06],h:1.5,filt:[550,2000,1.3],lfo:[7,4],   vol:.13},
+  };
+  function engineVoice(S,id,T){
+    const e=ENGINES[id]||ENGINES.aster;if(S.prof===id)return e;S.prof=id;
+    [S.m1,S.m2,S.m3].forEach((o,i)=>{try{o.type=e.w[i]}catch(_){}});
+    [S.g1,S.g2,S.g3].forEach((g,i)=>g.gain.setTargetAtTime(e.mix[i],T,.05));
+    S.lfo.frequency.setTargetAtTime(e.lfo[0],T,.05);S.lg.gain.setTargetAtTime(e.lfo[1],T,.05);
+    S.mF.Q.setTargetAtTime(e.filt[2],T,.05);S.gear=0;S.rpm=0;
+    return e}
   function audioInit(){if(AC){try{if(AC.state==='suspended')AC.resume()}catch(e){}return}try{AC=new (window.AudioContext||window.webkitAudioContext)();AC.resume();
     const T=AC.currentTime,sr=AC.sampleRate,G=v=>{const g=AC.createGain();g.gain.value=v;return g},
       F=(t,f,q)=>{const x=AC.createBiquadFilter();x.type=t;x.frequency.value=f;if(q!=null)x.Q.value=q;return x},
@@ -1870,7 +1900,9 @@ t.bd.position.set(x,y+.86,z);
     const mG=G(0),mF=F('lowpass',1000,.7);mF.connect(mG);mG.connect(bus);
     const m1=O('sine',130),m2=O('triangle',65),m3=O('sine',390),g1=G(.6),g2=G(.3),g3=G(.04);
     m1.connect(g1);m2.connect(g2);m3.connect(g3);g1.connect(mF);g2.connect(mF);g3.connect(mF);
-    {const lfo=O('sine',4.3),lg=G(1.4);lfo.connect(lg);lg.connect(m1.frequency);lg.connect(m3.frequency)}
+    const lfo=O('sine',4.3),lg=G(1.4);lfo.connect(lg);lg.connect(m1.frequency);lg.connect(m3.frequency);
+    // turbo / supercharger whistle, only some cars use it
+    const tO=O('sine',2200),tG=G(0),tF=F('bandpass',2400,6);tO.connect(tF);tF.connect(tG);tG.connect(bus);
     // tyres: tarmac roar (pink noise, lowpassed) and gravel hiss (white, bandpassed)
     const rG=G(0),rF=F('lowpass',300,.6);L(pk).connect(rF);rF.connect(rG);rG.connect(bus);
     const gG=G(0),gF=F('bandpass',1900,.7);L(wh).connect(gF);gF.connect(gG);gG.connect(bus);
@@ -1879,8 +1911,7 @@ t.bd.position.set(x,y+.86,z);
     // squeal: two narrow resonances on noise, wobbled every frame so it sounds like rubber, not a tone
     const sG=G(0),s1=F('bandpass',1050,11),s2=F('bandpass',2200,13),s2g=G(.55),sn=L(wh);
     sn.connect(s1);sn.connect(s2);s1.connect(sG);s2.connect(s2g);s2g.connect(sG);sG.connect(bus);
-    SND={bus,tone,pk,wh,mG,mF,m1,m2,m3,g3,rG,rF,gG,wG,wF,sG,s1,s2,ld:0};
-    if(window.AudioManager)window.AudioManager.init();
+    SND={bus,tone,pk,wh,mG,mF,m1,m2,m3,g1,g2,g3,lfo,lg,tO,tG,rG,rF,gG,wG,wF,sG,s1,s2,ld:0,prof:null};
     document.addEventListener('visibilitychange',()=>{try{document.hidden?AC.suspend():AC.resume()}catch(e){}})}catch(e){SND=null}}
   function blip(freq=880,dur=.12,vol=.08){if(!AC||muted)return;try{const T=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=freq;
     g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(vol,T+.008);g.gain.exponentialRampToValueAtTime(.0001,T+dur);o.connect(g);g.connect(SND?SND.bus:AC.destination);o.start(T);o.stop(T+dur+.02)}catch(e){}}
@@ -3632,18 +3663,29 @@ const PLANETS={
           regen=b&&vf>1.5,load=f?1:regen?.55:(rev&&b)?.8:.1;let air=true;for(let i=0;i<4;i++)if(veh.wheelInfos[i].isInContact)air=false;
         S.bus.gain.setTargetAtTime(muted?0:.9,T,.03);
         S.tone.frequency.setTargetAtTime(sub>.05?420:18000,T,.12);
-        // Use AudioManager for vehicle-specific audio
-        const vehicleType = (PCAR && PCAR.vehicleType) ? PCAR.vehicleType : (V.label === 'F1 Apex' ? 'f1' : V.label === 'Titan 4x4' ? 'suv' : V.label === 'Phantom Bike' ? 'bike' : V.label === 'Valkyrie LeMans' ? 'hypercar' : V.label === 'Volt GT' || V.label === 'Phantom' || V.label === 'Aster' ? 'ev' : 'car');
-        if (window.AudioManager && window.AudioManager.update) {
-          window.AudioManager.update(dt, spq, r * V.max, f, b, !air, vehicleType);
-        } else {
-          /* fallback: original EV-style motor */
+        {
+          /* engine: every car has its own voice (ENGINES) */
+          const E=engineVoice(S,curCarId,T);
           S.ld+=(load-S.ld)*Math.min(1,dt*6);
-          const hz=(rev?100:120)+r*(rev?380:760)+(air&&f?110:0)+(boost?55:0);
-          S.m1.frequency.setTargetAtTime(hz,T,.06);S.m2.frequency.setTargetAtTime(hz*.5,T,.06);S.m3.frequency.setTargetAtTime(hz*3.02,T,.06);
-          S.g3.gain.setTargetAtTime(.03+(boost?.09:0)+S.ld*.03,T,.1);
-          S.mF.frequency.setTargetAtTime(650+S.ld*1400+r*900,T,.08);
-          S.mG.gain.setTargetAtTime((.015+S.ld*.14)*(.35+.85*Math.min(1.2,r*1.8+(f?.45:0))),T,.04);
+          let rpm;
+          if(E.ev){rpm=Math.min(1.25,r+(air&&f?.15:0)+(boost?.08:0))}
+          else{
+            /* gearbox: speed picks the gear, revs climb through it and fall back on the upshift */
+            const G=E.gears,x=Math.min(1,r)*G;let gi=Math.min(G-1,Math.floor(x));
+            if(gi<S.gear-1||gi>S.gear)S.gear=gi;else if(gi>S.gear&&x-gi>.08)S.gear=gi;   // a little hysteresis
+            const frac=Math.min(1,x-S.gear);
+            rpm=S.gear===0?frac:.42+.58*frac;
+            if(f&&(air||r<.04))rpm=Math.max(rpm,.32+.2*Math.sin(now*.004));        // revving with no grip / standing start
+            if(rev)rpm=Math.min(.8,r*G*.9);
+            rpm=Math.min(1.08,rpm+(boost?.05:0))}
+          S.rpm=(S.rpm||0)+(rpm-(S.rpm||0))*Math.min(1,dt*(rpm<S.rpm?14:9));
+          const hz=E.lo+S.rpm*(E.hi-E.lo);
+          S.m1.frequency.setTargetAtTime(hz,T,.03);S.m2.frequency.setTargetAtTime(hz*.5,T,.03);S.m3.frequency.setTargetAtTime(hz*E.h,T,.03);
+          S.mF.frequency.setTargetAtTime(E.filt[0]+E.filt[1]*(S.rpm*.6+S.ld*.4),T,.05);
+          const idle=E.ev?.015:.32;   // combustion engines tick over, EVs go almost quiet
+          S.mG.gain.setTargetAtTime(muted?0:E.vol*(idle+(1-idle)*Math.min(1,S.ld*.75+S.rpm*.45)),T,.04);
+          if(E.turbo){S.tO.frequency.setTargetAtTime((E.turboHz||1800)+S.rpm*2600,T,.08);S.tG.gain.setTargetAtTime(muted?0:E.turbo*S.ld*S.rpm*S.rpm,T,.12)}
+          else S.tG.gain.setTargetAtTime(0,T,.1);
           const ground=air?0:Math.min(1,spq/V.max),off=offD>7+RWX?1:0;
           S.rF.frequency.setTargetAtTime(200+ground*1000,T,.1);
           S.rG.gain.setTargetAtTime(ground*(off?.05:.09),T,.1);
@@ -3655,7 +3697,7 @@ const PLANETS={
           S.s1.frequency.setTargetAtTime(960+Math.random()*150+spq*4,T,.03);S.s2.frequency.setTargetAtTime(2100+Math.random()*240,T,.03)
         }
         honk(!!key.horn);
-      }else{if(AC&&SND){const T=AC.currentTime;[SND.mG,SND.rG,SND.gG,SND.wG,SND.sG].forEach(g=>g.gain.setTargetAtTime(0,T,.06))}honk(false)}
+      }else{if(AC&&SND){const T=AC.currentTime;[SND.mG,SND.rG,SND.gG,SND.wG,SND.sG,SND.tG].forEach(g=>g&&g.gain.setTargetAtTime(0,T,.06))}honk(false)}
     }
     {const cp=chassisB.position,pp=PREV.p,dx=cp.x-pp.x,dy=cp.y-pp.y,dz=cp.z-pp.z;
      if(active&&driving&&PREV.ok&&dx*dx+dy*dy+dz*dz<36){const a=Math.min(1,physAcc/PSTEP);
@@ -3698,7 +3740,10 @@ const PLANETS={
     const isBike=V.label==='Phantom Bike';
     const isTruck=V.label==='Titan Hauler';
     const visualWheelCount=isBike?2:isTruck?6:4;
-    wl.forEach((k,i)=>{if(i>=visualWheelCount)return;const c=wi[i].chassisConnectionPointLocal;k.w.position.set(c.x*.9,.05-wi[i].suspensionLength,c.z);k.w.rotation.set(0,i<2?wi[i].steering:0,0);k.spin.rotation.x=wi[i].rotation});
+    wl.forEach((k,i)=>{if(i>=visualWheelCount)return;
+      /* physics has 4 wheels; extra visual wheels (truck's second rear axle) follow the rear pair, one wheel-width further forward */
+      const j=i<wi.length?i:2+(i%2),w=wi[j];if(!w)return;const c=w.chassisConnectionPointLocal,dz=i<wi.length?0:V.r*2.3;
+      k.w.position.set(c.x*.9,.05-w.suspensionLength,c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation});
     if(active&&MP.on)MP.tick(now,dt);
     if(frameN%10===0){
       const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
