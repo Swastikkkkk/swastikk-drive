@@ -1770,8 +1770,7 @@ t.bd.position.set(x,y+.86,z);
   skid.count=0;skid.frustumCulled=false;if(skid.instanceMatrix.setUsage)skid.instanceMatrix.setUsage(THREE.DynamicDrawUsage);S.add(skid);
   const add=(g,geo,m,x,y,z,sh=true)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=sh;g.add(o);return o};
   const headM=M(0xfff2c0,{emissive:0xfff2c0,emissiveIntensity:1.3}),tailM=M(0xff3b30,{emissive:0xff3b30,emissiveIntensity:.5});
-  let PCAR=buildEV({paint:0x640c0e,r:VEHS.car.r,zf:VEHS.car.zf,zb:VEHS.car.zb,F:2.42,B:-2.36,W:2.3,head:headM,tail:tailM});
-  PCAR.g.position.y=.05-(VEHS.car.rest-.07)-VEHS.car.r;vis.bodyIn.add(PCAR.g);
+  let PCAR=null;
   let wv={car:[0,1,2,3].map(i=>makeWheel(VEHS.car.r,.36,i%2?-1:1,true,true))};wv.car.forEach(k=>vis.car.add(k.w));
   /* soft contact shadow so the car sits on the road instead of hovering over it */
   let carShadow=null;
@@ -5260,7 +5259,8 @@ function carChanged(){if(room)sendHi(true)}
     hint.textContent=TOUCH?'':'WASD drive · C camera · Z mirror · L time a lap · M map · R reset';
     {const {p,tg}=at(progU||0);C.position.set(p.x-tg.x*10,p.y+5,p.z-tg.z*10);look.set(p.x+tg.x*6,p.y+1,p.z+tg.z*6)}
     const m0=curMission();if(m0)setTimeout(()=>toastMsg('Mission \u00b7 '+m0.name),1200)
-    if(typeof spawnAIRacers==='function')spawnAIRacers();}
+    if(typeof spawnAIRacers==='function')spawnAIRacers();
+    if(!PCAR)setCar(curCarId,GARAGE[0].paints[0],true);}
   HF.paint(0,[1,1,1]);applyWx(true);applyQ();
   let _audioInited=false;
   function maybeInitAudio(){if(!_audioInited){_audioInited=true;audioInit()}}
