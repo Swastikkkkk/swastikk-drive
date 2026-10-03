@@ -69,6 +69,24 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {id:'valkyrie',label:'Valkyrie LeMans',type:'hypercar',blurb:'Le Mans Hypercar',mass:165,F:2.0,B:-1.9,W:1.8,price:1000,
      V:{engine:1050,max:46.5,slip:3.2,xw:1.15,zf:1.35,zb:-1.35,r:.4,rest:.32,steer:.7,roll:.01},
      paints:[0x0d1b2a,0xff0033,0x00ff88,0xffd700]},
+    {id:'rx7spirit',label:'RX-7 Spirit',type:'car',blurb:'JDM Legend, rotary scream',mass:160,F:2.1,B:-2.0,W:1.85,price:450,
+     V:{engine:750,max:33,slip:2.7,xw:.98,zf:1.25,zb:-1.25,r:.4,rest:.38,steer:.68,roll:.015},
+     paints:[0x1a1a2e,0xff6b35,0x00d4aa,0xffd700]},
+    {id:'skyline',label:'Skyline GTR',type:'car',blurb:'Godzilla, AWD legend',mass:180,F:2.2,B:-2.1,W:1.9,price:500,
+     V:{engine:800,max:35,slip:3.0,xw:1.05,zf:1.3,zb:-1.3,r:.42,rest:.4,steer:.6,roll:.02},
+     paints:[0x0066cc,0x1a1a2e,0xd9d4c6,0xffd700]},
+    {id:'countach',label:'Countach LP500',type:'car',blurb:'Wedge icon, scissor doors',mass:170,F:2.0,B:-1.9,W:1.8,price:700,
+     V:{engine:780,max:34,slip:2.5,xw:1.1,zf:1.4,zb:-1.4,r:.4,rest:.35,steer:.6,roll:.018},
+     paints:[0xff6b35,0x1a1a2e,0xf0e68c,0x00ffff]},
+    {id:'truck',label:'Titan Hauler',type:'truck',blurb:'Heavy hauler, 18-wheeler',mass:450,F:3.0,B:-4.0,W:2.5,wagon:true,price:800,
+     V:{engine:900,max:25,slip:3.5,xw:1.4,zf:2.0,zb:-2.0,r:.6,rest:.6,steer:.35,roll:.04},
+     paints:[0x8b4513,0x2d4a22,0x1a1a2e,0xd4a843]},
+    {id:'classicmini',label:'Mini Classic',type:'car',blurb:'Tiny tossable go-kart',mass:80,F:1.5,B:-1.4,W:1.4,price:200,
+     V:{engine:500,max:26,slip:2.2,xw:.8,zf:1.0,zb:-1.0,r:.35,rest:.3,steer:.85,roll:.01},
+     paints:[0x0066cc,0xcc0000,0xf0e68c,0x00ffff]},
+    {id:'gt40',label:'GT40 MkII',type:'car',blurb:'Le Mans winner, Ford vs Ferrari',mass:140,F:1.9,B:-1.8,W:1.7,price:900,
+     V:{engine:850,max:38,slip:3.3,xw:1.0,zf:1.3,zb:-1.3,r:.38,rest:.33,steer:.75,roll:.012},
+     paints:[0x0066cc,0xf0e68c,0xd4a83a,0x1a1a2e]},
   ];
   const WEATHERS=[
     {id:'day',label:'Day',bg:0x9dc0dd,fog:[110,300],hemi:.62,sun:0xfff7e8,sunI:1.12,ground:0x5c6b44,leaf:0x39672b,part:null,slip:1,skyTop:0x4a86c6,skyBottom:0xc3d9ea,star:0,sunA:.7,terr:[1.06,1.1,.98],snow:0,water:0x2f6f8c,ridge:[.46,.53,.62]},
@@ -1797,6 +1815,8 @@ t.bd.position.set(x,y+.86,z);
       PCAR = window.CarBuilder.buildBike(o);
     } else if (spec.type==='hypercar' && window.CarBuilder && window.CarBuilder.buildHypercar) {
       PCAR = window.CarBuilder.buildHypercar(o);
+    } else if (spec.type==='truck' && window.CarBuilder && window.CarBuilder.buildTruck) {
+      PCAR = window.CarBuilder.buildTruck(o);
     } else if (spec.type==='ev') {
       PCAR = buildEV(o);
     } else {
@@ -1808,6 +1828,9 @@ t.bd.position.set(x,y+.86,z);
     if(spec.type==='bike'){
       const wheelWd = 0.18;
       wv={car:[0,1].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
+    }else if(spec.type==='truck'){
+      const wheelWd = 0.5;
+      wv={car:[0,1,2,3,4,5].map(i=>makeWheel(V.r,wheelWd,i%3?-1:1,true,true))};
     }else{
       const wheelWd = spec.type==='bike'?0.18:spec.type==='f1'?0.46:spec.type==='suv'?0.42:0.36;
       wv={car:[0,1,2,3].map(i=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
@@ -3656,7 +3679,8 @@ const PLANETS={
     // wheels
     const wi=veh.wheelInfos,wl=wv.car;
     const isBike=V.label==='Phantom Bike';
-    const visualWheelCount=isBike?2:4;
+    const isTruck=V.label==='Titan Hauler';
+    const visualWheelCount=isBike?2:isTruck?6:4;
     wl.forEach((k,i)=>{if(i>=visualWheelCount)return;const c=wi[i].chassisConnectionPointLocal;k.w.position.set(c.x*.9,.05-wi[i].suspensionLength,c.z);k.w.rotation.set(0,i<2?wi[i].steering:0,0);k.spin.rotation.x=wi[i].rotation});
     if(active&&MP.on)MP.tick(now,dt);
     if(frameN%10===0){

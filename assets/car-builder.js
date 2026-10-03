@@ -692,6 +692,114 @@
     return { g: g, body: body, wheels: [], tail: tailM2, paint: paint, vehicleType: 'hypercar' };
   }
 
+  /* ------------------- 7. HEAVY HAULER TRUCK ------------------- */
+  function buildTruck(o) {
+    var g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+    var paint = phong(o.paint, { shininess: 60, specular: 0x222222 });
+    var F = o.F || 3.0, B = o.B || -4.0, W = o.W || 2.5;
+    var headM3 = o.head || npcHeadM;
+
+    // Massive chassis frame
+    var frame = new THREE.Mesh(new THREE.BoxGeometry(W, 0.8, F - B + 1.0), paint);
+    frame.position.set(0, 0.6, (F + B) / 2);
+    body.add(frame);
+
+    // Cabin - tall and boxy
+    var cabin = new THREE.Mesh(new THREE.BoxGeometry(W - 0.2, 1.2, 2.0), paint);
+    cabin.position.set(0, 1.6, (F + B) / 2 - 0.5);
+    body.add(cabin);
+
+    // Windshield (large, flat)
+    addBox(body, new THREE.BoxGeometry(W - 0.25, 0.8, 0.1), carGlassM, 0, 1.8, F - 0.1, 0.2, 0, 0);
+    // Rear window
+    addBox(body, new THREE.BoxGeometry(W - 0.25, 0.6, 0.1), carGlassM, 0, 1.7, B + 0.5, -0.15, 0, 0);
+
+    // Side windows
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.BoxGeometry(0.1, 0.7, 1.6), carGlassM, sd * (W * 0.48), 1.7, (F + B) / 2 - 0.5);
+      // Door handles
+      addBox(body, new THREE.BoxGeometry(0.05, 0.04, 0.15), chromeM, sd * (W * 0.47), 1.2, (F + B) / 2 - 0.8);
+      // Side mirrors (large truck mirrors)
+      addBox(body, new THREE.BoxGeometry(0.25, 0.3, 0.15), paint, sd * (W * 0.55), 2.0, (F + B) / 2 - 1.0);
+    });
+
+    // Massive front bullbar/grille
+    var bumper = new THREE.Mesh(new THREE.BoxGeometry(W + 0.2, 0.6, 0.5), trimM);
+    bumper.position.set(0, 0.7, F + 0.25);
+    body.add(bumper);
+    // Grille bars
+    for (var i = -1; i <= 1; i += 1) {
+      addBox(body, new THREE.BoxGeometry(0.04, 0.35, 0.08), chromeM, i * 0.5, 0.85, F + 0.3);
+    }
+
+    // Cabin roof fairing
+    addBox(body, new THREE.BoxGeometry(W * 0.8, 0.15, 1.8), trimM, 0, 2.3, (F + B) / 2 - 0.5);
+    // Roof lights
+    for (var i = -1; i <= 1; i += 1) {
+      addBox(body, new THREE.BoxGeometry(0.12, 0.08, 0.08), headM3, i * 0.4, 2.5, (F + B) / 2 - 0.3);
+    }
+
+    // Sleeper cab extension
+    addBox(body, new THREE.BoxGeometry(W - 0.2, 0.8, 2.5), paint, 0, 1.4, B - 1.5);
+    // Rear fender flares
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.BoxGeometry(0.25, 0.5, 1.2), trimM, sd * (W * 0.52), 0.8, B - 0.5);
+    });
+
+    // Massive rear bumper with lights
+    var rearBumper = new THREE.Mesh(new THREE.BoxGeometry(W + 0.2, 0.6, 0.4), trimM);
+    rearBumper.position.set(0, 0.7, B - 0.2);
+    body.add(rearBumper);
+    // Rear light bar
+    addBox(body, new THREE.BoxGeometry(W * 0.9, 0.08, 0.1), tailM2, 0, 0.9, B - 0.4);
+    // Mud flaps
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.BoxGeometry(0.3, 0.6, 0.05), rubber, sd * (W * 0.5), 0.5, B - 0.6);
+    });
+
+    // Front headlights (quad)
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.BoxGeometry(0.4, 0.2, 0.12), headLightGlassM, sd * (W * 0.3), 0.85, F + 0.05, 0, sd * -0.15);
+      addBox(body, new THREE.BoxGeometry(0.4, 0.1, 0.1), headLightGlassM, sd * (W * 0.3), 0.6, F + 0.02, 0, sd * -0.1);
+    });
+    // Side marker lights
+    [-1, 1].forEach(function(sd) {
+      addBox(body, new THREE.BoxGeometry(0.06, 0.06, 0.2), indicatorM, sd * (W * 0.5), 1.0, (F + B) / 2);
+    });
+
+    // Exhaust stacks
+    [-1, 1].forEach(function(sd) {
+      var stack = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.5, 12), chromeM);
+      stack.rotation.x = Math.PI / 2;
+      stack.position.set(sd * 0.65, 1.4, B - 0.3);
+      body.add(stack);
+      // Heat shield
+      addBox(body, new THREE.BoxGeometry(0.1, 0.04, 0.6), carbonM, sd * 0.6, 1.35, B - 0.25);
+    });
+
+    // Fuel tanks
+    [-1, 1].forEach(function(sd) {
+      var tank = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 1.8, 16), trimM);
+      tank.rotation.x = Math.PI / 2;
+      tank.position.set(sd * (W * 0.45), 0.8, (F + B) / 2 - 1.0);
+      body.add(tank);
+    });
+
+    // Rear dual wheels visualization
+    [-1, 1].forEach(function(sd) {
+      var dual = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.35, 16), tyreM2);
+      dual.rotation.z = Math.PI / 2;
+      dual.position.set(sd * 0.9, 0.5, B - 0.8);
+      body.add(dual);
+      var dual2 = dual.clone();
+      dual2.position.z = B - 1.3;
+      body.add(dual2);
+    });
+
+    bakeGroup(body);
+    return { g: g, body: body, wheels: [], tail: tailM2, paint: paint, vehicleType: 'truck' };
+  }
+
   window.CarBuilder = {
     buildCar: buildCar,
     buildEV: buildEV,
@@ -699,6 +807,7 @@
     buildSUV: buildSUV,
     buildBike: buildBike,
     buildHypercar: buildHypercar,
+    buildTruck: buildTruck,
     makeWheel: makeWheel,
     bakeGroup: bakeGroup,
     crease: crease,
