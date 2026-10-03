@@ -32,7 +32,7 @@
     
     // Out of bounds / respawn
     offRoadTimer: 0,
-    maxOffRoadSeconds: 3.0,
+    maxOffRoadSeconds: 1.5,
     lastSafeCheckpoint: null,
     isOutOfBounds: false,
 
@@ -328,19 +328,19 @@
       this.state = 'finished';
       this.totalRaceTime = now - this.raceStartTime;
 
-      // Safe anti-cheat daily leaderboard persistence
-      var dStr = new Date().toISOString().slice(0, 10);
-      var minPossibleTime = 12000 * (this.totalLaps || 1); // Anti-cheat: each lap must take at least 12 seconds
-      if (this.isDaily && this.totalRaceTime >= minPossibleTime) {
+      // Daily Track: record against the day the track belongs to (not the clock at the finish), with the best lap.
+      // Only a full race of valid laps reaches here, and each lap already passed every gate and the minimum lap time.
+      if (this.isDaily) {
+        var day = this.dailyDate || new Date().toISOString().slice(0, 10);
+        var rec = { name: (localStorage.getItem('sl_name') || 'Driver'), time: this.totalRaceTime, best: this.bestLapTime, laps: this.totalLaps, day: day, date: Date.now() };
         try {
-          var key = 'sl_daily_' + dStr;
+          var key = 'sl_daily_' + day;
           var records = JSON.parse(localStorage.getItem(key) || '[]');
-          var myName = localStorage.getItem('sl_name') || 'Driver';
-          records.push({ name: myName, time: this.totalRaceTime, date: Date.now() });
+          records.push(rec);
           records.sort(function(a, b) { return a.time - b.time; });
-          if (records.length > 20) records = records.slice(0, 20);
-          localStorage.setItem(key, JSON.stringify(records));
+          localStorage.setItem(key, JSON.stringify(records.slice(0, 50)));
         } catch(e) {}
+        if (window.DailyBoard) window.DailyBoard.submit(rec).then(function(ok) { if (ok && window.toastMsg) window.toastMsg('Daily time posted to the global board'); });
       }
 
       if (window.toastMsg) {
@@ -380,7 +380,7 @@
     checkTrackBoundaries: function(carPos, dt, onRespawnTrigger) {
       if (this.checkpoints.length === 0) return;
       var minDist = this.nearestCenterDist(carPos.x, carPos.z);
-      var maxAllowedDist = (this.roadHalf || 8) + 22;
+      var maxAllowedDist = (this.roadHalf || 8) + 4.6 + 8;   // past the barrier line (game.js BARRIER_OFF) means the car got out
       var oobEl = document.getElementById('doob');
 
       // Off the world: well away from the road, below the ground, or the position is no longer a number
@@ -554,13 +554,14 @@
       if (this.totalRaceTime) html += '<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.15);margin-top:4px;padding-top:4px"><b>TOTAL · ' + this.totalLaps + ' LAP' + (this.totalLaps > 1 ? 'S' : '') + '</b><b>' + this.formatTime(this.totalRaceTime) + '</b></div>';
       lapsEl.innerHTML = html;
 
-      modal.style.display = 'grid';
+      modal.style.display = '';
+      modal.classList.add('on');
       this.state = 'results';
     },
 
     closeResultsModal: function() {
       var modal = document.getElementById('dresults');
-      if (modal) modal.style.display = 'none';
+      if (modal) { modal.classList.remove('on'); modal.style.display = ''; }
       this.state = 'idle';
     },
 

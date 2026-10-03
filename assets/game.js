@@ -39,6 +39,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   // (mission-done, lap-done, etc), since the single-element toast would otherwise overwrite itself
   function earnCoins(n){coins+=n;saveCoins();updCoinsUI()}
   /* ---------- garage: 6 cars, 2 body kits (buildEV / buildCar) sharing the same physics rig ---------- */
+  /* Supabase project used for multiplayer rooms and the global boards. This is the public "anon" key: it is
+     meant to ship in the browser, and what it can do is limited by the database's row-level security policies.
+     Defined once here so every caller shares it. */
+  const SUPA={url:'https://oceaylrebzflgyxfjqfb.supabase.co',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'};
   const GARAGE=[
     {id:'aster',label:'Aster',type:'ev',blurb:'Balanced',mass:190,F:2.42,B:-2.36,W:2.3,price:0,
      V:{engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
@@ -282,6 +286,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* ---------- physics ---------- */
   const world=new CANNON.World();world.gravity.set(0,-24,0);world.broadphase=new CANNON.SAPBroadphase(world);world.allowSleep=true;world.defaultContactMaterial.friction=.3;
   const gM=new CANNON.Material('g'),oM=new CANNON.Material('o');world.addContactMaterial(new CANNON.ContactMaterial(gM,oM,{friction:.5,restitution:.1}));
+  const barM=new CANNON.Material('barrier');world.addContactMaterial(new CANNON.ContactMaterial(barM,oM,{friction:.03,restitution:.18}));   // track barriers: glance off and keep going
   // no infinite ground plane: the world heightfield below is the only ground, which is what lets the pond have a real bed
   const MK=2.1,LAND=1.75,VK=MK/1.45,RWX=3.4;/* RWX = extra half-width the roads gained */const BOUND=Math.round(192*MK*LAND);[[BOUND,0,0,.5,8,BOUND],[-BOUND,0,0,.5,8,BOUND],[0,0,BOUND,BOUND,8,.5],[0,0,-BOUND,BOUND,8,.5]].forEach(([x,y,z,a,b,c])=>{const w=new CANNON.Body({mass:0});w.addShape(new CANNON.Box(new CANNON.Vec3(a,b,c)));w.position.set(x,y,z);world.addBody(w)});
   /* Heightfield half-extent and grid spacing, declared early because the branch and
@@ -1040,12 +1045,12 @@ async function submitToLeaderboard(ms,vehicle){
     const name=localStorage.getItem('sl_name')||'Anon';
     const entry={n:name,ms,veh:vehicle,at:Date.now()};
     try{
-      const res=await fetch('https://oceaylrebzflgyxfjqfb.supabase.co/rest/v1/leaderboard',{
+      const res=await fetch(SUPA.url+'/rest/v1/leaderboard',{
         method:'POST',
         headers:{
           'Content-Type':'application/json',
-          'apikey':'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs',
-          'Authorization':'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'
+          'apikey':SUPA.key,
+          'Authorization':'Bearer '+SUPA.key
         },
         body:JSON.stringify(entry)
       });
@@ -1827,8 +1832,11 @@ t.bd.position.set(x,y+.86,z);
     applyVehicle();
     chassisB.mass=spec.mass;chassisB.updateMassProperties();
     if(PCAR)vis.bodyIn.remove(PCAR.g);
-    const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};
-    if (spec.type==='f1' && window.CarBuilder && window.CarBuilder.buildF1) {
+    const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,xw:V.xw,head:headM,tail:tailM};
+    // lofted bodies (assets/vehicles.js) for every model it knows; the EVs and the F1 keep their own builders
+    if (window.VehicleKit && window.VehicleKit.has(spec.id)) {
+      PCAR = window.VehicleKit.build(spec.id, o);
+    } else if (spec.type==='f1' && window.CarBuilder && window.CarBuilder.buildF1) {
       PCAR = window.CarBuilder.buildF1(o);
     } else if (spec.type==='suv' && window.CarBuilder && window.CarBuilder.buildSUV) {
       PCAR = window.CarBuilder.buildSUV(o);
@@ -2014,7 +2022,7 @@ t.bd.position.set(x,y+.86,z);
     return {drag:d,fog:f,tint:[t0,t1,t2]}}
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
-  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dcustom-tracks')&&$('#dcustom-tracks').classList.contains('on'))$('#dcustom-tracks').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyG'){
+  addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dcustom-tracks')&&$('#dcustom-tracks').classList.contains('on'))$('#dcustom-tracks').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(e.code==='KeyM'&&bigmap.classList.contains('on')){toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyG'){
       if(MODE==='surface'&&SPACE.SURF&&SPACE.SURF.gpsPins.length){
         const pins=SPACE.SURF.gpsPins,idx=pins.indexOf(SPACE.SURF.gpsTarget);
         SPACE.SURF.gpsTarget=pins[(idx+1)%pins.length];
@@ -2034,12 +2042,11 @@ t.bd.position.set(x,y+.86,z);
             {x:PG.x,y:0,z:PG.z,label:'Playground',type:'poi'}
           ]
         }
-        if(!window.earthGpsTarget)window.earthGpsTarget=window.earthGPS[0];
-        const pins=window.earthGPS,idx=pins.indexOf(window.earthGpsTarget);
-        window.earthGpsTarget=pins[(idx+1)%pins.length];
-        toastMsg('GPS → '+window.earthGpsTarget.label);
+        {const pins=window.earthGPS,idx=window.earthGpsTarget?pins.indexOf(window.earthGpsTarget):-1;
+         window.earthGpsTarget=idx+1<pins.length?pins[idx+1]:null;   // last press turns navigation off
+         toastMsg(window.earthGpsTarget?'GPS → '+window.earthGpsTarget.label+' · G for the next destination':'GPS off');}
         if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true);
-      }
+      }else if(MODE==='circuit'||SPACE.state!=='earth')NAV.toggle();
       return
     }if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
@@ -2083,12 +2090,11 @@ t.bd.position.set(x,y+.86,z);
           {x:PG.x,y:0,z:PG.z,label:'Playground',type:'poi'}
         ]
       }
-      if(!window.earthGpsTarget)window.earthGpsTarget=window.earthGPS[0];
-      const pins=window.earthGPS,idx=pins.indexOf(window.earthGpsTarget);
-      window.earthGpsTarget=pins[(idx+1)%pins.length];
-      toastMsg('GPS → '+window.earthGpsTarget.label);
+      {const pins=window.earthGPS,idx=window.earthGpsTarget?pins.indexOf(window.earthGpsTarget):-1;
+       window.earthGpsTarget=idx+1<pins.length?pins[idx+1]:null;   // last press turns navigation off
+       toastMsg(window.earthGpsTarget?'GPS → '+window.earthGpsTarget.label+' · G for the next destination':'GPS off');}
       if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true)
-    }else{toastMsg('GPS only available while driving')}
+    }else if(MODE==='circuit'||SPACE.state!=='earth'){NAV.toggle()}else{toastMsg('GPS only available while driving')}
   };
 
   /* ---------- tilt steering (phones only) ----------
@@ -2213,6 +2219,9 @@ t.bd.position.set(x,y+.86,z);
   }
   let planetMapCache=null;
   function drawMap(c,size,big){
+    if(SPACE.state!=='earth'){   // off Earth: this planet's map, or nothing in flight; never Earth's valley
+      if(!(SPACE.drawBigMap&&SPACE.drawBigMap(c,size))){c.clearRect(0,0,size,size);c.fillStyle='rgba(242,238,230,.7)';c.font='600 '+Math.round(size/30)+'px ui-monospace,monospace';c.textAlign='center';c.fillText('No map in flight',size/2,size/2)}
+      return}
     const q=chassisB.quaternion, yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
     // circuit mode: draw custom track
     if(MODE==='circuit'&&circuit){
@@ -2226,6 +2235,7 @@ t.bd.position.set(x,y+.86,z);
       c.strokeStyle='rgba(242,238,230,.9)';c.lineWidth=big?5:3.5;c.lineJoin='round';c.beginPath();
       pts.forEach((p,i)=>{i?c.lineTo(p.x*csc,p.z*csc):c.moveTo(p.x*csc,p.z*csc)});c.closePath();c.stroke();
       if(circuit.startP){c.fillStyle='#f2b26b';c.beginPath();c.arc(circuit.startP.p.x*csc,circuit.startP.p.z*csc,big?5:3.4,0,6.283);c.fill()}
+      NAV.drawOnMap(c,csc,big);
       c.translate(chassisB.position.x*csc,chassisB.position.z*csc);c.rotate(Math.PI-yaw);
       c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
       c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
@@ -2283,26 +2293,115 @@ t.bd.position.set(x,y+.86,z);
      if(big){c.fillStyle='#f2b26b';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.textAlign='left';c.fillText('SUMMIT',PEAK.x*sc+9,PEAK.z*sc+4)}}
     if(big){c.font='600 11px ui-monospace,"SF Mono",Menlo,Consolas,monospace';c.fillStyle='#e8c28a';[['STUNT PARK',VZ.stunt],['UFO',VZ.ufo],['VOLCANO',VZ.volc]].forEach(([t,q])=>c.fillText(t,q.x*sc-t.length*3.3,q.z*sc+4))}
     if(big){c.fillStyle='#9fc3d6';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.fillText('POND',POND.x*sc-14,POND.z*sc+4);c.fillStyle='#d88';c.fillText('PLAYGROUND',(PG.x-12)*sc,(PG.z-13)*sc);c.fillStyle='#cdb98f';const hp=SAMP[Math.floor(.44*N)];c.fillText('HILL',hp.x*sc+10,hp.z*sc-10)}
-    // Earth GPS pins
-    if(window.earthGPS && window.earthGPS.length){
-      c.fillStyle='#00ff88';c.font='600 10px ui-monospace,monospace';c.textAlign='center';
-      window.earthGPS.forEach((pin,i)=>{
-        const px=(pin.x-chassisB.position.x)*sc, pz=(pin.z-chassisB.position.z)*sc;
-        c.beginPath();c.arc(px,pz,big?6:4,0,6.283);c.fill();
-        if(big)c.fillText(pin.label,px,pz-10);
-      });
-      // active GPS route line
-      if(window.earthGpsTarget){
-        const tx=(window.earthGpsTarget.x-chassisB.position.x)*sc, tz=(window.earthGpsTarget.z-chassisB.position.z)*sc;
-        c.strokeStyle='rgba(0,255,136,.8)';c.lineWidth=big?3:2;c.setLineDash([10,6]);
-        c.beginPath();c.moveTo(0,0);c.lineTo(tx,tz);c.stroke();c.setLineDash([]);
-        const bearing=Math.atan2(window.earthGpsTarget.x-chassisB.position.x, window.earthGpsTarget.z-chassisB.position.z);
-        c.fillStyle='#00ff88';c.font='600 11px ui-monospace,monospace';c.textAlign='right';
-        c.fillText('→ '+Math.round(bearing*180/Math.PI)+'°',size/2-8,-size/2+18);
-      }
-    }
+    NAV.drawOnMap(c,sc,big);
     c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
     c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke()}
+  /* ---------- navigation ----------
+     Routes follow real roads, never a straight line across the grass.
+     Earth: a graph of the valley loop, the branch road, the ring road and the spur roads, joined wherever two of them
+     meet; shortest path (Dijkstra) from the road point nearest the car to the one nearest the destination.
+     A drawn / daily / custom circuit: forward along the lap to the next checkpoint gate (the start line when no race runs).
+     The Moon: along the road to the next UFO station.
+     The route is recomputed several times a second, so leaving the road or turning round just reroutes (with a
+     "rejoin the road" leg first). A heading-up compass card shows which way to steer, the next turn and the distance,
+     and the route is drawn on the minimap and the big map. G / the GPS button picks the Earth destination. */
+  const NAV=(function(){
+    let G=null,route=null,lastCalc=0,dispAng=0,hidden=false;
+    const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),brg=(ax,az,bx,bz)=>Math.atan2(bx-ax,bz-az);
+    function buildEarth(){
+      const xs=[],zs=[],adj=[],own=[];let road=0;
+      const link=(a,b)=>{const l=Math.hypot(xs[a]-xs[b],zs[a]-zs[b]);adj[a].push([b,l]);adj[b].push([a,l])};
+      const line=(pts,closed)=>{const b0=xs.length;pts.forEach(p=>{xs.push(p[0]);zs.push(p[1]);adj.push([]);own.push(road)});
+        for(let i=0;i<pts.length-1;i++)link(b0+i,b0+i+1);if(closed&&pts.length>2)link(b0+pts.length-1,b0);road++};
+      line(SAMP.slice(0,N).map(p=>[p.x,p.z]),true);
+      line(BSAMP.map(p=>[p.x,p.z]),false);
+      {const r=[];for(let i=0;i<48;i++){const a=i/48*6.283;r.push([RING.x+Math.cos(a)*RING.r,RING.z+Math.sin(a)*RING.r])}line(r,true)}
+      SPURS.forEach(sp=>{if(sp.length>1)line(sp,false)});
+      // junctions: each node joins the nearest node of another road within 12 m
+      const cell=12,H=new Map();for(let i=0;i<xs.length;i++){const k=Math.floor(xs[i]/cell)+','+Math.floor(zs[i]/cell);let a=H.get(k);if(!a)H.set(k,a=[]);a.push(i)}
+      for(let i=0;i<xs.length;i++){const gx=Math.floor(xs[i]/cell),gz=Math.floor(zs[i]/cell);let best=-1,bd=144;
+        for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const L=H.get((gx+a)+','+(gz+b));if(L)for(const j of L){if(own[j]===own[i])continue;const d=(xs[i]-xs[j])**2+(zs[i]-zs[j])**2;if(d<bd){bd=d;best=j}}}
+        if(best>=0)link(i,best)}
+      G={xs,zs,adj}}
+    function nearest(x,z){let b=-1,bd=1e18;for(let i=0;i<G.xs.length;i++){const d=(G.xs[i]-x)**2+(G.zs[i]-z)**2;if(d<bd){bd=d;b=i}}return [b,Math.sqrt(bd)]}
+    function dijkstra(a,b){const n=G.xs.length,dist=new Float64Array(n).fill(Infinity),prev=new Int32Array(n).fill(-1),heap=[[0,a]];dist[a]=0;
+      const push=e=>{heap.push(e);let i=heap.length-1;while(i>0){const p=(i-1)>>1;if(heap[p][0]<=heap[i][0])break;[heap[p],heap[i]]=[heap[i],heap[p]];i=p}};
+      const pop=()=>{const top=heap[0],last=heap.pop();if(heap.length){heap[0]=last;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<heap.length&&heap[l][0]<heap[m][0])m=l;if(r<heap.length&&heap[r][0]<heap[m][0])m=r;if(m===i)break;[heap[m],heap[i]]=[heap[i],heap[m]];i=m}}return top};
+      while(heap.length){const [d,u]=pop();if(d>dist[u])continue;if(u===b)break;for(const [v,l] of G.adj[u]){const nd=d+l;if(nd<dist[v]){dist[v]=nd;prev[v]=u;push([nd,v])}}}
+      if(!isFinite(dist[b]))return null;const out=[];for(let v=b;v>=0;v=prev[v])out.push([G.xs[v],G.zs[v]]);return out.reverse()}
+    function carPose(){const q=chassisB.quaternion;return {x:chassisB.position.x,z:chassisB.position.z,h:Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z))}}
+    function compute(){
+      if(SPACE.state!=='earth'){const n=SPACE.navInfo&&SPACE.navInfo();return n?{pts:n.pts,label:n.label,pos:[n.x,n.z],h:n.h,off:false,auto:true}:null}
+      const P=carPose();
+      if(MODE==='circuit'&&circuit){
+        const C=circuit,S=C.CSAMP,CN=C.CN,RE=window.RaceEngine;let bi=0,bd=1e18;
+        for(let i=0;i<CN;i++){const d=(S[i].x-P.x)**2+(S[i].z-P.z)**2;if(d<bd){bd=d;bi=i}}
+        let ti=0,label='Start line';
+        if(RE&&RE.state==='racing'&&RE.checkpoints.length){const N2=RE.checkpoints.length,want=RE.currentCheckpoint%N2;ti=Math.round(RE.checkpoints[want].u*CN)%CN;
+          label=want===0?(RE.currentCheckpoint>=N2?(RE.currentLap>=RE.totalLaps?'Finish line':'Lap line'):'Start line'):'Checkpoint '+want+' / '+(N2-1)}
+        // already at the gate (just across it, waiting for the crossing to register): don't send the car round a whole lap
+        if(Math.hypot(S[ti].x-P.x,S[ti].z-P.z)<CIRC_W){const n=(ti+6)%CN;return {pts:[[P.x,P.z],[S[ti].x,S[ti].z],[S[n].x,S[n].z]],label,pos:[P.x,P.z],h:P.h,off:false,auto:true}}
+        const pts=[[P.x,P.z]];for(let k=0,i=bi;k<=CN;k++,i=(i+1)%CN){pts.push([S[i].x,S[i].z]);if(i===ti&&k>2)break}
+        return {pts,label,pos:[P.x,P.z],h:P.h,off:Math.sqrt(bd)>CIRC_W/2+3,auto:true}}
+      const T=window.earthGpsTarget;if(!T||MODE!=='world')return null;
+      if(!G)buildEarth();
+      const [a,da]=nearest(P.x,P.z),[b]=nearest(T.x,T.z),path=dijkstra(a,b);if(!path)return null;
+      const pts=[[P.x,P.z]].concat(path);pts.push([T.x,T.z]);
+      return {pts,label:T.label,pos:[P.x,P.z],h:P.h,off:da>RWX+16,target:T}}
+    // walk the route by distance from the car's place on it
+    function sampler(R){const pts=R.pts;let i0=0,bd=1e18;for(let i=0;i<pts.length;i++){const d=(pts[i][0]-R.pos[0])**2+(pts[i][1]-R.pos[1])**2;if(d<bd){bd=d;i0=i}}
+      const cum=[0];for(let i=i0+1;i<pts.length;i++)cum.push(cum[cum.length-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+      const at=d=>{if(d<=0)return pts[i0];for(let k=1;k<cum.length;k++)if(cum[k]>=d){const t=(d-cum[k-1])/Math.max(1e-6,cum[k]-cum[k-1]),A=pts[i0+k-1],B=pts[i0+k];return [A[0]+(B[0]-A[0])*t,A[1]+(B[1]-A[1])*t]}return pts[pts.length-1]};
+      return {at,total:cum[cum.length-1]+Math.sqrt(bd),i0}}
+    function guidance(R){
+      const Sm=sampler(R),remain=Sm.total,st=Sm.at(Math.min(remain,R.off?0:30)),steer=R.off?Sm.at(0):st;
+      const rel=wrap(brg(R.pos[0],R.pos[1],steer[0],steer[1])-R.h);
+      let man='Straight on',manD=0;
+      if(R.off)man='Rejoin the road';
+      else{const p0=Sm.at(0),p1=Sm.at(25),b0=brg(p0[0],p0[1],p1[0],p1[1]);
+        for(let d=40;d<Math.min(320,remain-10);d+=10){const q0=Sm.at(d),q1=Sm.at(d+25),df=wrap(brg(q0[0],q0[1],q1[0],q1[1])-b0);
+          if(Math.abs(df)>.5){man=(Math.abs(df)>2.3?'U-turn ':Math.abs(df)>1.2?'Sharp ':'Turn ')+(df>0?'left':'right');manD=d;break}}}
+      if(Math.abs(rel)>2.4&&!R.off){man='Turn around';manD=0}
+      return {rel,remain,man,manD,turnPt:manD?Sm.at(manD):null}}
+    const box=(function(){const d=document.createElement('div');d.id='dnav';
+      d.style.cssText='position:absolute;left:calc(var(--gut,16px));top:calc(258px + env(safe-area-inset-top,0px));z-index:3;display:none;width:150px;pointer-events:none;'+
+        'background:rgba(10,10,9,.62);backdrop-filter:blur(8px);border-radius:12px;padding:8px;color:#f2eee6;font:600 11px/1.35 ui-monospace,Menlo,monospace;text-align:center';
+      d.innerHTML='<canvas width="268" height="268" style="width:134px;height:134px;display:block;margin:0 auto"></canvas><div class="nm" style="margin-top:4px;font-size:12px;color:#00ff88"></div><div class="nd" style="opacity:.8"></div><div class="nl" style="opacity:.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>';
+      sec.appendChild(d);return d})();
+    const cv2=box.querySelector('canvas'),cx2=cv2.getContext('2d'),fmtD=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m/10)*10+' m';
+    let last=null;
+    function draw(R,g,dt){
+      const c=cx2,W2=268,R0=W2/2;c.clearRect(0,0,W2,W2);
+      c.fillStyle='rgba(20,20,18,.85)';c.beginPath();c.arc(R0,R0,R0-4,0,6.283);c.fill();c.strokeStyle='rgba(242,238,230,.35)';c.lineWidth=3;c.stroke();
+      // compass card, heading up: the world bearing b sits at screen angle (b - heading)
+      c.font='700 26px ui-monospace,monospace';c.textAlign='center';c.textBaseline='middle';
+      [['N',Math.PI],['E',-Math.PI/2],['S',0],['W',Math.PI/2]].forEach(([t,b])=>{const a=wrap(b-R.h);c.fillStyle=t==='N'?'#ff5a4a':'rgba(242,238,230,.7)';c.fillText(t,R0-Math.sin(a)*(R0-26),R0-Math.cos(a)*(R0-26))});
+      for(let k=0;k<24;k++){const a=k/24*6.283-R.h;c.strokeStyle='rgba(242,238,230,.25)';c.lineWidth=2;c.beginPath();c.moveTo(R0+Math.sin(a)*(R0-46),R0+Math.cos(a)*(R0-46));c.lineTo(R0+Math.sin(a)*(R0-52),R0+Math.cos(a)*(R0-52));c.stroke()}
+      // steering arrow, eased so it turns smoothly
+      dispAng+=wrap(g.rel-dispAng)*Math.min(1,dt*8);
+      c.save();c.translate(R0,R0);c.rotate(-dispAng);
+      c.fillStyle=R.off?'#f3a712':'#00ff88';c.beginPath();c.moveTo(0,-74);c.lineTo(34,-14);c.lineTo(13,-18);c.lineTo(13,52);c.lineTo(-13,52);c.lineTo(-13,-18);c.lineTo(-34,-14);c.closePath();c.fill();c.restore();
+      box.querySelector('.nm').textContent=g.man+(g.manD?' in '+fmtD(g.manD):'');
+      box.querySelector('.nd').textContent=fmtD(g.remain)+' to go';
+      box.querySelector('.nl').textContent='→ '+R.label}
+    function tick(dt,now){
+      if(now-lastCalc>350){lastCalc=now;try{route=compute()}catch(e){route=null}
+        if(route&&route.target){const g=guidance(route);if(g.remain<22){toastMsg('Arrived · '+route.target.label);window.earthGpsTarget=null;route=null}}}
+      const show=!!route&&!hidden&&active&&(driving||SPACE.state!=='earth');
+      box.style.display=show?'block':'none';
+      if(show&&frameN%2===0){last=guidance(route);draw(route,last,dt*2)}}
+    // route, destination and next turn on a map already scaled so that world (x,z)*sc is the point
+    function drawOnMap(c,sc,big){
+      if(MODE==='world'&&window.earthGPS&&window.earthGPS.length){c.font='600 '+(big?11:9)+'px ui-monospace,monospace';c.textAlign='center';
+        window.earthGPS.forEach(p=>{const on=p===window.earthGpsTarget;c.fillStyle=on?'#00ff88':'rgba(0,255,136,.45)';c.beginPath();c.arc(p.x*sc,p.z*sc,(big?6:3.5)*(on?1.3:1),0,6.283);c.fill();
+          if(big){c.fillStyle=on?'#00ff88':'rgba(200,255,220,.75)';c.fillText(p.label,p.x*sc,p.z*sc-11)}})}
+      if(!route||hidden)return;
+      c.save();c.strokeStyle='rgba(0,255,136,.9)';c.lineWidth=big?5:3;c.lineJoin=c.lineCap='round';c.beginPath();
+      route.pts.forEach((p,i)=>i?c.lineTo(p[0]*sc,p[1]*sc):c.moveTo(p[0]*sc,p[1]*sc));c.stroke();
+      const e=route.pts[route.pts.length-1];c.fillStyle='#00ff88';c.beginPath();c.arc(e[0]*sc,e[1]*sc,big?8:5,0,6.283);c.fill();c.strokeStyle='#0a0a09';c.lineWidth=2;c.stroke();
+      if(last&&last.turnPt){c.fillStyle='#f3a712';c.beginPath();c.arc(last.turnPt[0]*sc,last.turnPt[1]*sc,big?5:3,0,6.283);c.fill()}
+      c.restore()}
+    return {tick,drawOnMap,toggle(){hidden=!hidden;toastMsg(hidden?'Navigation hidden · G to show':'Navigation on');return !hidden},get route(){return route}}})();
   function toggleMap(){const on=!bigmap.classList.contains('on');bigmap.classList.toggle('on',on);driving=!on;for(const k in key)key[k]=0;if(on)drawMap(bmc.getContext('2d'),bmc.width,true)}
   mm.onclick=toggleMap;$('#dbigx').onclick=toggleMap;
   // GPS: click on big map to set/clear target, right-click to add custom pin
@@ -2830,7 +2929,36 @@ const F=chassisB.force,T=chassisB.torque;
     // planet minimap: the road around you, UFO stations, and an arrow to the next one
     const pmap=document.createElement('canvas');pmap.width=pmap.height=180;
     pmap.style.cssText='position:fixed;right:max(12px,env(safe-area-inset-right,0px));top:calc(100px + env(safe-area-inset-top,0px));width:150px;height:150px;z-index:40;border-radius:50%;display:none;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.45)';
-    sec.appendChild(pmap);const pmx=pmap.getContext('2d');
+    sec.appendChild(pmap);const pmx=pmap.getContext('2d');pmap.style.cursor='pointer';pmap.style.pointerEvents='auto';pmap.title='Open map (M)';pmap.onclick=()=>toggleMap();
+    /* the full-screen map (M) on a planet: this world's road, the UFO stations along it and where you are.
+       North-up like Earth's big map; 6 km across. */
+    // the route to the next UFO station along the road, for the navigation card
+    api.navInfo=function(){const S=SURF;if(!S||api.state!=='surface')return null;const cfg=S.cfg,every=cfg.ufoEvery,goal=(Math.floor(S.s/every)+1)*every,pts=[[S.pos.x,S.pos.z]];
+      for(let s=S.s;s<goal;s+=20){const r=roadAt(cfg,S.road,s);pts.push([r.x,r.z])}const e=roadAt(cfg,S.road,goal);pts.push([e.x,e.z]);
+      return {pts,label:'UFO station',x:S.pos.x,z:S.pos.z,h:S.yaw}};
+    api.drawBigMap=function(c,size){
+      const S=SURF;if(!S)return false;
+      const cfg=S.cfg,R0=size/2,span=3000,sc=(R0-6)/span,px=S.pos.x,pz=S.pos.z,P=(x,z)=>[R0+(x-px)*sc,R0+(z-pz)*sc];
+      c.clearRect(0,0,size,size);c.save();c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.clip();
+      c.fillStyle=cfg.atmo?'rgba(70,34,20,.92)':cfg.cracks?'rgba(40,46,58,.92)':'rgba(20,20,24,.92)';c.fillRect(0,0,size,size);
+      c.strokeStyle='rgba(242,238,230,.08)';c.lineWidth=1;for(let r=500;r<span;r+=500){c.beginPath();c.arc(R0,R0,r*sc,0,6.283);c.stroke()}
+      const road=(from,to,col,w)=>{c.strokeStyle=col;c.lineWidth=w;c.lineCap='round';c.lineJoin='round';c.beginPath();
+        for(let s=Math.max(0,from),f=1;s<=to;s+=20,f=0){const r=roadAt(cfg,S.road,s),q=P(r.x,r.z);f?c.moveTo(q[0],q[1]):c.lineTo(q[0],q[1])}c.stroke()};
+      road(S.s-span*1.5,S.s+span*1.5,'rgba(242,238,230,.85)',Math.max(3,size/160));
+      road(0,S.s,'rgba(212,168,58,.9)',Math.max(2,size/220));                        // the stretch you've already driven
+      road(S.s,(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery,'rgba(0,255,136,.9)',Math.max(3,size/150));   // route to the next UFO
+      const every=cfg.ufoEvery;c.font='600 '+Math.round(size/48)+'px ui-monospace,monospace';c.textAlign='center';
+      for(let k=Math.max(1,Math.floor((S.s-span*1.5)/every));k<=Math.floor((S.s+span*1.5)/every)+1;k++){
+        const r=roadAt(cfg,S.road,k*every),q=P(r.x,r.z),ahead=k*every>S.s;
+        c.fillStyle=ahead?'#5cf2ff':'rgba(92,242,255,.45)';c.beginPath();c.arc(q[0],q[1],size/90,0,6.283);c.fill();
+        c.fillText('UFO '+(Math.abs(k*every-S.s)/1000).toFixed(1)+' km',q[0],q[1]-size/60)}
+      c.translate(R0,R0);c.rotate(Math.atan2(Math.sin(S.yaw),-Math.cos(S.yaw)));const a=size/60;
+      c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-a*1.4);c.lineTo(a,a);c.lineTo(0,a*.45);c.lineTo(-a,a);c.closePath();c.fill();c.restore();
+      c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=2;c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.stroke();
+      c.fillStyle='rgba(242,238,230,.85)';c.font='600 '+Math.round(size/36)+'px ui-monospace,monospace';c.textAlign='center';
+      c.fillText(cfg.name.toUpperCase()+' · '+(S.maxS/1000).toFixed(2)+' km driven',R0,size*.08);
+      c.fillStyle='rgba(242,238,230,.6)';c.font='500 '+Math.round(size/52)+'px ui-monospace,monospace';c.fillText('rings every 500 m · N up',R0,size*.94);
+      return true};
     function drawSurfMap(S){
       const cfg=S.cfg,c=pmx,N=180,R0=N/2,sc=R0/1100,yaw=S.yaw,cs=Math.cos(yaw),sn=Math.sin(yaw),px=S.pos.x,pz=S.pos.z;
       const P=(x,z)=>{const dx=x-px,dz=z-pz;return [R0+(-dx*cs+dz*sn)*sc,R0-(dx*sn+dz*cs)*sc]};   // heading up, right on the right
@@ -3353,7 +3481,7 @@ const PLANETS={
       S.rover.position.set(S.pos.x,S.visY-S.comp,S.pos.z).add(new THREE.Vector3(0,-1.1,0).applyQuaternion(S.rover.quaternion));
     }
     /* =================== GENERALIZED SURFACE DRIVING (kinematic) =================== */
-    const _up=new THREE.Vector3(0,1,0), _n=new THREE.Vector3(), _qa=new THREE.Quaternion(), _qy=new THREE.Quaternion(), _qt=new THREE.Quaternion();
+    const _cv=new THREE.Vector3(), _up=new THREE.Vector3(0,1,0), _n=new THREE.Vector3(), _qa=new THREE.Quaternion(), _qy=new THREE.Quaternion(), _qt=new THREE.Quaternion();
     function driveSurface(dt){
       const S=SURF, cfg=S.cfg, p=S.pos;
       /* Surface driving (Moon, Mars, Europa). Velocity is split into a part along the heading and a part
@@ -3445,13 +3573,23 @@ const PLANETS={
       if(S.skyG)S.skyG.position.set(p.x,0,p.z);
       S.sunL.target.position.copy(p); S.sunL.position.copy(p).add(new THREE.Vector3(cfg.sunDir[0],cfg.sunDir[1],cfg.sunDir[2]).multiplyScalar(400));
 
-      // camera chase
-      const back=(cfg.camBack||12)+Math.min(6,speed*0.1), upH=cfg.camUp||5.5;   // wider on the Moon so jumps read
-      const goal=new THREE.Vector3(p.x-fx*back, p.y+upH, p.z-fz*back);
-      C.position.lerp(goal, 1-Math.pow(0.0015,dt));
-      if(S.land>0){ C.position.y+=Math.sin(t*60)*S.land; S.land*=0.85; }
-      { const cf=groundH(cfg,S.road,C.position.x,C.position.z,S.s)+2.2; if(C.position.y<cf)C.position.y=cf; }
-      C.lookAt(p.x+fx*6, p.y+1.5, p.z+fz*6);
+      // camera: the same modes as on Earth (C / Camera button / phone CAM), sized for the rover
+      { const CM=CAMS[camMode]||CAMS[0];
+        if(CM.fp){
+          // bonnet / bumper: ride with the rover, tilted with it
+          _cv.set(0,.75+CM.y,CM.z+.4).applyQuaternion(S.rover.quaternion).add(S.rover.position);C.position.copy(_cv);
+          _cv.set(0,.75+CM.y,CM.z+30).applyQuaternion(S.rover.quaternion).add(S.rover.position);C.lookAt(_cv);
+        } else {
+          const k=(cfg.camBack||12)/9.5, sgn=CM.d<0?-1:1;                 // wider on the Moon so jumps read
+          const back=CM.d*k+sgn*Math.min(6,speed*0.1), upH=CM.h*(cfg.camUp||5.5)/4.8;
+          const goal=new THREE.Vector3(p.x-fx*back, p.y+upH, p.z-fz*back);
+          C.position.lerp(goal, 1-Math.pow(0.0015,dt));
+          if(S.land>0){ C.position.y+=Math.sin(t*60)*S.land; S.land*=0.85; }
+          { const cf=groundH(cfg,S.road,C.position.x,C.position.z,S.s)+2.2; if(C.position.y<cf)C.position.y=cf; }
+          C.lookAt(p.x+fx*CM.ahead, p.y+1.5*CM.ly, p.z+fz*CM.ahead);
+        }
+        const fov=CM.fov+(CM.fp?0:Math.min(8,speed*.18));
+        if(Math.abs(C.fov-fov)>.05){C.fov+=(fov-C.fov)*Math.min(1,dt*4);C.updateProjectionMatrix()} }
 
       // station proximity -> prompt
       api.nearStation=false; let nd=1e9, nst=null;
@@ -3462,6 +3600,8 @@ const PLANETS={
       // HUD odometer
       const km=(S.maxS/1000), nextUFO=(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery, toNext=(nextUFO-S.s)/1000;
       odo.style.opacity='1'; if(frameN%3===0)drawSurfMap(S);
+      try{NAV.tick(dt,performance.now())}catch(e){}
+      if(frameN%6===0&&bigmap.classList.contains('on'))api.drawBigMap(bmc.getContext('2d'),bmc.width);
       odo.textContent=cfg.name+'  ·  '+Math.round(speed*3.6)+' km/h  ·  '+km.toFixed(2)+' km driven  ·  next UFO in '+toNext.toFixed(2)+' km';
       audioSurface(dt);
     }
@@ -3727,23 +3867,24 @@ const PLANETS={
     /* clamp both ends: the first animation frame can carry a timestamp from before `last` was taken, and a
        negative dt drove the physics accumulator below zero, freezing the car until it climbed back */
     const dt=Math.max(0,Math.min(.1,(now-last)/1000));last=now;frameN++;
-    if(SPACE.state!=='earth'){ try{SPACE.frame(dt,now);}catch(e){console.error('[space]',e);try{var b=document.getElementById('dspaceerr');if(!b){b=document.createElement('div');b.id='dspaceerr';b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:rgba(150,20,20,.96);color:#fff;font:600 12px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px 12px;white-space:pre-wrap;max-height:46vh;overflow:auto';document.body.appendChild(b);}b.textContent='SURFACE/SPACE ERROR @ state='+SPACE.state+String.fromCharCode(10)+((e&&e.stack)||(e&&e.message)||e);}catch(_){}} return; }   // space/moon takes over the frame; Earth paused
-    watchFps(dt);
     if(window.PhoneController){
       const PC=window.PhoneController,on=PC.applyToKeys(key),ci=PC.currentInput||{};
       if(on){
         if(!phoneSt.on){phoneSt.on=true;toastMsg('Phone controller connected')}
         if(ci.cam&&!phoneSt.cam)cycleCam();
-        if(ci.reset&&!phoneSt.reset)resetCar();
+        if(ci.reset&&!phoneSt.reset&&SPACE.state==='earth')resetCar();
         phoneSt.cam=!!ci.cam;phoneSt.reset=!!ci.reset;
       }else if(phoneSt.on){
         // phone went quiet: let go of everything it was holding so the car does not drive off on its own
         phoneSt.on=false;key.f=key.b=key.l=key.r=key.h=key.boost=key.horn=0;toastMsg('Phone controller disconnected')}
     }
+    if(SPACE.state!=='earth'){ try{SPACE.frame(dt,now);}catch(e){console.error('[space]',e);try{var b=document.getElementById('dspaceerr');if(!b){b=document.createElement('div');b.id='dspaceerr';b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:rgba(150,20,20,.96);color:#fff;font:600 12px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px 12px;white-space:pre-wrap;max-height:46vh;overflow:auto';document.body.appendChild(b);}b.textContent='SURFACE/SPACE ERROR @ state='+SPACE.state+String.fromCharCode(10)+((e&&e.stack)||(e&&e.message)||e);}catch(_){}} return; }   // space/moon takes over the frame; Earth paused
+    watchFps(dt);
     /* watchdog: a countdown with no start lights to end it (or lights that never ran) must not hold the car forever */
+    try{NAV.tick(dt,now)}catch(e){}
     if(window.RaceEngine&&window.RaceEngine.state==='countdown'){if(!rcSince)rcSince=now;
       const lightsRunning=MODE==='circuit'&&circuit&&circuit.lightsStart&&!circuit.lightsDone;
-      if(!lightsRunning&&now-rcSince>1500||now-rcSince>9000)window.RaceEngine.startRace(now)}else rcSince=0;
+      if(!lightsRunning&&now-rcSince>3500||now-rcSince>9000)window.RaceEngine.startRace(now)}else rcSince=0;
     const raceHolding = (window.RaceEngine && window.RaceEngine.isHolding) || (typeof MP!=='undefined' && MP.isHolding && MP.isHolding());
     const sp=chassisB.velocity.length();
     if(active&&driving){
@@ -3792,7 +3933,7 @@ const PLANETS={
       /* Brakes are plumbed the way a real car's are: front biased under normal braking,
          because that is where the weight goes when you slow down, and the handbrake on
          the rear axle only, which is what lets it rotate the car instead of just stopping it. */
-      const svc=Math.max(coast,gradeBrake,govBrake,braking?16:0);
+      const svc=Math.max(coast,gradeBrake,govBrake,braking?16*(V.brake||1):0);
       for(let i=0;i<4;i++){const fr=i<2;veh.setBrake(Math.max(svc*(fr?1.25:.75),key.h?(fr?0:52):0),i)}
       // hard ceiling: if it is still climbing past the cap, damp the velocity directly
       if(sp>vmax*1.18&&!inPond){const s=vmax*1.18/sp;chassisB.velocity.x*=s;chassisB.velocity.z*=s}
@@ -3836,14 +3977,19 @@ const PLANETS={
       /* ---- circuit lap tracking ---- */
       if(MODE==='circuit'&&circuit){
         // start-light sequence: five reds build up one every ~0.5s, hold, then all go out = GO
-        if(circuit.lights&&!circuit.lightsDone&&circuit.lightsStart){const L=circuit.lights,e=(now-circuit.lightsStart)/1000;
-          let on;if(e<2.6)on=Math.min(5,Math.floor(e/0.5));else if(e<3.4+(circuit.lightsHold||0))on=5;else{on=-1;circuit.lightsDone=true;toastMsg('Lights out — go!');
-            // release the grid: the race engine holds the car in 'countdown' until someone starts it
-            if(window.RaceEngine&&window.RaceEngine.state==='countdown')window.RaceEngine.startRace(now)}
+        /* start sequence: 3 -> 2 -> 1 -> GO, one second each, on one clock. The big numbers and the gantry lights
+           both follow it, the car is held until GO, and the race timer starts at GO (RaceEngine.startRace). */
+        if(circuit.lights&&!circuit.lightsDone&&circuit.lightsStart){const L=circuit.lights,e=Math.max(0,(now-circuit.lightsStart)/1000),RE=window.RaceEngine,counting=RE&&RE.state==='countdown';   // frame time can trail the moment the grid was set
+          let on;
+          if(e<3){on=Math.min(5,Math.floor(e/.6)+1);const n=3-Math.floor(e);if(counting&&n!==circuit.cdN){circuit.cdN=n;bigCount(String(n));blip(520,.14,.1)}}
+          else{on=-1;circuit.lightsDone=true;
+            if(counting){RE.startRace(now);bigCount('GO');blip(1040,.35,.14)}}
           if(L.setColorAt){for(let i=0;i<5;i++)L.setColorAt(i,new THREE.Color(on<0?0x12a52a:(i<on?0xff1e0a:0x3a0e0e)));if(L.instanceColor)L.instanceColor.needsUpdate=true}}
         let best=1e9,bi=0;const {CSAMP,CN}=circuit;
         for(let i=0;i<CN;i++){const dx=CSAMP[i].x-chassisB.position.x,dz=CSAMP[i].z-chassisB.position.z,d=dx*dx+dz*dz;if(d<best){best=d;bi=i}}
         const u=bi/CN;
+        {const racing=window.RaceEngine&&window.RaceEngine.active;      // a race has its own respawn (RaceEngine.checkTrackBoundaries)
+         if(!racing&&Math.sqrt(best)>CIRC_W/2+BARRIER_OFF+8){circOffT+=dt;if(circOffT>1.2){circOffT=0;const q=circAt(u,circuit.curve);resetCarTo({pos:q.p,tangent:q.tg});toastMsg('Back on track')}}else circOffT=0}
         if(circU0<0){circU0=u;circLapT0=now}
         else{if(circU0>.82&&u<.18&&!(window.RaceEngine&&window.RaceEngine.active)&&!(typeof MP!=='undefined'&&MP.on)){circLap++;const t=now-circLapT0;circLapT0=now;
             if(!circBest||t<circBest)circBest=t;
@@ -3974,8 +4120,8 @@ const PLANETS={
     const visualWheelCount=isBike?2:isTruck?6:4;
     wl.forEach((k,i)=>{if(i>=visualWheelCount)return;
       /* physics has 4 wheels; extra visual wheels (truck's second rear axle) follow the rear pair, one wheel-width further forward */
-      const j=i<wi.length?i:2+(i%2),w=wi[j];if(!w)return;const c=w.chassisConnectionPointLocal,dz=i<wi.length?0:V.r*2.3;
-      k.w.position.set(c.x*.9,.05-w.suspensionLength,c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation});
+      const j=isBike?i*2:i<wi.length?i:2+(i%2),w=wi[j];if(!w)return;const c=w.chassisConnectionPointLocal,dz=isBike||i<wi.length?0:V.r*2.3;
+      k.w.position.set(isBike?0:c.x*.9,.05-w.suspensionLength,c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation});
     if(active&&MP.on)MP.tick(now,dt);
     if(frameN%10===0){
       const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
@@ -4168,8 +4314,9 @@ const PLANETS={
      AI, checkpoints/anti-cheat, saved circuits, Short/Medium/Long length choice and multiplayer
      circuits are NOT in this pass. */
   const CIRC_X=0,CIRC_Y=40,CIRC_LEN=2400;
-  let CIRC_Z=-(WS+500);             // moved per build so even a 3.6 km venue stays clear of the main world
+  let CIRC_Z=-(WS+500),circOffT=0;             // moved per build so even a 3.6 km venue stays clear of the main world
   let CIRC_W=16;
+  const BARRIER_OFF=4.6;           // track-limit barrier, metres beyond the road edge (curbs and runoff sit inside it)
   /* drawn-track options. Sizes are lap lengths: the old fixed 420 m made every drawing a go-kart loop. */
   const CIRC_SIZES={medium:1600,large:2400,huge:3600};
   const CIRC_ELEV={flat:0,rolling:5,hilly:12,mountain:22};   // peak height change around the lap, metres
@@ -4379,6 +4526,23 @@ const PLANETS={
        const body=new CANNON.Body({mass:0,material:gM});body.addShape(new CANNON.Box(new CANNON.Vec3(1,wh,len/2+.4)));
        body.position.set((a.x+b.x)/2,CIRC_Y+wh,(a.z+b.z)/2);body.quaternion.setFromAxisAngle(wup,Math.atan2(b.x-a.x,b.z-a.z));
        world.addBody(body);wallBodies.push(body)}}
+    /* ---------- track limits ----------
+       The corridor, from the centre out: road (CIRC_W/2) -> curb (+1.6) -> runoff -> barrier (+BARRIER_OFF) -> props (+6 and beyond).
+       Each side gets a chain of invisible static boxes that the car glances off (low friction, a little bounce),
+       with a low Armco rail on the same line so the limit reads. Where two parts of the lap run close together, a
+       segment that would stand on the other road is left out. Same code for Daily, Custom and Draw tracks. */
+    {const railMat=M(0xc7cbd1,{roughness:.4}),postMat=M(0x5d5a55,{roughness:.8});ownedMats.push(railMat,postMat);
+      const segL=7,NB=Math.max(60,Math.round(TL/segL)),off=CIRC_W/2+BARRIER_OFF;
+      const railIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.14,.34,segL+.15),railMat,NB*2),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,.8,.16),postMat,NB*2);
+      railIM.castShadow=!LOW;railIM.receiveShadow=true;postIM.castShadow=!LOW;root.add(railIM,postIM);railIM.userData.onTrack=postIM.userData.onTrack=true;
+      const up=new THREE.Vector3(0,1,0),q=new THREE.Quaternion(),pp=new THREE.Vector3(),sc=new THREE.Vector3(1,1,1),mx=new THREE.Matrix4(),cup=new CANNON.Vec3(0,1,0);let nr=0;
+      for(let i=0;i<NB;i++){const {p,tg,n}=circAt((i+.5)/NB,curve),yaw=Math.atan2(tg.x,tg.z);q.setFromAxisAngle(up,yaw);
+        for(const side of [-1,1]){const x=p.x+n.x*side*off,z=p.z+n.z*side*off;
+          if(trackDist(x,z,off+2)<off-1.5)continue;          // another part of the track is closer than ours: no wall across it
+          const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(.35,1,segL/2+.4)));
+          b.position.set(x,CIRC_Y+.9,z);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);wallBodies.push(b);
+          pp.set(x,CIRC_Y+.66,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);pp.set(x,CIRC_Y+.4,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}}
+      railIM.count=postIM.count=nr;railIM.instanceMatrix.needsUpdate=postIM.instanceMatrix.needsUpdate=true}
     // Keep the grandstands close enough to read from the track, placed from its actual tangent.
     {const standN=Math.max(8,Math.min(16,Math.round(curve.getLength()/38)));
      const standMat=M(theme.stand,{roughness:.85}),trimMat=M(theme.standTrim,{roughness:.6});ownedMats.push(standMat,trimMat);
@@ -4502,8 +4666,8 @@ const PLANETS={
       for(let i=0;i<5;i++){doorMatrix.makeTranslation(pitSide-7.1,1.65,-22+i*5);doors.setMatrixAt(i,doorMatrix)}doors.instanceMatrix.needsUpdate=true;pitRoot.add(doors);
       const tower=new THREE.Mesh(new THREE.BoxGeometry(5.5,10,7),pitMat);tower.position.set(pitSide+9.5,5,-8);tower.castShadow=true;pitRoot.add(tower);tower.userData.solid=true;
       const towerGlass=new THREE.Mesh(new THREE.BoxGeometry(5.7,1.8,7.2),glassMat);towerGlass.position.set(pitSide+9.5,8.5,-8);pitRoot.add(towerGlass);
-      const gantry=new THREE.Group();gantry.position.z=18;gantry.userData.onTrack=true;[-1,1].forEach(side=>{const post=new THREE.Mesh(new THREE.BoxGeometry(.28,6,.28),pitMat);post.position.set(side*(CIRC_W/2+4),3,0);gantry.add(post)});
-      const bar=new THREE.Mesh(new THREE.BoxGeometry(CIRC_W+8,.42,.5),pitMat);bar.position.y=6;gantry.add(bar);
+      const gantry=new THREE.Group();gantry.position.z=18;gantry.userData.onTrack=true;[-1,1].forEach(side=>{const post=new THREE.Mesh(new THREE.BoxGeometry(.28,6,.28),pitMat);post.position.set(side*(CIRC_W/2+BARRIER_OFF+1),3,0);gantry.add(post)});
+      const bar=new THREE.Mesh(new THREE.BoxGeometry(CIRC_W+2*BARRIER_OFF+3,.42,.5),pitMat);bar.position.y=6;gantry.add(bar);
       // F1-style start gantry: five lights, bigger now, driven by instanceColor so they can run a
       // real red-build-up -> lights-out sequence each time you enter (see the circuit loop block).
       lampMat.color.setHex(0xffffff);
@@ -4619,28 +4783,17 @@ const PLANETS={
         const rubber=addMat(M(0x1b1a18)),cap=corners.length*22;if(!cap)return;
         const tyreGeo=new THREE.CylinderGeometry(.75,.75,.55,10).rotateX(Math.PI/2);  // lay the tyre flat-faced toward the track
         const im=new THREE.InstancedMesh(tyreGeo,rubber,cap);im.castShadow=!LOW;root.add(im);let k=0;
-        corners.forEach(ci=>{for(let d=-4;d<=4;d+=2){const i=(ci+d+SN)%SN,a=SA[i],s=outSide(i),off=HALF+1.6;
+        corners.forEach(ci=>{for(let d=-4;d<=4;d+=2){const i=(ci+d+SN)%SN,a=SA[i],s=outSide(i),off=HALF+BARRIER_OFF+1.6;
           const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.tg.x,a.tg.z);Q.setFromAxisAngle(up,yaw);
           for(let row=0;row<2&&k<cap;row++){P.set(bx,GY+.4+row*.58,bz);MX.compose(P,Q,SC);im.setMatrixAt(k++,MX)}}});
         im.count=k;im.instanceMatrix.needsUpdate=true});
-
-      // --- Armco rail: posts + rail following the outside of the corners ---
-      safe(()=>{
-        const metal=addMat(M(0xb9bcc2)),cap=corners.length*20;if(!cap)return;
-        const railIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.2,.5,3.2),metal,cap),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.18,1.1,.18),metal,cap);
-        railIM.castShadow=!LOW;root.add(railIM,postIM);let r=0;
-        corners.forEach(ci=>{for(let d=-6;d<=6;d++){const i=(ci+d+SN)%SN,a=SA[i],s=outSide(i),off=HALF+3.2;
-          if(r>=cap)break;const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.tg.x,a.tg.z);Q.setFromAxisAngle(up,yaw);
-          P.set(bx,GY+.8,bz);MX.compose(P,Q,SC);railIM.setMatrixAt(r,MX);
-          P.set(bx,GY+.55,bz);MX.compose(P,Q,SC);postIM.setMatrixAt(r,MX);r++}});
-        railIM.count=r;postIM.count=r;railIM.instanceMatrix.needsUpdate=true;postIM.instanceMatrix.needsUpdate=true});
 
       // --- debris fencing: posts + a faint mesh panel on the spectator side, all the way round ---
       safe(()=>{
         const postMat=addMat(M(0x3a3a3a)),meshMat=addMat(new THREE.MeshBasicMaterial({color:0xb9bcc2,transparent:true,opacity:.14,side:THREE.DoubleSide}));
         const fenceN=Math.max(24,Math.round(L/16)),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,4,.16),postMat,fenceN);postIM.castShadow=!LOW;root.add(postIM);
         const panelGeo=new THREE.PlaneGeometry(1,3.4),panelIM=new THREE.InstancedMesh(panelGeo,meshMat,fenceN);root.add(panelIM);let fn=0;
-        for(let i=0;i<fenceN;i++){const a=circAt(i/fenceN,curve),s=i%2?1:-1,off=HALF+9;
+        for(let i=0;i<fenceN;i++){const a=circAt(i/fenceN,curve),s=i%2?1:-1,off=HALF+13;
           const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.tg.x,a.tg.z);Q.setFromAxisAngle(up,yaw);
           P.set(bx,GY+2,bz);MX.compose(P,Q,SC);postIM.setMatrixAt(fn,MX);
           // panel plane: default normal is +Z; rotate an extra 90deg so its WIDTH runs along the
@@ -4653,7 +4806,7 @@ const PLANETS={
       safe(()=>{
         const booth=addMat(M(0xd9d4c6)),roofMat=addMat(M(0xb8322f)),flagMat=addMat(new THREE.MeshBasicMaterial({color:0xf3a712,side:THREE.DoubleSide}));
         const picks=corners.slice(0,LOW?5:10);
-        picks.forEach(ci=>{const a=SA[ci],s=outSide(ci),off=HALF+6;const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.p.x-bx+a.tg.x,a.p.z-bz+a.tg.z);
+        picks.forEach(ci=>{const a=SA[ci],s=outSide(ci),off=HALF+10;const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.p.x-bx+a.tg.x,a.p.z-bz+a.tg.z);
           const g=new THREE.Group();g.position.set(bx,GY,bz);g.rotation.y=Math.atan2(a.tg.x,a.tg.z);root.add(g);
           const b=new THREE.Mesh(new THREE.BoxGeometry(2.4,2.2,1.6),booth);b.position.y=1.1;b.castShadow=!LOW;g.add(b);
           const rf=new THREE.Mesh(new THREE.BoxGeometry(2.7,.3,1.9),roofMat);rf.position.y=2.35;g.add(rf);
@@ -4681,7 +4834,7 @@ const PLANETS={
 
       // --- sponsor bridge spanning the main straight ---
       safe(()=>{
-        const a=SA[straightMid],s=HALF+2,legMat=addMat(M(theme.stand)),w=ADCOL[(seeded()*ADCOL.length)|0];
+        const a=SA[straightMid],s=HALF+BARRIER_OFF+2,legMat=addMat(M(theme.stand)),w=ADCOL[(seeded()*ADCOL.length)|0];
         const g=new THREE.Group();g.position.copy(a.p);g.position.y=GY;g.rotation.y=Math.atan2(a.tg.x,a.tg.z);root.add(g);g.userData.onTrack=true;
         [-1,1].forEach(sd=>{const leg=new THREE.Mesh(new THREE.BoxGeometry(1.4,9,1.4),legMat);leg.position.set(sd*s,4.5,0);leg.castShadow=!LOW;g.add(leg);leg.userData.solid=true});
         const beam=new THREE.Mesh(new THREE.BoxGeometry(2*s+3,2.2,2.6),legMat);beam.position.y=9.5;beam.castShadow=!LOW;g.add(beam);
@@ -4741,7 +4894,7 @@ const PLANETS={
       if(!geo.boundingBox)geo.computeBoundingBox();const b=geo.boundingBox;if(!isFinite(b.min.x))return false;
       fpA.set(b.min.x,0,b.min.z).applyMatrix4(mw);fpB.set(b.max.x,0,b.max.z).applyMatrix4(mw);
       const sx=b.max.x-b.min.x,sz=b.max.z-b.min.z,size=Math.max(fpA.distanceTo(fpB),.1);
-      const clear=HALFW+(size>7?5:.6),nx=Math.min(14,Math.max(2,Math.ceil(sx*Math.max(1,size/Math.max(sx,sz,.1))/3)+1)),nz=Math.min(14,Math.max(2,Math.ceil(sz*Math.max(1,size/Math.max(sx,sz,.1))/3)+1)),my=(b.min.y+b.max.y)/2;
+      const clear=HALFW+BARRIER_OFF+(size>7?1.4:.6),nx=Math.min(14,Math.max(2,Math.ceil(sx*Math.max(1,size/Math.max(sx,sz,.1))/3)+1)),nz=Math.min(14,Math.max(2,Math.ceil(sz*Math.max(1,size/Math.max(sx,sz,.1))/3)+1)),my=(b.min.y+b.max.y)/2;
       for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){fpPt.set(b.min.x+sx*i/(nx-1),my,b.min.z+sz*j/(nz-1)).applyMatrix4(mw);
         if(trackDist(fpPt.x,fpPt.z,clear+2)<clear)return true}
       return false};
@@ -4808,7 +4961,7 @@ const PLANETS={
     setWeather(weather,true);
     if(time!==weather){mood(time,.8);const weatherTarget=wxOf(weather);wxB.part=weatherTarget.part;wxB.slip=weatherTarget.slip;wxB.dust=weatherTarget.dust}
     // kick off the start-light sequence, and hide the (Earth-only) mission card while racing here
-    circuit.lightsStart=performance.now();circuit.lightsDone=false;circuit.lightsHold=Math.random()*0.8;
+    circuit.lightsStart=performance.now();circuit.lightsDone=false;circuit.cdN=0;
     if(missEl)missEl.classList.remove('on');
     C.far=1800;C.updateProjectionMatrix();                  // the venue's ground and mountains run out to the horizon
     if(circuit.hazeTo)circuit.hazeTo(S.fog.color);
@@ -4886,13 +5039,15 @@ const PLANETS={
   })();
   /* One lap count. In a room the host's choice (#dmplaps) is authoritative; on your own it is the draw-track
      panel's Laps setting. buildCircuit, enterCircuit and the race start all read it through here. */
-  const raceCfg={laps:3};
+  const raceCfg={laps:3},DAILY_LAPS=3;
   function lapsCfg(){const inRoom=typeof MP!=='undefined'&&MP&&MP.on;return Math.max(1,Math.min(50,inRoom&&MP.getLaps?MP.getLaps():raceCfg.laps))}
+  function bigCount(t){const el=$('#dcount');if(!el)return;el.textContent=t;el.classList.remove('on');void el.offsetWidth;el.classList.add('on');
+    if(t==='GO')setTimeout(()=>{if(el.textContent==='GO')el.classList.remove('on')},900)}
   function restartSoloRace(){
     if(MODE!=='circuit'||!circuit||!window.RaceEngine)return;
-    const RE=window.RaceEngine;RE.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps:lapsCfg(),roadWidth:CIRC_W});RE.isDaily=!!circuit.daily;
+    const RE=window.RaceEngine;RE.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps:circuit.daily?DAILY_LAPS:lapsCfg(),roadWidth:CIRC_W});RE.isDaily=!!circuit.daily;RE.dailyDate=circuit.dailyDate||null;
     RE.closeResultsModal();
-    circuit.lightsDone=false;circuit.lightsStart=performance.now();
+    circuit.lightsDone=false;circuit.lightsStart=performance.now();circuit.cdN=0;
     RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:circuit.startP.tg})});CAI.start(3)}
   window.restartSoloRace=restartSoloRace;
   const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
@@ -5241,10 +5396,15 @@ updCircBtn();
     };
 
     // Daily Track Generator (Deterministic seed from today's UTC date)
+    // exactly one Daily Track per UTC day: the seed is the date, so every player builds the identical circuit,
+    // and it only changes at 00:00 UTC (a track already open keeps its own date for its times)
     function getDailySeed(){
       const d = new Date();
       return (d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate());
     }
+    function dailyName(seed){const A=['Granite','Sunrise','Cobalt','Meridian','Saffron','Falcon','Copper','Ember','Silver','Juniper','Harbor','Summit'],B=['Ring','Circuit','Raceway','Loop','Speedway','Park'];
+      return A[seed%A.length]+' '+B[Math.floor(seed/7)%B.length]}
+    function msToMidnightUTC(){const n=new Date();return Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate()+1)-n.getTime()}
 
     function buildDailyPoints(seed){
       let s = seed % 2147483647;
@@ -5272,27 +5432,31 @@ updCircBtn();
     const dailyListEl = document.getElementById('ddaily-list');
 
     if(dailyBtn) dailyBtn.onclick=()=>{ try{audioInit();}catch(_){}
-      const dStr = new Date().toISOString().slice(0, 10);
-      if(dailyDateEl) dailyDateEl.textContent = dStr;
-      // Load daily times from localStorage
-      let dailyTimes = [];
-      try {
-        dailyTimes = JSON.parse(localStorage.getItem('sl_daily_' + dStr) || '[]');
-      }catch(_){}
-      if(dailyListEl){
-        if(!dailyTimes.length){
-          dailyListEl.innerHTML = '<li style="padding:12px;color:rgba(255,255,255,.5);font-size:13px;">No times recorded yet today. Be the first!</li>';
-        } else {
-          dailyListEl.innerHTML = dailyTimes.map((r, i) => `
-            <li style="display:flex;justify-content:space-between;padding:10px 4px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;">
-              <span>${i+1}. ${esc(r.name)}</span>
-              <strong style="color:#d4a83a;font-family:monospace;">${fmtT(r.time)}</strong>
-            </li>
-          `).join('');
-        }
-      }
+      const dStr = dailyDay(),seed=getDailySeed(),ms=msToMidnightUTC();
+      if(dailyDateEl) dailyDateEl.textContent = dStr+' (UTC) · next track in '+Math.floor(ms/3600000)+'h '+String(Math.floor(ms/60000)%60).padStart(2,'0')+'m';
+      {const th=document.getElementById('ddaily-theme');if(th){const themes=['meadow','mountain','desert','alpine','volcanic'],t=THEMES.find(x=>x.id===themes[seed%themes.length]);th.textContent=dailyName(seed)+' · '+(t?t.name:'Meadow')+' · '+DAILY_LAPS+' laps'}}
+      renderDailyBoard();
       if(dailyModal) dailyModal.style.display = 'grid';
     };
+    // the board: one entry per driver (their best), rank / name / total / best lap, you highlighted
+    function renderDailyBoard(){
+      if(!dailyListEl)return;
+      const dStr=dailyDay(),me=(localStorage.getItem('sl_name')||'').trim();
+      const draw=(rows,src)=>{
+        const best=new Map();rows.forEach(r=>{const k=String(r.name||'Driver').toLowerCase(),o=best.get(k);if(!o||r.time<o.time)best.set(k,r)});
+        const list=[...best.values()].sort((a,b)=>a.time-b.time).slice(0,50);
+        const head='<li style="display:grid;grid-template-columns:40px 1fr 92px 82px;gap:8px;padding:6px 4px;font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.5)"><span>RANK</span><span>DRIVER</span><span style="text-align:right">TIME</span><span style="text-align:right">BEST LAP</span></li>';
+        dailyListEl.innerHTML=list.length?head+list.map((r,i)=>{const mine=me&&String(r.name).toLowerCase()===me.toLowerCase();
+          return `<li style="display:grid;grid-template-columns:40px 1fr 92px 82px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;${mine?'background:rgba(212,168,58,.16);':''}">
+            <span style="color:#d4a83a;font-weight:700">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}${mine?' (you)':''}</span>
+            <strong style="color:#f2eee6;font-family:monospace;text-align:right">${fmtT(r.time)}</strong><span style="font-family:monospace;text-align:right;opacity:.75">${r.best?fmtT(r.best):'--'}</span></li>`}).join('')+
+          `<li style="padding:8px 4px;font-size:11px;color:rgba(255,255,255,.5)">${src}</li>`
+          :'<li style="padding:12px;color:rgba(255,255,255,.5);font-size:13px;">No times yet for today\'s track. Be the first!</li>'};
+      let local=[];try{local=JSON.parse(localStorage.getItem('sl_daily_'+dStr)||'[]')}catch(_){}
+      draw(local,'Times on this device');
+      if(window.DailyBoard)window.DailyBoard.fetch(dStr).then(rows=>{if(rows)draw(rows.concat(local),'Global board · '+dStr+' (UTC)')}).catch(()=>{});
+    }
+    window.renderDailyBoard=renderDailyBoard;
 
     if(dailyClose) dailyClose.onclick=()=>{
       if(dailyModal) dailyModal.style.display = 'none';
@@ -5327,21 +5491,25 @@ updCircBtn();
       const themeId = themes[seed % themes.length];
       const theme = THEMES.find(t=>t.id===themeId) || THEME_DEFAULT;
       buildCircuit(pts, theme, seed, {weather:'day', time:'day', width:16, elev:'rolling', daily:true});
-      if(circuit)circuit.daily=true;
+      if(circuit){circuit.daily=true;circuit.dailyDate=dailyDay();}
       enterCircuit();
       if(window.__updModes)window.__updModes();
       if(window.__dailyHold)return;
-      toastMsg('Daily Track Generated · Conquer 3 Laps!');
-      if(window.RaceEngine) {
-        window.RaceEngine.setConfiguration('circuit', 3);
-        window.RaceEngine.startCountdown(0, (spawn)=>{
-          if(window.resetCarTo) window.resetCarTo({pos:{x:spawn.x,y:spawn.y,z:spawn.z},tangent:circuit.startP.tg});
-        });
-        CAI.start(3);
-      }
+      toastMsg('Daily Track · '+dailyName(seed)+' · '+DAILY_LAPS+' laps');
+      restartSoloRace();
     };
   }
 
+  // --- Daily Track: the UTC day the track belongs to; global board if the backend has the table, else this device ---
+  function dailyDay(){return new Date().toISOString().slice(0,10)}
+  window.DailyBoard=(function(){
+    const URL_=SUPA.url+'/rest/v1/daily_times',KEY=SUPA.key;
+    const H={'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+KEY};
+    async function fetch_(day){try{const r=await fetch(URL_+'?select=name,ms,best_ms&day=eq.'+day+'&order=ms.asc&limit=200',{headers:H});if(!r.ok)return null;
+      return (await r.json()).map(x=>({name:x.name,time:x.ms,best:x.best_ms}))}catch(e){return null}}
+    async function submit(rec){try{const r=await fetch(URL_,{method:'POST',headers:Object.assign({Prefer:'return=minimal'},H),
+      body:JSON.stringify({day:rec.day,name:String(rec.name).slice(0,24),ms:Math.round(rec.time),best_ms:rec.best?Math.round(rec.best):null,laps:rec.laps})});return r.ok}catch(e){return false}}
+    return {fetch:fetch_,submit}})();
   // --- Save Daily Leaderboard Time ---
   function saveDailyTime(name, time) {
     const dStr = new Date().toISOString().slice(0, 10);
@@ -5375,14 +5543,14 @@ updCircBtn();
      code and nothing is stored; a channel exists only while somebody is on it. */
   const MP=(function(){
     const CFG={ws:'wss://oceaylrebzflgyxfjqfb.supabase.co/realtime/v1/websocket',
-      key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'};
+      key:SUPA.key};
     const MAXP=4,HZ=10,STALE=6500,PAL=[0x1f5fbf,0x2f9e5b,0xd9a12a,0x7a3fb0],HEX=c=>'#'+c.toString(16).padStart(6,'0');
     const LOCAL=/[?&]net=local\b/.test(location.search);
     const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',rid=n=>{let s='';for(let i=0;i<n;i++)s+=ALPH[Math.random()*32|0];return s};
     const me={id:rid(8),n:'',j:0},LOG=[],lg=(...a)=>{LOG.push(Math.round(performance.now())+' '+a.join(' '));if(LOG.length>60)LOG.shift()};
     let room=null,net=null,status='off',peers=new Map(),lastSend=0,lastHi=0,lastUI=0,lastPing=0,pingSeq=0,pendingPings=new Map(),
       race={id:'',st:0,t0:0,d0:0,rp:0,lastU:0,slot:0,ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0},
-        myFin=0;
+        myFin=0,myReady=false,autoStartAt=0;
     // the shared custom venue: the host broadcasts the drawn track so everyone builds + races the
     // SAME circuit. Because the circuit always sits at the same world offset and is seeded, every
     // client's geometry lines up, so the existing world-space ghost poses already match on it.
@@ -5477,7 +5645,7 @@ updCircBtn();
     function toast2(s){try{toastMsg(s)}catch(e){}}
     /* ----- messages ----- */
     function send(m){if(net&&status==='up'){m.id=me.id;net.send(m)}}
-    function sendHi(rep){send({k:'hi',n:myName(),j:me.j,r:rep?1:0,car:curCarId,rid:race.id,rs:race.st,startAt:race.startAt,fin:myFin,d:race.st>=2?race.d0+race.rp:0})}
+    function sendHi(rep){send({k:'hi',n:myName(),j:me.j,r:rep?1:0,car:curCarId,rid:race.id,rs:race.st,startAt:race.startAt,fin:myFin,rdy:myReady?1:0,d:race.st>=2?race.d0+race.rp:0})}
     function syncRace(P,m){
       const remoteState=num(m.rs,0,4,0),rid=String(m.rid||'');
       if(!rid||remoteState<1||((race.st===1||race.st===2||race.st===4)&&race.id!==rid))return;
@@ -5504,7 +5672,7 @@ updCircBtn();
         if(P.gh){const was=P.gh;killGhost(P);P.gh=makeGhost(P.car,was.col,P.n);
           P.gh.g.position.copy(P.tp);P.gh.g.quaternion.copy(P.tq);P.gh.g.visible=was.g.visible;P.gh.tg.visible=was.tg.visible}}}
       switch(m.k){
-        case 'hi':if(!m.r){sendHi(true);if(lastVenue&&isHost())send(Object.assign({k:'trk'},lastVenue));if(isHost()&&syncCfg)syncCfg(true)}syncRace(P,m);break;
+        case 'hi':if('rdy' in m)P.ready=!!m.rdy;if(!m.r){sendHi(true);if(lastVenue&&isHost())send(Object.assign({k:'trk'},lastVenue));if(isHost()&&syncCfg)syncCfg(true)}syncRace(P,m);break;
         case 'trk':adoptVenue(m);break;
         case 'cfg':if(!isHost()){
           if(m.laps){const el=$('#dmplaps');if(el)el.value=m.laps}
@@ -5512,7 +5680,7 @@ updCircBtn();
           if(m.mode){const el=$('#dmpmode');if(el)el.value=m.mode}
           if(m.gravity){const el=$('#dmpgravity');if(el)el.value=m.gravity}
         }break;
-        case 'rdy':P.ready=!!m.val;ui();break;
+        case 'rdy':P.ready=!!m.val;paintReady();ui();break;
         case 'spec':P.watching=!!m.val;ui();break;
         case 'chat':{if(!m.t||!m.n)return;const log=document.getElementById('dmpchatlog');if(log){const msg=String(m.t).slice(0,120);const name=String(m.n).slice(0,14);const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:11px;line-height:1.4;';line.innerHTML='<span style="color:#d4a83a;font-weight:600;">'+esc(name)+':</span> <span style="color:var(--paper);">'+esc(msg)+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}}break;
         case 's':{
@@ -5587,6 +5755,7 @@ updCircBtn();
     const CD_LEAD=3000; // countdown length; also doubles as slack for the 'race' broadcast to reach everyone before GO
     function requestRace(){
       if(!room||status!=='up'){note('Not connected yet');return}
+      if(!isHost()){note('The host starts the race. Press Ready so they know you are set.');return}
       if(race.st===1||race.st===2){note('A race is already running');return}
       const laps=getLaps(),pick=$('#dmpmap')?$('#dmpmap').value:'earth';
       // get the host onto the chosen track first, then send it with the race so nobody races somewhere else
@@ -5608,6 +5777,8 @@ updCircBtn();
       // a guest goes to whatever track the host is racing on
       if(v){try{if(v.earth){if(MODE==='circuit')leaveCircuit()}else{adoptVenue(v);if(MODE!=='circuit'&&circuit)enterCircuit()}}catch(e){lg('race venue',e&&e.message)}}
       closePanel();
+      myReady=false;autoStartAt=0;peers.forEach(p=>{p.ready=false});paintReady();
+      {const rm=document.getElementById('dresults');if(rm){rm.classList.remove('on');rm.style.display=''}}
       // startAt is a shared wall-clock instant (Date.now(), not performance.now(), since it has to mean
       // the same thing on every client's clock) so everyone's countdown hits GO at roughly the same moment,
       // regardless of when the 'race' broadcast actually arrived on each connection
@@ -5672,7 +5843,7 @@ updCircBtn();
         const dd=C.position.distanceTo(G.tg.position),s=Math.max(1,Math.min(8,dd*.032));G.tg.scale.set(s*4,s,1);
         G.tg.visible=dd<520&&G.g.visible;
         P.sp=Math.hypot(car.position.x-G.g.position.x,car.position.z-G.g.position.z)});
-      raceTick(now,dt);
+      raceTick(now,dt);autoStart(now);
       if(now-lastUI>250){lastUI=now;if(el.panel&&el.panel.classList.contains('on')&&room)ui();else roster()}}
     /* ----- HUD ----- */
     function roster(){
@@ -5705,16 +5876,16 @@ updCircBtn();
       if(el.out)el.out.style.display=room?'none':'block';
       if(el.inn)el.inn.style.display=room?'block':'none';
       if(el.codeOut)el.codeOut.textContent=room||'';
-      if(el.race){el.race.disabled=!room||status!=='up'||race.st===1||race.st===2||race.st===4;
-        el.race.textContent=race.st===3?'Rematch':'Start race'}
-      if(el.raceStatus)el.raceStatus.textContent=!room?'Create or join a room to race.':status!=='up'?'Connecting to room…':race.st===1?'Race countdown in progress':race.st===2?'Race in progress · finish times appear here as drivers finish':race.st===4?'Race in progress · you joined as a spectator':race.st===3?'Race complete · final times are shown below':'Room ready · anyone can start a race';
-      if(el.list){const host=isHost(),racing=race.st>=2,rows=[{id:me.id,n:myName(),c:0x640c0e,me:1,watching:race.st===4,d:racing?race.d0+race.rp:0,fin:myFin,ping:null,off:false}];
-        peers.forEach(P=>rows.push({id:P.id,n:P.n,c:colorOf(P.id),d:P.d,fin:P.fin,ping:P.ping,off:!P.got}));
+      if(el.race){const hst=isHost();el.race.disabled=!room||status!=='up'||!hst||race.st===1||race.st===2||race.st===4;
+        el.race.textContent=!hst?'Host starts the race':race.st===3?'Rematch':'Start race'}
+      if(el.raceStatus)el.raceStatus.textContent=!room?'Create or join a room to race.':status!=='up'?'Connecting to room…':race.st===1?'Race countdown in progress':race.st===2?'Race in progress · finish times appear here as drivers finish':race.st===4?'Race in progress · you joined as a spectator':race.st===3?'Race complete · final times are shown below':(isHost()?'Room ready · press Start race, or it starts by itself once everyone is Ready':'Room ready · press Ready, the host starts the race');
+      if(el.list){const host=isHost(),racing=race.st>=2,rows=[{id:me.id,n:myName(),c:0x640c0e,me:1,watching:race.st===4,d:racing?race.d0+race.rp:0,fin:myFin,ping:null,off:false,rdy:myReady}];
+        peers.forEach(P=>rows.push({id:P.id,n:P.n,c:colorOf(P.id),d:P.d,fin:P.fin,ping:P.ping,off:!P.got,rdy:!!P.ready}));
         if(racing)rows.sort((a,b)=>a.watching?1:b.watching?-1:a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:b.d-a.d);
         const lead=Math.max.apply(null,rows.filter(P=>!P.fin).map(P=>P.d).concat([0]));
-        let h='';rows.forEach((P,i)=>{let timing=P.watching?'Spectating':P.fin?fmtT(P.fin):racing?(P.off?'Connecting':P.d>=lead-1e-4?'Leading':'-'+Math.max(0,Math.round((lead-P.d)*(MODE==='circuit'&&circuit?circuit.curve.getLength():TLEN)))+' m'):(P.off?'Joining':'Ready');
+        let h='';rows.forEach((P,i)=>{let timing=P.watching?'Spectating':P.fin?fmtT(P.fin):racing?(P.off?'Connecting':P.d>=lead-1e-4?'Leading':'-'+Math.max(0,Math.round((lead-P.d)*(MODE==='circuit'&&circuit?circuit.curve.getLength():TLEN)))+' m'):(P.off?'Joining':P.rdy?'Ready ✓':'Not ready');
           const ping=P.me?(window.PhoneController&&window.PhoneController.isPhoneConnected()?'Phone':'Keyboard'):P.ping==null?'Ping…':P.ping+' ms';
-          h+='<li class="'+(P.me?'me':'')+'"><i style="background:'+HEX(P.c)+'"></i><span class="mp-driver">'+(racing?'<em>'+(P.fin?i+1:'')+'</em>':'')+esc(P.n)+(P.me?' (you)':'')+'</span><span class="mp-timing">'+timing+(ping?' · '+ping:'')+
+          h+='<li class="'+(P.me?'me':'')+'"><i style="background:'+HEX(P.c)+'"></i><span class="mp-driver">'+(racing?'<em>'+(P.fin?i+1:'')+'</em>':'')+esc(P.n)+(P.me?' (you)':'')+(P.id===(sorted()[0]||{}).id?' · host':'')+'</span><span class="mp-timing">'+timing+(ping?' · '+ping:'')+
             (host&&!P.me?'<button class="kick" type="button" data-id="'+P.id+'" title="Remove from room" aria-label="Remove '+esc(P.n)+' from room">&times;</button>':'')+'</span></li>'});
         el.list.innerHTML=h}
       if(el.note&&room)el.note.textContent=status==='up'?(peers.size?'Everyone here is a ghost to everyone else. No crashes, just a name above the car.':'Waiting for friends. Send them the code or the link.'):status==='down'?'Cannot reach the room. Check your connection and rejoin.':'Connecting…';
@@ -5743,7 +5914,6 @@ updCircBtn();
     {const m=/[?&]room=([A-Za-z0-9]{4,6})/.exec(location.search);
      if(m)setTimeout(()=>{me.n=savedName();join(m[1])},300)}
     // config sync & ready
-    let myReady=false;
     function syncCfg(force){
       if(!isHost()||!room||status!=='up')return;
       const laps=$('#dmplaps')?$('#dmplaps').value:3;
@@ -5754,12 +5924,15 @@ updCircBtn();
       const el=$(sel);if(el)el.onchange=()=>syncCfg(true);
     });
 const rdyBtn=$('#dmpready');
-  if(rdyBtn)rdyBtn.onclick=()=>{
-    myReady=!myReady;
-    rdyBtn.textContent=myReady?'Ready!':'I\'m Ready';
-    rdyBtn.style.background=myReady?'#227038':'#3f8a56';
-    send({k:'rdy',val:myReady});
-  };
+  function paintReady(){
+    const b=$('#dmpready');if(b){b.textContent=myReady?'Ready ✓':'I\'m Ready';b.style.background=myReady?'#227038':'#3f8a56'}
+    const rm=document.getElementById('dresrematch');
+    if(rm)rm.textContent=!room?'Restart':isHost()?'Rematch now':myReady?'Ready ✓ · waiting for host':'Ready for rematch';
+    const st=document.getElementById('dresstatus');
+    if(st){if(!room){st.textContent=''}else{const live=[...peers.values()].filter(p=>p.got||p.last),n=live.length+1,r=live.filter(p=>p.ready).length+(myReady?1:0);
+      st.textContent=autoStartAt?'Everyone is ready · rematch starting…':'Ready for rematch: '+r+' / '+n+(isHost()?' · press Rematch now, or it starts when everyone is ready':' · the host starts it')}}}
+  function setReady(v){myReady=!!v;if(!myReady)autoStartAt=0;send({k:'rdy',val:myReady});paintReady();ui()}
+  if(rdyBtn)rdyBtn.onclick=()=>setReady(!myReady);
   // Spectator mode toggle
   const specBtn=$('#dmpspec');
   if(specBtn){
@@ -5893,28 +6066,39 @@ function carChanged(){if(room)sendHi(true)}
       const done=()=>{qrCopy.textContent='Copied';setTimeout(()=>qrCopy.textContent='Copy',1500)};
       try{navigator.clipboard.writeText(t.value).then(done,()=>{document.execCommand('copy');done()})}catch(e){try{document.execCommand('copy');done()}catch(_){}}}}
     {const qrClose=document.getElementById('dqrclose');if(qrClose)qrClose.onclick=()=>{const m=document.getElementById('dqr-modal');clearInterval(phoneStTimer);if(m){m.classList.remove('on');m.dataset.mode=''}}}
-    {const rematch=document.getElementById('dresrematch');if(rematch)rematch.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');if(room)requestRace();else restartSoloRace()}}
+    {const rematch=document.getElementById('dresrematch');if(rematch)rematch.onclick=()=>{
+      if(!room){const m=document.getElementById('dresults');if(m)m.classList.remove('on');restartSoloRace();return}
+      if(isHost()){if(!myReady)setReady(true);requestRace()}       // host: go now (everyone is put back on the grid)
+      else setReady(!myReady)}}                                     // guest: vote; the card stays open until the host starts
     {const rc=document.getElementById('dresclose');if(rc)rc.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');if(window.RaceEngine)window.RaceEngine.closeResultsModal()}}
     {const resLobby=document.getElementById('dreslobby');if(resLobby)resLobby.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');openPanel()}}
-    // show results modal when race.st becomes 3
-    let _uiResultShown=false;
+    // results card: once per race for everyone in it (finished, DNF or spectating); kept live while open
     function ui(){
       uiBase();
-      if(race.st===3&&myFin&&!race._resShown&&!_uiResultShown){
-        _uiResultShown=true;
-        race._resShown=true;
-        showResults();
-      }
+      if(race.st===3&&!race._resShown){race._resShown=true;showResults()}
+      else if(race.st===3){const m=document.getElementById('dresults');if(m&&m.classList.contains('on'))paintReady()}
     }
     function showResults(){
       const m=document.getElementById('dresults');if(!m)return;
       const rows=[{n:myName(),fin:myFin,me:1}];
       peers.forEach(P=>{if(P.fin||P.got)rows.push({n:P.n,fin:P.fin})});
       rows.sort((a,b)=>a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:0);
-      const list=document.getElementById('dreslist');
-      if(list)list.innerHTML=rows.map((r,i)=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span>${i+1}. ${r.n}${r.me?' (you)':''}</span><span>${r.fin?fmtT(r.fin):'DNF'}</span></div>`).join('');
-      m.classList.add('on');
+      const best=rows.length&&rows[0].fin?rows[0].fin:0,list=document.getElementById('dreslist'),nl=race.laps||getLaps();
+      if(list)list.innerHTML=rows.map((r,i)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span>${r.fin?i+1+'.':'–'} ${esc(r.n)}${r.me?' (you)':''}</span><span>${r.fin?fmtT(r.fin)+(best&&r.fin>best?' <span style="opacity:.6">+'+((r.fin-best)/1000).toFixed(2)+'s</span>':''):'DNF'}</span></div>`).join('')+
+        `<div style="margin-top:8px;opacity:.7;font-size:12px">${nl} lap${nl>1?'s':''} · ${MODE==='circuit'&&circuit?'drawn track':'Earth valley loop'}</div>`;
+      let st=document.getElementById('dresstatus');
+      if(!st&&list){st=document.createElement('div');st.id='dresstatus';st.className='mono';st.style.cssText='margin-top:12px;font-size:12px;color:#d4a83a;min-height:1.4em';list.parentNode.insertBefore(st,list.nextSibling)}
+      const lobby=document.getElementById('dreslobby');if(lobby)lobby.textContent=isHost()?'Change track / laps':'Room';
+      m.style.display='';m.classList.add('on');paintReady();
     }
+    // everyone (2+ players) ready in the lobby or on the results card: the host's game starts the race by itself
+    function autoStart(now){
+      if(!room||status!=='up'||!isHost()||!(race.st===0||race.st===3)){if(autoStartAt){autoStartAt=0}return}
+      const live=[...peers.values()].filter(p=>p.got||p.last);
+      const all=live.length>0&&myReady&&live.every(p=>p.ready);
+      if(!all){if(autoStartAt){autoStartAt=0;paintReady()}return}
+      if(!autoStartAt){autoStartAt=now+2500;note('Everyone is ready · starting…');toast2('Everyone is ready · starting');paintReady()}
+      else if(now>=autoStartAt){autoStartAt=0;requestRace()}}
     return {tick,join,leave,LOG,shareVenue,inRoom,getLaps,getPeers,isHolding,isHostNow:()=>isHost(),get on(){return !!room},get state(){return {room,status,peers,race,me}},_dbg:{sorted}}
   })();
   /* ---------- go ---------- */
