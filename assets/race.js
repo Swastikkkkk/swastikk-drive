@@ -223,16 +223,15 @@
 
     // Driving against the flow of the track for more than a second shows WRONG WAY.
     checkWrongWay: function(carPos, prev, dt) {
-      if (!prev || !this.checkpoints.length || !(dt > 0)) return;
-      var vx = (carPos.x - prev.x) / dt, vz = (carPos.z - prev.z) / dt;
-      var sp = Math.hypot(vx, vz), cp = null, bd = 1e12;
-      for (var i = 0; i < this.checkpoints.length; i++) {
-        var g = this.checkpoints[i], d = (g.pos.x - carPos.x) * (g.pos.x - carPos.x) + (g.pos.z - carPos.z) * (g.pos.z - carPos.z);
-        if (d < bd) { bd = d; cp = g; }
-      }
-      var against = cp && sp > 6 && (vx * cp.tangent.x + vz * cp.tangent.z) / sp < -0.45;
+      if (!prev || !this.centerline.length || !(dt > 0)) return;
+      var vx = (carPos.x - prev.x) / dt, vz = (carPos.z - prev.z) / dt, sp = Math.hypot(vx, vz);
+      // the road's own direction right where the car is (dense centreline), not the nearest gate 150 m away,
+      // which on a bend pointed somewhere else and flagged cars going the right way
+      var c = this.centerline, n = c.length, d = this.nearestCenterDist(carPos.x, carPos.z), i = this.cdIdx;
+      var a = c[(i - 2 + n) % n], b = c[(i + 2) % n], tx = b.x - a.x, tz = b.z - a.z, tl = Math.hypot(tx, tz) || 1;
+      var against = sp > 6 && d < (this.roadHalf || 8) + 6 && (vx * tx + vz * tz) / (sp * tl) < -0.55;
       this.wrongWayT = against ? this.wrongWayT + dt : Math.max(0, this.wrongWayT - dt * 2);
-      var on = this.wrongWayT > 1.0;
+      var on = this.wrongWayT > 1.2;
       if (on !== this.wrongWay) { this.wrongWay = on; this.showWrongWay(on); }
     },
 

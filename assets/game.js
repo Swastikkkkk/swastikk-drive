@@ -2171,7 +2171,7 @@ t.bd.position.set(x,y+.86,z);
   window.toastMsg=toastMsg;
   /* ---------- the summit ---------- */
   let atSummit=false,summitMoodBack=null;
-  const wrongEl=$('#dwrong');
+  const wrongEl=$('#dwrong');let wrongT=0,wrongMain=false;
   /* ---------- minimap ---------- */
   const MAPS=SAMP.filter((_,i)=>i%2===0);let mapRot=0;
   const MAPR=116*MK*LAND+26;let mapCache=null;
@@ -2306,7 +2306,7 @@ t.bd.position.set(x,y+.86,z);
      "rejoin the road" leg first). A heading-up compass card shows which way to steer, the next turn and the distance,
      and the route is drawn on the minimap and the big map. G / the GPS button picks the Earth destination. */
   const NAV=(function(){
-    let G=null,route=null,lastCalc=0,dispAng=0,hidden=false;
+    let G=null,route=null,lastCalc=0,hidden=false,last=null;
     const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),brg=(ax,az,bx,bz)=>Math.atan2(bx-ax,bz-az);
     function buildEarth(){
       const xs=[],zs=[],adj=[],own=[];let road=0;
@@ -2346,6 +2346,8 @@ t.bd.position.set(x,y+.86,z);
       const T=window.earthGpsTarget;if(!T||MODE!=='world')return null;
       if(!G)buildEarth();
       const [a,da]=nearest(P.x,P.z),[b]=nearest(T.x,T.z),path=dijkstra(a,b);if(!path)return null;
+      // the nearest road point can sit just behind the car: if the next one is closer to the car, start from that
+      if(path.length>1&&Math.hypot(path[1][0]-P.x,path[1][1]-P.z)<Math.hypot(path[1][0]-path[0][0],path[1][1]-path[0][1]))path.shift();
       const pts=[[P.x,P.z]].concat(path);pts.push([T.x,T.z]);
       return {pts,label:T.label,pos:[P.x,P.z],h:P.h,off:da>RWX+16,target:T}}
     // walk the route by distance from the car's place on it
@@ -2354,42 +2356,66 @@ t.bd.position.set(x,y+.86,z);
       const at=d=>{if(d<=0)return pts[i0];for(let k=1;k<cum.length;k++)if(cum[k]>=d){const t=(d-cum[k-1])/Math.max(1e-6,cum[k]-cum[k-1]),A=pts[i0+k-1],B=pts[i0+k];return [A[0]+(B[0]-A[0])*t,A[1]+(B[1]-A[1])*t]}return pts[pts.length-1]};
       return {at,total:cum[cum.length-1]+Math.sqrt(bd),i0}}
     function guidance(R){
-      const Sm=sampler(R),remain=Sm.total,st=Sm.at(Math.min(remain,R.off?0:30)),steer=R.off?Sm.at(0):st;
+      const Sm=sampler(R),remain=Sm.total,steer=Sm.at(R.off?0:Math.min(remain,30));
       const rel=wrap(brg(R.pos[0],R.pos[1],steer[0],steer[1])-R.h);
-      let man='Straight on',manD=0;
-      if(R.off)man='Rejoin the road';
-      else{const p0=Sm.at(0),p1=Sm.at(25),b0=brg(p0[0],p0[1],p1[0],p1[1]);
+      let kind='straight',dir=0,manD=0,man='Straight on';
+      if(R.off){kind='rejoin';man='Rejoin the road';dir=rel>0?1:-1}
+      else if(remain<60){kind='arrive';man='Arriving';manD=remain}
+      else{const p0=Sm.at(8),p1=Sm.at(33),b0=brg(p0[0],p0[1],p1[0],p1[1]);   // skip the first metres: the stub from the car to the road
         for(let d=40;d<Math.min(320,remain-10);d+=10){const q0=Sm.at(d),q1=Sm.at(d+25),df=wrap(brg(q0[0],q0[1],q1[0],q1[1])-b0);
-          if(Math.abs(df)>.5){man=(Math.abs(df)>2.3?'U-turn ':Math.abs(df)>1.2?'Sharp ':'Turn ')+(df>0?'left':'right');manD=d;break}}}
-      if(Math.abs(rel)>2.4&&!R.off){man='Turn around';manD=0}
-      return {rel,remain,man,manD,turnPt:manD?Sm.at(manD):null}}
-    const box=(function(){const d=document.createElement('div');d.id='dnav';
-      d.style.cssText='position:absolute;left:calc(var(--gut,16px));top:calc(258px + env(safe-area-inset-top,0px));z-index:3;display:none;width:150px;pointer-events:none;'+
-        'background:rgba(10,10,9,.62);backdrop-filter:blur(8px);border-radius:12px;padding:8px;color:#f2eee6;font:600 11px/1.35 ui-monospace,Menlo,monospace;text-align:center';
-      d.innerHTML='<canvas width="268" height="268" style="width:134px;height:134px;display:block;margin:0 auto"></canvas><div class="nm" style="margin-top:4px;font-size:12px;color:#00ff88"></div><div class="nd" style="opacity:.8"></div><div class="nl" style="opacity:.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>';
-      sec.appendChild(d);return d})();
-    const cv2=box.querySelector('canvas'),cx2=cv2.getContext('2d'),fmtD=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m/10)*10+' m';
-    let last=null;
-    function draw(R,g,dt){
-      const c=cx2,W2=268,R0=W2/2;c.clearRect(0,0,W2,W2);
-      c.fillStyle='rgba(20,20,18,.85)';c.beginPath();c.arc(R0,R0,R0-4,0,6.283);c.fill();c.strokeStyle='rgba(242,238,230,.35)';c.lineWidth=3;c.stroke();
-      // compass card, heading up: the world bearing b sits at screen angle (b - heading)
-      c.font='700 26px ui-monospace,monospace';c.textAlign='center';c.textBaseline='middle';
-      [['N',Math.PI],['E',-Math.PI/2],['S',0],['W',Math.PI/2]].forEach(([t,b])=>{const a=wrap(b-R.h);c.fillStyle=t==='N'?'#ff5a4a':'rgba(242,238,230,.7)';c.fillText(t,R0-Math.sin(a)*(R0-26),R0-Math.cos(a)*(R0-26))});
-      for(let k=0;k<24;k++){const a=k/24*6.283-R.h;c.strokeStyle='rgba(242,238,230,.25)';c.lineWidth=2;c.beginPath();c.moveTo(R0+Math.sin(a)*(R0-46),R0+Math.cos(a)*(R0-46));c.lineTo(R0+Math.sin(a)*(R0-52),R0+Math.cos(a)*(R0-52));c.stroke()}
-      // steering arrow, eased so it turns smoothly
-      dispAng+=wrap(g.rel-dispAng)*Math.min(1,dt*8);
-      c.save();c.translate(R0,R0);c.rotate(-dispAng);
-      c.fillStyle=R.off?'#f3a712':'#00ff88';c.beginPath();c.moveTo(0,-74);c.lineTo(34,-14);c.lineTo(13,-18);c.lineTo(13,52);c.lineTo(-13,52);c.lineTo(-13,-18);c.lineTo(-34,-14);c.closePath();c.fill();c.restore();
-      box.querySelector('.nm').textContent=g.man+(g.manD?' in '+fmtD(g.manD):'');
-      box.querySelector('.nd').textContent=fmtD(g.remain)+' to go';
-      box.querySelector('.nl').textContent='→ '+R.label}
+          if(Math.abs(df)>.5){dir=df>0?1:-1;kind=Math.abs(df)>2.3?'uturn':Math.abs(df)>1.2?'sharp':'turn';
+            man=(kind==='uturn'?'U-turn ':kind==='sharp'?'Sharp ':'Turn ')+(dir>0?'left':'right');manD=d;break}}
+        // turn around only on Earth routes, judged against the road's own direction where the car is
+        if(R.target){const t0=Sm.at(10),t1=Sm.at(30);if(Math.abs(wrap(brg(t0[0],t0[1],t1[0],t1[1])-R.h))>2.3&&Math.abs(rel)>2.0){kind='uturn';dir=1;man='Turn around';manD=0}}}
+      return {rel,remain,man,manD,kind,dir,turnPt:manD&&kind!=='arrive'?Sm.at(manD):null}}
+    /* the view: a slim banner at the top centre, built from small parts (turn icon, distance, text, compass) */
+    const view=(function(){
+      const css=document.createElement('style');css.textContent=
+        '#dnav{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3;display:none;pointer-events:none;'+
+          'grid-template-columns:auto 1fr auto;align-items:center;gap:12px;min-width:min(380px,calc(100vw - 32px));max-width:calc(100vw - 32px);padding:8px 12px 8px 8px;border-radius:16px;'+
+          'background:linear-gradient(180deg,rgba(18,20,22,.86),rgba(10,11,12,.8));backdrop-filter:blur(10px);box-shadow:0 8px 28px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);color:#f2eee6}'+
+        '#dnav.on{display:grid}#dnav .ic{width:52px;height:52px;border-radius:12px;background:#1f7a4a;display:grid;place-items:center}#dnav.off .ic{background:#b5761a}'+
+        '#dnav .md{font:700 22px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;letter-spacing:-.01em;white-space:nowrap}'+
+        '#dnav .mt{font:600 12px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;opacity:.85;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+        '#dnav .sub{font:500 10px/1.3 ui-monospace,Menlo,monospace;letter-spacing:.06em;opacity:.55;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase}'+
+        'body.navon #dmpr{top:calc(84px + env(safe-area-inset-top,0px))}';
+      document.head.appendChild(css);
+      const d=document.createElement('div');d.id='dnav';
+      d.innerHTML='<div class="ic"><canvas width="96" height="96" style="width:48px;height:48px"></canvas></div><div style="min-width:0"><div class="md"></div><div class="mt"></div><div class="sub"></div></div><canvas class="cp" width="96" height="96" style="width:48px;height:48px"></canvas>';
+      sec.appendChild(d);
+      const icon=d.querySelector('.ic canvas').getContext('2d'),comp=d.querySelector('.cp').getContext('2d'),
+        md=d.querySelector('.md'),mt=d.querySelector('.mt'),sub=d.querySelector('.sub');
+      const fmtD=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.max(10,Math.round(m/10)*10)+' m';
+      let lastIcon='',needle=0;
+      // turn icon: a road arrow bent the way the next manoeuvre goes
+      function drawIcon(kind,dir){const key=kind+dir;if(key===lastIcon)return;lastIcon=key;const c=icon;c.clearRect(0,0,96,96);
+        c.strokeStyle='#fff';c.fillStyle='#fff';c.lineWidth=11;c.lineCap='round';c.lineJoin='round';
+        const head=(x,y,a)=>{c.save();c.translate(x,y);c.rotate(a);c.beginPath();c.moveTo(0,-14);c.lineTo(15,8);c.lineTo(-15,8);c.closePath();c.fill();c.restore()};
+        if(kind==='arrive'){c.beginPath();c.arc(48,40,16,0,6.283);c.stroke();c.beginPath();c.moveTo(48,58);c.lineTo(48,84);c.stroke();return}
+        if(kind==='straight'||kind==='rejoin'&&!dir){c.beginPath();c.moveTo(48,86);c.lineTo(48,30);c.stroke();head(48,22,0);return}
+        const s=dir>0?-1:1;   // dir>0 = left
+        if(kind==='uturn'){c.beginPath();c.moveTo(48-s*14,86);c.lineTo(48-s*14,40);c.arc(48,40,14,s>0?Math.PI:0,s>0?0:Math.PI,s<0);c.lineTo(48+s*14,58);c.stroke();head(48+s*14,66,Math.PI);return}
+        const ang=kind==='sharp'?2.2:kind==='rejoin'?.6:1.1,ex=48+s*Math.sin(ang)*30,ey=46-Math.cos(ang)*30;
+        c.beginPath();c.moveTo(48,86);c.lineTo(48,48);c.lineTo(ex,ey);c.stroke();head(ex+s*Math.sin(ang)*6,ey-Math.cos(ang)*6,s*ang)}
+      // compass: heading up, N marked, needle along the route (eased)
+      function drawCompass(h,rel,dt){const c=comp;c.clearRect(0,0,96,96);
+        c.fillStyle='rgba(255,255,255,.06)';c.beginPath();c.arc(48,48,44,0,6.283);c.fill();c.strokeStyle='rgba(255,255,255,.25)';c.lineWidth=2;c.stroke();
+        const n=wrap(Math.PI-h);c.fillStyle='#ff5a4a';c.font='700 16px ui-monospace,monospace';c.textAlign='center';c.textBaseline='middle';c.fillText('N',48-Math.sin(n)*33,48-Math.cos(n)*33);
+        needle+=wrap(rel-needle)*Math.min(1,dt*8);
+        c.save();c.translate(48,48);c.rotate(-needle);c.strokeStyle='#3ee08a';c.fillStyle='#3ee08a';c.lineWidth=6;c.lineCap='round';c.beginPath();c.moveTo(0,22);c.lineTo(0,-12);c.stroke();c.beginPath();c.moveTo(0,-32);c.lineTo(12,-10);c.lineTo(-12,-10);c.closePath();c.fill();c.restore();c.fillStyle='#f2eee6';c.beginPath();c.arc(48,48,4,0,6.283);c.fill()}   // arrow with a shaft: unmistakable which end is the front
+      function render(R,g,dt){
+        d.classList.toggle('off',!!R.off);drawIcon(g.kind,g.dir);drawCompass(R.h,g.rel,dt);
+        md.textContent=g.kind==='straight'?fmtD(g.remain):g.manD?fmtD(g.manD):g.man;
+        mt.textContent=g.kind==='straight'?'Follow the road':g.manD?g.man:(g.kind==='rejoin'?'Head for the green line':'');
+        sub.textContent=R.label+' · '+fmtD(g.remain)}
+      function show(on){d.classList.toggle('on',on);document.body.classList.toggle('navon',on)}
+      return {render,show}})();
     function tick(dt,now){
       if(now-lastCalc>350){lastCalc=now;try{route=compute()}catch(e){route=null}
         if(route&&route.target){const g=guidance(route);if(g.remain<22){toastMsg('Arrived · '+route.target.label);window.earthGpsTarget=null;route=null}}}
       const show=!!route&&!hidden&&active&&(driving||SPACE.state!=='earth');
-      box.style.display=show?'block':'none';
-      if(show&&frameN%2===0){last=guidance(route);draw(route,last,dt*2)}}
+      view.show(show);
+      if(show&&frameN%2===0){last=guidance(route);view.render(route,last,dt*2)}}
     // route, destination and next turn on a map already scaled so that world (x,z)*sc is the point
     function drawOnMap(c,sc,big){
       if(MODE==='world'&&window.earthGPS&&window.earthGPS.length){c.font='600 '+(big?11:9)+'px ui-monospace,monospace';c.textAlign='center';
@@ -4188,7 +4214,16 @@ const PLANETS={
     if(frameN%8===0){const cx=car.position.x,cz=car.position.z;
       for(let i=0;i<CULL.length;i++){const G=CULL[i];const dx=G.position.x-cx,dz=G.position.z-cz;G.visible=dx*dx+dz*dz<10200}}
     if(active&&parts.visible&&frameN%2===0){const pa=pGeo.attributes.position.array,ps=PSTYLE[wxB.id]||PSTYLE[wx.part==='leaves'?'autumn':wx.part]||PSTYLE.snow,fall=ps.fall,wind=ps.wind;const PN=pGeo.drawRange.count||PCOUNT;for(let i=0;i<PN;i++){const j=i*3;pa[j+1]-=fall*dt*2;if(wx.part!=='rain'||wind){pa[j]+=Math.sin(tt+i)*dt*1.6;pa[j+2]+=Math.cos(tt*.7+i)*dt*1}if(wind){pa[j]+=wind*dt*2*(.7+(i%5)*.15);if(pa[j]>45)pa[j]-=90}if(pa[j+1]<0)pa[j+1]+=40}pGeo.attributes.position.needsUpdate=true;parts.position.set(Math.round(car.position.x/10)*10,car.position.y-4,Math.round(car.position.z/10)*10)}
-    if(active){const tg=at(progU).tg;fwd.set(0,0,1).applyQuaternion(car.quaternion);wrongEl.classList.toggle('on',sp>4&&(fwd.x*tg.x+fwd.z*tg.z)<-.5&&offD<9&&!inPond)}
+    /* Earth "wrong way": only when there is a right way, i.e. a timed lap or a room race on the valley loop, and only
+       while the car is actually on the main loop (not the branch, the ring road or a drawn track, whose direction this
+       loop says nothing about). Must hold for a second, so a moment of sliding or a three-point turn doesn't trip it. */
+    if(active){
+      const lapRace=MODE==='world'&&(raceMode||(typeof MP!=='undefined'&&MP.on&&MP.state.race.st===2));
+      let against=false;
+      if(lapRace&&sp>5&&!inPond){if(frameN%6===0){const rn=roadNear(car.position.x,car.position.z);wrongMain=!rn.branch&&!rn.ring&&rn.d<9+RWX}
+        if(wrongMain){const tg=at(progU).tg;fwd.set(0,0,1).applyQuaternion(car.quaternion);against=(fwd.x*tg.x+fwd.z*tg.z)<-.55}}
+      wrongT=against?wrongT+dt:Math.max(0,wrongT-dt*2);
+      wrongEl.classList.toggle('on',wrongT>1)}
     stepWx(Math.min(.05,dt));
     fwd.set(0,0,1).applyQuaternion(car.quaternion);fwd.y=0;fwd.normalize();
     /* Camera. Every smoothing constant here is an exponential on dt rather than a fixed
