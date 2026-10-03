@@ -116,28 +116,35 @@
         '<button id="btn-reset" style="background:rgba(180,40,40,0.4);color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;">RESPAWN</button></div>';
       container.appendChild(topBar);
 
-      // Main Gamepad Layout (Landscape optimized)
+      // Gamepad: sized from the screen so every control fits upright or sideways (the old fixed
+      // 500px row pushed GAS/BRAKE/BOOST off an upright phone)
+      var css = document.createElement('style');
+      css.textContent =
+        '#c-pad{flex:1;display:grid;gap:12px;margin-top:12px;min-height:0;' +
+          'grid-template-columns:1fr auto 1fr;grid-template-areas:"steer extra pedals";align-items:center}' +
+        '#c-pad button{touch-action:none;-webkit-tap-highlight-color:transparent;font-family:inherit;font-weight:700;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}' +
+        '#c-steer{grid-area:steer;display:flex;gap:4vmin;justify-content:flex-start;align-items:center}' +
+        '#c-extra{grid-area:extra;display:flex;flex-direction:column;gap:3vmin;align-items:center}' +
+        '#c-pedals{grid-area:pedals;display:flex;gap:4vmin;justify-content:flex-end;align-items:flex-end}' +
+        '#c-pedcol{display:flex;flex-direction:column;gap:3vmin;align-items:stretch}' +
+        '.c-steer{width:min(24vmin,120px);height:min(24vmin,120px);border-radius:50%;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.4);font-size:min(9vmin,34px)}' +
+        '.c-gas{width:min(28vmin,140px);height:min(40vmin,190px);border-radius:28px;background:#f2eee6;border:0;color:#06070b!important;font-size:min(6vmin,22px);box-shadow:0 8px 24px rgba(255,255,255,.2)}' +
+        '.c-brake{width:min(22vmin,105px);height:min(22vmin,105px);border-radius:50%;background:rgba(255,59,48,.25);border:2px solid #ff3b30;color:#ff3b30!important;font-size:min(4.2vmin,16px)}' +
+        '.c-boost{width:min(28vmin,140px);height:min(13vmin,62px);border-radius:16px;background:rgba(0,122,255,.35);border:2px solid #007aff;font-size:min(4.2vmin,15px)}' +
+        '.c-small{min-width:min(20vmin,96px);height:min(12vmin,52px);border-radius:12px;background:rgba(255,255,255,.14);border:1.5px solid rgba(255,255,255,.3);font-size:min(3.4vmin,12px);padding:0 10px!important}' +
+        '.c-horn{background:rgba(212,168,58,.25);border-color:#d4a83a;color:#d4a83a!important}' +
+        // upright phone: extras across the top, steering bottom-left, pedals bottom-right
+        '@media (orientation:portrait){#c-pad{grid-template-columns:1fr 1fr;grid-template-rows:auto 1fr;grid-template-areas:"extra extra" "steer pedals";align-items:end}' +
+          '#c-extra{flex-direction:row;justify-content:center;flex-wrap:wrap}' +
+          '#c-steer{flex-direction:row;align-self:end;padding-bottom:2vh}#c-pedals{align-self:end;padding-bottom:2vh}' +
+          '.c-steer{width:min(19vw,110px);height:min(19vw,110px)}.c-gas{width:min(25vw,130px);height:min(26vh,210px)}.c-brake{width:min(19vw,100px);height:min(19vw,100px)}.c-boost{width:auto;min-width:min(22vw,110px);height:min(13vw,56px)}}';
+      document.head.appendChild(css);
       var pad = document.createElement('div');
-      pad.style.cssText = 'flex:1;display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:20px;';
-      pad.innerHTML = 
-        // Left: Steering buttons
-        '<div id="steer-cluster" style="display:flex;gap:16px;">' +
-          '<button id="btn-left" style="width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.4);color:#fff;font-size:32px;display:flex;align-items:center;justify-content:center;touch-action:none;">&#9664;</button>' +
-          '<button id="btn-right" style="width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.4);color:#fff;font-size:32px;display:flex;align-items:center;justify-content:center;touch-action:none;">&#9654;</button>' +
-        '</div>' +
-        // Middle: Horn & Handbrake
-        '<div style="display:flex;flex-direction:column;gap:14px;align-items:center;">' +
-          '<button id="btn-horn" style="width:65px;height:65px;border-radius:50%;background:rgba(212,168,58,0.25);border:1.5px solid #d4a83a;color:#d4a83a;font-weight:bold;font-size:12px;">HORN</button>' +
-          '<button id="btn-handbrake" style="width:80px;height:50px;border-radius:12px;background:rgba(255,255,255,0.14);border:1.5px solid rgba(255,255,255,0.3);color:#fff;font-weight:bold;font-size:11px;">HANDBRAKE</button>' +
-        '</div>' +
-        // Right: Gas, Brake, Boost
-        '<div style="display:flex;gap:14px;align-items:flex-end;">' +
-          '<button id="btn-brake" style="width:80px;height:80px;border-radius:50%;background:rgba(255,59,48,0.25);border:2px solid #ff3b30;color:#ff3b30;font-weight:bold;font-size:15px;touch-action:none;">BRAKE</button>' +
-          '<div style="display:flex;flex-direction:column;gap:12px;">' +
-            '<button id="btn-boost" style="width:95px;height:55px;border-radius:18px;background:rgba(0,122,255,0.35);border:2px solid #007aff;color:#fff;font-weight:bold;font-size:13px;touch-action:none;">BOOST</button>' +
-            '<button id="btn-gas" style="width:95px;height:115px;border-radius:28px;background:#f2eee6;border:0;color:#06070b;font-weight:bold;font-size:18px;touch-action:none;box-shadow:0 8px 24px rgba(255,255,255,0.2);">GAS</button>' +
-          '</div>' +
-        '</div>';
+      pad.id = 'c-pad';
+      pad.innerHTML =
+        '<div id="c-steer"><button id="btn-left" class="c-steer" aria-label="Steer left">&#9664;</button><button id="btn-right" class="c-steer" aria-label="Steer right">&#9654;</button></div>' +
+        '<div id="c-extra"><button id="btn-boost" class="c-boost">BOOST</button><button id="btn-handbrake" class="c-small">HANDBRAKE</button><button id="btn-horn" class="c-small c-horn">HORN</button></div>' +
+        '<div id="c-pedals"><button id="btn-brake" class="c-brake">BRAKE</button><div id="c-pedcol"><button id="btn-gas" class="c-gas">GAS</button></div></div>';
       container.appendChild(pad);
 
       // Setup WebSocket connection to room channel
