@@ -4809,6 +4809,7 @@ updCircBtn();
           if(m.gravity){const el=$('#dmpgravity');if(el)el.value=m.gravity}
         }break;
         case 'rdy':P.ready=!!m.val;ui();break;
+        case 'spec':P.watching=!!m.val;ui();break;
         case 's':{
           if(!Array.isArray(m.p)||!Array.isArray(m.q))return;
           const x=num(m.p[0],-1e4,1e4,0),y=num(m.p[1],-500,2000,0),z=num(m.p[2],-1e4,1e4,0);
@@ -5028,13 +5029,25 @@ updCircBtn();
     ['#dmplaps','#dmpmap','#dmpmode','#dmpgravity'].forEach(sel=>{
       const el=$(sel);if(el)el.onchange=()=>syncCfg(true);
     });
-    const rdyBtn=$('#dmpready');
-    if(rdyBtn)rdyBtn.onclick=()=>{
-      myReady=!myReady;
-      rdyBtn.textContent=myReady?'Ready!':'I\'m Ready';
-      rdyBtn.style.background=myReady?'#227038':'#3f8a56';
-      send({k:'rdy',val:myReady});
+const rdyBtn=$('#dmpready');
+  if(rdyBtn)rdyBtn.onclick=()=>{
+    myReady=!myReady;
+    rdyBtn.textContent=myReady?'Ready!':'I\'m Ready';
+    rdyBtn.style.background=myReady?'#227038':'#3f8a56';
+    send({k:'rdy',val:myReady});
+  };
+  // Spectator mode toggle
+  const specBtn=$('#dmpspec');
+  if(specBtn){
+    specBtn.onclick=()=>{
+      const isSpec=me.watching===true;
+      me.watching=!isSpec;
+      send({k:'spec',val:me.watching});
+      specBtn.textContent=me.watching?'Leave Spectator':'Spectate';
+      specBtn.style.background=me.watching?'#227038':'#3f8a56';
+      ui();
     };
+  }
 
 function carChanged(){if(room)sendHi(true)}
   mpCarNotify=carChanged;
