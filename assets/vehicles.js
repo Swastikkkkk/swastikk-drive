@@ -447,10 +447,12 @@
     [-1, 1].forEach(function (k) { box(0.14, 0.24, F - B - 0.4, darkM, k * 0.55, 0.78, (F + B) / 2 - 0.1, body); });
     [-1, 1].forEach(function (k) { cyl(0.28, 0.28, 1.0, chromeM, k * (W - 0.15), 0.78, cabBack - 0.7, body, Math.PI / 2); });
     // bonnet + front end
-    var hood = stations(o.zf - 0.2, F, 16, function (z, u) { return { z: z, yb: 0.9, yt: lerp(1.75, 1.62, u * u), hw: lerp(W * 0.86, W * 0.8, u), n: 6 }; });
+    // bonnet and cab arch over the big front wheels instead of cutting through them
+    var tArch = archBottom(o, 0.95, 0.1);
+    var hood = stations(o.zf - 0.2, F, 16, function (z, u) { var yt = lerp(1.75, 1.62, u * u); return { z: z, yb: tArch(z, yt), yt: yt, hw: lerp(W * 0.86, W * 0.8, u), n: 6 }; });
     body.add(loft(hood, paint, 18));
     // cab
-    var cab = stations(cabBack - 1.3, o.zf - 0.2, 18, function (z) { return { z: z, yb: 0.95, yt: 2.85, hw: W, n: 9, top: 0.96 }; });
+    var cab = stations(cabBack - 1.3, o.zf - 0.2, 18, function (z) { return { z: z, yb: tArch(z, 2.85), yt: 2.85, hw: W, n: 9, top: 0.96 }; });
     body.add(loft(cab, paint, 20));
     // big windscreen + side windows
     box(W * 1.75, 0.85, 0.05, glassM, 0, 2.3, o.zf - 0.17, body, -0.12);
@@ -468,11 +470,12 @@
     [-1, 1].forEach(function (k) { cyl(0.07, 0.07, 2.2, chromeM, k * (W - 0.05), 2.0, cabBack - 1.35, body); });
     // box body (cargo)
     var cargoF = cabBack - 1.45, cargoB = B;
-    var cargo = box(W * 2.0, 2.35, cargoF - cargoB, phong(0xe8e6df, { reflectivity: 0.1 }), 0, 2.15, (cargoF + cargoB) / 2, body);
+    var floorY = 2 * o.r + 0.18;                                                                 // box floor clears the rear tyres
+    var cargo = box(W * 2.0, 2.35, cargoF - cargoB, phong(0xe8e6df, { reflectivity: 0.1 }), 0, floorY + 1.175, (cargoF + cargoB) / 2, body);
     cargo.receiveShadow = true;
-    box(W * 2.02, 0.32, cargoF - cargoB - 0.2, paint, 0, 2.2, (cargoF + cargoB) / 2, body);       // livery band
-    box(W * 2.02, 0.08, cargoF - cargoB, greyM, 0, 0.98, (cargoF + cargoB) / 2, body);           // floor rail
-    [-1, 1].forEach(function (k) { box(0.1, 0.16, 0.05, o.tail, k * W * 0.85, 0.95, cargoB - 0.03, body); });
+    box(W * 2.02, 0.32, cargoF - cargoB - 0.2, paint, 0, floorY + 1.2, (cargoF + cargoB) / 2, body);   // livery band
+    box(W * 2.02, 0.08, cargoF - cargoB, greyM, 0, floorY - 0.02, (cargoF + cargoB) / 2, body);  // floor rail
+    [-1, 1].forEach(function (k) { box(0.1, 0.16, 0.05, o.tail, k * W * 0.85, floorY - 0.12, cargoB - 0.03, body); });
     box(W * 1.9, 0.12, 0.12, greyM, 0, 0.6, cargoB - 0.1, body);                                // under-ride bar
     // mud flaps behind the rear wheels
     [-1, 1].forEach(function (k) { box(0.36, 0.5, 0.03, rubberM, k * (W - 0.25), 0.45, o.zb - o.r - 0.25, body); });

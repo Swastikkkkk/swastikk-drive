@@ -4169,7 +4169,9 @@ const PLANETS={
     wl.forEach((k,i)=>{if(i>=visualWheelCount)return;
       /* physics has 4 wheels; extra visual wheels (truck's second rear axle) follow the rear pair, one wheel-width further forward */
       const j=isBike?i*2:i<wi.length?i:2+(i%2),w=wi[j];if(!w)return;const c=w.chassisConnectionPointLocal,dz=isBike||i<wi.length?0:V.r*2.3;
-      k.w.position.set(isBike?0:c.x*.9,.05-w.suspensionLength,c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation});
+      /* the wheel picture may rise only ~6 cm above its resting place: physics can compress the spring by up to the
+         full rest length on bumps and landings, and drawn that far up the tyre comes out through the wing */
+      k.w.position.set(isBike?0:c.x*.9,.05-Math.max(w.suspensionLength,V.rest-.13),c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation});
     if(active&&MP.on)MP.tick(now,dt);
     if(frameN%10===0){
       const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
