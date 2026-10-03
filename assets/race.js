@@ -554,13 +554,14 @@
       if (this.totalRaceTime) html += '<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.15);margin-top:4px;padding-top:4px"><b>TOTAL · ' + this.totalLaps + ' LAP' + (this.totalLaps > 1 ? 'S' : '') + '</b><b>' + this.formatTime(this.totalRaceTime) + '</b></div>';
       lapsEl.innerHTML = html;
 
-      modal.style.display = 'grid';
+      modal.style.display = '';
+      modal.classList.add('on');
       this.state = 'results';
     },
 
     closeResultsModal: function() {
       var modal = document.getElementById('dresults');
-      if (modal) modal.style.display = 'none';
+      if (modal) { modal.classList.remove('on'); modal.style.display = ''; }
       this.state = 'idle';
     },
 

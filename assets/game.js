@@ -2213,6 +2213,9 @@ t.bd.position.set(x,y+.86,z);
   }
   let planetMapCache=null;
   function drawMap(c,size,big){
+    if(SPACE.state!=='earth'){   // off Earth: this planet's map, or nothing in flight; never Earth's valley
+      if(!(SPACE.drawBigMap&&SPACE.drawBigMap(c,size))){c.clearRect(0,0,size,size);c.fillStyle='rgba(242,238,230,.7)';c.font='600 '+Math.round(size/30)+'px ui-monospace,monospace';c.textAlign='center';c.fillText('No map in flight',size/2,size/2)}
+      return}
     const q=chassisB.quaternion, yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
     // circuit mode: draw custom track
     if(MODE==='circuit'&&circuit){
@@ -2830,7 +2833,31 @@ const F=chassisB.force,T=chassisB.torque;
     // planet minimap: the road around you, UFO stations, and an arrow to the next one
     const pmap=document.createElement('canvas');pmap.width=pmap.height=180;
     pmap.style.cssText='position:fixed;right:max(12px,env(safe-area-inset-right,0px));top:calc(100px + env(safe-area-inset-top,0px));width:150px;height:150px;z-index:40;border-radius:50%;display:none;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.45)';
-    sec.appendChild(pmap);const pmx=pmap.getContext('2d');
+    sec.appendChild(pmap);const pmx=pmap.getContext('2d');pmap.style.cursor='pointer';pmap.style.pointerEvents='auto';pmap.title='Open map (M)';pmap.onclick=()=>toggleMap();
+    /* the full-screen map (M) on a planet: this world's road, the UFO stations along it and where you are.
+       North-up like Earth's big map; 6 km across. */
+    api.drawBigMap=function(c,size){
+      const S=SURF;if(!S)return false;
+      const cfg=S.cfg,R0=size/2,span=3000,sc=(R0-6)/span,px=S.pos.x,pz=S.pos.z,P=(x,z)=>[R0+(x-px)*sc,R0+(z-pz)*sc];
+      c.clearRect(0,0,size,size);c.save();c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.clip();
+      c.fillStyle=cfg.atmo?'rgba(70,34,20,.92)':cfg.cracks?'rgba(40,46,58,.92)':'rgba(20,20,24,.92)';c.fillRect(0,0,size,size);
+      c.strokeStyle='rgba(242,238,230,.08)';c.lineWidth=1;for(let r=500;r<span;r+=500){c.beginPath();c.arc(R0,R0,r*sc,0,6.283);c.stroke()}
+      const road=(from,to,col,w)=>{c.strokeStyle=col;c.lineWidth=w;c.lineCap='round';c.lineJoin='round';c.beginPath();
+        for(let s=Math.max(0,from),f=1;s<=to;s+=20,f=0){const r=roadAt(cfg,S.road,s),q=P(r.x,r.z);f?c.moveTo(q[0],q[1]):c.lineTo(q[0],q[1])}c.stroke()};
+      road(S.s-span*1.5,S.s+span*1.5,'rgba(242,238,230,.85)',Math.max(3,size/160));
+      road(0,S.s,'rgba(212,168,58,.9)',Math.max(2,size/220));                        // the stretch you've already driven
+      const every=cfg.ufoEvery;c.font='600 '+Math.round(size/48)+'px ui-monospace,monospace';c.textAlign='center';
+      for(let k=Math.max(1,Math.floor((S.s-span*1.5)/every));k<=Math.floor((S.s+span*1.5)/every)+1;k++){
+        const r=roadAt(cfg,S.road,k*every),q=P(r.x,r.z),ahead=k*every>S.s;
+        c.fillStyle=ahead?'#5cf2ff':'rgba(92,242,255,.45)';c.beginPath();c.arc(q[0],q[1],size/90,0,6.283);c.fill();
+        c.fillText('UFO '+(Math.abs(k*every-S.s)/1000).toFixed(1)+' km',q[0],q[1]-size/60)}
+      c.translate(R0,R0);c.rotate(Math.atan2(Math.sin(S.yaw),-Math.cos(S.yaw)));const a=size/60;
+      c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-a*1.4);c.lineTo(a,a);c.lineTo(0,a*.45);c.lineTo(-a,a);c.closePath();c.fill();c.restore();
+      c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=2;c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.stroke();
+      c.fillStyle='rgba(242,238,230,.85)';c.font='600 '+Math.round(size/36)+'px ui-monospace,monospace';c.textAlign='center';
+      c.fillText(cfg.name.toUpperCase()+' · '+(S.maxS/1000).toFixed(2)+' km driven',R0,size*.08);
+      c.fillStyle='rgba(242,238,230,.6)';c.font='500 '+Math.round(size/52)+'px ui-monospace,monospace';c.fillText('rings every 500 m · N up',R0,size*.94);
+      return true};
     function drawSurfMap(S){
       const cfg=S.cfg,c=pmx,N=180,R0=N/2,sc=R0/1100,yaw=S.yaw,cs=Math.cos(yaw),sn=Math.sin(yaw),px=S.pos.x,pz=S.pos.z;
       const P=(x,z)=>{const dx=x-px,dz=z-pz;return [R0+(-dx*cs+dz*sn)*sc,R0-(dx*sn+dz*cs)*sc]};   // heading up, right on the right
@@ -3353,7 +3380,7 @@ const PLANETS={
       S.rover.position.set(S.pos.x,S.visY-S.comp,S.pos.z).add(new THREE.Vector3(0,-1.1,0).applyQuaternion(S.rover.quaternion));
     }
     /* =================== GENERALIZED SURFACE DRIVING (kinematic) =================== */
-    const _up=new THREE.Vector3(0,1,0), _n=new THREE.Vector3(), _qa=new THREE.Quaternion(), _qy=new THREE.Quaternion(), _qt=new THREE.Quaternion();
+    const _cv=new THREE.Vector3(), _up=new THREE.Vector3(0,1,0), _n=new THREE.Vector3(), _qa=new THREE.Quaternion(), _qy=new THREE.Quaternion(), _qt=new THREE.Quaternion();
     function driveSurface(dt){
       const S=SURF, cfg=S.cfg, p=S.pos;
       /* Surface driving (Moon, Mars, Europa). Velocity is split into a part along the heading and a part
@@ -3445,13 +3472,23 @@ const PLANETS={
       if(S.skyG)S.skyG.position.set(p.x,0,p.z);
       S.sunL.target.position.copy(p); S.sunL.position.copy(p).add(new THREE.Vector3(cfg.sunDir[0],cfg.sunDir[1],cfg.sunDir[2]).multiplyScalar(400));
 
-      // camera chase
-      const back=(cfg.camBack||12)+Math.min(6,speed*0.1), upH=cfg.camUp||5.5;   // wider on the Moon so jumps read
-      const goal=new THREE.Vector3(p.x-fx*back, p.y+upH, p.z-fz*back);
-      C.position.lerp(goal, 1-Math.pow(0.0015,dt));
-      if(S.land>0){ C.position.y+=Math.sin(t*60)*S.land; S.land*=0.85; }
-      { const cf=groundH(cfg,S.road,C.position.x,C.position.z,S.s)+2.2; if(C.position.y<cf)C.position.y=cf; }
-      C.lookAt(p.x+fx*6, p.y+1.5, p.z+fz*6);
+      // camera: the same modes as on Earth (C / Camera button / phone CAM), sized for the rover
+      { const CM=CAMS[camMode]||CAMS[0];
+        if(CM.fp){
+          // bonnet / bumper: ride with the rover, tilted with it
+          _cv.set(0,.75+CM.y,CM.z+.4).applyQuaternion(S.rover.quaternion).add(S.rover.position);C.position.copy(_cv);
+          _cv.set(0,.75+CM.y,CM.z+30).applyQuaternion(S.rover.quaternion).add(S.rover.position);C.lookAt(_cv);
+        } else {
+          const k=(cfg.camBack||12)/9.5, sgn=CM.d<0?-1:1;                 // wider on the Moon so jumps read
+          const back=CM.d*k+sgn*Math.min(6,speed*0.1), upH=CM.h*(cfg.camUp||5.5)/4.8;
+          const goal=new THREE.Vector3(p.x-fx*back, p.y+upH, p.z-fz*back);
+          C.position.lerp(goal, 1-Math.pow(0.0015,dt));
+          if(S.land>0){ C.position.y+=Math.sin(t*60)*S.land; S.land*=0.85; }
+          { const cf=groundH(cfg,S.road,C.position.x,C.position.z,S.s)+2.2; if(C.position.y<cf)C.position.y=cf; }
+          C.lookAt(p.x+fx*CM.ahead, p.y+1.5*CM.ly, p.z+fz*CM.ahead);
+        }
+        const fov=CM.fov+(CM.fp?0:Math.min(8,speed*.18));
+        if(Math.abs(C.fov-fov)>.05){C.fov+=(fov-C.fov)*Math.min(1,dt*4);C.updateProjectionMatrix()} }
 
       // station proximity -> prompt
       api.nearStation=false; let nd=1e9, nst=null;
@@ -3462,6 +3499,7 @@ const PLANETS={
       // HUD odometer
       const km=(S.maxS/1000), nextUFO=(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery, toNext=(nextUFO-S.s)/1000;
       odo.style.opacity='1'; if(frameN%3===0)drawSurfMap(S);
+      if(frameN%6===0&&bigmap.classList.contains('on'))api.drawBigMap(bmc.getContext('2d'),bmc.width);
       odo.textContent=cfg.name+'  ·  '+Math.round(speed*3.6)+' km/h  ·  '+km.toFixed(2)+' km driven  ·  next UFO in '+toNext.toFixed(2)+' km';
       audioSurface(dt);
     }
@@ -3727,19 +3765,19 @@ const PLANETS={
     /* clamp both ends: the first animation frame can carry a timestamp from before `last` was taken, and a
        negative dt drove the physics accumulator below zero, freezing the car until it climbed back */
     const dt=Math.max(0,Math.min(.1,(now-last)/1000));last=now;frameN++;
-    if(SPACE.state!=='earth'){ try{SPACE.frame(dt,now);}catch(e){console.error('[space]',e);try{var b=document.getElementById('dspaceerr');if(!b){b=document.createElement('div');b.id='dspaceerr';b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:rgba(150,20,20,.96);color:#fff;font:600 12px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px 12px;white-space:pre-wrap;max-height:46vh;overflow:auto';document.body.appendChild(b);}b.textContent='SURFACE/SPACE ERROR @ state='+SPACE.state+String.fromCharCode(10)+((e&&e.stack)||(e&&e.message)||e);}catch(_){}} return; }   // space/moon takes over the frame; Earth paused
-    watchFps(dt);
     if(window.PhoneController){
       const PC=window.PhoneController,on=PC.applyToKeys(key),ci=PC.currentInput||{};
       if(on){
         if(!phoneSt.on){phoneSt.on=true;toastMsg('Phone controller connected')}
         if(ci.cam&&!phoneSt.cam)cycleCam();
-        if(ci.reset&&!phoneSt.reset)resetCar();
+        if(ci.reset&&!phoneSt.reset&&SPACE.state==='earth')resetCar();
         phoneSt.cam=!!ci.cam;phoneSt.reset=!!ci.reset;
       }else if(phoneSt.on){
         // phone went quiet: let go of everything it was holding so the car does not drive off on its own
         phoneSt.on=false;key.f=key.b=key.l=key.r=key.h=key.boost=key.horn=0;toastMsg('Phone controller disconnected')}
     }
+    if(SPACE.state!=='earth'){ try{SPACE.frame(dt,now);}catch(e){console.error('[space]',e);try{var b=document.getElementById('dspaceerr');if(!b){b=document.createElement('div');b.id='dspaceerr';b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:rgba(150,20,20,.96);color:#fff;font:600 12px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px 12px;white-space:pre-wrap;max-height:46vh;overflow:auto';document.body.appendChild(b);}b.textContent='SURFACE/SPACE ERROR @ state='+SPACE.state+String.fromCharCode(10)+((e&&e.stack)||(e&&e.message)||e);}catch(_){}} return; }   // space/moon takes over the frame; Earth paused
+    watchFps(dt);
     /* watchdog: a countdown with no start lights to end it (or lights that never ran) must not hold the car forever */
     if(window.RaceEngine&&window.RaceEngine.state==='countdown'){if(!rcSince)rcSince=now;
       const lightsRunning=MODE==='circuit'&&circuit&&circuit.lightsStart&&!circuit.lightsDone;
@@ -5382,7 +5420,7 @@ updCircBtn();
     const me={id:rid(8),n:'',j:0},LOG=[],lg=(...a)=>{LOG.push(Math.round(performance.now())+' '+a.join(' '));if(LOG.length>60)LOG.shift()};
     let room=null,net=null,status='off',peers=new Map(),lastSend=0,lastHi=0,lastUI=0,lastPing=0,pingSeq=0,pendingPings=new Map(),
       race={id:'',st:0,t0:0,d0:0,rp:0,lastU:0,slot:0,ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0},
-        myFin=0;
+        myFin=0,myReady=false,autoStartAt=0;
     // the shared custom venue: the host broadcasts the drawn track so everyone builds + races the
     // SAME circuit. Because the circuit always sits at the same world offset and is seeded, every
     // client's geometry lines up, so the existing world-space ghost poses already match on it.
@@ -5477,7 +5515,7 @@ updCircBtn();
     function toast2(s){try{toastMsg(s)}catch(e){}}
     /* ----- messages ----- */
     function send(m){if(net&&status==='up'){m.id=me.id;net.send(m)}}
-    function sendHi(rep){send({k:'hi',n:myName(),j:me.j,r:rep?1:0,car:curCarId,rid:race.id,rs:race.st,startAt:race.startAt,fin:myFin,d:race.st>=2?race.d0+race.rp:0})}
+    function sendHi(rep){send({k:'hi',n:myName(),j:me.j,r:rep?1:0,car:curCarId,rid:race.id,rs:race.st,startAt:race.startAt,fin:myFin,rdy:myReady?1:0,d:race.st>=2?race.d0+race.rp:0})}
     function syncRace(P,m){
       const remoteState=num(m.rs,0,4,0),rid=String(m.rid||'');
       if(!rid||remoteState<1||((race.st===1||race.st===2||race.st===4)&&race.id!==rid))return;
@@ -5504,7 +5542,7 @@ updCircBtn();
         if(P.gh){const was=P.gh;killGhost(P);P.gh=makeGhost(P.car,was.col,P.n);
           P.gh.g.position.copy(P.tp);P.gh.g.quaternion.copy(P.tq);P.gh.g.visible=was.g.visible;P.gh.tg.visible=was.tg.visible}}}
       switch(m.k){
-        case 'hi':if(!m.r){sendHi(true);if(lastVenue&&isHost())send(Object.assign({k:'trk'},lastVenue));if(isHost()&&syncCfg)syncCfg(true)}syncRace(P,m);break;
+        case 'hi':if('rdy' in m)P.ready=!!m.rdy;if(!m.r){sendHi(true);if(lastVenue&&isHost())send(Object.assign({k:'trk'},lastVenue));if(isHost()&&syncCfg)syncCfg(true)}syncRace(P,m);break;
         case 'trk':adoptVenue(m);break;
         case 'cfg':if(!isHost()){
           if(m.laps){const el=$('#dmplaps');if(el)el.value=m.laps}
@@ -5512,7 +5550,7 @@ updCircBtn();
           if(m.mode){const el=$('#dmpmode');if(el)el.value=m.mode}
           if(m.gravity){const el=$('#dmpgravity');if(el)el.value=m.gravity}
         }break;
-        case 'rdy':P.ready=!!m.val;ui();break;
+        case 'rdy':P.ready=!!m.val;paintReady();ui();break;
         case 'spec':P.watching=!!m.val;ui();break;
         case 'chat':{if(!m.t||!m.n)return;const log=document.getElementById('dmpchatlog');if(log){const msg=String(m.t).slice(0,120);const name=String(m.n).slice(0,14);const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:11px;line-height:1.4;';line.innerHTML='<span style="color:#d4a83a;font-weight:600;">'+esc(name)+':</span> <span style="color:var(--paper);">'+esc(msg)+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}}break;
         case 's':{
@@ -5587,6 +5625,7 @@ updCircBtn();
     const CD_LEAD=3000; // countdown length; also doubles as slack for the 'race' broadcast to reach everyone before GO
     function requestRace(){
       if(!room||status!=='up'){note('Not connected yet');return}
+      if(!isHost()){note('The host starts the race. Press Ready so they know you are set.');return}
       if(race.st===1||race.st===2){note('A race is already running');return}
       const laps=getLaps(),pick=$('#dmpmap')?$('#dmpmap').value:'earth';
       // get the host onto the chosen track first, then send it with the race so nobody races somewhere else
@@ -5608,6 +5647,8 @@ updCircBtn();
       // a guest goes to whatever track the host is racing on
       if(v){try{if(v.earth){if(MODE==='circuit')leaveCircuit()}else{adoptVenue(v);if(MODE!=='circuit'&&circuit)enterCircuit()}}catch(e){lg('race venue',e&&e.message)}}
       closePanel();
+      myReady=false;autoStartAt=0;peers.forEach(p=>{p.ready=false});paintReady();
+      {const rm=document.getElementById('dresults');if(rm){rm.classList.remove('on');rm.style.display=''}}
       // startAt is a shared wall-clock instant (Date.now(), not performance.now(), since it has to mean
       // the same thing on every client's clock) so everyone's countdown hits GO at roughly the same moment,
       // regardless of when the 'race' broadcast actually arrived on each connection
@@ -5672,7 +5713,7 @@ updCircBtn();
         const dd=C.position.distanceTo(G.tg.position),s=Math.max(1,Math.min(8,dd*.032));G.tg.scale.set(s*4,s,1);
         G.tg.visible=dd<520&&G.g.visible;
         P.sp=Math.hypot(car.position.x-G.g.position.x,car.position.z-G.g.position.z)});
-      raceTick(now,dt);
+      raceTick(now,dt);autoStart(now);
       if(now-lastUI>250){lastUI=now;if(el.panel&&el.panel.classList.contains('on')&&room)ui();else roster()}}
     /* ----- HUD ----- */
     function roster(){
@@ -5705,16 +5746,16 @@ updCircBtn();
       if(el.out)el.out.style.display=room?'none':'block';
       if(el.inn)el.inn.style.display=room?'block':'none';
       if(el.codeOut)el.codeOut.textContent=room||'';
-      if(el.race){el.race.disabled=!room||status!=='up'||race.st===1||race.st===2||race.st===4;
-        el.race.textContent=race.st===3?'Rematch':'Start race'}
-      if(el.raceStatus)el.raceStatus.textContent=!room?'Create or join a room to race.':status!=='up'?'Connecting to room…':race.st===1?'Race countdown in progress':race.st===2?'Race in progress · finish times appear here as drivers finish':race.st===4?'Race in progress · you joined as a spectator':race.st===3?'Race complete · final times are shown below':'Room ready · anyone can start a race';
-      if(el.list){const host=isHost(),racing=race.st>=2,rows=[{id:me.id,n:myName(),c:0x640c0e,me:1,watching:race.st===4,d:racing?race.d0+race.rp:0,fin:myFin,ping:null,off:false}];
-        peers.forEach(P=>rows.push({id:P.id,n:P.n,c:colorOf(P.id),d:P.d,fin:P.fin,ping:P.ping,off:!P.got}));
+      if(el.race){const hst=isHost();el.race.disabled=!room||status!=='up'||!hst||race.st===1||race.st===2||race.st===4;
+        el.race.textContent=!hst?'Host starts the race':race.st===3?'Rematch':'Start race'}
+      if(el.raceStatus)el.raceStatus.textContent=!room?'Create or join a room to race.':status!=='up'?'Connecting to room…':race.st===1?'Race countdown in progress':race.st===2?'Race in progress · finish times appear here as drivers finish':race.st===4?'Race in progress · you joined as a spectator':race.st===3?'Race complete · final times are shown below':(isHost()?'Room ready · press Start race, or it starts by itself once everyone is Ready':'Room ready · press Ready, the host starts the race');
+      if(el.list){const host=isHost(),racing=race.st>=2,rows=[{id:me.id,n:myName(),c:0x640c0e,me:1,watching:race.st===4,d:racing?race.d0+race.rp:0,fin:myFin,ping:null,off:false,rdy:myReady}];
+        peers.forEach(P=>rows.push({id:P.id,n:P.n,c:colorOf(P.id),d:P.d,fin:P.fin,ping:P.ping,off:!P.got,rdy:!!P.ready}));
         if(racing)rows.sort((a,b)=>a.watching?1:b.watching?-1:a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:b.d-a.d);
         const lead=Math.max.apply(null,rows.filter(P=>!P.fin).map(P=>P.d).concat([0]));
-        let h='';rows.forEach((P,i)=>{let timing=P.watching?'Spectating':P.fin?fmtT(P.fin):racing?(P.off?'Connecting':P.d>=lead-1e-4?'Leading':'-'+Math.max(0,Math.round((lead-P.d)*(MODE==='circuit'&&circuit?circuit.curve.getLength():TLEN)))+' m'):(P.off?'Joining':'Ready');
+        let h='';rows.forEach((P,i)=>{let timing=P.watching?'Spectating':P.fin?fmtT(P.fin):racing?(P.off?'Connecting':P.d>=lead-1e-4?'Leading':'-'+Math.max(0,Math.round((lead-P.d)*(MODE==='circuit'&&circuit?circuit.curve.getLength():TLEN)))+' m'):(P.off?'Joining':P.rdy?'Ready ✓':'Not ready');
           const ping=P.me?(window.PhoneController&&window.PhoneController.isPhoneConnected()?'Phone':'Keyboard'):P.ping==null?'Ping…':P.ping+' ms';
-          h+='<li class="'+(P.me?'me':'')+'"><i style="background:'+HEX(P.c)+'"></i><span class="mp-driver">'+(racing?'<em>'+(P.fin?i+1:'')+'</em>':'')+esc(P.n)+(P.me?' (you)':'')+'</span><span class="mp-timing">'+timing+(ping?' · '+ping:'')+
+          h+='<li class="'+(P.me?'me':'')+'"><i style="background:'+HEX(P.c)+'"></i><span class="mp-driver">'+(racing?'<em>'+(P.fin?i+1:'')+'</em>':'')+esc(P.n)+(P.me?' (you)':'')+(P.id===(sorted()[0]||{}).id?' · host':'')+'</span><span class="mp-timing">'+timing+(ping?' · '+ping:'')+
             (host&&!P.me?'<button class="kick" type="button" data-id="'+P.id+'" title="Remove from room" aria-label="Remove '+esc(P.n)+' from room">&times;</button>':'')+'</span></li>'});
         el.list.innerHTML=h}
       if(el.note&&room)el.note.textContent=status==='up'?(peers.size?'Everyone here is a ghost to everyone else. No crashes, just a name above the car.':'Waiting for friends. Send them the code or the link.'):status==='down'?'Cannot reach the room. Check your connection and rejoin.':'Connecting…';
@@ -5743,7 +5784,6 @@ updCircBtn();
     {const m=/[?&]room=([A-Za-z0-9]{4,6})/.exec(location.search);
      if(m)setTimeout(()=>{me.n=savedName();join(m[1])},300)}
     // config sync & ready
-    let myReady=false;
     function syncCfg(force){
       if(!isHost()||!room||status!=='up')return;
       const laps=$('#dmplaps')?$('#dmplaps').value:3;
@@ -5754,12 +5794,15 @@ updCircBtn();
       const el=$(sel);if(el)el.onchange=()=>syncCfg(true);
     });
 const rdyBtn=$('#dmpready');
-  if(rdyBtn)rdyBtn.onclick=()=>{
-    myReady=!myReady;
-    rdyBtn.textContent=myReady?'Ready!':'I\'m Ready';
-    rdyBtn.style.background=myReady?'#227038':'#3f8a56';
-    send({k:'rdy',val:myReady});
-  };
+  function paintReady(){
+    const b=$('#dmpready');if(b){b.textContent=myReady?'Ready ✓':'I\'m Ready';b.style.background=myReady?'#227038':'#3f8a56'}
+    const rm=document.getElementById('dresrematch');
+    if(rm)rm.textContent=!room?'Restart':isHost()?'Rematch now':myReady?'Ready ✓ · waiting for host':'Ready for rematch';
+    const st=document.getElementById('dresstatus');
+    if(st){if(!room){st.textContent=''}else{const live=[...peers.values()].filter(p=>p.got||p.last),n=live.length+1,r=live.filter(p=>p.ready).length+(myReady?1:0);
+      st.textContent=autoStartAt?'Everyone is ready · rematch starting…':'Ready for rematch: '+r+' / '+n+(isHost()?' · press Rematch now, or it starts when everyone is ready':' · the host starts it')}}}
+  function setReady(v){myReady=!!v;if(!myReady)autoStartAt=0;send({k:'rdy',val:myReady});paintReady();ui()}
+  if(rdyBtn)rdyBtn.onclick=()=>setReady(!myReady);
   // Spectator mode toggle
   const specBtn=$('#dmpspec');
   if(specBtn){
@@ -5893,28 +5936,39 @@ function carChanged(){if(room)sendHi(true)}
       const done=()=>{qrCopy.textContent='Copied';setTimeout(()=>qrCopy.textContent='Copy',1500)};
       try{navigator.clipboard.writeText(t.value).then(done,()=>{document.execCommand('copy');done()})}catch(e){try{document.execCommand('copy');done()}catch(_){}}}}
     {const qrClose=document.getElementById('dqrclose');if(qrClose)qrClose.onclick=()=>{const m=document.getElementById('dqr-modal');clearInterval(phoneStTimer);if(m){m.classList.remove('on');m.dataset.mode=''}}}
-    {const rematch=document.getElementById('dresrematch');if(rematch)rematch.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');if(room)requestRace();else restartSoloRace()}}
+    {const rematch=document.getElementById('dresrematch');if(rematch)rematch.onclick=()=>{
+      if(!room){const m=document.getElementById('dresults');if(m)m.classList.remove('on');restartSoloRace();return}
+      if(isHost()){if(!myReady)setReady(true);requestRace()}       // host: go now (everyone is put back on the grid)
+      else setReady(!myReady)}}                                     // guest: vote; the card stays open until the host starts
     {const rc=document.getElementById('dresclose');if(rc)rc.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');if(window.RaceEngine)window.RaceEngine.closeResultsModal()}}
     {const resLobby=document.getElementById('dreslobby');if(resLobby)resLobby.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');openPanel()}}
-    // show results modal when race.st becomes 3
-    let _uiResultShown=false;
+    // results card: once per race for everyone in it (finished, DNF or spectating); kept live while open
     function ui(){
       uiBase();
-      if(race.st===3&&myFin&&!race._resShown&&!_uiResultShown){
-        _uiResultShown=true;
-        race._resShown=true;
-        showResults();
-      }
+      if(race.st===3&&!race._resShown){race._resShown=true;showResults()}
+      else if(race.st===3){const m=document.getElementById('dresults');if(m&&m.classList.contains('on'))paintReady()}
     }
     function showResults(){
       const m=document.getElementById('dresults');if(!m)return;
       const rows=[{n:myName(),fin:myFin,me:1}];
       peers.forEach(P=>{if(P.fin||P.got)rows.push({n:P.n,fin:P.fin})});
       rows.sort((a,b)=>a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:0);
-      const list=document.getElementById('dreslist');
-      if(list)list.innerHTML=rows.map((r,i)=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span>${i+1}. ${r.n}${r.me?' (you)':''}</span><span>${r.fin?fmtT(r.fin):'DNF'}</span></div>`).join('');
-      m.classList.add('on');
+      const best=rows.length&&rows[0].fin?rows[0].fin:0,list=document.getElementById('dreslist'),nl=race.laps||getLaps();
+      if(list)list.innerHTML=rows.map((r,i)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span>${r.fin?i+1+'.':'–'} ${esc(r.n)}${r.me?' (you)':''}</span><span>${r.fin?fmtT(r.fin)+(best&&r.fin>best?' <span style="opacity:.6">+'+((r.fin-best)/1000).toFixed(2)+'s</span>':''):'DNF'}</span></div>`).join('')+
+        `<div style="margin-top:8px;opacity:.7;font-size:12px">${nl} lap${nl>1?'s':''} · ${MODE==='circuit'&&circuit?'drawn track':'Earth valley loop'}</div>`;
+      let st=document.getElementById('dresstatus');
+      if(!st&&list){st=document.createElement('div');st.id='dresstatus';st.className='mono';st.style.cssText='margin-top:12px;font-size:12px;color:#d4a83a;min-height:1.4em';list.parentNode.insertBefore(st,list.nextSibling)}
+      const lobby=document.getElementById('dreslobby');if(lobby)lobby.textContent=isHost()?'Change track / laps':'Room';
+      m.style.display='';m.classList.add('on');paintReady();
     }
+    // everyone (2+ players) ready in the lobby or on the results card: the host's game starts the race by itself
+    function autoStart(now){
+      if(!room||status!=='up'||!isHost()||!(race.st===0||race.st===3)){if(autoStartAt){autoStartAt=0}return}
+      const live=[...peers.values()].filter(p=>p.got||p.last);
+      const all=live.length>0&&myReady&&live.every(p=>p.ready);
+      if(!all){if(autoStartAt){autoStartAt=0;paintReady()}return}
+      if(!autoStartAt){autoStartAt=now+2500;note('Everyone is ready · starting…');toast2('Everyone is ready · starting');paintReady()}
+      else if(now>=autoStartAt){autoStartAt=0;requestRace()}}
     return {tick,join,leave,LOG,shareVenue,inRoom,getLaps,getPeers,isHolding,isHostNow:()=>isHost(),get on(){return !!room},get state(){return {room,status,peers,race,me}},_dbg:{sorted}}
   })();
   /* ---------- go ---------- */
