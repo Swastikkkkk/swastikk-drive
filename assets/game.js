@@ -4810,6 +4810,7 @@ updCircBtn();
         }break;
         case 'rdy':P.ready=!!m.val;ui();break;
         case 'spec':P.watching=!!m.val;ui();break;
+        case 'chat':{if(!m.t||!m.n)return;const log=document.getElementById('dmpchatlog');if(log){const msg=String(m.t).slice(0,120);const name=String(m.n).slice(0,14);const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:11px;line-height:1.4;';line.innerHTML='<span style="color:#d4a83a;font-weight:600;">'+esc(name)+':</span> <span style="color:var(--paper);">'+esc(msg)+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}}break;
         case 's':{
           if(!Array.isArray(m.p)||!Array.isArray(m.q))return;
           const x=num(m.p[0],-1e4,1e4,0),y=num(m.p[1],-500,2000,0),z=num(m.p[2],-1e4,1e4,0);
@@ -5051,6 +5052,12 @@ const rdyBtn=$('#dmpready');
 
 function carChanged(){if(room)sendHi(true)}
   mpCarNotify=carChanged;
+  // Chat send
+  const chatInput=$('#dmpchatinput'),chatSend=$('#dmpchatsend');
+  if(chatInput&&chatSend){
+    chatSend.onclick=()=>{const t=chatInput.value.trim();if(t){send({k:'chat',t});chatInput.value=''}};
+    chatInput.addEventListener('keydown',e=>{if(e.key==='Enter')chatSend.onclick()});
+  }
   /* ----- matchmaking ----- */
   let mmPool=null,mmTimer=null;
   function startMatchmaking(){

@@ -468,6 +468,14 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
       <div class="mp-list-label">Drivers &middot; Ready &middot; Ping</div>
       <ol id="dmplist"></ol>
       <div class="mono bd-note" id="dmpnote"></div>
+      <div id="dmpchat" style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px;">
+        <div class="mono" style="font-size:10px;letter-spacing:.12em;color:var(--mute);margin-bottom:8px;">CHAT</div>
+        <div id="dmpchatlog" style="max-height:200px;overflow-y:auto;margin-bottom:8px;font-size:11px;line-height:1.5;"></div>
+        <div style="display:flex;gap:6px;">
+          <input id="dmpchatinput" type="text" placeholder="Type message..." style="flex:1;background:rgba(10,10,9,.9);border:1px solid rgba(242,238,230,.18);border-radius:8px;padding:8px 12px;color:var(--paper);font:inherit;" maxlength="120" autocomplete="off">
+          <button id="dmpchatsend" class="dbtn mono" style="padding:8px 14px;">Send</button>
+        </div>
+      </div>
       <button id="dmpleave" class="dbtn mono bd-x">Leave room</button>
     </div>
     <button id="dmpx" class="dbtn mono bd-x">Close &#10005;</button>
