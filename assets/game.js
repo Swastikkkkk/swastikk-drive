@@ -2343,13 +2343,11 @@ t.bd.position.set(x,y+.86,z);
            const dg=Math.min(chassisB.mass*8,vs*vs*AERO_DRAG);
            fScratch.set(-vv.x/vs*dg,0,-vv.z/vs*dg);chassisB.applyForce(fScratch,chassisB.position)}}
        lvScratch.copy(chassisB.velocity);chassisB.quaternion.conjugate(qScratch);qScratch.vmult(lvScratch,lvScratch);
-const lateral=Math.min(1,Math.abs(lvScratch.x)/8),rearGrip=key.h?.58:1,
-              // weather effects on grip
-              weatherGripMult=wx.slip,
-              const lateral=Math.min(1,Math.abs(lvScratch.x)/8),rearGrip=key.h?.58:1,
-              // weather effects on grip
-              weatherGripMult=wx.slip,
-              grip=V.slip*weatherGripMult*(1-sub*.72)*(1+gradeNow*.55)*(1+lateral*.22);
+const lateral=Math.min(1,Math.abs(lvScratch.x)/8),
+      rearGrip=key.h?.58:1,
+      // weather effects on grip
+      weatherGripMult=wx.slip,
+      grip=V.slip*weatherGripMult*(1-sub*.72)*(1+gradeNow*.55)*(1+lateral*.22);
         // additional weather-specific grip modifiers
         if(wxB.part==='rain' || wxB.part==='storm'){
           grip*=0.6; // wet roads
