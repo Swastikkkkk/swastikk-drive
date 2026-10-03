@@ -652,7 +652,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   signPost(POND.x+POND.r+2,POND.z,0,'The pond','drive in · you can swim',false,-Math.PI/2);
   signPost(PG.x,PG.z+15,0,'Playground','ramps · crates · cones',false,0);
   signPost(RAMPYARD.x,RAMPYARD.z+13,BR_H,'Ramp yard','launch off all three',false,0);
-  signPost(BR_START.x-BR_OUT.x*4,BR_START.z-BR_OUT.z*4,BR_H,'Ramp yard →','off the main road',false,Math.atan2(BR_OUT.x,BR_OUT.z));
+  /* was 4m from the centre line, i.e. a solid pole on the asphalt since the road was widened; 9m puts it on the verge */
+  signPost(BR_START.x-BR_OUT.x*9,BR_START.z-BR_OUT.z*9,BR_H,'Ramp yard →','off the main road',false,Math.atan2(BR_OUT.x,BR_OUT.z));
   signPost(PEAK.x-BR_OUT.x*7,PEAK.z-BR_OUT.z*7,PEAK_H,'The summit','stop for the view',false,Math.atan2(BR_OUT.x,BR_OUT.z));
   const CULL=[];
   /* ---------- playground obstacles: instanced so 10 crates + 7 cones + 5 tires cost a handful of draw
@@ -699,7 +700,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
      const m=new THREE.Mesh(g,dirtM);m.receiveShadow=true;S.add(m)});
    const SIGN=[['Stunt park','mega ramp · giant pins · trampolines'],['The UFO','drive under the light'],['The volcano','hot. do not swim.']];
-   SPURS.forEach((pts,i)=>{if(pts.length<8)return;const [x,z]=pts[5],[x2,z2]=pts[6],dx=x2-x,dz=z2-z,l=Math.hypot(dx,dz)||1,sx=x-dz/l*5.5,sz=z+dx/l*5.5;
+   SPURS.forEach((pts,i)=>{if(pts.length<8)return;const [x,z]=pts[5],[x2,z2]=pts[6],dx=x2-x,dz=z2-z,l=Math.hypot(dx,dz)||1;let sx=x-dz/l*5.5,sz=z+dx/l*5.5;
+     /* since the road was widened one of these posts landed on the asphalt (a solid pole in the racing line): walk it out to the verge */
+     for(let k=0;k<40&&roadNear(sx,sz).d<8.5;k++){let bi=0,bd=1e18;for(let j=0;j<N;j++){const ex=sx-SAMP[j].x,ez=sz-SAMP[j].z,e=ex*ex+ez*ez;if(e<bd){bd=e;bi=j}}
+       const ex=sx-SAMP[bi].x,ez=sz-SAMP[bi].z,el=Math.hypot(ex,ez)||1;sx+=ex/el*.5;sz+=ez/el*.5}
+
      signPost(sx,sz,HF.h(sx,sz),SIGN[i][0],SIGN[i][1],i%2===1,Math.atan2(-dx,-dz))})}
   /* --- stunt park ---
      One axis runs straight through the park, lined up with the dirt track in, so the mega
@@ -1113,7 +1118,7 @@ async function submitToLeaderboard(ms,vehicle){
     }
     // speed hack detection
     const speed=Math.hypot(chassisB.velocity.x,chassisB.velocity.z);
-    const maxAllowedSpeed=V.max*1.1;
+    const maxAllowedSpeed=V.max*1.8;   // boost and long downhills legitimately pass V.max; only flag truly impossible speed
     if(speed>maxAllowedSpeed){
       cpViolations++;
       if(cpViolations>5){
@@ -1528,9 +1533,10 @@ t.bd.position.set(x,y+.86,z);
     aiRacers.length=0;
     for(let i=0;i<AI_COUNT;i++){
       const skill=AISkill[i];
-      const baseSpeed=6+skill.indexOf(skill)*3.5;
-      const aggression=0.3+skill.indexOf(skill)*0.2;
-      const overtakeThreshold=8-skill.indexOf(skill)*1.5;
+      /* was skill.indexOf(skill) (always 0), so every racer was the same slow rookie */
+      const baseSpeed=17+i*4;            // ~61 / 76 / 90 / 104 km/h
+      const aggression=0.3+i*0.2;
+      const overtakeThreshold=8-i*1.5;
       const car=buildCar({paint:TRAFFIC_COLORS[i%TRAFFIC_COLORS.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
       car.g.rotation.order='YXZ';S.add(car.g);
       const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});
@@ -1549,10 +1555,14 @@ t.bd.position.set(x,y+.86,z);
         targetLane:0,
         overtakeTimer:0,
         mistakeTimer:Math.random()*30,
-        lastOvertake:0
+        lastOvertake:0,
+        // animation state: left undefined these went NaN on the first frame, which hid the car's
+        // body and wheels while its physics box stayed solid on the road (an invisible wall)
+        pv:0,dive:0,wa:0,py:null
       });
     }
   }
+  const AI_UP=new CANNON.Vec3(0,1,0);   // shared, instead of a new vector per racer per frame
   function updateAIRacers(dt,now){
     if(!active||!driving)return;
     for(let i=0;i<aiRacers.length;i++){
@@ -1568,16 +1578,15 @@ t.bd.position.set(x,y+.86,z);
         const d2=Math.hypot(dx,dz);
         // overtaking logic
         if(ahead>0&&ahead<ai.overtakeThreshold&&off<3.5&&ai.overtakeTimer<=0){
-          ai.targetLane=ai.lane>0?-1:1;
+          ai.targetLane=ai.lane>0?-3:3;
           ai.overtakeTimer=3+Math.random()*2;
           ai.state='overtaking';
         }
         if(ai.state==='overtaking'){
-          ai.lane=ai.targetLane;
           ai.overtakeTimer-=dt;
           if(ai.overtakeTimer<=0){
             ai.state='racing';
-            ai.lane=0;
+            ai.targetLane=0;
           }
         }
         // defensive driving
@@ -1605,14 +1614,14 @@ t.bd.position.set(x,y+.86,z);
           let du=L.u-ai.u;if(du<0)du+=1;
           const d=du*TLEN;if(d<30&&d<sd)sd=d}
         if(sd<30)want=Math.min(want,Math.max(0,(sd-4)/9)*ai.base)}
+      // night: a bit slower. (This used to multiply ai.base by .85 every frame, so within a
+      // second of nightfall every racer stopped dead in the middle of the road.)
+      if(nightOn||wxLock==='night'||wxB.id==='night')want*=.85;
+      if(!isFinite(want)||want<0)want=0;
       ai.spd+=(want-ai.spd)*Math.min(1,dt*1.4);
-      // night-time AI behavior
-      const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
-      if(isNight){
-        ai.base*=0.85; // slower at night
-        ai.aggression*=0.7; // less aggressive
-        ai.overtakeThreshold*=1.3; // more cautious overtaking
-      }
+      if(!isFinite(ai.spd)||ai.spd<0)ai.spd=0;
+      // steer between lanes over ~1s instead of teleporting the solid body sideways into whoever is there
+      ai.lane+=((ai.targetLane||0)-ai.lane)*Math.min(1,dt*1.2);
       ai.u=(ai.u+(ai.spd*dt)/TLEN)%1;
       const yaw=Math.atan2(tg.x,tg.z);
       const pitch=Math.atan2(hAt(ai.u+.004)-hAt(ai.u-.004),TLEN*.008);
@@ -1624,7 +1633,7 @@ t.bd.position.set(x,y+.86,z);
       const stA=Math.max(-.45,Math.min(.45,dy/Math.max(dt,.001)/Math.max(1,ai.spd)*2.6));
       ai.wa+=ai.spd*dt/.42;const W4=ai.car.wheels;for(let w=0;w<4;w++){W4[w].spin.rotation.x=ai.wa;if(w<2)W4[w].w.rotation.y+=(stA-W4[w].w.rotation.y)*Math.min(1,dt*6)}
       ai.bd.position.set(x,y+.86,z);
-      ai.bd.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),yaw);
+      ai.bd.quaternion.setFromAxisAngle(AI_UP,yaw);
       ai.bd.velocity.set(tg.x*ai.spd,0,tg.z*ai.spd);
       ai.bd.aabbNeedsUpdate=true;
       // update last overtake time
@@ -2510,32 +2519,9 @@ const F=chassisB.force,T=chassisB.torque;
           }
         }
 }
-  if(V.label==='Phantom Bike'){
-    const wi=veh.wheelInfos;
-    const speed=Math.hypot(chassisB.velocity.x,chassisB.velocity.z);
-    if(speed>1){
-      const leanInput=(key.l?1:0)-(key.r?1:0);
-      const leanAngle=leanInput*0.4*Math.min(1,speed/40);
-      const yaw=chassisB.quaternion.y;
-      const leanQuat=new CANNON.Quaternion();
-      leanQuat.setFromAxisAngle(new CANNON.Vec3(0,0,1),leanAngle);
-      const targetQuat=new CANNON.Quaternion();
-      targetQuat.copy(chassisB.quaternion);
-      targetQuat.mult(leanQuat,targetQuat);
-      chassisB.quaternion.slerp(targetQuat,0.15);
-      // counter-steering: front wheel turns opposite to lean at low speed
-      const steerAngle=-leanAngle*0.3*(1-Math.min(1,speed/30));
-      if(wi[0]&&wi[1]){
-        wi[0].steering=steerAngle;
-        wi[1].steering=steerAngle;
-      }
-      // reduce lean at low speed
-      if(speed<5){
-        const uprightQuat=new CANNON.Quaternion().setFromAxisAngle(new CANNON.Vec3(0,0,1),0);
-        chassisB.quaternion.slerp(uprightQuat,0.05);
-      }
-    }
-  }
+  /* (bike lean used to be forced here by rewriting the chassis rotation with Quaternion.slerp, which
+     cannon 0.6.2 does not have, so it threw every physics step; it also overrode the steering.
+     The bike now leans visually instead, in the body-roll code in the render loop.) */
   }
   // anti-cheat validation
   validateAntiCheat();
@@ -3514,7 +3500,9 @@ const PLANETS={
         idleLast=now;
         if(idleLow!==2){idleLow=2;R.setPixelRatio(Math.min(devicePixelRatio,.6));R.setSize(W,H,false)}}
     }else if(idleLow){idleLow=0;applyQ()}
-    const dt=Math.min(.1,(now-last)/1000);last=now;frameN++;
+    /* clamp both ends: the first animation frame can carry a timestamp from before `last` was taken, and a
+       negative dt drove the physics accumulator below zero, freezing the car until it climbed back */
+    const dt=Math.max(0,Math.min(.1,(now-last)/1000));last=now;frameN++;
     if(SPACE.state!=='earth'){ try{SPACE.frame(dt,now);}catch(e){console.error('[space]',e);try{var b=document.getElementById('dspaceerr');if(!b){b=document.createElement('div');b.id='dspaceerr';b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:rgba(150,20,20,.96);color:#fff;font:600 12px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px 12px;white-space:pre-wrap;max-height:46vh;overflow:auto';document.body.appendChild(b);}b.textContent='SURFACE/SPACE ERROR @ state='+SPACE.state+String.fromCharCode(10)+((e&&e.stack)||(e&&e.message)||e);}catch(_){}} return; }   // space/moon takes over the frame; Earth paused
     watchFps(dt);
     if(window.PhoneController && window.PhoneController.connected){
@@ -3712,7 +3700,10 @@ const PLANETS={
       const v=chassisB.velocity,vf=v.x*leanF.x+v.y*leanF.y+v.z*leanF.z;
       const aL=(vf-leanVf)/Math.max(dt,.004);leanVf=vf;leanA+=(aL-leanA)*(1-Math.exp(-dt*6));
       let grounded=0;for(let i=0;i<4;i++)if(veh.wheelInfos[i].isInContact)grounded++;
-      const k=grounded>=3?1:0,rollT=Math.max(-.075,Math.min(.075,chassisB.angularVelocity.y*vf*.0042))*k,pitchT=Math.max(-.05,Math.min(.05,-leanA*.006))*k;
+      const k=grounded>=3?1:0,isBikeV=V.label==='Phantom Bike',
+        // cars roll a touch outward; the bike leans into the turn, more with speed, up to ~30 degrees
+        rollT=isBikeV?Math.max(-.52,Math.min(.52,-chassisB.angularVelocity.y*Math.min(1,Math.abs(vf)/25)*.55))*(grounded>=2?1:0)
+                     :Math.max(-.075,Math.min(.075,chassisB.angularVelocity.y*vf*.0042))*k,pitchT=Math.max(-.05,Math.min(.05,-leanA*.006))*k;
       const e=1-Math.exp(-dt*7);vis.body.rotation.z+=(rollT-vis.body.rotation.z)*e;vis.body.rotation.x+=(pitchT-vis.body.rotation.x)*e;
       /* skid marks from the rear tyres when they let go, or on the handbrake */
       if(sp>3&&sub<.05)for(let i=2;i<4;i++){const w=veh.wheelInfos[i],rr=w.raycastResult;
@@ -5121,7 +5112,9 @@ updCircBtn();
       if(status!=='up')h+='<div class="st">'+(status==='down'?'offline':'connecting')+'</div>';
       el.roster.innerHTML=h;el.roster.style.display='block'}
     const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-    function ui(){
+    /* base room UI. (It used to share the name ui() with the results wrapper further down; both are
+       hoisted function declarations, so the wrapper replaced this one and then called itself forever.) */
+    function uiBase(){
       if(el.btn)el.btn.textContent=room?('Room · '+room):'Room';
       if(el.out)el.out.style.display=room?'none':'block';
       if(el.inn)el.inn.style.display=room?'block':'none';
@@ -5296,9 +5289,8 @@ function carChanged(){if(room)sendHi(true)}
     {const resLobby=document.getElementById('dreslobby');if(resLobby)resLobby.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');openPanel()}}
     // show results modal when race.st becomes 3
     let _uiResultShown=false;
-    const _origUI=ui;
     function ui(){
-      _origUI();
+      uiBase();
       if(race.st===3&&myFin&&!race._resShown&&!_uiResultShown){
         _uiResultShown=true;
         race._resShown=true;
