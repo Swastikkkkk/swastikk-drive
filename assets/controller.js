@@ -282,46 +282,76 @@
       bindButton('btn-cam', function() { inputState.cam = 1; setTimeout(function() { inputState.cam = 0; }, 200); }, function() {});
       bindButton('btn-reset', function() { inputState.reset = 1; setTimeout(function() { inputState.reset = 0; }, 200); }, function() {});
 
-      // Gyroscope / Device Orientation Steering
+      /* Gyro steering: hold the phone like a steering wheel and turn it.
+         The steering angle is the roll of the phone in the plane of its own screen, worked out from which way
+         gravity points on the screen. Raw alpha/beta/gamma change meaning with portrait vs landscape (and
+         flip on some phones), which is what made the old version feel off-centre and backwards.
+         On top of that: it calibrates itself the moment you switch it on (whatever angle you are holding is
+         "straight"), CALIBRATE re-centres on demand, the signal is smoothed, has a small dead zone, and a
+         gentle curve so small turns are fine and full lock is a real turn. */
       var tiltBtn = document.getElementById('btn-tilt');
       var calibBtn = document.getElementById('btn-calib');
       var steerCluster = document.getElementById('c-steer');
       var tiltActive = false;
-      var tiltCenter = 0;
+      var tiltCenter = 0;        // roll (degrees) that counts as straight ahead
+      var rollNow = 0;           // latest smoothed roll, degrees
+      var haveRoll = false;
+      var needCenter = false;
+      var TILT_RANGE = 38;       // degrees of wheel turn for full lock
+      var DEAD = 2;              // degrees ignored around centre
+      var lastScreenAngle = null;
+
+      function screenAngle() {
+        if (screen.orientation && typeof screen.orientation.angle === 'number') return screen.orientation.angle;
+        return typeof window.orientation === 'number' ? (window.orientation + 360) % 360 : 0;
+      }
 
       function onOrientation(e) {
-        if (!tiltActive) return;
-        var gamma = e.gamma; // tilt left/right in degrees (-90 to 90)
-        if (window.orientation === 90) {
-          gamma = -e.beta;
-        } else if (window.orientation === -90) {
-          gamma = e.beta;
+        if (!tiltActive || e.beta == null || e.gamma == null) return;
+        var d2r = Math.PI / 180, b = e.beta * d2r, g = e.gamma * d2r;
+        // "up" in the phone's own axes (third row of the W3C orientation matrix); independent of compass heading
+        var ux = -Math.cos(b) * Math.sin(g), uy = Math.sin(b);
+        // into screen axes for the current rotation, so portrait and either landscape behave the same
+        var th = screenAngle() * d2r, c = Math.cos(th), s = Math.sin(th);
+        var sx = ux * c - uy * s, sy = ux * s + uy * c;
+        if (Math.hypot(sx, sy) < 0.3) return;                // phone lying flat: roll is undefined, hold the last value
+        var roll = -Math.atan2(sx, sy) / d2r;                // clockwise wheel turn = positive = steer right
+        var ang = screenAngle();
+        if (lastScreenAngle !== null && ang !== lastScreenAngle) needCenter = true;   // turned the phone round: re-centre
+        lastScreenAngle = ang;
+        if (!haveRoll) { rollNow = roll; haveRoll = true; }
+        else {
+          var dlt = roll - rollNow; if (dlt > 180) dlt -= 360; if (dlt < -180) dlt += 360;
+          rollNow += dlt * 0.35;                              // smoothing: steady hands, still quick
+          if (rollNow > 180) rollNow -= 360; if (rollNow < -180) rollNow += 360;
         }
-        if (gamma == null) return;
-        var rel = gamma - tiltCenter;
-        // Clamp to -35 .. 35 deg
-        var norm = Math.max(-1, Math.min(1, rel / 30));
-        inputState.steerAnalog = norm;
+        if (needCenter) { tiltCenter = rollNow; needCenter = false; }
+        var rel = rollNow - tiltCenter; if (rel > 180) rel -= 360; if (rel < -180) rel += 360;
+        var mag = Math.max(0, Math.abs(rel) - DEAD) / (TILT_RANGE - DEAD);
+        mag = Math.min(1, mag);
+        mag = Math.pow(mag, 1.25);                            // gentle curve
+        inputState.steerAnalog = (rel < 0 ? -1 : 1) * mag;
       }
 
       tiltBtn.onclick = function() {
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission().then(function(res) {
-            if (res === 'granted') enableTilt();
-          }).catch(function() {});
-        } else {
-          enableTilt();
-        }
+        if (tiltActive) { setTilt(false); return; }
+        var ask = function() {
+          if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            return DeviceOrientationEvent.requestPermission().then(function(res) { if (res === 'granted') setTilt(true); });
+          }
+          setTilt(true);
+        };
+        try { var r = ask(); if (r && r.catch) r.catch(function() {}); } catch (_) {}
       };
 
-      function enableTilt() {
-        tiltActive = !tiltActive;
-        tiltBtn.textContent = tiltActive ? 'GYRO STEER: ON' : 'GYRO STEER: OFF';
-        tiltBtn.style.background = tiltActive ? '#3f8a56' : 'rgba(255,255,255,0.12)';
-        calibBtn.style.display = tiltActive ? 'block' : 'none';
-        steerCluster.style.opacity = tiltActive ? '0.35' : '1.0';
-
-        if (tiltActive) {
+      function setTilt(on) {
+        tiltActive = on;
+        tiltBtn.textContent = on ? 'GYRO STEER: ON' : 'GYRO STEER: OFF';
+        tiltBtn.style.background = on ? '#3f8a56' : 'rgba(255,255,255,0.12)';
+        calibBtn.style.display = on ? 'block' : 'none';
+        steerCluster.style.opacity = on ? '0.35' : '1.0';
+        if (on) {
+          haveRoll = false; needCenter = true; lastScreenAngle = screenAngle();   // whatever angle you hold now is straight
           window.addEventListener('deviceorientation', onOrientation, true);
         } else {
           window.removeEventListener('deviceorientation', onOrientation, true);
@@ -330,13 +360,10 @@
       }
 
       calibBtn.onclick = function() {
-        tiltCenter = window.lastGamma || 0;
+        if (haveRoll) tiltCenter = rollNow; else needCenter = true;
+        inputState.steerAnalog = 0;
         if (navigator.vibrate) try { navigator.vibrate([20, 50, 20]); } catch(_) {}
       };
-
-      window.addEventListener('deviceorientation', function(e) {
-        window.lastGamma = (window.orientation === 90 ? -e.beta : (window.orientation === -90 ? e.beta : e.gamma)) || 0;
-      }, true);
 
       connect();
     }
