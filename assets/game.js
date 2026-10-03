@@ -5018,9 +5018,44 @@ updCircBtn();
       send({k:'rdy',val:myReady});
     };
 
-    function carChanged(){if(room)sendHi(true)}
-    mpCarNotify=carChanged;
-    /* ----- shared custom venue ----- */
+function carChanged(){if(room)sendHi(true)}
+  mpCarNotify=carChanged;
+  /* ----- matchmaking ----- */
+  let mmPool=null,mmTimer=null;
+  function startMatchmaking(){
+    if(room||status!=='off')return;
+    mmPool='quick';
+    note('Finding match...');
+    mmTimer=setInterval(()=>{
+      if(room)return;
+      // try to join a random room from the list
+      const rooms=Object.keys(peers).length>0 ? Array.from(peers.keys()) : [];
+      if(rooms.length>0){
+        join(rooms[Math.floor(Math.random()*rooms.length)]);
+      }else{
+        // create a new room and wait
+        join(rid(5));
+      }
+    },5000);
+  }
+  function cancelMatchmaking(){
+    if(mmTimer){clearInterval(mmTimer);mmTimer=null}
+    mmPool=null;
+    note('Matchmaking cancelled');
+  }
+  function quickJoin(){
+    if(room||status!=='off')return;
+    // try to find an active room
+    const rooms=Array.from(peers.keys());
+    if(rooms.length>0){
+      join(rooms[0]);
+    }else{
+      join(rid(5));
+    }
+  }
+  // expose for UI
+  window.MPMatchmaking={start:startMatchmaking,cancel:cancelMatchmaking,quickJoin:quickJoin};
+  /* ----- shared custom venue ----- */
     const venueKey=(pts,seed)=>seed+':'+pts.length+':'+Math.round(pts[0].x)+','+Math.round(pts[0].y);
     function inRoom(){return !!room}
     // called from the drawer's GO (and from re-entering a venue in a room): tell everyone the track
