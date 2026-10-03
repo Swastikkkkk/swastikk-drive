@@ -30,6 +30,7 @@
       var isCtrl = params.get('controller') === 'true' || params.get('ctrl') === '1';
       var room = (params.get('room') || '').toUpperCase().trim();
       var token = params.get('token') || ('c-' + Math.random().toString(36).substr(2, 6));
+      this.target = params.get('to') || '';   // id of the laptop this phone drives
 
       this.isControllerMode = isCtrl;
       this.roomCode = room;
@@ -179,7 +180,7 @@
             if (m.event === 'phx_reply' && m.payload && m.payload.status === 'ok') {
               joined = true;
               statusEl.style.color = '#3f8a56';
-              statusEl.textContent = 'CONNECTED';
+              statusEl.textContent = PhoneController.target ? 'CONNECTED' : 'RESCAN QR ON LAPTOP';
               // Send initial handshake
               sendInput();
             }
@@ -210,6 +211,7 @@
             event: 'm',
             payload: {
               k: 'ctrl',
+              to: PhoneController.target,
               token: token,
               input: inputState,
               ts: Date.now()

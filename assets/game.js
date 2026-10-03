@@ -1,5 +1,6 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 (function(){
+  if(window.PhoneController&&window.PhoneController.isControllerMode)return;   // this tab is a phone gamepad, not a game
   const show3DFallback=()=>{
     const loading=$('#dload');
     if(loading){loading.textContent='This game requires WebGL for the full 3D experience. Please use a modern browser with hardware acceleration enabled.';loading.style.cssText='position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:28px;background:#06070b;color:#f2eee6;font:500 15px/1.6 system-ui,sans-serif;text-align:center;letter-spacing:0;text-transform:none'}
@@ -2049,12 +2050,16 @@ t.bd.position.set(x,y+.86,z);
   /* ---------- tool menu: click menu shows all buttons, click again hides all but menu ---------- */
   {const mb=$('#dmenu'),row=$('#drow');
    const setMenu=o=>{row.classList.toggle('open',o);mb.setAttribute('aria-expanded',o?'true':'false')};
-   mb.onclick=e=>{e.stopPropagation();setMenu(!row.classList.contains('open'))};
-   // clicking a button inside does NOT close - only menu button toggles
-   // clicking outside on road closes menu
+   window.__setMenu=setMenu;
+   mb.onclick=e=>{e.stopPropagation();setMenu(!row.classList.contains('open'));if(row.classList.contains('open')&&window.__updModes)window.__updModes()};
+   // anything that opens a panel or switches mode closes the menu; quick toggles leave it open
+   const KEEP_OPEN=['dweatherb','dnight','dmute','dtiltb','dgps'];
+   row.addEventListener('click',e=>{const b=e.target.closest('button');if(b&&!KEEP_OPEN.includes(b.id))setMenu(false)});
+   // tapping the road (anywhere outside the menu, its button and the weather list) closes it
    addEventListener('pointerdown',e=>{
      if(!row.classList.contains('open'))return;
-     if(!row.contains(e.target)&&e.target!==mb)setMenu(false);
+     const wx=$('#dwx');
+     if(!row.contains(e.target)&&!mb.contains(e.target)&&!(wx&&wx.contains(e.target)))setMenu(false);
    },true);}
   // GPS button handler
   const gpsBtn=$('#dgps');
@@ -3482,6 +3487,7 @@ const PLANETS={
     return api;
   })();
 
+  const phoneSt={on:false,cam:false,reset:false};let rcSince=0;
   function loop(now){requestAnimationFrame(loop);
     if(active!==wasActive){
       wasActive=active;
@@ -3505,13 +3511,26 @@ const PLANETS={
     const dt=Math.max(0,Math.min(.1,(now-last)/1000));last=now;frameN++;
     if(SPACE.state!=='earth'){ try{SPACE.frame(dt,now);}catch(e){console.error('[space]',e);try{var b=document.getElementById('dspaceerr');if(!b){b=document.createElement('div');b.id='dspaceerr';b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:rgba(150,20,20,.96);color:#fff;font:600 12px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px 12px;white-space:pre-wrap;max-height:46vh;overflow:auto';document.body.appendChild(b);}b.textContent='SURFACE/SPACE ERROR @ state='+SPACE.state+String.fromCharCode(10)+((e&&e.stack)||(e&&e.message)||e);}catch(_){}} return; }   // space/moon takes over the frame; Earth paused
     watchFps(dt);
-    if(window.PhoneController && window.PhoneController.connected){
-      window.PhoneController.applyToKeys(key);
+    if(window.PhoneController){
+      const PC=window.PhoneController,on=PC.applyToKeys(key),ci=PC.currentInput||{};
+      if(on){
+        if(!phoneSt.on){phoneSt.on=true;toastMsg('Phone controller connected')}
+        if(ci.cam&&!phoneSt.cam)cycleCam();
+        if(ci.reset&&!phoneSt.reset)resetCar();
+        phoneSt.cam=!!ci.cam;phoneSt.reset=!!ci.reset;
+      }else if(phoneSt.on){
+        // phone went quiet: let go of everything it was holding so the car does not drive off on its own
+        phoneSt.on=false;key.f=key.b=key.l=key.r=key.h=key.boost=key.horn=0;toastMsg('Phone controller disconnected')}
     }
+    /* watchdog: a countdown with no start lights to end it (or lights that never ran) must not hold the car forever */
+    if(window.RaceEngine&&window.RaceEngine.state==='countdown'){if(!rcSince)rcSince=now;
+      const lightsRunning=MODE==='circuit'&&circuit&&circuit.lightsStart&&!circuit.lightsDone;
+      if(!lightsRunning&&now-rcSince>1500||now-rcSince>9000)window.RaceEngine.startRace(now)}else rcSince=0;
     const raceHolding = (window.RaceEngine && window.RaceEngine.isHolding) || (typeof MP!=='undefined' && MP.isHolding && MP.isHolding());
     const sp=chassisB.velocity.length();
     if(active&&driving){
-      let f=key.f?1:0,b=key.b?1:0,l=key.l?1:0,rr=key.r?1:0;
+      const kv=v=>v===true?1:(+v>0?Math.min(1,+v):0);
+      let f=key.f?1:0,b=key.b?1:0,l=kv(key.l),rr=kv(key.r);
       if(raceHolding){ f=0; b=1; chassisB.velocity.set(0,0,0); chassisB.angularVelocity.set(0,0,0); }
       // water: how far the hull is under the waterline, 0 on dry land, 1 fully submerged
       {const pd=Math.hypot(chassisB.position.x-POND.x,chassisB.position.z-POND.z),pr=pondR(chassisB.position.x,chassisB.position.z);
@@ -3577,7 +3596,7 @@ const PLANETS={
          drawn interpolated between the last two physics states. */
       physAcc+=dt;{let n=0;while(physAcc>=PSTEP&&n<4){world.step(PSTEP);physAcc-=PSTEP;n++}if(n>=4)physAcc=0}
       const dv=tmp.set(chassisB.velocity.x,chassisB.velocity.y,chassisB.velocity.z).sub(lastV).length();lastV.set(chassisB.velocity.x,chassisB.velocity.y,chassisB.velocity.z);if(dv>7){shake=Math.min(1,dv/25);thud(Math.min(1,(dv-5)/18))}
-      if(chassisB.position.y<(MODE==='circuit'?CIRC_Y-15:-9)||!isFinite(chassisB.position.y)||!isFinite(chassisB.velocity.x)){resetCar();toastMsg('Pulled you back onto the road')}
+      if(chassisB.position.y<(MODE==='circuit'?((circuit&&circuit.minY!=null?circuit.minY:CIRC_Y)-25):-9)||!isFinite(chassisB.position.y)||!isFinite(chassisB.velocity.x)){resetCar();toastMsg('Pulled you back onto the road')}
       UPV.set(0,1,0);const up=bodyUp;chassisB.quaternion.vmult(UPV,up);if(up.y<.25){flipT+=dt;if(flipT>1.8){resetCar();flipT=0;toastMsg('Back on the road, lock in')}}else flipT=0;
       if(f||b||l||rr||Math.abs(tiltSteer)>.12)idleT=0;else{idleT+=dt;if(idleT>10){idleT=-999;toastMsg(TOUCH?'Hold GAS on the right':'W to drive.')}}
       if(MODE==='world'&&frameN%4===0){let best=1e9,bi=0;for(let i=0;i<=N;i+=2){const d=(SAMP[i].x-chassisB.position.x)**2+(SAMP[i].z-chassisB.position.z)**2;if(d<best){best=d;bi=i}}const u=bi/N;if(best<60&&(u>progU||u<progU-.5))progU=u;prog.geometry.setDrawRange(0,Math.floor(progU*N)*6);if(frameN%16===0)lamps.forEach(L=>{L.bulb.material.color.setHex(L.u<=progU?0xf2eee6:0x3a3733)});
@@ -3600,7 +3619,9 @@ const PLANETS={
       if(MODE==='circuit'&&circuit){
         // start-light sequence: five reds build up one every ~0.5s, hold, then all go out = GO
         if(circuit.lights&&!circuit.lightsDone&&circuit.lightsStart){const L=circuit.lights,e=(now-circuit.lightsStart)/1000;
-          let on;if(e<2.6)on=Math.min(5,Math.floor(e/0.5));else if(e<3.4+(circuit.lightsHold||0))on=5;else{on=-1;circuit.lightsDone=true;toastMsg('Lights out — go!')}
+          let on;if(e<2.6)on=Math.min(5,Math.floor(e/0.5));else if(e<3.4+(circuit.lightsHold||0))on=5;else{on=-1;circuit.lightsDone=true;toastMsg('Lights out — go!');
+            // release the grid: the race engine holds the car in 'countdown' until someone starts it
+            if(window.RaceEngine&&window.RaceEngine.state==='countdown')window.RaceEngine.startRace(now)}
           if(L.setColorAt){for(let i=0;i<5;i++)L.setColorAt(i,new THREE.Color(on<0?0x12a52a:(i<on?0xff1e0a:0x3a0e0e)));if(L.instanceColor)L.instanceColor.needsUpdate=true}}
         let best=1e9,bi=0;const {CSAMP,CN}=circuit;
         for(let i=0;i<CN;i++){const dx=CSAMP[i].x-chassisB.position.x,dz=CSAMP[i].z-chassisB.position.z,d=dx*dx+dz*dz;if(d<best){best=d;bi=i}}
@@ -3924,14 +3945,20 @@ const PLANETS={
      no separate curb collision, just the one ground plate, so the car can never fall through.
      AI, checkpoints/anti-cheat, saved circuits, Short/Medium/Long length choice and multiplayer
      circuits are NOT in this pass. */
-  const CIRC_X=0,CIRC_Z=-(WS+500),CIRC_Y=40,CIRC_LEN=420;
-  let CIRC_W=10;
+  const CIRC_X=0,CIRC_Y=40,CIRC_LEN=2400;
+  let CIRC_Z=-(WS+500);             // moved per build so even a 3.6 km venue stays clear of the main world
+  let CIRC_W=16;
+  /* drawn-track options. Sizes are lap lengths: the old fixed 420 m made every drawing a go-kart loop. */
+  const CIRC_SIZES={medium:1600,large:2400,huge:3600};
+  const CIRC_ELEV={flat:0,rolling:5,hilly:12,mountain:22};   // peak height change around the lap, metres
   let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null,worldFogSave=null,worldGSave=null,worldWeatherSave=null;
-  function circAt(u,curve){u=((u%1)+1)%1;const p=curve.getPointAt(u).clone();const tg=curve.getTangentAt(u);return {p,tg,n:new THREE.Vector3(-tg.z,0,tg.x)}}
-  function circStrip(curve,Nseg,w,yo,mat,rep){const pos=[],idx=[],uv=[];
+  function circAt(u,curve){u=((u%1)+1)%1;const p=curve.getPointAt(u).clone();const tg=curve.getTangentAt(u);const hl=Math.hypot(tg.x,tg.z)||1;return {p,tg,n:new THREE.Vector3(-tg.z/hl,0,tg.x/hl)}}
+  function circStrip(curve,Nseg,w,yo,mat,rep,hFn){const pos=[],idx=[],uv=[];
     for(let i=0;i<=Nseg;i++){const {p,n}=circAt(i/Nseg,curve),nx=n.x*w/2,nz=n.z*w/2;
       if(!isFinite(p.x)||!isFinite(p.y)||!isFinite(p.z)||!isFinite(n.x)||!isFinite(n.z)) continue;
-      pos.push(p.x-nx,p.y+yo,p.z-nz,p.x+nx,p.y+yo,p.z+nz);uv.push(0,i/Nseg*rep,1,i/Nseg*rep);
+      // with terrain, each edge vertex sits on the ground under it so the strip never floats or sinks
+      const ya=hFn?hFn(p.x-nx,p.z-nz):p.y,yb=hFn?hFn(p.x+nx,p.z+nz):p.y;
+      pos.push(p.x-nx,ya+yo,p.z-nz,p.x+nx,yb+yo,p.z+nz);uv.push(0,i/Nseg*rep,1,i/Nseg*rep);
       if(i<Nseg){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2)}}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
     return new THREE.Mesh(g,mat)}
@@ -3993,57 +4020,89 @@ const PLANETS={
   ];
   function buildCircuit(pts2D,theme,seed,venue){ // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
     clearCircuit();
-    if(window.TrackEditor && window.TrackEditor.roadWidth) CIRC_W = window.TrackEditor.roadWidth;
+    venue=Object.assign({weather:'day',time:'day'},venue||{});
+    /* width/elevation/obstacles travel WITH the venue (so every driver in a room builds the identical
+       track); only fall back to the local editor setting when a venue predates these options */
+    CIRC_W=Math.max(8,Math.min(30,+venue.width||(window.TrackEditor&&window.TrackEditor.roadWidth)||16));venue.width=CIRC_W;
+    const ELEV=CIRC_ELEV[venue.elev]||0;venue.elev=CIRC_ELEV[venue.elev]!=null?venue.elev:'flat';
     theme=theme||THEME_DEFAULT;
     let startLightsIM=null;const wallBodies=[];
     const ownedMats=[];
     seed=Math.max(1,Math.floor(+seed)||271828);let rngState=seed>>>0;
     const seeded=()=>{rngState=(Math.imul(rngState,1664525)+1013904223)>>>0;return rngState/4294967296};
-    const pts3=pts2D.map(q=>new THREE.Vector3(CIRC_X+q.x,CIRC_Y,CIRC_Z+q.y));
+    // keep the whole arena (track + stands + field) well clear of the main world, however big the lap
+    {let ex=0;pts2D.forEach(q=>{ex=Math.max(ex,Math.abs(q.x),Math.abs(q.y))});CIRC_Z=-(WS+420+ex)}
+    /* elevation: a smooth closed profile around the lap from two seeded sine waves (whole numbers of
+       cycles, so the loop closes on itself), eased to flat over the start/finish straight for the grid */
+    let erng=(seed^0x5bd1e995)>>>0;const er=()=>{erng=(Math.imul(erng,1664525)+1013904223)>>>0;return erng/4294967296};
+    const ek1=2+Math.floor(er()*2),ek2=3+Math.floor(er()*3),ep1=er()*6.283,ep2=er()*6.283;
+    const elevAt=u=>{if(!ELEV)return 0;const d=Math.min(u,1-u),flat=Math.min(1,Math.max(0,(d-.03)/.07)),k=flat*flat*(3-2*flat);
+      return ELEV*k*(.62*Math.sin(6.283*ek1*u+ep1)+.38*Math.sin(6.283*ek2*u+ep2)-(.62*Math.sin(ep1)+.38*Math.sin(ep2)))};
+    const pts3=pts2D.map((q,i)=>new THREE.Vector3(CIRC_X+q.x,CIRC_Y+elevAt(i/pts2D.length),CIRC_Z+q.y));
     const curve=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);
-    const CN=Math.max(60,Math.min(240,Math.round(curve.getLength()/3)));
+    const CN=Math.max(60,Math.min(480,Math.round(curve.getLength()/6)));
     const CSAMP=[];for(let i=0;i<CN;i++)CSAMP.push(curve.getPointAt(i/CN));
+    /* dense track index: ~2.5 m samples in a 20 m spatial hash. Answers "how far is the nearest road"
+       and "how high is the ground here" for the terrain, the clearance pass and prop placement. */
+    const TL=curve.getLength(),DN=Math.max(240,Math.min(2400,Math.round(TL/2.5))),DX=new Float32Array(DN),DY=new Float32Array(DN),DZ=new Float32Array(DN),CELL=20,DH=new Map();
+    for(let i=0;i<DN;i++){const q=curve.getPointAt(i/DN);DX[i]=q.x;DY[i]=q.y;DZ[i]=q.z;const k=Math.floor(q.x/CELL)+','+Math.floor(q.z/CELL);let a=DH.get(k);if(!a)DH.set(k,a=[]);a.push(i)}
+    const nearIdx=(x,z,R,fn)=>{const r=Math.ceil(R/CELL),gx=Math.floor(x/CELL),gz=Math.floor(z/CELL);
+      for(let a=-r;a<=r;a++)for(let b=-r;b<=r;b++){const L=DH.get((gx+a)+','+(gz+b));if(L)for(let t=0;t<L.length;t++)fn(L[t])}};
+    const trackDist=(x,z,R)=>{let best=1e9;nearIdx(x,z,R,i=>{const dx=DX[i]-x,dz=DZ[i]-z,d=dx*dx+dz*dz;if(d<best)best=d});return Math.sqrt(best)};
+    // ground height: inverse-distance blend of nearby track heights, easing back to the base level
+    // away from the road. On the road the nearest samples dominate, so asphalt and terrain agree.
+    const H0W=1/((60*60+1)*(60*60+1));
+    const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;let ws=H0W,hs=H0W*CIRC_Y;
+      nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,w=1/(q*q);ws+=w;hs+=w*DY[i]});return hs/ws};
+    const hFn=ELEV?groundAt:null;
+    let minY=CIRC_Y;for(let i=0;i<DN;i++)minY=Math.min(minY,DY[i]);
     const root=new THREE.Group();S.add(root);
     let stadiumBodies=[];
-    if(window.TrackEditor && window.TrackEditor.generateStadiumMeshAndColliders){
-      const std=window.TrackEditor.generateStadiumMeshAndColliders(S,world,curve,CN,CIRC_W,theme,seed);
-      if(std&&std.root)root.add(std.root);
-      if(std&&std.solidBodies)stadiumBodies=std.solidBodies;
-      if(std&&std.ownedMaterials)std.ownedMaterials.forEach(m=>ownedMats.push(m));
-    }
     const rep=curve.getLength()/12;
-    const edgeStrip=circStrip(curve,CN,CIRC_W+1.8,.04,edgeM,rep);edgeStrip.receiveShadow=true;root.add(edgeStrip);
-    const roadStrip=circStrip(curve,CN,CIRC_W,.09,roadM,rep);roadStrip.receiveShadow=true;root.add(roadStrip);
-    // one flat plate under the whole loop - the simplest correct collision, matching how the
-    // main map already treats off-road as a logical grip penalty rather than a physical wall
+    const edgeStrip=circStrip(curve,CN,CIRC_W+1.8,.06,edgeM,rep,hFn);edgeStrip.receiveShadow=true;root.add(edgeStrip);
+    const roadStrip=circStrip(curve,CN,CIRC_W,.12,roadM,rep,hFn);roadStrip.receiveShadow=true;root.add(roadStrip);
+    edgeStrip.userData.fixedY=roadStrip.userData.fixedY=true;
     let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;pts3.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z)});
     const cx=(minX+maxX)/2,cz=(minZ+maxZ)/2;
-    // arena radius: the stadium wall ring sits at r0, and the ground plate is sized to reach past
-    // it, so there is solid collision ground EVERYWHERE inside the stadium. Combined with the solid
-    // perimeter wall below, the car can no longer drive off the plate edge and fall into the void.
+    // arena radius: the stadium wall ring sits at r0, past every part of the track
     const r0=Math.hypot((maxX-minX)/2,(maxZ-minZ)/2)+40;
     const hx=r0+14,hz=r0+14;
     const groundMat=M(theme.ground,{roughness:.95});
-    const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(hx*2,1,hz*2),groundMat);groundMesh.position.set(cx,CIRC_Y-.5,cz);groundMesh.receiveShadow=true;root.add(groundMesh);
-    const groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Box(new CANNON.Vec3(hx,.5,hz)));groundBody.position.set(cx,CIRC_Y-.5,cz);world.addBody(groundBody);
-    // scenery so the track doesn't sit in an empty void: a themed field, then a stadium ring
-    // (barrier wall, grandstands, floodlights) with trees/rocks filling the gaps between stands.
-    // Dedicated materials per build, not the world's shared groundM/leafM/trunkM, so weather
-    // picked on the main map can't bleed into circuit colors, and each theme stays distinct.
-    ownedMats.push(groundMat);
-    const runoff=circStrip(curve,CN,CIRC_W+4,.025,groundMat,rep);runoff.receiveShadow=true;root.add(runoff);
+    const fieldMat=M(theme.field,{roughness:.98});ownedMats.push(groundMat,fieldMat);
+    let groundBody,groundMesh,field;
+    if(!ELEV){
+      groundMesh=new THREE.Mesh(new THREE.BoxGeometry(hx*2,1,hz*2),groundMat);groundMesh.position.set(cx,CIRC_Y-.5,cz);groundMesh.receiveShadow=true;root.add(groundMesh);
+      groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Box(new CANNON.Vec3(hx,.5,hz)));groundBody.position.set(cx,CIRC_Y-.5,cz);world.addBody(groundBody);
+      field=new THREE.Mesh(new THREE.PlaneGeometry((hx+160)*2,(hz+160)*2).rotateX(-Math.PI/2),fieldMat);
+      field.position.set(cx,CIRC_Y-.49,cz);field.receiveShadow=true;root.add(field);
+    }else{
+      /* hills: one physics heightfield + matching render mesh over the whole arena (same build as the
+         main map's terrain: rotated -90deg about X, pillars offset so minValue can sit at 0) */
+      const half=Math.max(hx,hz)+60,ES=Math.max(2.5,half*2/360),nx=Math.ceil(half*2/ES)+1,nz=nx,x0=cx-half,z1=cz+half;
+      const data=[];let lo=1e9;for(let i=0;i<nx;i++){const col=new Array(nz);for(let j=0;j<nz;j++){const h=groundAt(x0+i*ES,z1-j*ES);col[j]=h;if(h<lo)lo=h}data.push(col)}
+      const OFF=2-lo;for(let i=0;i<nx;i++)for(let j=0;j<nz;j++)data[i][j]+=OFF;
+      groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Heightfield(data,{elementSize:ES,minValue:0}));
+      groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0),-Math.PI/2);groundBody.position.set(x0,-OFF,z1);world.addBody(groundBody);
+      const st=nx>200?2:1,mx=Math.floor((nx-1)/st)+1,pos=new Float32Array(mx*mx*3),idx=[];
+      for(let a=0;a<mx;a++)for(let b=0;b<mx;b++){const i=Math.min(nx-1,a*st),j=Math.min(nz-1,b*st),k=(a*mx+b)*3;pos[k]=x0+i*ES;pos[k+1]=data[i][j]-OFF-.03;pos[k+2]=z1-j*ES}
+      for(let a=0;a<mx-1;a++)for(let b=0;b<mx-1;b++){const k=a*mx+b;idx.push(k,k+1,k+mx,k+1,k+mx+1,k+mx)}
+      const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(idx);tg.computeVertexNormals();
+      groundMesh=new THREE.Mesh(tg,groundMat);groundMesh.receiveShadow=true;root.add(groundMesh);
+      field=new THREE.Mesh(new THREE.PlaneGeometry((half+200)*2,(half+200)*2).rotateX(-Math.PI/2),fieldMat);
+      field.position.set(cx,lo-.6,cz);field.receiveShadow=true;root.add(field);
+    }
+    groundMesh.userData.fixedY=field.userData.fixedY=true;groundMesh.userData.onTrack=field.userData.onTrack=true;
+    roadStrip.userData.onTrack=edgeStrip.userData.onTrack=true;
+    const runoff=circStrip(curve,CN,CIRC_W+4,.035,groundMat,rep,hFn);runoff.receiveShadow=true;root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
     const curbRed=M(theme.standTrim,{roughness:.75}),curbWhite=M(0xdad8d0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
     const curbGeo=new THREE.BoxGeometry(1.7,.18,Math.max(1.8,Math.min(4,curve.getLength()/CN)));
     const curbRedIM=new THREE.InstancedMesh(curbGeo,curbRed,CN*2),curbWhiteIM=new THREE.InstancedMesh(curbGeo,curbWhite,CN*2);
-    curbRedIM.receiveShadow=true;curbWhiteIM.receiveShadow=true;root.add(curbRedIM,curbWhiteIM);
+    curbRedIM.receiveShadow=true;curbWhiteIM.receiveShadow=true;root.add(curbRedIM,curbWhiteIM);curbRedIM.userData.onTrack=curbWhiteIM.userData.onTrack=true;
     {let redN=0,whiteN=0;const up=new THREE.Vector3(0,1,0),p0=new THREE.Vector3(),q0=new THREE.Quaternion(),s0=new THREE.Vector3(1,1,1),mx0=new THREE.Matrix4();
       for(let i=0;i<CN;i++){const {p,tg,n}=circAt(i/CN,curve),yaw=Math.atan2(tg.x,tg.z);
         for(const side of [-1,1]){p0.set(p.x+n.x*side*(CIRC_W/2+.75),CIRC_Y+.16,p.z+n.z*side*(CIRC_W/2+.75));q0.setFromAxisAngle(up,yaw);mx0.compose(p0,q0,s0);
           if((i+side+CN)%2===0)curbRedIM.setMatrixAt(redN++,mx0);else curbWhiteIM.setMatrixAt(whiteN++,mx0)}}
       curbRedIM.count=redN;curbWhiteIM.count=whiteN;curbRedIM.instanceMatrix.needsUpdate=true;curbWhiteIM.instanceMatrix.needsUpdate=true}
-    const fieldMat=M(theme.field,{roughness:.98});ownedMats.push(fieldMat);
-    const field=new THREE.Mesh(new THREE.PlaneGeometry((hx+160)*2,(hz+160)*2).rotateX(-Math.PI/2),fieldMat);
-    field.position.set(cx,CIRC_Y-.49,cz);field.receiveShadow=true;root.add(field);
 // perimeter barrier wall: one continuous strip just outside the paved plate, all the way round
     {const wallMat=M(0xd9d4c6,{roughness:.7});ownedMats.push(wallMat);
       const wallCurve=new THREE.CatmullRomCurve3(pts3.map(p=>{
@@ -4053,7 +4112,7 @@ const PLANETS={
       const wallPts=[];for(let i=0;i<=CN;i++){const pt=wallCurve.getPointAt(i/CN);wallPts.push(pt)};
       const validWallPts=wallPts.filter(p=>isFinite(p.x)&&isFinite(p.y)&&isFinite(p.z));
       if(validWallPts.length<4){console.warn('Invalid wall curve, skipping wall');return;}
-     const wall=circStrip(wallCurve,CN,1.1,1.1,wallMat,1);wall.castShadow=true;wall.receiveShadow=true;root.add(wall);
+     const wall=circStrip(wallCurve,CN,1.1,1.1,wallMat,1,hFn);wall.castShadow=true;wall.receiveShadow=true;root.add(wall);wall.userData.fixedY=wall.userData.onTrack=true;
      // make that same ring SOLID: a chain of static box bodies so the car is contained inside the
      // stadium and bounces off the wall instead of leaving the venue. Tracked for removal on clear.
      const WN=72,wh=3.5,wup=new CANNON.Vec3(0,1,0);
@@ -4065,7 +4124,7 @@ const PLANETS={
     // Keep the grandstands close enough to read from the track, placed from its actual tangent.
     {const standN=Math.max(8,Math.min(16,Math.round(curve.getLength()/38)));
      const standMat=M(theme.stand,{roughness:.85}),trimMat=M(theme.standTrim,{roughness:.6});ownedMats.push(standMat,trimMat);
-    const standIM=new THREE.InstancedMesh(new THREE.BoxGeometry(25,.8,8),standMat,standN);standIM.castShadow=true;standIM.receiveShadow=true;root.add(standIM);
+    const standIM=new THREE.InstancedMesh(new THREE.BoxGeometry(25,.8,8),standMat,standN);standIM.castShadow=true;standIM.receiveShadow=true;root.add(standIM);standIM.userData.solidInst={hx:12.5,hy:4.2,hz:4.6,yo:3.8};
     const trimIM=new THREE.InstancedMesh(new THREE.BoxGeometry(25,.45,8.4),trimMat,standN);trimIM.castShadow=true;root.add(trimIM);
     const seatIM=new THREE.InstancedMesh(new THREE.BoxGeometry(23,.82,1.75),trimMat,standN*5);seatIM.castShadow=true;seatIM.receiveShadow=true;root.add(seatIM);
     const roofIM=new THREE.InstancedMesh(new THREE.BoxGeometry(28,.48,10),standMat,standN);roofIM.castShadow=true;root.add(roofIM);
@@ -4089,6 +4148,9 @@ const PLANETS={
            if(crowdIM.setColorAt)crowdIM.setColorAt(crowdN,cCol.setHex(CROWD[(seeded()*CROWD.length)|0]));crowdN++}}
        for(let post=0;post<4;post++){const localX=post%2?11:-11,localZ=post<2?3.4:-4.4,frameOffset=new THREE.Vector3(localX,3.2,localZ).applyQuaternion(sQ);sP.set(x+frameOffset.x,CIRC_Y-.5+frameOffset.y,z+frameOffset.z);sM.compose(sP,sQ,sS);frameIM.setMatrixAt(i*4+post,sM)}}
      crowdIM.count=crowdN;
+     // one stand = one base + trim + roof + 5 seat rows + 4 posts + its crowd; cleared or kept as a unit
+     standIM.userData.links=[{im:trimIM,per:1},{im:roofIM,per:1},{im:seatIM,per:5},{im:frameIM,per:4},{im:crowdIM,per:ROWS*COLS}];
+     [trimIM,roofIM,seatIM,frameIM,crowdIM].forEach(m=>m.userData.linkedChild=true);
      standIM.instanceMatrix.needsUpdate=true;trimIM.instanceMatrix.needsUpdate=true;seatIM.instanceMatrix.needsUpdate=true;roofIM.instanceMatrix.needsUpdate=true;frameIM.instanceMatrix.needsUpdate=true;crowdIM.instanceMatrix.needsUpdate=true;
      if(crowdIM.instanceColor)crowdIM.instanceColor.needsUpdate=true;if(seatIM.instanceColor)seatIM.instanceColor.needsUpdate=true}
     // floodlight pylons, fewer than grandstands, interspersed around the same ring
@@ -4137,17 +4199,17 @@ const PLANETS={
     const startP=circAt(0,curve);
     const flagMat=new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.85,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});ownedMats.push(flagMat);
     const flag=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,1.6).rotateX(-Math.PI/2),flagMat);
-    flag.position.set(startP.p.x,CIRC_Y+.12,startP.p.z);flag.rotation.y=Math.atan2(startP.tg.x,startP.tg.z);root.add(flag);
+    flag.position.set(startP.p.x,CIRC_Y+.14,startP.p.z);flag.rotation.y=Math.atan2(startP.tg.x,startP.tg.z);root.add(flag);flag.userData.onTrack=true;
     {
       const yaw=Math.atan2(startP.tg.x,startP.tg.z),pitRoot=new THREE.Group(),pitMat=M(theme.stand,{roughness:.82}),roofMat=M(theme.standTrim,{roughness:.68}),glassMat=M(0x9db9c1,{roughness:.32,metalness:.22}),lampMat=new THREE.MeshBasicMaterial({color:0xfff1c8});
       ownedMats.push(pitMat,roofMat,glassMat,lampMat);pitRoot.position.set(startP.p.x,startP.p.y,startP.p.z);pitRoot.rotation.y=yaw;
-      const pitSide=CIRC_W/2+13,pit=new THREE.Mesh(new THREE.BoxGeometry(14,4.8,25),pitMat);pit.position.set(pitSide,2.4,-12);pit.castShadow=true;pit.receiveShadow=true;pitRoot.add(pit);
+      const pitSide=CIRC_W/2+13,pit=new THREE.Mesh(new THREE.BoxGeometry(14,4.8,25),pitMat);pit.position.set(pitSide,2.4,-12);pit.castShadow=true;pit.receiveShadow=true;pitRoot.add(pit);pit.userData.solid=true;
       const roof=new THREE.Mesh(new THREE.BoxGeometry(15,.55,26),roofMat);roof.position.set(pitSide,5.05,-12);roof.castShadow=true;pitRoot.add(roof);
       const doors=new THREE.InstancedMesh(new THREE.BoxGeometry(.18,2.4,3.2),glassMat,5),doorMatrix=new THREE.Matrix4();
       for(let i=0;i<5;i++){doorMatrix.makeTranslation(pitSide-7.1,1.65,-22+i*5);doors.setMatrixAt(i,doorMatrix)}doors.instanceMatrix.needsUpdate=true;pitRoot.add(doors);
-      const tower=new THREE.Mesh(new THREE.BoxGeometry(5.5,10,7),pitMat);tower.position.set(pitSide+9.5,5,-8);tower.castShadow=true;pitRoot.add(tower);
+      const tower=new THREE.Mesh(new THREE.BoxGeometry(5.5,10,7),pitMat);tower.position.set(pitSide+9.5,5,-8);tower.castShadow=true;pitRoot.add(tower);tower.userData.solid=true;
       const towerGlass=new THREE.Mesh(new THREE.BoxGeometry(5.7,1.8,7.2),glassMat);towerGlass.position.set(pitSide+9.5,8.5,-8);pitRoot.add(towerGlass);
-      const gantry=new THREE.Group();gantry.position.z=18;[-1,1].forEach(side=>{const post=new THREE.Mesh(new THREE.BoxGeometry(.28,6,.28),pitMat);post.position.set(side*(CIRC_W/2+4),3,0);gantry.add(post)});
+      const gantry=new THREE.Group();gantry.position.z=18;gantry.userData.onTrack=true;[-1,1].forEach(side=>{const post=new THREE.Mesh(new THREE.BoxGeometry(.28,6,.28),pitMat);post.position.set(side*(CIRC_W/2+4),3,0);gantry.add(post)});
       const bar=new THREE.Mesh(new THREE.BoxGeometry(CIRC_W+8,.42,.5),pitMat);bar.position.y=6;gantry.add(bar);
       // F1-style start gantry: five lights, bigger now, driven by instanceColor so they can run a
       // real red-build-up -> lights-out sequence each time you enter (see the circuit loop block).
@@ -4201,7 +4263,7 @@ const PLANETS={
       // --- starting grid + finish line: painted on the start straight, just above the road ---
       safe(()=>{
         const yaw=Math.atan2(startP.tg.x,startP.tg.z),gridMat=addMat(new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.9,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3}));
-        const slots=8,slotGeo=new THREE.PlaneGeometry(1.1,3.4).rotateX(-Math.PI/2),gridIM=new THREE.InstancedMesh(slotGeo,gridMat,slots*2);root.add(gridIM);
+        const slots=8,slotGeo=new THREE.PlaneGeometry(1.1,3.4).rotateX(-Math.PI/2),gridIM=new THREE.InstancedMesh(slotGeo,gridMat,slots*2);root.add(gridIM);gridIM.userData.onTrack=true;
         Q.setFromAxisAngle(up,yaw);let gi=0;
         for(let r=0;r<slots;r++)for(const s of [-1,1]){
           const back=-6-r*8,lane=s*(HALF*.5);
@@ -4210,7 +4272,7 @@ const PLANETS={
         gridIM.instanceMatrix.needsUpdate=true;
         // chequered finish band across the road
         const chk=16,chkGeo=new THREE.PlaneGeometry(CIRC_W/chk,1.4).rotateX(-Math.PI/2),chkW=addMat(new THREE.MeshBasicMaterial({color:0xf2eee6})),chkK=addMat(new THREE.MeshBasicMaterial({color:0x15140f}));
-        const cW=new THREE.InstancedMesh(chkGeo,chkW,chk*2),cK=new THREE.InstancedMesh(chkGeo,chkK,chk*2);root.add(cW,cK);let wN=0,kN=0;
+        const cW=new THREE.InstancedMesh(chkGeo,chkW,chk*2),cK=new THREE.InstancedMesh(chkGeo,chkK,chk*2);root.add(cW,cK);cW.userData.onTrack=cK.userData.onTrack=true;let wN=0,kN=0;
         for(let row=0;row<2;row++)for(let c=0;c<chk;c++){const lane=(c/(chk-1)-.5)*CIRC_W,fwd=row*1.5;
           const off=new THREE.Vector3(lane,0,fwd).applyQuaternion(Q);P.set(startP.p.x+off.x,GY+.13,startP.p.z+off.z);MX.compose(P,Q,SC);
           if((c+row)%2)cW.setMatrixAt(wN++,MX);else cK.setMatrixAt(kN++,MX)}
@@ -4223,7 +4285,7 @@ const PLANETS={
         const g=new THREE.Group();g.position.set(mx0,GY,mz0);g.rotation.y=yaw;root.add(g);
         const bodyMat=addMat(M(theme.stand)),trimMat=addMat(M(theme.standTrim)),glassMat=addMat(M(0x9db9c1)),roofMat=addMat(M(theme.stand));
         // three stacked seating decks
-        for(let d=0;d<3;d++){const deck=new THREE.Mesh(new THREE.BoxGeometry(46,2.4,9-d*1.2),bodyMat);deck.position.set(0,2+d*3.4,-d*3.4);deck.castShadow=true;deck.receiveShadow=true;g.add(deck);
+        for(let d=0;d<3;d++){const deck=new THREE.Mesh(new THREE.BoxGeometry(46,2.4,9-d*1.2),bodyMat);deck.position.set(0,2+d*3.4,-d*3.4);deck.castShadow=true;deck.receiveShadow=true;g.add(deck);deck.userData.solid=true;
           const band=new THREE.Mesh(new THREE.BoxGeometry(46,.6,9.3-d*1.2),trimMat);band.position.set(0,3.3+d*3.4,-d*3.4);g.add(band)}
         // crowd on the main stand
         const COLS=LOW?18:26,ROWS=6,cm=addMat(M(0xffffff)),cim=new THREE.InstancedMesh(new THREE.BoxGeometry(.6,.9,.55),cm,COLS*ROWS);cim.castShadow=!LOW;g.add(cim);
@@ -4250,7 +4312,7 @@ const PLANETS={
         const n=startP.n,base=HALF+26,tx=startP.p.x-n.x*base,tz=startP.p.z-n.z*base;
         const g=new THREE.Group();g.position.set(tx,GY,tz);g.rotation.y=Math.atan2(startP.p.x-tx,startP.p.z-tz);root.add(g);
         const bodyMat=addMat(M(theme.stand)),glassMat=addMat(M(0x9db9c1)),winMat=addMat(new THREE.MeshBasicMaterial({color:0x2a3138}));
-        const shaft=new THREE.Mesh(new THREE.BoxGeometry(7,22,7),bodyMat);shaft.position.y=11;shaft.castShadow=true;g.add(shaft);
+        const shaft=new THREE.Mesh(new THREE.BoxGeometry(7,22,7),bodyMat);shaft.position.y=11;shaft.castShadow=true;g.add(shaft);shaft.userData.solid=true;
         for(let f=0;f<5;f++){const band=new THREE.Mesh(new THREE.BoxGeometry(7.3,1.6,7.3),f===4?glassMat:winMat);band.position.y=4+f*4;g.add(band)}
         const top=new THREE.Mesh(new THREE.BoxGeometry(9,3.5,9),glassMat);top.position.y=23.5;top.castShadow=true;g.add(top);
         const ant=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,6,6),bodyMat);ant.position.y=28.5;g.add(ant);
@@ -4327,8 +4389,8 @@ const PLANETS={
       // --- sponsor bridge spanning the main straight ---
       safe(()=>{
         const a=SA[straightMid],s=HALF+2,legMat=addMat(M(theme.stand)),w=ADCOL[(seeded()*ADCOL.length)|0];
-        const g=new THREE.Group();g.position.copy(a.p);g.position.y=GY;g.rotation.y=Math.atan2(a.tg.x,a.tg.z);root.add(g);
-        [-1,1].forEach(sd=>{const leg=new THREE.Mesh(new THREE.BoxGeometry(1.4,9,1.4),legMat);leg.position.set(sd*s,4.5,0);leg.castShadow=!LOW;g.add(leg)});
+        const g=new THREE.Group();g.position.copy(a.p);g.position.y=GY;g.rotation.y=Math.atan2(a.tg.x,a.tg.z);root.add(g);g.userData.onTrack=true;
+        [-1,1].forEach(sd=>{const leg=new THREE.Mesh(new THREE.BoxGeometry(1.4,9,1.4),legMat);leg.position.set(sd*s,4.5,0);leg.castShadow=!LOW;g.add(leg);leg.userData.solid=true});
         const beam=new THREE.Mesh(new THREE.BoxGeometry(2*s+3,2.2,2.6),legMat);beam.position.y=9.5;beam.castShadow=!LOW;g.add(beam);
         safe(()=>{const mat=addMat(new THREE.MeshBasicMaterial({map:signTex(WORDS[(seeded()*WORDS.length)|0],'#'+w[0].toString(16).padStart(6,'0'),'#'+w[1].toString(16).padStart(6,'0')),side:THREE.DoubleSide}));
           const b=new THREE.Mesh(new THREE.PlaneGeometry(2*s+2,1.8),mat);b.position.set(0,9.5,1.35);g.add(b)})});
@@ -4348,7 +4410,83 @@ const PLANETS={
         const srMat=addMat(M(0x44423c)),sr=new THREE.Mesh(new THREE.PlaneGeometry(7,40).rotateX(-Math.PI/2),srMat);
         sr.position.set(cx+n.x*(r0+6),GY+.03,cz+n.z*(r0+6));sr.lookAt(px,GY,pz);sr.rotateX(-Math.PI/2);root.add(sr)});
     }
-    circuit={curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies),lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue:venue||{weather:'day',time:'day'}};
+    /* ---------- obstacles placed in the editor: speed breakers, roadblocks, ramps ----------
+       Built along the real road (heading + slope), tagged as on-track so the clearance pass keeps
+       them, and given solid boxes below. u is position round the lap, s is -1 left / 0 middle / 1 right. */
+    const obsList=Array.isArray(venue.obstacles)?venue.obstacles.slice(0,60):[];
+    {const HALF=CIRC_W/2,yel=M(0xd4a83a,{roughness:.6}),blk=M(0x1b1a18,{roughness:.8}),conc=M(0xd9d4c6,{roughness:.85}),stripe=M(0xb8322f,{roughness:.6}),rampM=M(0x6e6a62,{roughness:.7});
+     ownedMats.push(yel,blk,conc,stripe,rampM);
+     obsList.forEach(o=>{const t=o.t||o.type,u=((+o.u%1)+1)%1,sd=Math.max(-1,Math.min(1,Math.round(+(o.s!=null?o.s:o.side)||0)));
+       if(!isFinite(u))return;const a=circAt(u,curve),yaw=Math.atan2(a.tg.x,a.tg.z),slope=Math.atan2(a.tg.y,Math.hypot(a.tg.x,a.tg.z));
+       const g=new THREE.Group();g.rotation.order='YXZ';g.rotation.set(-slope,yaw,0);g.userData.onTrack=true;root.add(g);
+       if(t==='speed_breaker'){
+         g.position.set(a.p.x,CIRC_Y,a.p.z);
+         // full-width hump, painted in alternating bands so it reads from a distance
+         const bands=8;for(let b=0;b<bands;b++){const m=new THREE.Mesh(new THREE.BoxGeometry(CIRC_W*.94/bands,.16,1.5),b%2?blk:yel);m.position.set((b/(bands-1)-.5)*CIRC_W*.94*(bands-1)/bands,.08+.12,0);m.receiveShadow=true;g.add(m);if(b===0)m.userData.solidSpan={hx:CIRC_W*.47,hy:.08,hz:.75,ox:-m.position.x}}
+       }else if(t==='blocker'){
+         // concrete jersey barriers closing one third of the road: left, middle or right lane
+         const lane=sd*HALF*.62;g.position.set(a.p.x+a.n.x*lane,CIRC_Y,a.p.z+a.n.z*lane);
+         for(let b=-1;b<=1;b++){const m=new THREE.Mesh(new THREE.BoxGeometry(CIRC_W*.3/3-.15,1.1,.8),conc);m.position.set(b*CIRC_W*.3/3,.55+.12,0);m.castShadow=!LOW;g.add(m);m.userData.solid=true;
+           const st=new THREE.Mesh(new THREE.BoxGeometry(CIRC_W*.3/3-.1,.18,.84),stripe);st.position.set(b*CIRC_W*.3/3,.85+.12,0);g.add(st)}
+       }else if(t==='ramp'){
+         // a real jump: a 9 m deck tilted 13deg up from the road, leading edge flush with the asphalt
+         const lane=sd*HALF*.5;g.position.set(a.p.x+a.n.x*lane,CIRC_Y,a.p.z+a.n.z*lane);
+         const ang=.23,len=9,th=.5,w=Math.min(5.5,CIRC_W*.42),deck=new THREE.Mesh(new THREE.BoxGeometry(w,th,len),rampM);
+         deck.rotation.x=-ang;deck.position.set(0,.12+Math.sin(ang)*len/2-th/2*Math.cos(ang)+.02,0);deck.castShadow=!LOW;deck.receiveShadow=true;g.add(deck);deck.userData.solid=true;
+         const lip=new THREE.Mesh(new THREE.BoxGeometry(w,.2,.6),yel);lip.position.set(0,.12+Math.sin(ang)*len+.02,len/2*Math.cos(ang));g.add(lip);
+         for(const sx of [-1,1]){const side=new THREE.Mesh(new THREE.BoxGeometry(.25,Math.sin(ang)*len,len*.98),stripe);side.position.set(sx*(w/2+.12),.12+Math.sin(ang)*len/2,0);g.add(side)}
+       }});
+    }
+    /* ---------- keep the racing surface clear ----------
+       Every prop was placed relative to ONE point of the track, so on a twisty loop another part of
+       the track could run straight through it. Sample each prop's real footprint against the whole
+       lap and remove anything that touches the road (trackside items need .6 m, buildings 5 m). */
+    root.updateMatrixWorld(true);
+    const HALFW=CIRC_W/2,isTagged=(o,key)=>{for(let q=o;q&&q!==root;q=q.parent)if(q.userData&&q.userData[key])return true;return false};
+    const fpPt=new THREE.Vector3(),fpA=new THREE.Vector3(),fpB=new THREE.Vector3(),fpM=new THREE.Matrix4(),fpI=new THREE.Matrix4(),ZERO=new THREE.Matrix4().makeScale(0,0,0);
+    const footprintHits=(geo,mw)=>{
+      if(!geo.boundingBox)geo.computeBoundingBox();const b=geo.boundingBox;if(!isFinite(b.min.x))return false;
+      fpA.set(b.min.x,0,b.min.z).applyMatrix4(mw);fpB.set(b.max.x,0,b.max.z).applyMatrix4(mw);
+      const sx=b.max.x-b.min.x,sz=b.max.z-b.min.z,size=Math.max(fpA.distanceTo(fpB),.1);
+      const clear=HALFW+(size>7?5:.6),nx=Math.min(14,Math.max(2,Math.ceil(sx*Math.max(1,size/Math.max(sx,sz,.1))/3)+1)),nz=Math.min(14,Math.max(2,Math.ceil(sz*Math.max(1,size/Math.max(sx,sz,.1))/3)+1)),my=(b.min.y+b.max.y)/2;
+      for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){fpPt.set(b.min.x+sx*i/(nx-1),my,b.min.z+sz*j/(nz-1)).applyMatrix4(mw);
+        if(trackDist(fpPt.x,fpPt.z,clear+2)<clear)return true}
+      return false};
+    let removed=0;
+    root.traverse(o=>{
+      if(!(o.isMesh)||!o.visible||isTagged(o,'onTrack')||o.userData.linkedChild)return;
+      if(o.isInstancedMesh){
+        for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);fpM.multiplyMatrices(o.matrixWorld,fpI);
+          let hit=footprintHits(o.geometry,fpM);
+          const links=o.userData.links||[];
+          if(!hit)for(const L of links){for(let k=0;k<L.per&&!hit;k++){const ii=i*L.per+k;if(ii>=L.im.count)break;L.im.getMatrixAt(ii,fpI);fpM.multiplyMatrices(L.im.matrixWorld,fpI);hit=footprintHits(L.im.geometry,fpM)}if(hit)break}
+          if(hit){o.setMatrixAt(i,ZERO);removed++;for(const L of links)for(let k=0;k<L.per;k++){const ii=i*L.per+k;if(ii<L.im.count)L.im.setMatrixAt(ii,ZERO)}}}
+        o.instanceMatrix.needsUpdate=true;(o.userData.links||[]).forEach(L=>L.im.instanceMatrix.needsUpdate=true);
+      }else if(footprintHits(o.geometry,o.matrixWorld)){o.visible=false;o.userData.cleared=true;removed++}});
+    /* ---------- settle everything onto the hills ----------
+       Props were laid out at the flat base height; lift or lower each one by the ground height under it. */
+    if(ELEV){
+      root.children.forEach(o=>{if(o.userData.fixedY)return;
+        if(o.isInstancedMesh){for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);const e=fpI.elements;if(e[0]===0&&e[5]===0&&e[10]===0)continue;e[13]+=groundAt(e[12],e[14])-CIRC_Y;o.setMatrixAt(i,fpI)}o.instanceMatrix.needsUpdate=true}
+        else o.position.y+=groundAt(o.position.x,o.position.z)-CIRC_Y});
+      wallBodies.forEach(b=>{b.position.y+=groundAt(b.position.x,b.position.z)-CIRC_Y});
+      root.updateMatrixWorld(true);
+    }
+    /* ---------- collision for the big structures and the obstacles ----------
+       Grandstands, pits, towers, bridge legs, barriers and ramps get a matching static box (same
+       position, rotation and size as what you see), so nothing can be driven through. */
+    const solidBodies=[],sbQ=new THREE.Quaternion(),sbP=new THREE.Vector3(),sbS=new THREE.Vector3(),sbC=new THREE.Vector3();
+    const addSolid=(mw,hx0,hy0,hz0,center)=>{mw.decompose(sbP,sbQ,sbS);const c=center?center.clone().applyMatrix4(mw):sbP;
+      const hxs=hx0*Math.abs(sbS.x),hys=hy0*Math.abs(sbS.y),hzs=hz0*Math.abs(sbS.z);if(!(hxs>0&&hys>0&&hzs>0))return;
+      const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(hxs,hys,hzs)));b.position.set(c.x,c.y,c.z);b.quaternion.set(sbQ.x,sbQ.y,sbQ.z,sbQ.w);world.addBody(b);solidBodies.push(b)};
+    root.traverse(o=>{
+      if(!o.isMesh||!o.visible)return;let hidden=false;for(let q=o;q&&q!==root;q=q.parent)if(!q.visible){hidden=true;break}if(hidden)return;
+      if(o.userData.solid){if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const bb=o.geometry.boundingBox;bb.getCenter(sbC);addSolid(o.matrixWorld,(bb.max.x-bb.min.x)/2,(bb.max.y-bb.min.y)/2,(bb.max.z-bb.min.z)/2,sbC)}
+      if(o.userData.solidSpan){const sp=o.userData.solidSpan,m=o.matrixWorld.clone().multiply(new THREE.Matrix4().makeTranslation(sp.ox,0,0));addSolid(m,sp.hx,sp.hy,sp.hz)}
+      if(o.isInstancedMesh&&o.userData.solidInst){const si=o.userData.solidInst;for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);const e=fpI.elements;if(e[0]===0&&e[5]===0&&e[10]===0)continue;
+        fpM.multiplyMatrices(o.matrixWorld,fpI).multiply(new THREE.Matrix4().makeTranslation(0,si.yo,0));addSolid(fpM,si.hx,si.hy,si.hz)}}});
+    stadiumBodies=stadiumBodies.concat(solidBodies);
+    circuit={curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies),lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,cleared:removed};
     if(window.RaceEngine){const laps=(typeof MP!=='undefined'&&MP.getLaps)?MP.getLaps():3;window.RaceEngine.initTrack('circuit',curve,pts3,{laps})}
     return circuit}
   function enterCircuit(){if(!circuit)return;
@@ -4393,20 +4531,44 @@ const PLANETS={
   /* ---------- drawing overlay ---------- */
   const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
   const circCx=circCv?circCv.getContext('2d'):null;
-  let drawPts=[],drawingNow=false,pendingTrack=null;
+  let drawPts=[],drawingNow=false,pendingTrack=null,drawRS=[],drawObs=[],drawTool='draw';
+  const OBS_LOOK={speed_breaker:{c:'#d4a83a',l:'S'},blocker:{c:'#d9d4c6',l:'B'},ramp:{c:'#5cf2ff',l:'R'}};
+  const selVal=(id,d)=>{const e=$(id);return e&&e.value?e.value:d};
   function resizeDrawCv(){if(!circCv)return;circCv.width=innerWidth;circCv.height=innerHeight}
   addEventListener('resize',resizeDrawCv);
   function redrawPath(){if(!circCx)return;circCx.clearRect(0,0,circCv.width,circCv.height);
-    if(drawPts.length<2)return;
+    const line=drawingNow||!drawRS.length?drawPts:drawRS.concat([drawRS[0]]);
+    if(line.length<2)return;
     circCx.strokeStyle='#f2eee6';circCx.lineWidth=4;circCx.lineJoin='round';circCx.lineCap='round';
-    circCx.beginPath();circCx.moveTo(drawPts[0].x,drawPts[0].y);
-    for(let i=1;i<drawPts.length;i++)circCx.lineTo(drawPts[i].x,drawPts[i].y);
-    circCx.stroke()}
+    circCx.beginPath();circCx.moveTo(line[0].x,line[0].y);
+    for(let i=1;i<line.length;i++)circCx.lineTo(line[i].x,line[i].y);
+    circCx.stroke();
+    if(!drawRS.length)return;
+    // start/finish + direction of travel
+    {const a=drawRS[0],b=drawRS[1];circCx.fillStyle='#3f8a56';circCx.beginPath();circCx.arc(a.x,a.y,8,0,6.283);circCx.fill();
+     const ang=Math.atan2(b.y-a.y,b.x-a.x);circCx.save();circCx.translate(a.x,a.y);circCx.rotate(ang);circCx.fillStyle='#f2eee6';circCx.beginPath();circCx.moveTo(22,0);circCx.lineTo(12,-6);circCx.lineTo(12,6);circCx.closePath();circCx.fill();circCx.restore()}
+    // obstacle markers, offset to the side of the line they block
+    drawObs.forEach(o=>{const q=obsCanvasPos(o),L=OBS_LOOK[o.t]||OBS_LOOK.speed_breaker;
+      circCx.fillStyle=L.c;circCx.beginPath();circCx.arc(q.x,q.y,10,0,6.283);circCx.fill();
+      circCx.fillStyle='#06070b';circCx.font='bold 11px monospace';circCx.textAlign='center';circCx.textBaseline='middle';circCx.fillText(L.l,q.x,q.y+.5)})}
+  function rsNormal(i){const n=drawRS.length,a=drawRS[(i-1+n)%n],b=drawRS[(i+1)%n];let tx=b.x-a.x,ty=b.y-a.y;const l=Math.hypot(tx,ty)||1;return {x:-ty/l,y:tx/l}}
+  function obsCanvasPos(o){const i=Math.round(o.u*drawRS.length)%drawRS.length,p=drawRS[i],n=rsNormal(i);return {x:p.x+n.x*o.s*9,y:p.y+n.y*o.s*9}}
+  function placeObstacle(pt){
+    if(!drawRS.length){if(circErrEl)circErrEl.textContent='Draw the track first, then place obstacles on it.';return}
+    // tap an existing marker to remove it
+    const hit=drawObs.findIndex(o=>{const q=obsCanvasPos(o);return Math.hypot(q.x-pt.x,q.y-pt.y)<14});
+    if(hit>=0){drawObs.splice(hit,1);redrawPath();if(circErrEl)circErrEl.textContent=drawObs.length+' obstacle'+(drawObs.length===1?'':'s')+' on the track';return}
+    let bi=0,bd=1e9;drawRS.forEach((p,i)=>{const d=Math.hypot(p.x-pt.x,p.y-pt.y);if(d<bd){bd=d;bi=i}});
+    if(bd>34){if(circErrEl)circErrEl.textContent='Tap on the track line to place an obstacle.';return}
+    if(drawObs.length>=40){if(circErrEl)circErrEl.textContent='That is plenty of obstacles (40 max).';return}
+    const n=rsNormal(bi),off=(pt.x-drawRS[bi].x)*n.x+(pt.y-drawRS[bi].y)*n.y,side=Math.abs(off)<6?0:(off>0?1:-1);
+    drawObs.push({t:selVal('#dcircobstype','speed_breaker'),u:bi/drawRS.length,s:side});
+    redrawPath();if(circErrEl)circErrEl.textContent=drawObs.length+' obstacle'+(drawObs.length===1?'':'s')+' on the track · tap one again to remove it'}
   function openDrawer(){if(!circDrawEl)return;if(MODE==='circuit'){toastMsg('Return to Earth before generating a new venue');return}resizeDrawCv();drawPts=[];drawingNow=false;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;if(circErrEl)circErrEl.textContent='';redrawPath();circDrawEl.classList.add('on')}
   function closeDrawer(){if(circDrawEl)circDrawEl.classList.remove('on')}
   if(circCv){
     const posOf=e=>{const r=circCv.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}};
-    circCv.addEventListener('pointerdown',e=>{drawingNow=true;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;drawPts=[posOf(e)];if(circErrEl)circErrEl.textContent='';try{circCv.setPointerCapture(e.pointerId)}catch(_){}});
+    circCv.addEventListener('pointerdown',e=>{if(drawTool==='obstacles'){placeObstacle(posOf(e));return}drawRS=[];drawObs=[];drawingNow=true;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;drawPts=[posOf(e)];if(circErrEl)circErrEl.textContent='';try{circCv.setPointerCapture(e.pointerId)}catch(_){}});
     circCv.addEventListener('pointermove',e=>{if(!drawingNow)return;const p=posOf(e);const last=drawPts[drawPts.length-1];
       if(Math.hypot(p.x-last.x,p.y-last.y)>3){drawPts.push(p);redrawPath()}});
     ['pointerup','pointercancel'].forEach(ev=>circCv.addEventListener(ev,()=>{if(!drawingNow)return;drawingNow=false;finishDraw()}))}
@@ -4443,7 +4605,9 @@ const PLANETS={
       if(i===0&&j>=rs.length-2)continue;
       if(segInt(rs[i],rs[i+1],rs[j],rs[j+1])){drawFail('Track crosses itself. Try a simpler loop.');return}}
 
-    pendingTrack=normalizeLoop(rs.slice(0,rs.length-1));
+    drawRS=rs.slice(0,rs.length-1);
+    pendingTrack=normalizeLoop(drawRS,CIRC_SIZES[selVal('#dcircsize','large')]);
+    redrawPath();
     if(window.TrackEditor){
       window.TrackEditor.points = rs.slice(0,rs.length-1).map(p => ({ x: p.x, y: p.y }));
       window.TrackEditor.isClosed = true;
@@ -4453,7 +4617,7 @@ const PLANETS={
     if(testB)testB.disabled=false;
     if(saveB)saveB.disabled=false;
     if(shareB)shareB.disabled=false;
-    if(circErrEl)circErrEl.textContent='Loop validated! Press GO & Publish or Test Drive.';
+    if(circErrEl)circErrEl.textContent='Loop ready · '+(selVal('#dcircsize','large')==='huge'?'3.6':selVal('#dcircsize','large')==='medium'?'1.6':'2.4')+' km lap. Add obstacles, or press Test drive / GO.';
   }
   function generateVenue(){
     if(!pendingTrack)return;
@@ -4464,11 +4628,14 @@ const PLANETS={
     const scenery=choose(sceneryEl?sceneryEl.value:'meadow',THEMES.map(t=>t.id));
     const weather=choose(weatherEl?weatherEl.value:'day',WEATHERS.map(w=>w.id));
     const time=choose(timeEl?timeEl.value:'day',['day','dusk','sunset','night']);
-    const theme=THEMES.find(t=>t.id===scenery)||THEME_DEFAULT,venue={weather,time};
-    try{localStorage.setItem('sl_venue',JSON.stringify({seed,scenery,weather,time}))}catch(e){}
+    const size=selVal('#dcircsize','large'),width=+selVal('#dcircwidth','16')||16,elev=selVal('#dcircelev','rolling');
+    if(drawRS.length>=8)pendingTrack=normalizeLoop(drawRS,CIRC_SIZES[size]||CIRC_LEN);
+    const obstacles=drawObs.map(o=>({t:o.t,u:+o.u.toFixed(4),s:o.s}));
+    const theme=THEMES.find(t=>t.id===scenery)||THEME_DEFAULT,venue={weather,time,width,elev,obstacles};
+    try{localStorage.setItem('sl_venue',JSON.stringify({seed,scenery,weather,time,size,width,elev}))}catch(e){}
     buildCircuit(pendingTrack,theme,seed,venue);closeDrawer();enterCircuit();updCircBtn();
     // record (and, if already in a room, broadcast) this venue so friends build + race the same one
-    try{if(MP&&MP.shareVenue)MP.shareVenue({pts:pendingTrack,seed,scenery,weather,time})}catch(e){}
+    try{if(MP&&MP.shareVenue)MP.shareVenue({pts:pendingTrack,seed,scenery,weather,time,width,elev,obstacles})}catch(e){}
   }
   if(circGoEl)circGoEl.onclick=generateVenue;
   {const randomButton=$('#dcircrandom');if(randomButton)randomButton.onclick=()=>{if(circSeedEl)circSeedEl.value=String(1+Math.floor(Math.random()*2147483646))}}
@@ -4481,18 +4648,26 @@ const PLANETS={
   // that implies) before the drawer opened. A half-working shortcut is worse than not having one;
   // redrawing needs a page reload for now (see ROADMAP.md).
   if(circBtn)circBtn.onclick=()=>{if(MODE==='circuit'){leaveCircuit();return}
-    if(circuit){enterCircuit();try{if(MP&&MP.shareVenue&&circuit.pts)MP.shareVenue({pts:circuit.pts,seed:circuit.seed,scenery:circuit.theme.id,weather:circuit.venue.weather,time:circuit.venue.time})}catch(e){}return}
+    if(circuit){enterCircuit();try{if(MP&&MP.shareVenue&&circuit.pts)MP.shareVenue({pts:circuit.pts,seed:circuit.seed,scenery:circuit.theme.id,weather:circuit.venue.weather,time:circuit.venue.time,width:circuit.venue.width,elev:circuit.venue.elev,obstacles:circuit.venue.obstacles})}catch(e){}return}
     openDrawer()};
   {const x=$('#dcircx'),cl=$('#dcircclear');
    if(x)x.onclick=closeDrawer;
-  if(cl)cl.onclick=()=>{drawPts=[];pendingTrack=null;if(circGoEl)circGoEl.disabled=true;redrawPath();if(circErrEl)circErrEl.textContent=''}}
+  if(cl)cl.onclick=()=>{drawPts=[];drawRS=[];drawObs=[];pendingTrack=null;if(circGoEl)circGoEl.disabled=true;redrawPath();if(circErrEl)circErrEl.textContent=''}}
 updCircBtn();
   // New venue button removed - now handled by Track button (dcircb)
+  {const ob=$('#dcircoptsbtn'),op=$('#dcircopts');if(ob&&op)ob.onclick=()=>{const o=!op.classList.contains('open');op.classList.toggle('open',o);ob.setAttribute('aria-expanded',o?'true':'false');ob.textContent=o?'Done':'Options'}}
+  {const tool=$('#dcircmode'),top=$('#dcirctop');
+   if(tool)tool.onchange=()=>{drawTool=tool.value==='obstacles'?'obstacles':'draw';
+     if(circCv)circCv.style.cursor=drawTool==='obstacles'?'pointer':'crosshair';
+     if(top)top.textContent=drawTool==='obstacles'?'Tap the track to drop the selected obstacle · tap a marker to remove it':'Draw one closed loop. Switch the tool to Obstacles to tap them onto the track'};
+   // changing size after drawing rescales the preview message straight away
+   const sz=$('#dcircsize');if(sz)sz.onchange=()=>{if(drawRS.length>=8){pendingTrack=normalizeLoop(drawRS,CIRC_SIZES[sz.value]);if(circErrEl)circErrEl.textContent='Lap length set to '+(CIRC_SIZES[sz.value]/1000)+' km.'}}}
   const saved=(()=>{try{return JSON.parse(localStorage.getItem('sl_venue')||'null')}catch(e){return null}})();
   if(saved){if(circSeedEl)circSeedEl.value=String(saved.seed||271828);const scenery=$('#dcircscenery'),weather=$('#dcircweather'),time=$('#dcirctime');
     if(scenery&&scenery.querySelector('option[value="'+saved.scenery+'"]'))scenery.value=saved.scenery;
     if(weather&&weather.querySelector('option[value="'+saved.weather+'"]'))weather.value=saved.weather;
-    if(time&&time.querySelector('option[value="'+saved.time+'"]'))time.value=saved.time;}
+    if(time&&time.querySelector('option[value="'+saved.time+'"]'))time.value=saved.time;
+    [['#dcircsize',saved.size],['#dcircwidth',saved.width],['#dcircelev',saved.elev]].forEach(([id,v])=>{const e=$(id);if(e&&v!=null&&e.querySelector('option[value="'+v+'"]'))e.value=String(v)});}
   {
     const smoothBtn=$('#dcircsmooth');
     if(smoothBtn)smoothBtn.onclick=()=>{
@@ -4705,8 +4880,9 @@ updCircBtn();
       const rnd = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
       const pts = [];
       const count = 10;
-      const rx = 140 + rnd() * 60;
-      const rz = 100 + rnd() * 50;
+      // ~2.2x the old size: a proper 2+ km lap instead of a kart loop
+      const rx = (140 + rnd() * 60) * 2.2;
+      const rz = (100 + rnd() * 50) * 2.2;
       for(let i=0; i<count; i++){
         const a = (i / count) * Math.PI * 2;
         const rad = (i % 2 === 0 ? 1 : 0.72) * (0.85 + rnd() * 0.3);
@@ -4751,6 +4927,22 @@ updCircBtn();
       if(dailyModal) dailyModal.style.display = 'none';
     };
 
+    /* menu modes: Free drive (the default Earth world), Multiplayer (room lobby), Daily track (today's track + board) */
+    const modeFree=document.getElementById('dmfree'),modeDaily=document.getElementById('dmdaily'),modeMP=document.getElementById('droom');
+    window.__updModes=()=>{
+      let inRoom=false;try{inRoom=!!MP.on}catch(_){}   // MP may not exist yet while it is being built
+      if(modeFree)modeFree.classList.toggle('on',MODE==='world'&&!inRoom);
+      if(modeMP)modeMP.classList.toggle('on',inRoom);
+      if(modeDaily)modeDaily.classList.toggle('on',MODE==='circuit'&&!!(circuit&&circuit.daily));
+    };
+    if(modeFree)modeFree.onclick=()=>{ try{audioInit();}catch(_){}
+      if(dailyModal)dailyModal.style.display='none';
+      {const mp=document.getElementById('dmp');if(mp)mp.classList.remove('on')}
+      if(MODE==='circuit')leaveCircuit();
+      toastMsg('Free drive');window.__updModes();
+    };
+    if(modeDaily)modeDaily.onclick=()=>{ if(dailyBtn)dailyBtn.onclick() };
+
     if(dailyStart) dailyStart.onclick=()=>{ try{audioInit();}catch(_){}
       if(dailyModal) dailyModal.style.display = 'none';
       if(landing) landing.style.display = 'none';
@@ -4761,8 +4953,10 @@ updCircBtn();
       const themes = ['meadow', 'mountain', 'desert', 'alpine', 'volcanic'];
       const themeId = themes[seed % themes.length];
       const theme = THEMES.find(t=>t.id===themeId) || THEME_DEFAULT;
-      buildCircuit(pts, theme, seed, {weather:'day', time:'day'});
+      buildCircuit(pts, theme, seed, {weather:'day', time:'day', width:16, elev:'rolling'});
+      if(circuit)circuit.daily=true;
       enterCircuit();
+      if(window.__updModes)window.__updModes();
       toastMsg('Daily Track Generated · Conquer 3 Laps!');
       if(window.RaceEngine) {
         window.RaceEngine.setConfiguration('circuit', 3);
@@ -4796,12 +4990,6 @@ updCircBtn();
   }
 
   // --- Back to Menu Button ---
-  { const backBtn = document.getElementById('dbackmenu');
-    if(backBtn) backBtn.onclick = () => {
-      const landing = document.getElementById('dlanding');
-      if(landing) landing.style.display = 'flex';
-    };
-  }
 
   requestAnimationFrame(loop);
   /* ---------- rooms: ghost cars over a shared channel ----------
@@ -4926,6 +5114,8 @@ updCircBtn();
       ui();
     }
     function onMsg(m){
+      // phone gamepad packets: only the laptop the QR code was made for obeys them
+      if(m&&m.k==='ctrl'){if(room&&m.to===me.id&&window.PhoneController)window.PhoneController.onControllerInput(m.input||{});return}
       if(!m||typeof m!=='object'||m.id===me.id||typeof m.id!=='string'||!room)return;
       const now=performance.now();
       // only a hello or a pose can introduce someone, and only with a join time to place them in the room
@@ -5115,7 +5305,7 @@ updCircBtn();
     /* base room UI. (It used to share the name ui() with the results wrapper further down; both are
        hoisted function declarations, so the wrapper replaced this one and then called itself forever.) */
     function uiBase(){
-      if(el.btn)el.btn.textContent=room?('Room · '+room):'Room';
+      if(el.btn)el.btn.textContent=room?('Multiplayer · '+room):'Multiplayer';if(window.__updModes)window.__updModes();
       if(el.out)el.out.style.display=room?'none':'block';
       if(el.inn)el.inn.style.display=room?'block':'none';
       if(el.codeOut)el.codeOut.textContent=room||'';
@@ -5233,26 +5423,31 @@ function carChanged(){if(room)sendHi(true)}
   // expose for UI
   window.MPMatchmaking={start:startMatchmaking,cancel:cancelMatchmaking,quickJoin:quickJoin};
   /* ----- shared custom venue ----- */
-    const venueKey=(pts,seed)=>seed+':'+pts.length+':'+Math.round(pts[0].x)+','+Math.round(pts[0].y);
+    const venueKey=(pts,seed,ex)=>seed+':'+pts.length+':'+Math.round(pts[0].x)+','+Math.round(pts[0].y)+':'+(ex||'');
     function inRoom(){return !!room}
     // called from the drawer's GO (and from re-entering a venue in a room): tell everyone the track
     function shareVenue(cfg){try{
       if(!cfg||!Array.isArray(cfg.pts)||cfg.pts.length<8)return;
-      lastVenue={pts:cfg.pts.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2)]),seed:cfg.seed|0,scn:cfg.scenery,wx:cfg.weather,tm:cfg.time};
-      mpVenueKey=venueKey(cfg.pts,cfg.seed|0);
+      lastVenue={pts:cfg.pts.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2)]),seed:cfg.seed|0,scn:cfg.scenery,wx:cfg.weather,tm:cfg.time,
+        w:+cfg.width||16,el:cfg.elev||'flat',ob:(cfg.obstacles||[]).slice(0,60).map(o=>[o.t,+(+o.u).toFixed(4),o.s|0])};
+      mpVenueKey=venueKey(cfg.pts,cfg.seed|0,JSON.stringify([lastVenue.w,lastVenue.el,lastVenue.ob]));
       if(room&&status==='up')send(Object.assign({k:'trk'},lastVenue));
     }catch(e){lg('shareVenue',e&&e.message)}}
     // received someone else's venue: build the identical circuit and drop into it
     function adoptVenue(m){try{
       if(!Array.isArray(m.pts)||m.pts.length<8||m.pts.length>400)return;
       const pts=m.pts.map(a=>({x:num(a&&a[0],-1e4,1e4,0),y:num(a&&a[1],-1e4,1e4,0)}));
-      const seed=num(m.seed,1,2147483647,271828),key=venueKey(pts,seed);
+      const seed=num(m.seed,1,2147483647,271828),key=venueKey(pts,seed,JSON.stringify([+m.w||16,m.el||'flat',m.ob||[]]));
       if(key===mpVenueKey&&MODE==='circuit')return;         // already on this exact venue
-      mpVenueKey=key;lastVenue={pts:m.pts,seed,scn:m.scn,wx:m.wx,tm:m.tm};
+      mpVenueKey=key;lastVenue={pts:m.pts,seed,scn:m.scn,wx:m.wx,tm:m.tm,w:m.w,el:m.el,ob:m.ob};
       const theme=THEMES.find(t=>t.id===m.scn)||THEME_DEFAULT;
       const weather=WEATHERS.some(w=>w.id===m.wx)?m.wx:'day';
       const time=['day','dusk','sunset','night'].indexOf(m.tm)>=0?m.tm:'day';
-      buildCircuit(pts,theme,seed,{weather,time});enterCircuit();
+      // the host's road width, hills and obstacles come with the track, so everyone races the same circuit
+      const OBT=['speed_breaker','blocker','ramp'];
+      const obstacles=(Array.isArray(m.ob)?m.ob:[]).slice(0,60).filter(o=>Array.isArray(o)&&OBT.includes(o[0])).map(o=>({t:o[0],u:num(o[1],0,1,0),s:num(o[2],-1,1,0)}));
+      const width=num(m.w,8,30,16),elev=Object.prototype.hasOwnProperty.call(CIRC_ELEV,m.el)?m.el:'flat';
+      buildCircuit(pts,theme,seed,{weather,time,width,elev,obstacles});enterCircuit();
       toast2('Joined the room venue');
     }catch(e){lg('adoptVenue',e&&e.message)}}
     // single-lap progress (0..1) around the custom circuit, for the race finish line
@@ -5275,7 +5470,7 @@ function carChanged(){if(room)sendHi(true)}
     }}
     {const phoneBtn=$$1('#dmpphone');if(phoneBtn)phoneBtn.onclick=()=>{
       if(!room)return;
-      const url=location.origin+location.pathname+'?controller=true&room='+room;
+      const url=location.origin+location.pathname+'?controller=true&room='+room+'&to='+encodeURIComponent(me.id);
       const modal=document.getElementById('dqr-modal');
       if(modal&&window.AppQR){
         window.AppQR.render(document.getElementById('dqrcanvas'),url);
@@ -5284,6 +5479,9 @@ function carChanged(){if(room)sendHi(true)}
         modal.classList.add('on');
       }else prompt('Phone controller URL:',url);
     }}
+    {const qrCopy=document.getElementById('dqrcopy');if(qrCopy)qrCopy.onclick=()=>{const t=document.getElementById('dqrcode-text');if(!t)return;t.select();
+      const done=()=>{qrCopy.textContent='Copied';setTimeout(()=>qrCopy.textContent='Copy',1500)};
+      try{navigator.clipboard.writeText(t.value).then(done,()=>{document.execCommand('copy');done()})}catch(e){try{document.execCommand('copy');done()}catch(_){}}}}
     {const qrClose=document.getElementById('dqrclose');if(qrClose)qrClose.onclick=()=>{const m=document.getElementById('dqr-modal');if(m)m.classList.remove('on')}}
     {const rematch=document.getElementById('dresrematch');if(rematch)rematch.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');requestRace()}}
     {const resLobby=document.getElementById('dreslobby');if(resLobby)resLobby.onclick=()=>{const m=document.getElementById('dresults');if(m)m.classList.remove('on');openPanel()}}

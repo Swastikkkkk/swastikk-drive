@@ -147,17 +147,23 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 .mchev{display:inline-block;transition:transform .2s}
 #dmenu[aria-expanded="true"] .mchev{transform:rotate(180deg)}
 .drow{
-  display:none;flex-direction:column;align-items:stretch;gap:6px;
-  background:rgba(10,10,9,.9);backdrop-filter:blur(10px);
-  border:1px solid rgba(242,238,230,.18);border-radius:14px;padding:8px;
-  min-width:172px;
+  display:none;grid-template-columns:1fr 1fr;gap:6px;
+  background:rgba(10,10,9,.92);backdrop-filter:blur(10px);
+  border:1px solid rgba(242,238,230,.18);border-radius:14px;padding:10px;
+  width:250px;max-height:calc(100vh - 250px);overflow-y:auto;
   position:absolute;right:0;top:100%;margin-top:8px;z-index:10;
 }
-.drow.open{display:flex;animation:dvin .18s ease-out}
-.drow .dbtn{width:100%;text-align:center}
-@media (hover:hover) and (min-width:901px){
-  .drow{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;position:absolute;right:0;top:100%;margin-top:8px}
-  .drow .dbtn{width:auto;text-align:center}
+.drow.open{display:grid;animation:dvin .18s ease-out}
+.drow .dbtn{width:100%;text-align:center;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:8px;padding-right:8px}
+.drow .dmode{grid-column:1/-1;text-align:left;padding:11px 14px;font-size:11px}
+.drow .dmode.on{background:#d4a83a;color:#06070b}
+.drow .dmsec{grid-column:1/-1;font-size:9px;color:rgba(242,238,230,.5);letter-spacing:.18em;text-transform:uppercase;padding:6px 2px 0}
+.drow .dmsec:first-child{padding-top:0}
+@media (max-height:520px){
+  /* phones held sideways: open to the left of the map, full height, three across, above the pedals */
+  .drow{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(var(--gut) + 120px);margin-top:0;width:min(360px,calc(100vw - 150px));max-height:calc(100vh - 16px);grid-template-columns:1fr 1fr 1fr;z-index:30}
+  .drow .dmode{grid-column:auto;text-align:center;padding:9px 6px}
+  .drow .dbtn{padding-top:8px;padding-bottom:8px}
 }
 #dwx{display:none;align-self:flex-end;margin-top:8px;background:rgba(10,10,9,.9);backdrop-filter:blur(10px);border:1px solid rgba(242,238,230,.18);border-radius:14px;padding:10px;max-width:230px}
 #dwx.on{display:block;animation:dvin .18s ease-out}
@@ -167,7 +173,12 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 #dwxl button.on{background:var(--paper);color:var(--ink);border-color:var(--paper)}
 @media (max-width:640px){html,body{overflow-x:hidden;max-width:100%}body{font-size:15.5px}}
 @media (hover:hover) and (min-width:901px){html.driving #dmiss{left:150px;bottom:calc(66px + env(safe-area-inset-bottom,0px))}}
-@keyframes dvin{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@keyframes dvin{from{transform:translateY(-4px) scale(.98)}to{transform:none}}
+#dqr-modal{position:absolute;inset:0;z-index:7;display:none;background:rgba(8,8,7,.9);backdrop-filter:blur(6px);padding:20px;overflow-y:auto}
+#dqr-modal.on{display:flex}
+#dqr-modal .bd-in{margin:auto;width:min(380px,100%)}
+#dqrcanvas{display:block;background:#fff;border-radius:12px;padding:10px;width:220px;height:220px;image-rendering:pixelated}
+#dqrcode-text{flex:1;min-width:0;background:rgba(10,10,9,.9);border:1px solid rgba(242,238,230,.18);border-radius:8px;padding:8px 10px;color:var(--paper);font:11px var(--mono,monospace)}
 #dmp{position:absolute;inset:0;z-index:5;display:none;background:rgba(8,8,7,.86);backdrop-filter:blur(6px);padding:24px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 #dmp.on{display:flex;animation:dvin .35s cubic-bezier(.2,.8,.2,1)}
 #dmp .bd-in{margin:auto}
@@ -216,6 +227,19 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 #dcircopts select,#dcircopts input{min-width:0;width:100%;height:34px;padding:0 8px;background:#171816;color:var(--paper);border:1px solid rgba(242,238,230,.24);font:500 11px var(--mono);letter-spacing:0;text-transform:none}
 #dcircrandom{align-self:end;height:34px;padding:0 8px;font-size:9px}
 #dcircgo:disabled{opacity:.42;cursor:default}
+#dcircoptsbtn{display:none;position:absolute;left:10px;top:calc(10px + env(safe-area-inset-top,0px));z-index:6}
+@media (max-height:560px),(max-width:760px){
+  /* small screens: the options sit behind a button so the whole screen is free to draw on */
+  #dcircoptsbtn{display:block}
+  #dcircopts{display:none!important;top:calc(52px + env(safe-area-inset-top,0px));max-height:calc(100vh - 140px);overflow-y:auto}
+  #dcircopts.open{display:grid!important}
+  #dcirctop{display:none}
+  /* one compact row you can swipe, so Test drive / GO are always on screen */
+  #dcircbtns{flex-wrap:nowrap;overflow-x:auto;left:10px;right:10px;transform:none;justify-content:flex-start;gap:6px;-webkit-overflow-scrolling:touch}
+  #dcircbtns .dbtn{flex:0 0 auto;padding:8px 10px;font-size:9px;white-space:nowrap}
+  #dcircerr{top:calc(12px + env(safe-area-inset-top,0px));left:auto;right:10px;transform:none;max-width:60vw;text-align:right}
+}
+
 #dcircerr{position:absolute;top:calc(46px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);color:#c94f3f;pointer-events:none;text-align:center;max-width:80vw;z-index:5}
 #dcircbtns{position:absolute;bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);display:flex;gap:10px;flex-wrap:wrap;justify-content:center;z-index:5}
 #dgcars{list-style:none;margin:14px 0 0;padding:0;border-top:1px solid var(--line)}
@@ -261,7 +285,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
   <canvas id="dc"></canvas>
   <div id="dhud">
     <div class="dtl"><div class="mono" id="dhint"></div></div>
-    <div class="dright"><canvas id="dmap" width="180" height="180" title="Open map (M)"></canvas><button id="dmenu" class="dbtn mono" aria-expanded="false" aria-controls="drow">Menu <span class="mchev">&#9662;</span></button><div class="drow" id="drow"><button id="drace" class="dbtn mono" title="Start a timed lap (L)">Time a lap</button><button id="dboardb" class="dbtn mono" title="Fastest laps (B)">Laps</button><button id="droom" class="dbtn mono" title="Race friends in multiplayer">Room</button><button id="dgarageb" class="dbtn mono" title="Choose your car">Garage</button><button id="dcircb" class="dbtn mono" title="Enter venue or draw new track">Track</button><button id="dgps" class="dbtn mono" title="GPS Navigation (G)">GPS</button><button id="dtiltb" class="dbtn mono dtouch">Tilt: off</button><button id="dresetb" class="dbtn mono dtouch">Reset</button><button id="dmute" class="dbtn mono">Sound on</button><button id="dweatherb" class="dbtn mono" aria-expanded="false" aria-controls="dwx" title="Weather">Weather</button><button id="dnight" class="dbtn mono" title="Night (N)">Night</button><button id="dbackmenu" class="dbtn mono" title="Back to landing page">Menu</button></div><div id="dwx"><div id="dwxl"></div></div></div>
+    <div class="dright"><canvas id="dmap" width="180" height="180" title="Open map (M)"></canvas><button id="dmenu" class="dbtn mono" aria-expanded="false" aria-controls="drow">Menu <span class="mchev">&#9662;</span></button><div class="drow" id="drow" role="menu"><div class="dmsec mono">Mode</div><button id="dmfree" class="dbtn mono dmode on" title="Open-world Earth drive, the default">Free drive</button><button id="droom" class="dbtn mono dmode" title="Race up to 4 friends with a room code">Multiplayer</button><button id="dmdaily" class="dbtn mono dmode" title="Today's track and its leaderboard">Daily track</button><div class="dmsec mono">Drive</div><button id="drace" class="dbtn mono" title="Start a timed lap (L)">Time a lap</button><button id="dboardb" class="dbtn mono" title="Fastest laps (B)">Leaderboard</button><button id="dgarageb" class="dbtn mono" title="Choose your car">Garage</button><button id="dcircb" class="dbtn mono" title="Enter venue or draw new track">Track</button><button id="dgps" class="dbtn mono" title="GPS Navigation (G)">GPS</button><div class="dmsec mono">World</div><button id="dweatherb" class="dbtn mono" aria-expanded="false" aria-controls="dwx" title="Weather">Weather</button><button id="dnight" class="dbtn mono" title="Night (N)">Night</button><button id="dmute" class="dbtn mono">Sound on</button><button id="dtiltb" class="dbtn mono dtouch">Tilt: off</button><button id="dresetb" class="dbtn mono dtouch">Reset</button></div><div id="dwx"><div id="dwxl"></div></div></div>
     <div id="dlap"><div class="lrow"><span class="mono">Lap</span><b id="dlapt">--:--.--</b></div><div class="lsub mono"><span id="dlapn">Lap 1</span><span id="dlapb">Best --:--.--</span></div><div class="lsec"><i></i><i></i><i></i><i></i></div></div>
     <div id="dpos" class="mono">P1 / 1</div>
     <div id="doob" class="mono">TRACK LIMIT EXCEEDED</div>
@@ -363,12 +387,13 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
   <!-- Track Editor / Drawer -->
   <div id="dcirc">
     <canvas id="dcircdraw"></canvas>
-    <div id="dcirctop" class="mono">Draw a closed loop, add obstacles, then test or publish</div>
+    <div id="dcirctop" class="mono">Draw one closed loop. Switch the tool to Obstacles to tap them onto the track</div>
+    <button id="dcircoptsbtn" class="dbtn mono" type="button" aria-controls="dcircopts" aria-expanded="false">Options</button>
     <div id="dcircopts" class="mono">
-      <label>Mode<select id="dcircmode"><option value="draw">Draw Path</option><option value="edit">Edit Points</option><option value="obstacles">Place Obstacles</option></select></label>
+      <label>Tool<select id="dcircmode"><option value="draw">Draw track</option><option value="obstacles">Place obstacles</option></select></label><label>Track size<select id="dcircsize"><option value="medium">Medium (1.6 km lap)</option><option value="large" selected>Large (2.4 km lap)</option><option value="huge">Huge (3.6 km lap)</option></select></label><label>Elevation<select id="dcircelev"><option value="flat">Flat</option><option value="rolling" selected>Rolling</option><option value="hilly">Hilly</option><option value="mountain">Mountain</option></select></label>
       <label>Scenery<select id="dcircscenery"><option value="meadow">Lush green</option><option value="mountain">Mountain</option><option value="desert">Desert</option><option value="coastal">Coastal</option><option value="forest">Forest</option><option value="alpine">Alpine</option><option value="tropical">Tropical</option><option value="rocky">Rocky</option><option value="autumn">Autumn</option><option value="snow">Snow</option><option value="volcanic">Volcanic</option><option value="night">Night</option></select></label>
-      <label>Obstacle<select id="dcircobstype"><option value="speed_breaker">Speed Breaker</option><option value="blocker">Roadblock</option><option value="ramp">Stunt Ramp</option></select></label>
-      <label>Road Width<select id="dcircwidth"><option value="10">Narrow (10m)</option><option value="12" selected>Standard (12m)</option><option value="16">Wide (16m)</option><option value="20">Super-wide (20m)</option></select></label>
+      <label>Obstacle<select id="dcircobstype"><option value="speed_breaker">Speed breaker</option><option value="blocker">Roadblock</option><option value="ramp">Jump ramp</option></select></label>
+      <label>Road width<select id="dcircwidth"><option value="12">Narrow (12 m)</option><option value="16" selected>Standard (16 m)</option><option value="20">Wide (20 m)</option><option value="24">Super-wide (24 m)</option></select></label>
       <label>Weather<select id="dcircweather"><option value="day">Clear</option><option value="rain">Rain</option><option value="storm">Storm</option><option value="fog">Fog</option><option value="snow">Light snow</option><option value="blizzard">Heavy snow</option><option value="sand">Sandstorm</option></select></label>
       <label>Time<select id="dcirctime"><option value="day">Morning</option><option value="dusk">Dawn</option><option value="sunset">Sunset</option><option value="night">Night</option></select></label>
       <label>Seed<input id="dcircseed" type="number" min="1" max="2147483647" value="271828" inputmode="numeric"></label>
@@ -399,6 +424,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
   </div></div>
 
   <!-- Multiplayer Room & Lobby -->
+  <div id="dqr-modal" role="dialog" aria-label="Phone controller"><div class="bd-in"><div class="mono" style="color:#d4a83a;font-size:10px;letter-spacing:.18em">PHONE CONTROLLER</div><h3 class="disp" style="font-size:30px;margin:4px 0 6px">Drive with your phone</h3><div id="dqrdesc" class="mono" style="font-size:10px;color:var(--bone);margin-bottom:14px">Scan to use phone as controller</div><canvas id="dqrcanvas" width="240" height="240"></canvas><div class="mono" style="font-size:9px;color:var(--mute);margin:14px 0 6px">Or open this link on your phone</div><div style="display:flex;gap:8px"><input id="dqrcode-text" readonly aria-label="Controller link"><button id="dqrcopy" class="dbtn mono" type="button">Copy</button></div><div class="mono" style="font-size:9px;color:var(--mute);margin-top:12px;line-height:1.6">Phone and laptop both need internet. Keep this tab open; the car switches back to the keyboard if the phone goes quiet.</div><button id="dqrclose" class="dbtn mono bd-x" type="button" style="margin-top:16px">Close &#10005;</button></div></div>
   <div id="dmp"><div class="bd-in">
     <div class="mono" style="color:var(--bone)">Multiplayer Racing &middot; up to 4 drivers</div>
     <h3 class="disp">Race Lobby</h3>
@@ -512,6 +538,8 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 <script src="assets/car-builder.js"></script>
 <script src="assets/track-drawer.js"></script>
 <script src="assets/controller.js"></script>
+<script src="assets/vendor/qrcode.js"></script>
+<script src="assets/qr.js"></script>
 <script src="assets/race.js"></script>
 <script src="assets/editor.js"></script>
 <script src="assets/game.js"></script>

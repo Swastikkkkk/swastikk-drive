@@ -296,6 +296,18 @@
 
   window.AppQR = {
     render: function(canvas, text, scale) {
+      /* proven encoder (vendor/qrcode.js, qrcode-generator, MIT); the hand-rolled one below drew a blank code */
+      if (window.qrcode) {
+        try {
+          var q = window.qrcode(0, 'M'); q.addData(text); q.make();
+          var n = q.getModuleCount(), m = 2, s = scale || 6, size = (n + m * 2) * s;
+          canvas.width = size; canvas.height = size;
+          var g = canvas.getContext('2d');
+          g.fillStyle = '#ffffff'; g.fillRect(0, 0, size, size); g.fillStyle = '#000000';
+          for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (q.isDark(r, c)) g.fillRect((c + m) * s, (r + m) * s, s, s);
+          return true;
+        } catch (e) { console.error('QR Gen error:', e); }
+      }
       try {
         var qr = new QRCode(text, 'M');
         qr.drawToCanvas(canvas, scale || 5, 2);

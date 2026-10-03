@@ -15,7 +15,7 @@
     points: [], // Array of {x, y} in canvas/normalized space
     selectedPointIdx: -1,
     draggedPointIdx: -1,
-    roadWidth: 12, // metres
+    roadWidth: 16, // metres
     isClosed: false,
     
     // Custom Obstacles: [{ type: 'speed_breaker'|'blocker'|'ramp'|'tires', u: 0.25, side: 0, scale: 1 }]
