@@ -1465,13 +1465,14 @@ async function submitToLeaderboard(ms,vehicle){
     return {g,body,wheels:[],tail:tailM2,paint,rev:revM}}
   /* ---------- traffic: other cars actually driving the loop ---------- */
   const traffic=[];
+  const TRAFFIC_COLORS=[0x1f3b73,0xb9bcbf,0x1b1b1d,0xe8e6e0,0x2e4a3a,0x6e1a1c,0xc4bca6];
   (function(){
-    const n=LOW?3:7,COLS=[0x1f3b73,0xb9bcbf,0x1b1b1d,0xe8e6e0,0x2e4a3a,0x6e1a1c,0xc4bca6];
+    const n=LOW?3:7;
     for(let i=0;i<n;i++){
       const lane=(i%2?1:-1)*(2.05+RWX*.62);
       const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});
       bd.addShape(new CANNON.Box(new CANNON.Vec3(.95,.62,2.05)));world.addBody(bd);
-      const c=buildCar({paint:COLS[i%COLS.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:i%3===2,wheels:true});
+      const c=buildCar({paint:TRAFFIC_COLORS[i%TRAFFIC_COLORS.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:i%3===2,wheels:true});
       c.g.rotation.order='YXZ';S.add(c.g);
       traffic.push({u:(i+.35)/n,lane,base:6.5+((i*53)%10)/10*5.5,spd:0,bd,car:c,pv:0,dive:0,wa:0,py:null})}})();
   function updTraffic(dt,now){
@@ -1523,7 +1524,7 @@ t.bd.position.set(x,y+.86,z);
       const baseSpeed=6+skill.indexOf(skill)*3.5;
       const aggression=0.3+skill.indexOf(skill)*0.2;
       const overtakeThreshold=8-skill.indexOf(skill)*1.5;
-      const car=buildCar({paint:COLS[i%COLS.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
+      const car=buildCar({paint:TRAFFIC_COLORS[i%TRAFFIC_COLORS.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
       car.g.rotation.order='YXZ';S.add(car.g);
       const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});
       bd.addShape(new CANNON.Box(new CANNON.Vec3(.95,.62,2.05)));world.addBody(bd);
@@ -1625,8 +1626,6 @@ t.bd.position.set(x,y+.86,z);
       }
     }
   }
-  // Initialize AI racers
-  spawnAIRacers();
   /* ---------- animals: circling birds, grazing herds, ducks on the pond ---------- */
   function bird(){const g=new THREE.Group();const bm=new THREE.MeshBasicMaterial({color:0x232220,side:THREE.DoubleSide});
     const body=new THREE.Mesh(new THREE.ConeGeometry(.1,.46,6),bm);body.rotation.x=Math.PI/2;g.add(body);
@@ -5260,7 +5259,8 @@ function carChanged(){if(room)sendHi(true)}
     missEl.classList.add('on');driving=true;hud.classList.add('on');if(TOUCH)mob.classList.add('on');checkRot();
     hint.textContent=TOUCH?'':'WASD drive · C camera · Z mirror · L time a lap · M map · R reset';
     {const {p,tg}=at(progU||0);C.position.set(p.x-tg.x*10,p.y+5,p.z-tg.z*10);look.set(p.x+tg.x*6,p.y+1,p.z+tg.z*6)}
-    const m0=curMission();if(m0)setTimeout(()=>toastMsg('Mission \u00b7 '+m0.name),1200)}
+    const m0=curMission();if(m0)setTimeout(()=>toastMsg('Mission \u00b7 '+m0.name),1200)
+    if(typeof spawnAIRacers==='function')spawnAIRacers();}
   HF.paint(0,[1,1,1]);applyWx(true);applyQ();
   let _audioInited=false;
   function maybeInitAudio(){if(!_audioInited){_audioInited=true;audioInit()}}
