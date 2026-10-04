@@ -3076,9 +3076,10 @@ const F=chassisB.force,T=chassisB.torque;
       const n3=(a,b,cc,f)=>fbm2(a*f+cc*f*.71+11.3,b*f-cc*f*.53-7.1);
       for(let j=0;j<Hh;j++){const lat=(j/(Hh-1)-.5)*Math.PI,cl=Math.cos(lat),sy=Math.sin(lat);
         for(let i=0;i<W;i++){const lon=i/W*Math.PI*2,sx=cl*Math.cos(lon),sz=cl*Math.sin(lon);let r,g,b;
-          if(kind==='earth'){const h=n3(sx,sy,sz,1.6)*.75+n3(sx,sy,sz,4.2)*.25,ice=Math.abs(sy)>.86;
-            if(ice){r=g=b=235}else if(h>.53){const t=Math.min(1,(h-.53)*6),dry=n3(sx,sy,sz,3)>.55;r=dry?150+t*40:52+t*60;g=dry?130+t*20:110+t*40;b=dry?80:52+t*10}
-            else{const t=Math.max(0,(h-.38)/.15);r=14+t*30;g=58+t*70;b=128+t*50}}
+          // fbm2 runs 0..1.72, not 0..1: unscaled, nearly the whole Earth came out as desert under solid cloud
+          if(kind==='earth'){const h=(n3(sx,sy,sz,1.6)*.75+n3(sx,sy,sz,4.2)*.25)/1.72,ice=Math.abs(sy)>.86;
+            if(ice){r=g=b=235}else if(h>.49){const t=Math.min(1,(h-.49)*6),dry=n3(sx,sy,sz,3)/1.72>.6;r=dry?150+t*40:52+t*60;g=dry?130+t*20:110+t*40;b=dry?80:52+t*10}
+            else{const t=Math.max(0,(h-.34)/.15);r=14+t*30;g=58+t*70;b=128+t*50}}
           else if(kind==='moon'){const mar=n3(sx,sy,sz,1.4),fine=n3(sx,sy,sz,9);let v=168+(fine-.5)*40;if(mar<.45)v-=48*(.45-mar)/.45*2.2;v=Math.max(70,Math.min(215,v));r=v;g=v*.985;b=v*.96}
           else if(kind==='europa'){const cr=Math.abs(n3(sx,sy,sz,3.2)-.5),cr2=Math.abs(n3(sx,sy,sz,6.5)-.5),tint=n3(sx,sy,sz,1.3);let v=222+(tint-.5)*30;r=v;g=v*.97;b=v*.93;
             if(cr<.014||cr2<.008){r=150;g=96;b=70}}
@@ -3129,7 +3130,7 @@ const F=chassisB.force,T=chassisB.torque;
       const alpha=new THREE.CanvasTexture(a);return detailCache._road={map,alpha}}
     function cloudTex(){const W=512,Hh=256,c=document.createElement('canvas');c.width=W;c.height=Hh;const x=c.getContext('2d'),img=x.createImageData(W,Hh),d=img.data;
       for(let j=0;j<Hh;j++){const lat=(j/(Hh-1)-.5)*Math.PI,cl=Math.cos(lat),sy=Math.sin(lat);for(let i=0;i<W;i++){const lon=i/W*Math.PI*2,sx=cl*Math.cos(lon),sz=cl*Math.sin(lon);
-        const v=fbm2(sx*3.1+sz*2.2+40,sy*3.4-sz*1.9+12);const a=Math.max(0,Math.min(1,(v-.55)*4));const k=(j*W+i)*4;d[k]=d[k+1]=d[k+2]=255;d[k+3]=a*215}}
+        const v=fbm2(sx*3.1+sz*2.2+40,sy*3.4-sz*1.9+12)/1.72;const a=Math.max(0,Math.min(1,(v-.56)*3.2));   /* scattered cloud, not a white shell */const k=(j*W+i)*4;d[k]=d[k+1]=d[k+2]=255;d[k+3]=a*215}}
       x.putImageData(img,0,0);return new THREE.CanvasTexture(c)}
     // a planet with optional cloud shell and a soft atmosphere halo
     function makePlanet(kind,radius,halo){
