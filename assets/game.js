@@ -4744,7 +4744,9 @@ const PLANETS={
     for(let i=0;i<=Nseg;i++){const {p,n}=circAt(i/Nseg,curve),nx=n.x*w/2,nz=n.z*w/2;
       if(!isFinite(p.x)||!isFinite(p.y)||!isFinite(p.z)||!isFinite(n.x)||!isFinite(n.z)) continue;
       // with terrain, each edge vertex sits on the ground under it so the strip never floats or sinks
-      const ya=hFn?hFn(p.x-nx,p.z-nz,i/Nseg):p.y,yb=hFn?hFn(p.x+nx,p.z+nz,i/Nseg):p.y;
+      /* level across, at the height of its centre line: a road is cut flat into a hillside. Sampling the two edges
+         separately let a wide strip (the runoff) bulge over the road on curved ground and hide it */
+      const yc=hFn?hFn(p.x,p.z,i/Nseg):p.y,ya=yc,yb=yc;
       pos.push(p.x-nx,ya+yo,p.z-nz,p.x+nx,yb+yo,p.z+nz);uv.push(0,i/Nseg*rep,1,i/Nseg*rep);
       if(i<Nseg){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2)}}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
@@ -4886,8 +4888,8 @@ const PLANETS={
     const root=new THREE.Group();S.add(root);
     let stadiumBodies=[];
     const rep=curve.getLength()/12;
-    const edgeStrip=circStrip(curve,CN,CIRC_W+1.8,.06,edgeM,rep,hRoad);edgeStrip.receiveShadow=true;root.add(edgeStrip);
-    const roadStrip=circStrip(curve,CN,CIRC_W,.12,roadM,rep,hRoad);roadStrip.receiveShadow=true;root.add(roadStrip);
+    const edgeStrip=circStrip(curve,CN,CIRC_W+1.8,.06,edgeM,rep,hRoad);edgeStrip.receiveShadow=true;edgeStrip.name='edge';root.add(edgeStrip);
+    const roadStrip=circStrip(curve,CN,CIRC_W,.12,roadM,rep,hRoad);roadStrip.receiveShadow=true;roadStrip.name='road';root.add(roadStrip);
     edgeStrip.userData.fixedY=roadStrip.userData.fixedY=true;
     let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;pts3.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z)});
     const cx=(minX+maxX)/2,cz=(minZ+maxZ)/2;
@@ -4905,7 +4907,7 @@ const PLANETS={
     }else{
       /* hills: one physics heightfield + matching render mesh over the whole arena (same build as the
          main map's terrain: rotated -90deg about X, pillars offset so minValue can sit at 0) */
-      const half=Math.max(hx,hz)+60,ES=Math.max(2.5,half*2/360),nx=Math.ceil(half*2/ES)+1,nz=nx,x0=cx-half,z1=cz+half;
+      const half=Math.max(hx,hz)+60,ES=Math.max(1.6,half*2/600),   /* finer: the car rides this, and a coarse grid sagged under the road on every crest */nx=Math.ceil(half*2/ES)+1,nz=nx,x0=cx-half,z1=cz+half;
       const data=[];let lo=1e9;for(let i=0;i<nx;i++){const col=new Array(nz);for(let j=0;j<nz;j++){const h=groundAt(x0+i*ES,z1-j*ES);col[j]=h;if(h<lo)lo=h}data.push(col)}
       const OFF=2-lo;for(let i=0;i<nx;i++)for(let j=0;j<nz;j++)data[i][j]+=OFF;
       groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Heightfield(data,{elementSize:ES,minValue:0}));
@@ -4952,11 +4954,11 @@ const PLANETS={
       for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;pos[k+1]=(ELEV?groundAt(x,z):CIRC_Y)-.03+visH(x,z);pos[k+2]=z}
       for(let i=0;i<n2-1;i++)for(let j=0;j<n2-1;j++){const a=i*n2+j,b=(i+1)*n2+j;idx.push(a,a+1,b,b,a+1,b+1)}
       const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(idx);decorate(tg);
-      const terrainMesh=new THREE.Mesh(tg,terrainMat);terrainMesh.receiveShadow=true;terrainMesh.userData.fixedY=terrainMesh.userData.onTrack=true;root.add(terrainMesh);
+      const terrainMesh=new THREE.Mesh(tg,terrainMat);terrainMesh.name='terrain';terrainMesh.receiveShadow=true;terrainMesh.userData.fixedY=terrainMesh.userData.onTrack=true;root.add(terrainMesh);
       groundMesh.visible=false}
     const gy=(x,z)=>CIRC_Y+visH(x,z);                 // where props sit: the visual ground (ELEV venues are lifted by the settle pass later)
     roadStrip.userData.onTrack=edgeStrip.userData.onTrack=true;
-    const runoff=circStrip(curve,CN,CIRC_W+4,.035,groundMat,rep,hRoad);runoff.receiveShadow=true;root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
+    const runoff=circStrip(curve,CN,CIRC_W+4,.035,groundMat,rep,hRoad);runoff.receiveShadow=true;runoff.name='runoff';root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
     const curbRed=M(theme.standTrim,{roughness:.75}),curbWhite=M(0xdad8d0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
     const curbGeo=new THREE.BoxGeometry(1.7,.18,Math.max(1.8,Math.min(4,curve.getLength()/CN)));
     const curbRedIM=new THREE.InstancedMesh(curbGeo,curbRed,CN*2),curbWhiteIM=new THREE.InstancedMesh(curbGeo,curbWhite,CN*2);
@@ -4965,7 +4967,7 @@ const PLANETS={
       for(let i=0;i<CN;i++){const {p,tg,n}=circAt(i/CN,curve),yaw=Math.atan2(tg.x,tg.z);
         const lf=liftAt(i/CN);
         for(const side of [-1,1]){const cxp=p.x+n.x*side*(CIRC_W/2+.75),czp=p.z+n.z*side*(CIRC_W/2+.75);if(trackDistL(cxp,czp,CIRC_W,lf)<CIRC_W/2-.5)continue;   // not across another road at this level
-          p0.set(cxp,CIRC_Y+.16+liftEff(i/CN,cxp,czp),czp);q0.setFromAxisAngle(up,yaw);mx0.compose(p0,q0,s0);
+          p0.set(cxp,CIRC_Y+.16+roadY(i/CN,p.x,p.z)-(ELEV?groundAt(cxp,czp):CIRC_Y),czp);   // at the (level) road's height; the settle pass adds the ground here backq0.setFromAxisAngle(up,yaw);mx0.compose(p0,q0,s0);
           if((i+side+CN)%2===0)curbRedIM.setMatrixAt(redN++,mx0);else curbWhiteIM.setMatrixAt(whiteN++,mx0)}}
       curbRedIM.count=redN;curbWhiteIM.count=whiteN;curbRedIM.instanceMatrix.needsUpdate=true;curbWhiteIM.instanceMatrix.needsUpdate=true}
 // perimeter barrier wall: one continuous strip just outside the paved plate, all the way round
