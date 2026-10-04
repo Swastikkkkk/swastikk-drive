@@ -5545,7 +5545,7 @@ const PLANETS={
   })();
   /* One lap count. In a room the host's choice (#dmplaps) is authoritative; on your own it is the draw-track
      panel's Laps setting. buildCircuit, enterCircuit and the race start all read it through here. */
-  const raceCfg={laps:3},DAILY_LAPS=3;
+  const raceCfg={laps:3},DAILY_LAPS=1;   // the daily track is one flying lap, the same for everyone
   function lapsCfg(){const inRoom=typeof MP!=='undefined'&&MP&&MP.on;return Math.max(1,Math.min(50,inRoom&&MP.getLaps?MP.getLaps():raceCfg.laps))}
   function bigCount(t){const el=$('#dcount');if(!el)return;el.textContent=t;el.classList.remove('on');void el.offsetWidth;el.classList.add('on');
     if(t==='GO')setTimeout(()=>{if(el.textContent==='GO')el.classList.remove('on')},900)}
@@ -5940,7 +5940,7 @@ updCircBtn();
     if(dailyBtn) dailyBtn.onclick=()=>{ try{audioInit();}catch(_){}
       const dStr = dailyDay(),seed=getDailySeed(),ms=msToMidnightUTC();
       if(dailyDateEl) dailyDateEl.textContent = dStr+' (UTC) · next track in '+Math.floor(ms/3600000)+'h '+String(Math.floor(ms/60000)%60).padStart(2,'0')+'m';
-      {const th=document.getElementById('ddaily-theme');if(th){const themes=['meadow','mountain','desert','alpine','volcanic'],t=THEMES.find(x=>x.id===themes[seed%themes.length]);th.textContent=dailyName(seed)+' · '+(t?t.name:'Meadow')+' · '+DAILY_LAPS+' laps'}}
+      {const th=document.getElementById('ddaily-theme');if(th){const themes=['meadow','mountain','desert','alpine','volcanic'],t=THEMES.find(x=>x.id===themes[seed%themes.length]);th.textContent=dailyName(seed)+' · '+(t?t.name:'Meadow')+' · '+DAILY_LAPS+' lap'+(DAILY_LAPS>1?'s':'')}}
       renderDailyBoard();
       if(dailyModal) dailyModal.style.display = 'grid';
     };
@@ -5958,7 +5958,7 @@ updCircBtn();
             <strong style="color:#eef0f3;font-family:monospace;text-align:right">${fmtT(r.time)}</strong><span style="font-family:monospace;text-align:right;opacity:.75">${r.best?fmtT(r.best):'--'}</span></li>`}).join('')+
           `<li style="padding:8px 4px;font-size:11px;color:rgba(255,255,255,.5)">${src}</li>`
           :'<li style="padding:12px;color:rgba(255,255,255,.5);font-size:13px;">No times yet for today\'s track. Be the first!</li>'};
-      let local=[];try{local=JSON.parse(localStorage.getItem('sl_daily_'+dStr)||'[]')}catch(_){}
+      let local=[];try{local=JSON.parse(localStorage.getItem('sl_daily_'+dStr)||'[]').filter(r=>r.laps===DAILY_LAPS)}catch(_){}   // only runs over today's distance
       draw(local,'Times on this device');
       if(window.DailyBoard)window.DailyBoard.fetch(dStr).then(rows=>{if(rows)draw(rows.concat(local),'Global board · '+dStr+' (UTC)')}).catch(()=>{});
     }
@@ -6001,7 +6001,7 @@ updCircBtn();
       enterCircuit();
       if(window.__updModes)window.__updModes();
       if(window.__dailyHold)return;
-      toastMsg('Daily Track · '+dailyName(seed)+' · '+DAILY_LAPS+' laps');
+      toastMsg('Daily Track · '+dailyName(seed)+' · '+DAILY_LAPS+' lap'+(DAILY_LAPS>1?'s':''));
       restartSoloRace();
     };
   }
@@ -6011,7 +6011,7 @@ updCircBtn();
   window.DailyBoard=(function(){
     const URL_=SUPA.url+'/rest/v1/daily_times',KEY=SUPA.key;
     const H={'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+KEY};
-    async function fetch_(day){try{const r=await fetch(URL_+'?select=name,ms,best_ms&day=eq.'+day+'&order=ms.asc&limit=200',{headers:H});if(!r.ok)return null;
+    async function fetch_(day){try{const r=await fetch(URL_+'?select=name,ms,best_ms&day=eq.'+day+'&laps=eq.1&order=ms.asc&limit=200',{headers:H});if(!r.ok)return null;
       return (await r.json()).map(x=>({name:x.name,time:x.ms,best:x.best_ms}))}catch(e){return null}}
     async function submit(rec){try{const r=await fetch(URL_,{method:'POST',headers:Object.assign({Prefer:'return=minimal'},H),
       body:JSON.stringify({day:rec.day,name:String(rec.name).slice(0,24),ms:Math.round(rec.time),best_ms:rec.best?Math.round(rec.best):null,laps:rec.laps})});return r.ok}catch(e){return false}}
