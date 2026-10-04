@@ -2205,10 +2205,8 @@ t.bd.position.set(x,y+.86,z);
   const key={};
   const KMAP={ArrowUp:'f',KeyW:'f',ArrowDown:'b',KeyS:'b',ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',Space:'h',ShiftLeft:'boost',ShiftRight:'boost',KeyH:'horn'};
   addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;if(!active)return;if(e.code==='Escape'){if(boardEl.classList.contains('on'))closeBoard();else if($('#dgarage').classList.contains('on'))$('#dgarage').classList.remove('on');else if($('#dcirc')&&$('#dcirc').classList.contains('on'))$('#dcirc').classList.remove('on');else if($('#dcustom-tracks')&&$('#dcustom-tracks').classList.contains('on'))$('#dcustom-tracks').classList.remove('on');else if($('#dmaps')&&$('#dmaps').classList.contains('on'))$('#dmaps').classList.remove('on');else if(bigmap.classList.contains('on'))toggleMap();return}if(e.code==='KeyM'&&bigmap.classList.contains('on')){toggleMap();return}if(!driving)return;if(e.code==='KeyE'){SPACE.interact();return}if(e.code==='KeyM'){toggleMap();return}if(e.code==='KeyN'){toggleNight();return}if(e.code==='KeyR'){resetCar();return}if(e.code==='KeyC'){cycleCam();return}if(e.code==='KeyG'){
-      if(MODE==='surface'&&SPACE.SURF&&SPACE.SURF.gpsPins.length){
-        const pins=SPACE.SURF.gpsPins,idx=pins.indexOf(SPACE.SURF.gpsTarget);
-        SPACE.SURF.gpsTarget=pins[(idx+1)%pins.length];
-        toastMsg('GPS → '+SPACE.SURF.gpsTarget.label);
+      if(SPACE.state!=='earth'){   // planets: GPS is off until asked for, then it routes to the next UFO station
+        SPACE.gpsOn=!SPACE.gpsOn;toastMsg(SPACE.gpsOn?'GPS on · route to the next UFO station':'GPS off');
         if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true)
       }else if(MODE==='world'){
         if(!window.earthGPS){
@@ -2253,10 +2251,8 @@ t.bd.position.set(x,y+.86,z);
   // GPS button handler
   const gpsBtn=$('#dgps');
   if(gpsBtn)gpsBtn.onclick=()=>{
-    if(MODE==='surface'&&SPACE.SURF&&SPACE.SURF.gpsPins.length){
-      const pins=SPACE.SURF.gpsPins,idx=pins.indexOf(SPACE.SURF.gpsTarget);
-      SPACE.SURF.gpsTarget=pins[(idx+1)%pins.length];
-      toastMsg('GPS → '+SPACE.SURF.gpsTarget.label);
+    if(SPACE.state!=='earth'){   // planets: GPS is off until asked for, then it routes to the next UFO station
+        SPACE.gpsOn=!SPACE.gpsOn;toastMsg(SPACE.gpsOn?'GPS on · route to the next UFO station':'GPS off');
       if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true)
     }else if(MODE==='world'){
       if(!window.earthGPS){
@@ -3163,7 +3159,8 @@ const F=chassisB.force,T=chassisB.torque;
     /* the full-screen map (M) on a planet: this world's road, the UFO stations along it and where you are.
        North-up like Earth's big map; 6 km across. */
     // the route to the next UFO station along the road, for the navigation card
-    api.navInfo=function(){const S=SURF;if(!S||api.state!=='surface')return null;const cfg=S.cfg,every=cfg.ufoEvery,goal=(Math.floor(S.s/every)+1)*every,pts=[[S.pos.x,S.pos.z]];
+    api.gpsOn=false;
+    api.navInfo=function(){const S=SURF;if(!S||api.state!=='surface'||!api.gpsOn)return null;const cfg=S.cfg,every=cfg.ufoEvery,goal=(Math.floor(S.s/every)+1)*every,pts=[[S.pos.x,S.pos.z]];
       for(let s=S.s;s<goal;s+=20){const r=roadAt(cfg,S.road,s);pts.push([r.x,r.z])}const e=roadAt(cfg,S.road,goal);pts.push([e.x,e.z]);
       return {pts,label:'UFO station',x:S.pos.x,z:S.pos.z,h:S.yaw}};
     api.drawBigMap=function(c,size){
@@ -3176,9 +3173,9 @@ const F=chassisB.force,T=chassisB.torque;
         for(let s=Math.max(0,from),f=1;s<=to;s+=20,f=0){const r=roadAt(cfg,S.road,s),q=P(r.x,r.z);f?c.moveTo(q[0],q[1]):c.lineTo(q[0],q[1])}c.stroke()};
       road(S.s-span*1.5,S.s+span*1.5,'rgba(242,238,230,.85)',Math.max(3,size/160));
       road(0,S.s,'rgba(212,168,58,.9)',Math.max(2,size/220));                        // the stretch you've already driven
-      road(S.s,(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery,'rgba(0,255,136,.9)',Math.max(3,size/150));   // route to the next UFO
+      if(api.gpsOn)road(S.s,(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery,'rgba(0,255,136,.9)',Math.max(3,size/150));   // route to the next UFO, with GPS on
       const every=cfg.ufoEvery;c.font='600 '+Math.round(size/48)+'px ui-monospace,monospace';c.textAlign='center';
-      for(let k=Math.max(1,Math.floor((S.s-span*1.5)/every));k<=Math.floor((S.s+span*1.5)/every)+1;k++){
+      if(api.gpsOn)for(let k=Math.max(1,Math.floor((S.s-span*1.5)/every));k<=Math.floor((S.s+span*1.5)/every)+1;k++){
         const r=roadAt(cfg,S.road,k*every),q=P(r.x,r.z),ahead=k*every>S.s;
         c.fillStyle=ahead?'#5cf2ff':'rgba(92,242,255,.45)';c.beginPath();c.arc(q[0],q[1],size/90,0,6.283);c.fill();
         c.fillText('UFO '+(Math.abs(k*every-S.s)/1000).toFixed(1)+' km',q[0],q[1]-size/60)}
@@ -3198,12 +3195,12 @@ const F=chassisB.force,T=chassisB.torque;
       for(let s=Math.max(0,S.s-1400),f=1;s<=S.s+1400;s+=25,f=0){const r=roadAt(cfg,S.road,s),q=P(r.x,r.z);f?c.moveTo(q[0],q[1]):c.lineTo(q[0],q[1])}c.stroke();
       // stations within range, and the next one ahead with its distance
       const every=cfg.ufoEvery,kNext=Math.floor(S.s/every)+1;
-      for(let k=Math.max(1,kNext-1);k<=kNext+1;k++){const r=roadAt(cfg,S.road,k*every),q=P(r.x,r.z);
+      if(api.gpsOn)for(let k=Math.max(1,kNext-1);k<=kNext+1;k++){const r=roadAt(cfg,S.road,k*every),q=P(r.x,r.z);
         c.fillStyle=k===kNext?'#5cf2ff':'rgba(92,242,255,.5)';c.beginPath();c.arc(q[0],q[1],k===kNext?6:4,0,6.283);c.fill()}
       c.restore();
       c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=2;c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.stroke();
       c.fillStyle='#f2eee6';c.beginPath();c.moveTo(R0,R0-9);c.lineTo(R0+6,R0+7);c.lineTo(R0,R0+3);c.lineTo(R0-6,R0+7);c.closePath();c.fill();
-      const toNext=Math.max(0,kNext*every-S.s);c.font='600 13px ui-monospace,monospace';c.textAlign='center';c.fillStyle='#5cf2ff';c.fillText('UFO '+(toNext/1000).toFixed(2)+' km',R0,N-16);
+      const toNext=Math.max(0,kNext*every-S.s);c.font='600 13px ui-monospace,monospace';c.textAlign='center';c.fillStyle='#5cf2ff';if(api.gpsOn)c.fillText('UFO '+(toNext/1000).toFixed(2)+' km',R0,N-16);
       c.fillStyle='rgba(242,238,230,.75)';c.font='600 11px ui-monospace,monospace';c.fillText(cfg.name.toUpperCase(),R0,22);
     }
     // gravity toggle: default Earth gravity on every surface; this button enables the real planet g
@@ -3501,7 +3498,7 @@ const PLANETS={
       }
 
       // terrain tile pool (streamed)
-      const TILE=160, GRID=LOW?3:5, SEG=LOW?20:32;
+      const TILE=160, GRID=LOW?5:7, SEG=LOW?20:32;   // 7 x 7 tiles: ground reaches ~560 m out, so the edge stays well past where you look
       const tiles=[];
       const dTex=detailTex(cfg.detail||'regolith');dTex.repeat.set(12,12);
       const terrMat=new THREE.MeshStandardMaterial({vertexColors:true,map:dTex,bumpMap:dTex,bumpScale:cfg.detail==='sand'?.18:.32,roughness:1,metalness:0});
@@ -3517,14 +3514,14 @@ const PLANETS={
       const roadMesh=new THREE.Mesh(roadGeo,new THREE.MeshStandardMaterial({color:cfg.roadCol,map:RT.map,alphaMap:RT.alpha,transparent:true,depthWrite:false,roughness:0.95,metalness:0.0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
       roadMesh.receiveShadow=true; sc.add(roadMesh);
       const stripeGeo=new THREE.BufferGeometry();
-      const stripeMesh=new THREE.Mesh(stripeGeo,new THREE.MeshBasicMaterial({color:0xe9e3d2,side:THREE.DoubleSide,transparent:true,opacity:0.9,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2,fog:true})); stripeMesh.frustumCulled=false; stripeMesh.visible=false; sc.add(stripeMesh);
+      const stripeMesh=new THREE.Mesh(stripeGeo,new THREE.MeshBasicMaterial({color:0xe9e3d2,side:THREE.DoubleSide,transparent:true,opacity:0.9,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2,fog:true})); stripeMesh.frustumCulled=false; sc.add(stripeMesh);   // lane markings: a clearly marked route
       const reflGeo=new THREE.SphereGeometry(0.45,6,5);
       const reflMat=new THREE.MeshStandardMaterial({color:0x6fe3ff,emissive:0x2f8aa0,emissiveIntensity:0.8,roughness:0.4});
       const REFLN=40, refl=new THREE.InstancedMesh(reflGeo,reflMat,REFLN); refl.frustumCulled=false; refl.visible=false; sc.add(refl);
       // scattered boulders (instanced), restreamed around the rover as it moves
       const rockGeo=new THREE.DodecahedronGeometry(1,0);
       const rockMat=new THREE.MeshStandardMaterial({color:cfg.rock,roughness:1});
-      const ROCKN=LOW?60:150, rocks=new THREE.InstancedMesh(rockGeo,rockMat,ROCKN); rocks.frustumCulled=false; rocks.castShadow=!LOW; sc.add(rocks);
+      const ROCKN=LOW?150:441, rocks=new THREE.InstancedMesh(rockGeo,rockMat,ROCKN); rocks.frustumCulled=false; rocks.castShadow=!LOW; sc.add(rocks);
 
       // rover
       const rr=buildRover({rover_body:(cfg.rover||{}).body||0xd7dae2,rover_cab:(cfg.rover||{}).cab||0x9fb6d8});
@@ -3589,19 +3586,17 @@ const PLANETS={
       // build one tile per frame while driving (all at once on arrival), so crossing a tile never stalls a frame
       let budget=force?99:1;
       while(S.tq.length&&budget-->0){const q=S.tq.shift();buildTile(S,q.mesh,q.ci,q.cj)}
-      if(S.rocks&&moved){ const span=GRID*TILE; let seed=(Math.abs(((pcx*73856093)^(pcz*19349663)))%2147483647)||1; const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
-        const rdm=new THREE.Matrix4(),rpv=new THREE.Vector3(),rqv=new THREE.Quaternion(),rsv=new THREE.Vector3(),ry0=new THREE.Vector3(0,1,0);
-        for(let i=0;i<S.ROCKN;i++){ const rx=S.pos.x+(rnd()-0.5)*span, rz=S.pos.z+(rnd()-0.5)*span; const nr=nearestRoad(cfg,S.road,rx,rz,S.s); const sz=0.4+Math.pow(rnd(),3)*3.2;
-          let ryv=(nr.d<10)?-9999:groundH(cfg,S.road,rx,rz,S.s)+sz*0.3; if(!isFinite(ryv)) ryv=0;
-          rpv.set(rx,ryv,rz); rqv.setFromAxisAngle(ry0,rnd()*6.283); rsv.set(sz,sz*(0.55+rnd()*0.7),sz*(0.7+rnd()*0.5)); rdm.compose(rpv,rqv,rsv); S.rocks.setMatrixAt(i,rdm); }
-        S.rocks.instanceMatrix.needsUpdate=true; }
+      if(moved&&S.rocks){const K=Math.floor(S.ROCKN/S.tiles.length),dm=new THREE.Matrix4();dm.makeTranslation(0,-9999,0);
+        S.tq.forEach(q=>{const b0=S.tiles.indexOf(q.mesh)*K;for(let i=0;i<K;i++)S.rocks.setMatrixAt(b0+i,dm)});S.rocks.instanceMatrix.needsUpdate=true}
     }
 
     function buildTile(S,mesh,ci,cj){
       const cfg=S.cfg,TILE=S.TILE,SEG=S.SEG,e=TILE/SEG,P=SEG+3,ox=ci*TILE+TILE/2,oz=cj*TILE+TILE/2,x0=ox-TILE/2-e,z0=oz-TILE/2-e;
       // heights on a grid with a one-vertex border: the border gives normals that match the neighbouring tile exactly
       const H=new Float32Array(P*P);
-      for(let j=0;j<P;j++)for(let i=0;i<P;i++){const y=groundH(cfg,S.road,x0+i*e,z0+j*e,S.s);H[j*P+i]=isFinite(y)?y:0}
+      // under the tarmac the ground sits a little lower, so road and terrain never fight over the same depth (the far-off flicker)
+      for(let j=0;j<P;j++)for(let i=0;i<P;i++){const x=x0+i*e,z=z0+j*e;let y=groundH(cfg,S.road,x,z,S.s);
+        const nr=nearestRoad(cfg,S.road,x,z,S.s);if(nr.d<ROADHALF+1.5)y-=.3*Math.min(1,(ROADHALF+1.5-nr.d)/1.5);H[j*P+i]=isFinite(y)?y:0}
       mesh.position.set(ox,0,oz);
       const pos=mesh.geometry.attributes.position, col=mesh.geometry.attributes.color, nrm=mesh.geometry.attributes.normal, gr=cfg.ground;
       for(let v=0;v<pos.count;v++){
@@ -3618,6 +3613,13 @@ const PLANETS={
         col.setXYZ(v, gr[0]*shade*(1+warm), gr[1]*shade, gr[2]*shade*(1-warm));
       }
       pos.needsUpdate=true; nrm.needsUpdate=true; col.needsUpdate=true; mesh.geometry.computeBoundingSphere(); mesh.visible=true;
+      // this tile's own rocks, from a seed fixed to the tile: they are there before you arrive and stay put
+      if(S.rocks){const K=Math.floor(S.ROCKN/S.tiles.length),b0=S.tiles.indexOf(mesh)*K;let seed=(Math.abs((ci*73856093)^(cj*19349663))%2147483646)+1;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
+        const rdm=new THREE.Matrix4(),rpv=new THREE.Vector3(),rqv=new THREE.Quaternion(),rsv=new THREE.Vector3(),ry0=new THREE.Vector3(0,1,0);
+        for(let i=0;i<K;i++){const rx=ox+(rnd()-.5)*TILE,rz=oz+(rnd()-.5)*TILE,sz=.4+Math.pow(rnd(),3)*3.2,a=rnd()*6.283,sy=.55+rnd()*.7,sw=.7+rnd()*.5;
+          const nr=nearestRoad(cfg,S.road,rx,rz,S.s);let ry=nr.d<ROADHALF+4?-9999:groundH(cfg,S.road,rx,rz,S.s)+sz*.3;if(!isFinite(ry))ry=-9999;
+          rpv.set(rx,ry,rz);rqv.setFromAxisAngle(ry0,a);rsv.set(sz,sz*sy,sz*sw);rdm.compose(rpv,rqv,rsv);S.rocks.setMatrixAt(b0+i,rdm)}
+        S.rocks.instanceMatrix.needsUpdate=true}
     }
 
     // --- road ribbon: rebuild the strip in a window ahead of the rover when the rover advances ---
@@ -3843,9 +3845,10 @@ const PLANETS={
       // HUD odometer
       const km=(S.maxS/1000), nextUFO=(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery, toNext=(nextUFO-S.s)/1000;
       odo.style.opacity='1'; if(frameN%3===0)drawSurfMap(S);
+      if(odo._mir!==rearMirrorOn){odo._mir=rearMirrorOn;odo.style.top=rearMirrorOn?'calc(116px + env(safe-area-inset-top,0px))':'calc(16px + env(safe-area-inset-top,0px))'}   // below the mirror when it is up
       try{NAV.tick(dt,performance.now())}catch(e){}
       if(frameN%6===0&&bigmap.classList.contains('on'))api.drawBigMap(bmc.getContext('2d'),bmc.width);
-      odo.textContent=cfg.name+'  ·  '+Math.round(speed*3.6)+' km/h  ·  '+km.toFixed(2)+' km driven  ·  next UFO in '+toNext.toFixed(2)+' km';
+      odo.textContent=cfg.name+'  ·  '+Math.round(speed*3.6)+' km/h  ·  '+km.toFixed(2)+' km driven'+(api.gpsOn?'  ·  next UFO in '+toNext.toFixed(2)+' km':'');
       audioSurface(dt);
     }
 
