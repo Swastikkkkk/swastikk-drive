@@ -20,6 +20,15 @@ Coins come from playing, not from a store:
 
 Cars cost 150–600 coins. The Garage shows "Buy · price" on anything you haven't unlocked yet; clicking it spends the coins and switches you to that car in one step, or tells you how many more coins you need.
 
+## Stunts
+
+- **Every jump scores**: air time, height and distance, plus 360 spins, flips and barrel rolls. Land on four wheels to bank it; land on your roof and it's gone ("BAILED"). Clean landings within five seconds of each other build a combo multiplier, up to x5. Every 1,000 points banked pays 5 coins.
+- **Ring of fire** (stunt park): jump the mega ramp through it for +800, or +1,500 for a bullseye through the middle, paid when you land clean. Back-to-back passes build a streak; fly past it and you're told how close you were.
+- **Ramp Rush** (ramp yard, off the side road): hoops hang over the three ramps. Clear one to start the clock, clear all three for gold (10 s), silver (16 s) or bronze (25 s). A board in the yard shows your best time and medal; a new medal pays coins.
+- **Bowling** (stunt park): a five-frame game, two rolls a frame. Fallen pins are swept before your second roll; strikes and spares score with their bonus rolls. The board shows the frames and your best game; every game pays coins.
+
+Bests are saved in your browser.
+
 ## Radio
 
 Press T (or Menu, then Radio) to tune through three stations, then off: 88.6 Lo-fi Drive, 94.2 Sunset Wave and 101.7 Night Jazz. The music is written live in the browser (`assets/radio.js`): each song picks a key, tempo and chord progression and plays for about three minutes, so there are no music files and nothing to license.

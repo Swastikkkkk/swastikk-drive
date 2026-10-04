@@ -377,6 +377,15 @@ body{font-family:var(--sans);letter-spacing:0;background:#0a0b0e}
 #dlap b{font-family:var(--serif);font-weight:700;font-stretch:112%;letter-spacing:-.01em}
 #dmap{box-shadow:0 0 0 1px var(--hair2),0 16px 40px rgba(0,0,0,.45)!important}
 #dtoast{font-family:var(--serif);font-weight:700;font-stretch:118%;letter-spacing:-.01em;text-shadow:0 6px 40px rgba(0,0,0,.55)}
+/* stunt pop-up: score line + detail line, sits under the toast */
+#dstunt{position:absolute;left:50%;top:33%;transform:translateX(-50%);z-index:3;pointer-events:none;text-align:center;opacity:0;padding:0 16px;width:max-content;max-width:94vw}
+#dstunt b{display:block;font-family:var(--serif);font-weight:800;font-style:italic;font-size:clamp(30px,4.6vw,62px);letter-spacing:-.02em;color:#fff;text-shadow:0 6px 34px rgba(0,0,0,.6)}
+#dstunt span{display:block;margin-top:6px;font:600 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:rgba(238,240,243,.88);text-shadow:0 2px 12px rgba(0,0,0,.7)}
+#dstunt.on{animation:stpop 2.6s ease forwards}
+@keyframes stpop{0%{opacity:0;transform:translateX(-50%) scale(.7)}10%{opacity:1;transform:translateX(-50%) scale(1.08)}18%{transform:translateX(-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-14px)}}
+/* challenge timer pill (Ramp Rush) */
+#dchal{position:absolute;left:50%;top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:4;display:none;padding:7px 14px;border-radius:999px;background:rgba(18,20,25,.82);border:1px solid rgba(77,141,255,.45);color:#8db7ff;font:700 13px var(--mono);letter-spacing:.12em;backdrop-filter:blur(10px);pointer-events:none}
+#dchal.on{display:block}
 #dwrong{border-radius:12px;font-family:var(--sans);font-weight:700;letter-spacing:.06em;box-shadow:0 12px 30px rgba(143,42,42,.4)}
 /* touch controls */
 .dsteer button,#dbrk{background:rgba(17,18,22,.5);box-shadow:inset 0 0 0 1px var(--hair3),0 10px 24px rgba(0,0,0,.3);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
