@@ -5,7 +5,7 @@
    and a little saturation. Intake roar rides on top. Lifting off at high revs pops and crackles,
    and the fuel cut (rev limiter, gear changes) drops the firing pulses to almost nothing.
    No sound files: the DSP runs in an AudioWorklet, or a ScriptProcessor where worklets aren't allowed.
-   window.EngineAudio.create(ctx, destination) -> {setCar(id), set(rpm, load, cut, vol)}.
+   window.EngineAudio.create(ctx, destination) -> {setCar(id), set(rpm, load, cut, vol, overrun)}.
    window.EngineAudio.CARS holds each car's engine and gearbox. */
 (function(window){
   'use strict';
@@ -13,7 +13,7 @@
   /* ---- the DSP; self-contained because its source is also shipped into the worklet ---- */
   function EngineDSP(sr){
     this.sr=sr;this.c=null;
-    this.rpm=800;this.tRpm=800;this.load=0;this.tLoad=0;this.cut=0;this.vol=0;this.tVol=0;
+    this.rpm=800;this.tRpm=800;this.load=0;this.tLoad=0;this.cut=0;this.ovr=0;this.tOvr=0;this.vol=0;this.tVol=0;
     this.cyc=0;this.nEnv=0;this.pop=0;this.pl=0;this.lift=0;this.dcx=0;this.dcy=0;this.ix1=0;this.ix2=0;this.iy1=0;this.iy2=0;
     this.bank=[0,1].map(function(){return{p1:0,p2:0,imp:0,n:0,d:new Float32Array(8192),w:0,lp:0}});
     this.eq=[];this.lp1=0;this.lp2=0;
@@ -34,7 +34,7 @@
     if(!this.c){this.rpm=this.tRpm=c.idle}
     this.c=c;
   };
-  EngineDSP.prototype.set=function(rpm,load,cut,vol){this.tRpm=rpm;this.tLoad=load;this.cut=cut;this.tVol=vol};
+  EngineDSP.prototype.set=function(rpm,load,cut,vol,ovr){this.tRpm=rpm;this.tLoad=load;this.cut=cut;this.tVol=vol;this.tOvr=ovr||0};
   EngineDSP.prototype.process=function(out,n){
     var c=this.c,i,k;if(!c){for(i=0;i<n;i++)out[i]=0;return}
     var sr=this.sr,B=this.bank,cyl=this.cyl,nc=cyl.length,eq=this.eq,ne=eq.length,ib=this.ib;
@@ -44,14 +44,15 @@
         imp=2.718/(1-pa),na=Math.exp(-1/(Math.max(.0002,tau*.7)*sr)),popA=Math.exp(-1/(.035*sr)),
         rN=Math.min(1.2,this.rpm/c.red),idleRough=1+Math.max(0,1-rN*2.5)*1.5;
     for(i=0;i<n;i++){
-      this.lift=this.tLoad<.1?this.lift+1/sr:0;this.rpm+=(this.tRpm-this.rpm)*rs;this.load+=(this.tLoad-this.load)*ls;this.vol+=(this.tVol-this.vol)*vs;
+      this.lift=this.tLoad<.1?this.lift+1/sr:0;this.rpm+=(this.tRpm-this.rpm)*rs;this.load+=(this.tLoad-this.load)*ls;this.vol+=(this.tVol-this.vol)*vs;this.ovr+=(this.tOvr-this.ovr)*vs;
       var prev=this.cyc,cy=prev+this.rpm/120/sr,wrap=cy>=1;if(wrap)cy-=1;this.cyc=cy;
       for(k=0;k<nc;k++){var C=cyl[k];
         if(wrap?(C.a>prev||C.a<=cy):(C.a>prev&&C.a<=cy)){
-          var ld=this.load,amp=C.g*(.22+.78*ld)*(1+c.rough*idleRough*(Math.random()-.5)*2);
+          // closed throttle fires weak, even pulses; braking cuts the fuel on the overrun, so it goes quieter still
+          var ld=this.load,amp=C.g*(.13+.87*ld)*(1+c.rough*(idleRough*.6+ld*.4)*(Math.random()-.5)*2)*(1-.6*this.ovr);
           if(this.cut>.5)amp*=.1;
           // overrun: a few pops in the first second or so after lifting, then it settles
-          else if(ld<.1&&rN>.4&&Math.random()<c.crackle*rN*.18*Math.exp(-this.lift/.9)){amp*=2+Math.random()*1.6;this.pop+=.15+Math.random()*.2}
+          else if(ld<.1&&this.ovr<.3&&rN>.4&&Math.random()<c.crackle*rN*.18*Math.exp(-this.lift/.9)){amp*=2+Math.random()*1.6;this.pop+=.15+Math.random()*.2}
           var bk=B[C.b];bk.imp+=amp*imp;bk.n+=amp*c.noise}}
       var mix=0,pulse=0;
       for(k=0;k<2;k++){var b=B[k],N=this.pipeN[k];if(N==null)continue;
@@ -101,19 +102,19 @@
   var SRC=EngineDSP.toString()+';EngineDSP.prototype.setCar='+EngineDSP.prototype.setCar.toString()+
     ';EngineDSP.prototype.set='+EngineDSP.prototype.set.toString()+';EngineDSP.prototype.process='+EngineDSP.prototype.process.toString()+
     ';registerProcessor("engine-dsp",class extends AudioWorkletProcessor{constructor(){super();this.d=new EngineDSP(sampleRate);'+
-    'this.port.onmessage=e=>{const m=e.data;if(m.car)this.d.setCar(m.car);if(m.s)this.d.set(m.s[0],m.s[1],m.s[2],m.s[3])}}'+
+    'this.port.onmessage=e=>{const m=e.data;if(m.car)this.d.setCar(m.car);if(m.s)this.d.set(m.s[0],m.s[1],m.s[2],m.s[3],m.s[4])}}'+
     'process(i,o){const ch=o[0];this.d.process(ch[0],ch[0].length);for(let k=1;k<ch.length;k++)ch[k].set(ch[0]);return true}})';
 
   function create(ac,dest){
     var api={car:null,ready:false,node:null,send:null,
       setCar:function(id){var c=CARS[id];if(!c||api.car===id)return c;api.car=id;if(api.send)api.send({car:c});return c},
-      set:function(rpm,load,cut,vol){if(api.send)api.send({s:[rpm,load,cut?1:0,vol]})}};
+      set:function(rpm,load,cut,vol,ovr){if(api.send)api.send({s:[rpm,load,cut?1:0,vol,ovr||0]})}};
     function fallback(){
       if(api.node)return;
       var d=new EngineDSP(ac.sampleRate),sp=ac.createScriptProcessor(1024,0,1);
       sp.onaudioprocess=function(e){d.process(e.outputBuffer.getChannelData(0),e.outputBuffer.length)};
       sp.connect(dest);api.node=sp;
-      api.send=function(m){if(m.car)d.setCar(m.car);if(m.s)d.set(m.s[0],m.s[1],m.s[2],m.s[3])};
+      api.send=function(m){if(m.car)d.setCar(m.car);if(m.s)d.set(m.s[0],m.s[1],m.s[2],m.s[3],m.s[4])};
       if(api.car)d.setCar(CARS[api.car]);api.ready=true}
     try{
       if(!ac.audioWorklet||typeof AudioWorkletNode==='undefined')throw 0;

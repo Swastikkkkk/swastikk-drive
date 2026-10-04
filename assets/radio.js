@@ -4,7 +4,7 @@
      88.6  Lo-fi Drive   dusty electric piano, swung beat, vinyl crackle
      94.2  Sunset Wave   synthwave pads, arpeggios, big snare
      101.7 Night Jazz    seventh chords, walking bass, ride and brushes, vibes
-   window.Radio: .cycle() off -> each station -> off, .setMuted(m), .label(), .onInfo = fn(text). */
+   window.Radio: .cycle() off -> each station -> off, .tune(i), .station(), .setVolume(0..1), .setMuted(m), .label(), .onInfo = fn(text). */
 (function(window){
   'use strict';
   const mtof=m=>440*Math.pow(2,(m-69)/12),rnd=Math.random,pick=a=>a[Math.floor(rnd()*a.length)];
@@ -22,7 +22,7 @@
         AR=['Koi Static','The Low Gears','Mira Vale','Cassette Park','North Lantern','Juno & the Tides','Slow Coast','Hotel Atlas'];
 
   let ac=null,master=null,dry=null,verb=null,noise=null,crackle=null,crackleG=null,timer=null;
-  let on=false,st=-1,muted=false,song=null,step=0,nextT=0;
+  let on=false,st=-1,muted=false,song=null,step=0,nextT=0,vol=.65;
   const R={onInfo:null};
 
   function init(){
@@ -144,12 +144,15 @@
     const T=ac.currentTime;
     if(!on){master.gain.setTargetAtTime(0,T,.15);crackleG.gain.setTargetAtTime(0,T,.15);clearInterval(timer);timer=null;if(R.onInfo)R.onInfo('Radio off');return}
     try{ac.resume()}catch(e){}
-    master.gain.cancelScheduledValues(T);master.gain.setValueAtTime(0,T);master.gain.linearRampToValueAtTime(muted?0:.65,T+.8);
+    master.gain.cancelScheduledValues(T);master.gain.setValueAtTime(0,T);master.gain.linearRampToValueAtTime(muted?0:vol,T+.8);
     song=null;newSong();nextT=T+.1;if(!timer)timer=setInterval(tick,60)}
 
   R.cycle=()=>tune(st+1>=STATIONS.length?-1:st+1);
-  R.setMuted=m=>{muted=!!m;if(!ac)return;const T=ac.currentTime;master.gain.setTargetAtTime(on&&!muted?.65:0,T,.1);
+  R.setMuted=m=>{muted=!!m;if(!ac)return;const T=ac.currentTime;master.gain.setTargetAtTime(on&&!muted?vol:0,T,.1);
     crackleG.gain.setTargetAtTime(on&&!muted&&song&&song.style==='lofi'?.035:0,T,.1)};
+  R.tune=i=>{if(i===st&&on)return;tune(i)};
+  R.station=()=>on?st:-1;
+  R.setVolume=x=>{vol=Math.max(0,Math.min(1.2,x))*1;if(ac&&on&&!muted)master.gain.setTargetAtTime(vol,ac.currentTime,.08)};   // 0..1 from the settings
   R.label=()=>on?'Radio: '+STATIONS[st].fm:'Radio: off';
   R.stations=STATIONS;
   window.Radio=R;

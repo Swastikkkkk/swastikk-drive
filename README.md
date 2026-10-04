@@ -37,6 +37,7 @@ Open Menu, then "Draw track". Freehand-draw a closed loop on the screen; it gets
 | Shift | boost |
 | H | horn |
 | T | FM radio: cycle stations / off |
+| O | Settings: sound mix (master, engine, effects, music), radio, graphics, display, all controls |
 | C | change camera |
 | L | time a lap |
 | B | fastest laps |
