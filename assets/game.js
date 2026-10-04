@@ -4857,7 +4857,7 @@ const PLANETS={
       if(i<Nseg){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2)}}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
     return new THREE.Mesh(g,mat)}
-  function clearCircuit(){if(!circuit)return;try{CAI.clear()}catch(e){}S.remove(circuit.root);
+  function clearCircuit(){if(!circuit)return;hideWorld(false);try{CAI.clear()}catch(e){}S.remove(circuit.root);
     // roadStrip/edgeStrip use the world's SHARED roadM/edgeM - only dispose materials this
     // circuit actually created its own copies of (tracked in ownedMats), never blanket-dispose
     // whatever a traverse happens to find, or the next redraw would break the main map's road
@@ -4974,11 +4974,17 @@ const PLANETS={
     const CSAMP=[];for(let i=0;i<CN;i++)CSAMP.push(curve.getPointAt(i/CN));
     /* dense track index: ~2.5 m samples in a 20 m spatial hash. Answers "how far is the nearest road"
        and "how high is the ground here" for the terrain, the clearance pass and prop placement. */
-    const TL=curve.getLength(),DN=Math.max(240,Math.min(2400,Math.round(TL/2.5))),DX=new Float32Array(DN),DY=new Float32Array(DN),DZ=new Float32Array(DN),CELL=20,DH=new Map();
+    const TL=curve.getLength(),DN=Math.max(240,Math.min(2400,Math.round(TL/2.5))),DX=new Float32Array(DN),DY=new Float32Array(DN),DZ=new Float32Array(DN),CELL=20;
     const DL=new Float32Array(DN);   // the bridge lift at each sample: the ground follows the road's height WITHOUT it
-    for(let i=0;i<DN;i++){const q=curve.getPointAt(i/DN);DX[i]=q.x;DL[i]=liftAt(i/DN);DY[i]=q.y-DL[i];DZ[i]=q.z;const k=Math.floor(q.x/CELL)+','+Math.floor(q.z/CELL);let a=DH.get(k);if(!a)DH.set(k,a=[]);a.push(i)}
-    const nearIdx=(x,z,R,fn)=>{const r=Math.ceil(R/CELL),gx=Math.floor(x/CELL),gz=Math.floor(z/CELL);
-      for(let a=-r;a<=r;a++)for(let b=-r;b<=r;b++){const L=DH.get((gx+a)+','+(gz+b));if(L)for(let t=0;t<L.length;t++)fn(L[t])}};
+    for(let i=0;i<DN;i++){const q=curve.getPointAt(i/DN);DX[i]=q.x;DL[i]=liftAt(i/DN);DY[i]=q.y-DL[i];DZ[i]=q.z;}
+    // a flat grid of cells over the track's bounds, indexed directly; searches are clamped to it
+    let GX0=1e9,GZ0=1e9,GX1=-1e9,GZ1=-1e9;for(let i=0;i<DN;i++){const gx=Math.floor(DX[i]/CELL),gz=Math.floor(DZ[i]/CELL);if(gx<GX0)GX0=gx;if(gx>GX1)GX1=gx;if(gz<GZ0)GZ0=gz;if(gz>GZ1)GZ1=gz}
+    const GNX=GX1-GX0+1,GNZ=GZ1-GZ0+1,GRID=new Array(GNX*GNZ);
+    for(let i=0;i<DN;i++){const k=(Math.floor(DX[i]/CELL)-GX0)*GNZ+Math.floor(DZ[i]/CELL)-GZ0;(GRID[k]||(GRID[k]=[])).push(i)}
+    // this runs for every terrain vertex; a string-keyed Map here used to be most of the build time
+    const nearIdx=(x,z,R,fn)=>{const r=Math.ceil(R/CELL),gx=Math.floor(x/CELL)-GX0,gz=Math.floor(z/CELL)-GZ0;
+      const a0=Math.max(0,gx-r),a1=Math.min(GNX-1,gx+r),b0=Math.max(0,gz-r),b1=Math.min(GNZ-1,gz+r);
+      for(let a=a0;a<=a1;a++){const row=a*GNZ;for(let b=b0;b<=b1;b++){const L=GRID[row+b];if(L)for(let t=0;t<L.length;t++)fn(L[t])}}};
     const trackDist=(x,z,R)=>{let best=1e9;nearIdx(x,z,R,i=>{const dx=DX[i]-x,dz=DZ[i]-z,d=dx*dx+dz*dz;if(d<best)best=d});return Math.sqrt(best)};
     // the same, counting only road at about this level (a bridge overhead or a road underneath is not 'close')
     const trackDistL=(x,z,R,lift)=>{let best=1e9;nearIdx(x,z,R,i=>{if(Math.abs(DL[i]-lift)>3)return;const dx=DX[i]-x,dz=DZ[i]-z,d=dx*dx+dz*dz;if(d<best)best=d});return Math.sqrt(best)};
@@ -5545,9 +5551,22 @@ const PLANETS={
     circuit={hazeTo:circuit_hazeFn,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies),liftAt,roadY,bridges:BRIDGES.length,lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,cleared:removed};
     if(window.RaceEngine){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
     return circuit}
+  /* On a venue the camera sees 1.8 km and the venue sits ~1.5 km from the valley, so the whole Earth map
+     (traffic, herds, buildings) was still being drawn behind every lap: hundreds of draw calls of
+     specks. While on a venue, anything far from it moves to a layer the camera does not render. */
+  let worldHidden=null;
+  function hideWorld(on){
+    if(!on){if(worldHidden)worldHidden.forEach(o=>o.layers.set(0));worldHidden=null;return}
+    if(worldHidden||!circuit)return;worldHidden=[];
+    const cx=circuit.startP?circuit.startP.p.x:0,cz=circuit.startP?circuit.startP.p.z:CIRC_Z,box=new THREE.Box3(),ctr=new THREE.Vector3();
+    // things that follow the car or camera (particles, dust, smoke, skid marks, sky) are never hidden
+    for(const c of S.children){if(c===circuit.root||c===car||c.isLight||c.isPoints||c.isSprite||c.isInstancedMesh&&c.frustumCulled===false||c.frustumCulled===false||c===sky)continue;
+      box.setFromObject(c);if(box.isEmpty())continue;box.getCenter(ctr);
+      if(Math.hypot(ctr.x-cx,ctr.z-cz)<900)continue;
+      c.traverse(o=>{if(o.layers.mask===1){o.layers.set(1);worldHidden.push(o)}})}}
   function enterCircuit(){if(!circuit)return;
     worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
-    MODE='circuit';circU0=-1;circLap=0;circBest=null;circLapT0=performance.now();
+    MODE='circuit';circU0=-1;circLap=0;circBest=null;circLapT0=performance.now();hideWorld(true);
     if(window.RaceEngine&&circuit){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps,roadWidth:CIRC_W})}
     const {p,tg}=circuit.startP;
     PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
@@ -5586,7 +5605,7 @@ const PLANETS={
     if(worldGSave!=null){world.gravity.y=worldGSave;worldGSave=null}
     if(worldWeatherSave){const saved=worldWeatherSave;worldWeatherSave=null;setWeather(saved.lock||'auto',true);if(!saved.lock&&saved.id)mood(saved.id,.8)}
     applyDisplay();
-    toastMsg('Back to the valley');updCircBtn()}
+    hideWorld(false);toastMsg('Back to the valley');updCircBtn()}
   /* ---------- drawing overlay ---------- */
   /* ---------- AI rivals for solo races on drawn / daily tracks ----------
      Three cars from the grid slots behind you. Each one reads the track ahead and brakes for the tightest
@@ -6746,7 +6765,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
