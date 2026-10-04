@@ -1,0 +1,264 @@
+/* Daily Typing Race
+   Your keyboard is the throttle. Everyone gets the same sentence each UTC day (TYPING_POOL, in a fixed
+   permutation so nothing repeats until the pool runs out). Correct characters raise the car's speed,
+   which comes from your recent WPM scaled by accuracy; a wrong key costs a short speed penalty but never
+   sends you back. Finishing the sentence finishes the race, and the time goes on today's typing board.
+   The car itself is the real game car on today's daily track: autodrive steers it and this module only
+   hands it a speed ceiling through window.GameBridge, so the physics are the same ones you drive with. */
+(function(){
+  'use strict';
+  const POOL=window.TYPING_POOL||[];
+  const G=()=>window.GameBridge;
+  // speed model: ~30 WPM slow, 50 normal, 70 fast, 90 very fast, 120+ flat out (capped by the car)
+  const BASE_KMH=18,KMH_PER_WPM=1.25,WINDOW_S=4,PENALTY_MS=700,PENALTY=.55;
+  const MAX_WPM=220;                       // above this a run is not believable and is not submitted
+
+  /* ---------- today's sentence ---------- */
+  function dayNum(){const n=new Date();return Math.floor(Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())/864e5)}
+  function todaysText(){if(!POOL.length)return 'The quick brown fox jumps over the lazy dog.';
+    // 61 is coprime with the pool size unless it is a multiple of 61, so this walks every sentence once per cycle
+    const L=POOL.length,k=L%61===0?67:61;return POOL[((dayNum()*k)%L+L)%L]}
+  const norm=c=>c==='’'||c==='‘'?"'":c==='“'||c==='”'?'"':c===' '?' ':c;
+
+  /* ---------- styles (scoped to this mode) ---------- */
+  const css=document.createElement('style');css.textContent=`
+  #dtype{position:absolute;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(980px,calc(100% - 32px));z-index:30;display:none;
+    color:#f2eee6;font-family:var(--mono,ui-monospace,monospace);pointer-events:auto}
+  #dtype.on{display:block;animation:dtyIn .45s cubic-bezier(.2,.8,.2,1)}
+  @keyframes dtyIn{from{opacity:0;transform:translate(-50%,18px)}to{opacity:1;transform:translate(-50%,0)}}
+  #dtype .ty-card{background:linear-gradient(180deg,rgba(14,15,17,.82),rgba(8,8,9,.92));border:1px solid rgba(242,238,230,.12);border-radius:18px;
+    box-shadow:0 24px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);padding:16px 20px 14px;overflow:hidden;position:relative}
+  #dtype .ty-bar{position:absolute;left:0;top:0;height:3px;width:0;background:linear-gradient(90deg,#d4a83a,#ffe7a3);box-shadow:0 0 14px rgba(212,168,58,.8);transition:width .12s linear}
+  #dtype .ty-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  #dtype .ty-tag{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#d4a83a}
+  #dtype .ty-x{background:transparent;border:1px solid rgba(242,238,230,.18);color:rgba(242,238,230,.7);border-radius:999px;font:500 10px var(--mono,monospace);letter-spacing:.14em;padding:5px 11px;cursor:pointer;text-transform:uppercase}
+  #dtype .ty-x:hover{color:#fff;border-color:rgba(242,238,230,.5)}
+  #dtype .ty-text{font:500 clamp(17px,2.1vw,25px)/1.55 var(--mono,ui-monospace,monospace);letter-spacing:.01em;word-break:break-word;min-height:2.6em}
+  #dtype .ty-text span{transition:color .08s}
+  #dtype .ty-text .d{color:#f2eee6;text-shadow:0 0 18px rgba(212,168,58,.25)}
+  #dtype .ty-text .t{color:rgba(242,238,230,.32)}
+  #dtype .ty-text .c{color:#111;background:#d4a83a;border-radius:3px;box-shadow:0 0 0 2px rgba(212,168,58,.25);animation:dtyBlink 1s steps(2) infinite}
+  #dtype .ty-text .c.err{background:#e5484d;color:#fff;animation:dtyShake .18s}
+  @keyframes dtyBlink{50%{box-shadow:0 0 0 2px rgba(212,168,58,.05)}}
+  @keyframes dtyShake{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
+  #dtype.err .ty-card{border-color:rgba(229,72,77,.55)}
+  #dtype .ty-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(242,238,230,.08)}
+  #dtype .ty-st b{display:block;font:600 clamp(18px,2.2vw,26px)/1 var(--serif,Georgia,serif);color:#fff;font-variant-numeric:tabular-nums}
+  #dtype .ty-st span{display:block;margin-top:5px;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:rgba(242,238,230,.45)}
+  #dtype .ty-st.speed b{color:#ffd36b}
+  #dtype input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;left:0;top:0}
+  #dtype .ty-hint{font-size:10px;color:rgba(242,238,230,.4);letter-spacing:.12em;margin-top:8px;text-align:center}
+  #dtypecd{position:absolute;inset:0;z-index:31;display:none;place-items:center;pointer-events:none}
+  #dtypecd.on{display:grid}
+  #dtypecd b{font:700 clamp(64px,13vw,170px)/1 var(--serif,Georgia,serif);color:#fff;letter-spacing:-.03em;text-shadow:0 10px 60px rgba(0,0,0,.6)}
+  #dtypecd b.go{color:#ffd36b}
+  #dtypecd small{display:block;text-align:center;font:500 12px var(--mono,monospace);letter-spacing:.4em;color:rgba(242,238,230,.75);margin-top:10px;text-transform:uppercase}
+  #dtypecd .pop{animation:dtyPop .8s cubic-bezier(.2,.8,.2,1)}
+  @keyframes dtyPop{0%{opacity:0;transform:scale(1.6)}25%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(.92)}}
+  #dtypelines{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;transition:opacity .25s;
+    background:repeating-conic-gradient(from 0deg at 50% 46%,rgba(255,255,255,.0) 0deg,rgba(255,255,255,.0) 3.2deg,rgba(255,255,255,.11) 3.6deg,rgba(255,255,255,0) 4deg);
+    -webkit-mask:radial-gradient(circle at 50% 46%,transparent 0 26%,#000 62%);mask:radial-gradient(circle at 50% 46%,transparent 0 26%,#000 62%)}
+  #dtyperes{position:absolute;inset:0;z-index:40;display:none;place-items:center;background:radial-gradient(ellipse at 50% 30%,rgba(40,32,12,.55),rgba(6,6,7,.92));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:20px;overflow-y:auto}
+  #dtyperes.on{display:grid;animation:dtyIn2 .5s cubic-bezier(.2,.8,.2,1)}
+  @keyframes dtyIn2{from{opacity:0}to{opacity:1}}
+  #dtyperes .rs{width:min(560px,100%);text-align:center;color:#f2eee6}
+  #dtyperes .rs-k{font:500 11px var(--mono,monospace);letter-spacing:.34em;color:#d4a83a;text-transform:uppercase}
+  #dtyperes h2{font:700 clamp(40px,7vw,72px)/1 var(--serif,Georgia,serif);margin:8px 0 6px;letter-spacing:-.03em}
+  #dtyperes .rs-badge{display:inline-block;margin:6px 0 4px;padding:7px 14px;border-radius:999px;font:600 11px var(--mono,monospace);letter-spacing:.16em;text-transform:uppercase}
+  #dtyperes .rs-badge.pb{background:rgba(255,120,40,.16);color:#ffb37a;border:1px solid rgba(255,140,60,.4)}
+  #dtyperes .rs-badge.one{background:rgba(212,168,58,.18);color:#ffd36b;border:1px solid rgba(212,168,58,.5)}
+  #dtyperes .rs-time{font:700 clamp(54px,10vw,96px)/1 var(--serif,Georgia,serif);letter-spacing:-.03em;margin:14px 0 2px;font-variant-numeric:tabular-nums;
+    background:linear-gradient(180deg,#fff,#d9c38a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  #dtyperes .rs-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0 18px}
+  #dtyperes .rs-grid div{background:rgba(242,238,230,.05);border:1px solid rgba(242,238,230,.1);border-radius:14px;padding:14px 6px}
+  #dtyperes .rs-grid b{display:block;font:600 24px/1 var(--serif,Georgia,serif);font-variant-numeric:tabular-nums}
+  #dtyperes .rs-grid span{display:block;margin-top:6px;font:500 9px var(--mono,monospace);letter-spacing:.22em;color:rgba(242,238,230,.5);text-transform:uppercase}
+  #dtyperes .rs-note{font:500 11px var(--mono,monospace);color:rgba(242,238,230,.55);min-height:1.4em;letter-spacing:.06em}
+  #dtyperes .rs-btns{display:flex;gap:10px;margin-top:16px}
+  #dtyperes .rs-btns button{flex:1;padding:14px;border-radius:12px;border:1px solid rgba(242,238,230,.18);font:600 12px var(--mono,monospace);letter-spacing:.16em;text-transform:uppercase;cursor:pointer;background:rgba(242,238,230,.06);color:#f2eee6}
+  #dtyperes .rs-btns button.pri{background:linear-gradient(180deg,#e8bf55,#c99a2e);color:#140f04;border-color:transparent}
+  #drive.typing #dmob,#drive.typing .dbr,#drive.typing #dhint,#drive.typing #dauto,#drive.typing #dnav{display:none!important}
+  /* daily modal tabs */
+  .ty-tabs{display:flex;gap:6px;padding:4px;background:rgba(242,238,230,.06);border:1px solid rgba(242,238,230,.1);border-radius:12px;margin-bottom:16px}
+  .ty-tabs button{flex:1;padding:10px 8px;border:0;border-radius:9px;background:transparent;color:rgba(242,238,230,.6);font:600 11px var(--mono,monospace);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+  .ty-tabs button.on{background:#f2eee6;color:#0b0b0a}
+  .ty-pane .ty-quote{font:500 17px/1.55 var(--serif,Georgia,serif);color:#f2eee6;background:rgba(242,238,230,.05);border:1px solid rgba(242,238,230,.1);border-left:3px solid #d4a83a;border-radius:10px;padding:14px 16px;margin:6px 0 16px}
+  .ty-pane .ty-meta{font:500 11px var(--mono,monospace);color:rgba(242,238,230,.55);letter-spacing:.08em;margin-bottom:14px}
+  .ty-pane ol{list-style:none;margin:0 0 18px;padding:0;border-top:1px solid rgba(242,238,230,.1);max-height:230px;overflow-y:auto}
+  .ty-pane li{display:grid;grid-template-columns:38px 1fr 76px 52px 56px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid rgba(242,238,230,.07);font:500 13px var(--mono,monospace)}
+  .ty-pane li.h{font-size:9px;letter-spacing:.2em;color:rgba(242,238,230,.45);padding:7px 4px}
+  .ty-pane li.me{background:rgba(212,168,58,.14)}
+  .ty-pane li .r{color:#d4a83a;font-weight:700}.ty-pane li .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--serif,Georgia,serif);font-size:15px}
+  .ty-pane li .num{text-align:right;font-variant-numeric:tabular-nums}
+  @media (max-width:640px){#dtype .ty-stats{grid-template-columns:repeat(3,1fr)}#dtype .ty-st.hide-s{display:none}#dtyperes .rs-grid{grid-template-columns:repeat(2,1fr)}
+    .ty-pane li{grid-template-columns:30px 1fr 64px 44px;font-size:12px}.ty-pane li .acc{display:none}}`;
+  document.head.appendChild(css);
+
+  const sec=document.getElementById('drive')||document.body;
+  const mk=(tag,attrs,html)=>{const e=document.createElement(tag);Object.assign(e,attrs||{});if(html!=null)e.innerHTML=html;return e};
+
+  /* ---------- race HUD ---------- */
+  const hud=mk('div',{id:'dtype'},`<div class="ty-card"><div class="ty-bar"></div>
+      <div class="ty-head"><span class="ty-tag">Daily Typing Race · type this</span><button class="ty-x" type="button">Quit · Esc</button></div>
+      <div class="ty-text" aria-live="off"></div>
+      <div class="ty-stats">
+        <div class="ty-st speed"><b data-k="kmh">0</b><span>km/h</span></div>
+        <div class="ty-st"><b data-k="wpm">0</b><span>WPM</span></div>
+        <div class="ty-st"><b data-k="acc">100%</b><span>Accuracy</span></div>
+        <div class="ty-st hide-s"><b data-k="prog">0%</b><span>Progress</span></div>
+        <div class="ty-st hide-s"><b data-k="time">0.00s</b><span>Time</span></div>
+      </div><div class="ty-hint">Tap here if the keyboard closes</div></div>
+      <input type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" aria-label="Type the sentence">`);
+  const cd=mk('div',{id:'dtypecd'}),lines=mk('div',{id:'dtypelines'}),res=mk('div',{id:'dtyperes'});
+  sec.appendChild(lines);sec.appendChild(hud);sec.appendChild(cd);sec.appendChild(res);
+  const input=hud.querySelector('input'),textEl=hud.querySelector('.ty-text'),bar=hud.querySelector('.ty-bar'),stat={};
+  hud.querySelectorAll('[data-k]').forEach(b=>stat[b.dataset.k]=b);
+  hud.querySelector('.ty-x').onclick=()=>quit();
+  hud.querySelector('.ty-card').addEventListener('pointerdown',()=>setTimeout(()=>input.focus(),0));
+
+  /* ---------- state ---------- */
+  let st='idle',text='',spans=[],pos=0,keys=0,correct=0,errors=0,t0=0,stamps=[],penaltyTill=0,maxKmh=0,raf=0,rejected='',cdTimers=[];
+  const now=()=>performance.now();
+
+  function paintText(errAt){
+    for(let i=0;i<spans.length;i++){const cls=i<pos?'d':i===pos?'c':'t';const sp=spans[i];if(sp.className!==cls)sp.className=cls}
+    if(errAt!=null&&spans[pos]){spans[pos].classList.add('err');hud.classList.add('err');clearTimeout(paintText._t);paintText._t=setTimeout(()=>{hud.classList.remove('err');if(spans[pos])spans[pos].classList.remove('err')},220)}}
+  function buildText(){textEl.innerHTML='';spans=[...text].map(ch=>{const s=document.createElement('span');s.textContent=ch;textEl.appendChild(s);return s});paintText()}
+
+  /* ---------- typing ---------- */
+  function onChar(ch,t){
+    if(st!=='racing')return;ch=norm(ch);keys++;
+    if(ch===text[pos]){pos++;correct++;stamps.push(t);paintText();if(pos>=text.length)finish(t)}
+    else{errors++;penaltyTill=t+PENALTY_MS;paintText(true);try{G().shake(.18)}catch(e){}}}
+  input.addEventListener('input',e=>{
+    const v=input.value;input.value='';
+    if(!e.isTrusted||st!=='racing')return;
+    const kind=e.inputType||'';
+    if(/paste|drop|Replacement|Yank/i.test(kind)){toast('Pasting is switched off · type it');return}
+    // a keyboard sends one character at a time; a whole word at once is autocomplete or a macro
+    if(v.length>2&&!/Composition/i.test(kind)){rejected=rejected||'multi-character input';}
+    const t=now();for(const ch of v)onChar(ch,t)});
+  input.addEventListener('paste',e=>{e.preventDefault();toast('Pasting is switched off · type it')});
+  input.addEventListener('drop',e=>e.preventDefault());
+  input.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();quit()}});
+  input.addEventListener('blur',()=>{if(st==='racing'||st==='countdown')setTimeout(()=>{if(st==='racing'||st==='countdown')input.focus()},50)});
+
+  /* ---------- the speed model ---------- */
+  function rollingWpm(t){const from=t-WINDOW_S*1000;let n=0;for(let i=stamps.length-1;i>=0&&stamps[i]>=from;i--)n++;
+    const span=Math.max(1,Math.min(WINDOW_S,(t-t0)/1000));return n/5/(span/60)}
+  function targetKmh(t){
+    const w=rollingWpm(t);if(w<=0)return 0;
+    const acc=keys?correct/keys:1,accMult=Math.max(.5,acc);
+    let v=BASE_KMH+w*KMH_PER_WPM*accMult;
+    if(t<penaltyTill)v*=PENALTY;
+    return Math.min(v,G().maxKmh()*.97,230)}
+  function frame(){
+    raf=requestAnimationFrame(frame);if(st!=='racing'&&st!=='done')return;
+    const t=now(),el=(st==='done'?doneT:t)-t0,b=G(),sp=b.speedKmh();
+    if(st==='racing')b.cap(targetKmh(t));
+    maxKmh=Math.max(maxKmh,sp);
+    const mins=Math.max(1/60,el/60000),wpm=correct/5/mins,acc=keys?correct/keys*100:100;
+    stat.kmh.textContent=Math.round(sp);stat.wpm.textContent=Math.round(st==='racing'?rollingWpm(t):wpm);
+    stat.acc.textContent=acc.toFixed(acc>=99.95?0:1)+'%';stat.prog.textContent=Math.round(pos/text.length*100)+'%';stat.time.textContent=(el/1000).toFixed(2)+'s';
+    bar.style.width=(pos/text.length*100)+'%';
+    // speed reads as speed: streaks past 90 km/h, a little shake near the top end
+    lines.style.opacity=String(Math.max(0,Math.min(.85,(sp-85)/90)));
+    if(sp>150&&Math.random()<.25)b.shake(.06)}
+
+  /* ---------- flow ---------- */
+  function toast(m){try{G().toast(m)}catch(e){}}
+  function start(){
+    const b=G();if(!b){alert('The game is still loading');return}
+    closeResults();text=todaysText();pos=keys=correct=errors=0;stamps=[];maxKmh=0;penaltyTill=0;rejected='';
+    buildText();b.toDailyStart();sec.classList.add('typing');hud.classList.add('on');
+    const dm=document.getElementById('ddaily-modal');if(dm)dm.style.display='none';
+    st='countdown';input.value='';input.focus();
+    if(!raf)raf=requestAnimationFrame(frame);
+    const steps=[['GET READY','Your typing is your throttle'],['3',''],['2',''],['1',''],['GO!','']];
+    cdTimers.forEach(clearTimeout);cdTimers=[];cd.classList.add('on');
+    steps.forEach((s,i)=>cdTimers.push(setTimeout(()=>{if(st!=='countdown')return;
+      cd.innerHTML='<div class="pop"><b class="'+(s[0]==='GO!'?'go':'')+'">'+s[0]+'</b>'+(s[1]?'<small>'+s[1]+'</small>':'')+'</div>';
+      if(s[0]==='GO!'){st='racing';t0=now();input.focus();cdTimers.push(setTimeout(()=>cd.classList.remove('on'),700))}},i===0?0:1100+(i-1)*1000)))}
+  let doneT=0;
+  function finish(t){st='done';doneT=t;const b=G();b.cap(0);lines.style.opacity='0';
+    const ms=Math.round(t-t0),acc=correct/keys*100,wpm=correct/5/(ms/60000);
+    // fairness: believable speed, real keystrokes, not a stream of key events spaced by a machine
+    let fast=0;for(let i=1;i<stamps.length;i++)if(stamps[i]-stamps[i-1]<12)fast++;
+    if(!rejected&&wpm>MAX_WPM)rejected='faster than any human typist';
+    if(!rejected&&stamps.length>8&&fast/stamps.length>.2)rejected='key timing looked automated';
+    if(!rejected&&keys<text.length)rejected='keystrokes missing';
+    setTimeout(()=>showResults({ms,acc,wpm,chars:text.length,keys,maxKmh:Math.round(maxKmh)}),900)}
+  function quit(){if(st==='idle')return;st='idle';cdTimers.forEach(clearTimeout);cd.classList.remove('on');hud.classList.remove('on');sec.classList.remove('typing');
+    lines.style.opacity='0';try{G().release()}catch(e){}input.blur()}
+
+  /* ---------- leaderboard (Supabase typing_times; the database re-checks every stat) ---------- */
+  const Board={
+    url(){const s=G()&&G().supa;return s?s.url+'/rest/v1/typing_times':null},
+    head(){const k=G().supa.key;return {'Content-Type':'application/json',apikey:k,Authorization:'Bearer '+k}},
+    async fetch(day){try{const u=this.url();if(!u)return null;const r=await fetch(u+'?select=name,ms,wpm,acc&day=eq.'+day+'&order=ms.asc&limit=300',{headers:this.head()});if(!r.ok)return null;
+      const best=new Map();(await r.json()).forEach(x=>{const k=String(x.name).toLowerCase();if(!best.has(k))best.set(k,x)});return [...best.values()]}catch(e){return null}},
+    async submit(rec){try{const u=this.url();if(!u)return false;const r=await fetch(u,{method:'POST',headers:Object.assign({Prefer:'return=minimal'},this.head()),body:JSON.stringify(rec)});return r.ok}catch(e){return false}}};
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const myName=()=>{const n=G()&&G().name();return n||'Driver'};
+
+  async function showResults(r){
+    const day=G().day(),pbKey='sl_type_pb_'+day;let pb=0;try{pb=+localStorage.getItem(pbKey)||0}catch(e){}
+    const newPb=!rejected&&(!pb||r.ms<pb);if(newPb)try{localStorage.setItem(pbKey,String(r.ms))}catch(e){}
+    res.innerHTML=`<div class="rs"><div class="rs-k">Daily Typing Race · ${day}</div><h2>🏁 Finished!</h2>
+      <div class="rs-badges"></div><div class="rs-time">${(r.ms/1000).toFixed(2)}s</div>
+      <div class="rs-grid"><div><b>${Math.round(r.wpm)}</b><span>WPM</span></div><div><b>${r.acc.toFixed(1)}%</b><span>Accuracy</span></div>
+        <div><b>${r.maxKmh}</b><span>Max km/h</span></div><div><b class="rs-pos">…</b><span>Today</span></div></div>
+      <div class="rs-note"></div>
+      <div class="rs-btns"><button class="rs-board" type="button">View leaderboard</button><button class="pri rs-again" type="button">Try again</button></div></div>`;
+    res.classList.add('on');
+    const badges=res.querySelector('.rs-badges'),note=res.querySelector('.rs-note'),posEl=res.querySelector('.rs-pos');
+    res.querySelector('.rs-again').onclick=()=>{closeResults();start()};
+    res.querySelector('.rs-board').onclick=()=>{closeResults();quit();openDaily('type')};
+    if(newPb)badges.innerHTML+='<span class="rs-badge pb">🔥 New personal best!</span> ';
+    if(rejected){note.textContent='Not submitted: '+rejected+'.';posEl.textContent='—';return}
+    note.textContent='Saving to today\'s board…';
+    const rec={day,name:myName().slice(0,24),ms:r.ms,wpm:+r.wpm.toFixed(1),acc:+r.acc.toFixed(1),chars:r.chars,keys:r.keys,max_kmh:r.maxKmh};
+    const ok=await Board.submit(rec);
+    const rows=await Board.fetch(day);
+    note.textContent=ok?'Saved to the global board for '+day+' (UTC).':'Could not reach the board · your best is kept on this device.';
+    if(rows){const mine=myName().toLowerCase(),others=rows.filter(x=>String(x.name).toLowerCase()!==mine),myBest=Math.min(r.ms,...rows.filter(x=>String(x.name).toLowerCase()===mine).map(x=>x.ms));
+      const place=others.filter(x=>x.ms<myBest).length+1;posEl.textContent='#'+place;
+      if(place===1&&r.ms===myBest)badges.innerHTML+='<span class="rs-badge one">🏆 You are today\'s fastest typer!</span>'}
+    else posEl.textContent='—'}
+  function closeResults(){res.classList.remove('on')}
+
+  /* ---------- the Daily modal: Track of the Day | Typing Race ---------- */
+  const modal=document.getElementById('ddaily-modal'),inner=modal&&modal.querySelector('.bd-in');
+  let pane=null,tabBtns=[];
+  if(inner){
+    const orig=[...inner.children];
+    const tabs=mk('div',{className:'ty-tabs'},'<button type="button" data-t="track" class="on">Track of the Day</button><button type="button" data-t="type">🏎️ Typing Race</button>');
+    inner.prepend(tabs);tabBtns=[...tabs.children];
+    pane=mk('div',{className:'ty-pane'},`<div class="mono" style="color:#d4a83a">Daily Typing Race</div>
+      <h3 class="disp" style="font-size:34px;margin:4px 0 6px">Race with your keyboard</h3>
+      <div class="ty-meta"></div><div class="ty-quote"></div>
+      <div class="mono" style="color:var(--bone);margin-bottom:6px">Today's typing leaderboard</div><ol></ol>
+      <div style="display:flex;gap:10px"><button type="button" class="dbtn mono ty-go" style="background:#d4a83a;color:#06070b;font-weight:700;flex:1">Start typing race</button>
+      <button type="button" class="dbtn mono ty-close bd-x" style="margin-top:0">Close</button></div>`);
+    pane.style.display='none';inner.appendChild(pane);
+    pane.querySelector('.ty-go').onclick=()=>start();
+    pane.querySelector('.ty-close').onclick=()=>{modal.style.display='none'};
+    const show=t=>{tabBtns.forEach(b=>b.classList.toggle('on',b.dataset.t===t));orig.forEach(e=>e.style.display=t==='type'?'none':'');pane.style.display=t==='type'?'':'none';if(t==='type')renderPane()};
+    tabBtns.forEach(b=>b.onclick=()=>show(b.dataset.t));
+    window.__dailyTab=show;
+    // every time the Daily modal opens it starts on the track tab
+    new MutationObserver(()=>{if(modal.style.display!=='none'&&!modal._ty){modal._ty=1;show(modal._want||'track');modal._want=null}if(modal.style.display==='none')modal._ty=0}).observe(modal,{attributes:true,attributeFilter:['style']})}
+  function openDaily(tab){const b=document.getElementById('dmdaily');if(modal)modal._want=tab;if(b)b.click();else if(modal)modal.style.display='grid'}
+  async function renderPane(){if(!pane)return;
+    const t=todaysText(),day=(G()&&G().day())||new Date().toISOString().slice(0,10),ol=pane.querySelector('ol');
+    pane.querySelector('.ty-quote').textContent='“'+t+'”';
+    pane.querySelector('.ty-meta').textContent=day+' (UTC) · '+t.length+' characters · same sentence for everyone · ranked by time';
+    const head='<li class="h"><span>#</span><span>Player</span><span class="num">Time</span><span class="num">WPM</span><span class="num acc">Acc</span></li>';
+    ol.innerHTML=head+'<li><span></span><span style="opacity:.5">Loading…</span></li>';
+    const rows=await Board.fetch(day),me=myName().toLowerCase();
+    if(!rows){ol.innerHTML=head+'<li><span></span><span style="opacity:.55">Board unavailable right now.</span></li>';return}
+    ol.innerHTML=head+(rows.length?rows.slice(0,50).map((r,i)=>`<li class="${String(r.name).toLowerCase()===me?'me':''}"><span class="r">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</span><span class="n">${esc(r.name)}</span><span class="num">${(r.ms/1000).toFixed(2)}s</span><span class="num">${Math.round(r.wpm)}</span><span class="num acc">${Math.round(r.acc)}%</span></li>`).join('')
+      :'<li><span></span><span style="opacity:.55">No typists yet today. Set the pace.</span></li>')}
+
+  window.TypingRace={start,quit,todaysText,get state(){return st}};
+})();
