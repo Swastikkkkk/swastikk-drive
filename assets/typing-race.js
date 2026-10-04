@@ -21,18 +21,18 @@
 
   /* ---------- styles (scoped to this mode) ---------- */
   const css=document.createElement('style');css.textContent=`
-  #dtype{position:absolute;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(980px,calc(100% - 32px));z-index:30;display:none;
+  #dtype{position:absolute;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(820px,calc(100% - 32px));z-index:30;display:none;
     color:#eef0f3;font-family:var(--mono,ui-monospace,monospace);pointer-events:auto}
   #dtype.on{display:block;animation:dtyIn .45s cubic-bezier(.2,.8,.2,1)}
   @keyframes dtyIn{from{opacity:0;transform:translate(-50%,18px)}to{opacity:1;transform:translate(-50%,0)}}
-  #dtype .ty-card{background:linear-gradient(180deg,rgba(14,15,17,.82),rgba(8,8,9,.92));border:1px solid rgba(238,240,243,.12);border-radius:18px;
-    box-shadow:0 24px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);padding:16px 20px 14px;overflow:hidden;position:relative}
+  #dtype .ty-card{background:linear-gradient(180deg,rgba(14,15,17,.62),rgba(8,8,9,.74));border:1px solid rgba(238,240,243,.12);border-radius:18px;
+    box-shadow:0 24px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);padding:12px 16px 12px;overflow:hidden;position:relative}
   #dtype .ty-bar{position:absolute;left:0;top:0;height:3px;width:0;background:linear-gradient(90deg,#4d8dff,#b5d0ff);box-shadow:0 0 14px rgba(77,141,255,.8);transition:width .12s linear}
-  #dtype .ty-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  #dtype .ty-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
   #dtype .ty-tag{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#4d8dff}
   #dtype .ty-x{background:transparent;border:1px solid rgba(238,240,243,.18);color:rgba(238,240,243,.7);border-radius:999px;font:500 10px var(--mono,monospace);letter-spacing:.14em;padding:5px 11px;cursor:pointer;text-transform:uppercase}
   #dtype .ty-x:hover{color:#fff;border-color:rgba(238,240,243,.5)}
-  #dtype .ty-text{font:500 clamp(17px,2.1vw,25px)/1.55 var(--mono,ui-monospace,monospace);letter-spacing:.01em;word-break:break-word;min-height:2.6em}
+  #dtype .ty-text{font:500 clamp(15px,1.6vw,20px)/1.5 var(--mono,ui-monospace,monospace);letter-spacing:.01em;word-break:break-word;min-height:1.5em}
   #dtype .ty-text span{transition:color .08s}
   #dtype .ty-text .d{color:#eef0f3;text-shadow:0 0 18px rgba(77,141,255,.25)}
   #dtype .ty-text .t{color:rgba(238,240,243,.32)}
@@ -41,15 +41,15 @@
   @keyframes dtyBlink{50%{box-shadow:0 0 0 2px rgba(77,141,255,.05)}}
   @keyframes dtyShake{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
   #dtype.err .ty-card{border-color:rgba(229,72,77,.55)}
-  #dtype .ty-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(238,240,243,.08)}
-  #dtype .ty-st b{display:block;font:600 clamp(18px,2.2vw,26px)/1 var(--serif,Georgia,serif);color:#fff;font-variant-numeric:tabular-nums}
-  #dtype .ty-st span{display:block;margin-top:5px;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:rgba(238,240,243,.45)}
+  #dtype .ty-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(238,240,243,.08)}
+  #dtype .ty-st b{display:block;font:600 clamp(15px,1.6vw,19px)/1 var(--serif,Georgia,serif);color:#fff;font-variant-numeric:tabular-nums}
+  #dtype .ty-st span{display:block;margin-top:3px;font-size:8px;letter-spacing:.24em;text-transform:uppercase;color:rgba(238,240,243,.45)}
   #dtype .ty-st.speed b{color:#8db7ff}
   #dtype input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;left:0;top:0}
-  #dtype .ty-kbwrap{display:flex;justify-content:center;margin-top:14px}
+  #dtype .ty-kbwrap{display:flex;justify-content:center;margin-top:10px}
+  #dtype .tkb{--k:clamp(15px,1.65vw,23px);background:rgba(17,18,21,.55)}
   @media (max-width:760px),(pointer:coarse){#dtype .ty-kbwrap{display:none}}
-  #dtype .ty-hint{font-size:10px;color:rgba(238,240,243,.4);letter-spacing:.12em;margin-top:8px;text-align:center}
-  #dtypecd{position:absolute;inset:0;z-index:31;display:none;place-items:center;pointer-events:none}
+  #dtypecd{position:absolute;inset:0;z-index:31;display:none;place-items:start center;padding-top:9vh;pointer-events:none}
   #dtypecd.on{display:grid}
   #dtypecd b{font:700 clamp(64px,13vw,170px)/1 var(--serif,Georgia,serif);color:#fff;letter-spacing:-.03em;text-shadow:0 10px 60px rgba(0,0,0,.6)}
   #dtypecd b.go{color:#8db7ff}
@@ -83,8 +83,6 @@
   .ty-tabs{display:flex;gap:6px;padding:4px;background:rgba(238,240,243,.06);border:1px solid rgba(238,240,243,.1);border-radius:12px;margin-bottom:16px}
   .ty-tabs button{flex:1;padding:10px 8px;border:0;border-radius:9px;background:transparent;color:rgba(238,240,243,.6);font:600 11px var(--mono,monospace);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
   .ty-tabs button.on{background:#eef0f3;color:#0b0b0a}
-  .ty-pane .ty-quote{font:500 17px/1.55 var(--serif,Georgia,serif);color:#eef0f3;background:rgba(238,240,243,.05);border:1px solid rgba(238,240,243,.1);border-left:3px solid #4d8dff;border-radius:10px;padding:14px 16px;margin:6px 0 16px}
-  .ty-pane .ty-meta{font:500 11px var(--mono,monospace);color:rgba(238,240,243,.55);letter-spacing:.08em;margin-bottom:14px}
   .ty-pane ol{list-style:none;margin:0 0 18px;padding:0;border-top:1px solid rgba(238,240,243,.1);max-height:230px;overflow-y:auto}
   .ty-pane li{display:grid;grid-template-columns:38px 1fr 76px 52px 56px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid rgba(238,240,243,.07);font:500 13px var(--mono,monospace)}
   .ty-pane li.h{font-size:9px;letter-spacing:.2em;color:rgba(238,240,243,.45);padding:7px 4px}
@@ -100,7 +98,7 @@
 
   /* ---------- race HUD ---------- */
   const hud=mk('div',{id:'dtype'},`<div class="ty-card"><div class="ty-bar"></div>
-      <div class="ty-head"><span class="ty-tag">Daily Typing Race · type this</span><span style="display:flex;gap:8px"><button class="ty-x ty-snd" type="button">Sound on</button><button class="ty-x" type="button" data-q="1">Quit · Esc</button></span></div>
+      <div class="ty-head"><span class="ty-tag">Daily Typing Race</span><span style="display:flex;gap:8px"><button class="ty-x ty-snd" type="button">Sound on</button><button class="ty-x" type="button" data-q="1">Quit · Esc</button></span></div>
       <div class="ty-text" aria-live="off"></div>
       <div class="ty-stats">
         <div class="ty-st speed"><b data-k="kmh">0</b><span>km/h</span></div>
@@ -108,7 +106,7 @@
         <div class="ty-st"><b data-k="acc">100%</b><span>Accuracy</span></div>
         <div class="ty-st hide-s"><b data-k="prog">0%</b><span>Progress</span></div>
         <div class="ty-st hide-s"><b data-k="time">0.00s</b><span>Time</span></div>
-      </div><div class="ty-hint">Tap here if the keyboard closes</div></div>
+      </div></div>
       <input type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" aria-label="Type the sentence">`);
   const cd=mk('div',{id:'dtypecd'}),lines=mk('div',{id:'dtypelines'}),res=mk('div',{id:'dtyperes'});
   sec.appendChild(lines);sec.appendChild(hud);sec.appendChild(cd);sec.appendChild(res);
@@ -117,7 +115,7 @@
   hud.querySelector('[data-q]').onclick=()=>quit();
   // the keyboard under the stats (assets/typing-keyboard.js); hidden on phones, which bring their own
   const KB=window.TypingKeyboard;
-  if(KB){const wrap=document.createElement('div');wrap.className='ty-kbwrap';hud.querySelector('.ty-card').insertBefore(wrap,hud.querySelector('.ty-hint'));KB.mount(wrap);
+  if(KB){const wrap=document.createElement('div');wrap.className='ty-kbwrap';hud.querySelector('.ty-card').appendChild(wrap);KB.mount(wrap);
     const sb=hud.querySelector('.ty-snd'),paintS=()=>{sb.textContent=KB.sound?'Sound on':'Sound off'};paintS();sb.onclick=()=>{KB.sound=!KB.sound;paintS();setTimeout(()=>input.focus(),0)}}
   else hud.querySelector('.ty-snd').style.display='none';
   hud.querySelector('.ty-card').addEventListener('pointerdown',()=>setTimeout(()=>input.focus(),0));
@@ -177,7 +175,7 @@
     stat.kmh.textContent='0';stat.wpm.textContent='0';stat.acc.textContent='100%';stat.prog.textContent='0%';stat.time.textContent='0.00s';bar.style.width='0';
     // no countdown: the car waits on the line and the clock starts with your first key
     st='ready';t0=0;input.value='';input.focus();if(KBR()){KBR().active=true;KBR().hint(text[0])}
-    cd.innerHTML='<div><b style="font-size:clamp(34px,6vw,64px)">Start typing</b><small>The clock starts on your first key</small></div>';cd.classList.add('on');
+    cd.innerHTML='<div><b style="font-size:clamp(28px,4vw,44px)">Start typing</b></div>';cd.classList.add('on');
     if(!raf)raf=requestAnimationFrame(frame)}
   let doneT=0;
   function finish(t){st='done';doneT=t;lines.style.opacity='0';if(KBR())KBR().active=false;
@@ -238,7 +236,6 @@
     inner.prepend(tabs);tabBtns=[...tabs.children];
     pane=mk('div',{className:'ty-pane'},`<div class="mono" style="color:#4d8dff">Daily Typing Race</div>
       <h3 class="disp" style="font-size:34px;margin:4px 0 6px">Race with your keyboard</h3>
-      <div class="ty-meta"></div><div class="ty-quote"></div>
       <div class="mono" style="color:var(--bone);margin-bottom:6px">Today's typing leaderboard</div><ol></ol>
       <div style="display:flex;gap:10px"><button type="button" class="dbtn mono ty-go" style="background:#4d8dff;color:#06070b;font-weight:700;flex:1">Start typing race</button>
       <button type="button" class="dbtn mono ty-close bd-x" style="margin-top:0">Close</button></div>`);
@@ -252,9 +249,7 @@
     new MutationObserver(()=>{if(modal.style.display!=='none'&&!modal._ty){modal._ty=1;show(modal._want||'track');modal._want=null}if(modal.style.display==='none')modal._ty=0}).observe(modal,{attributes:true,attributeFilter:['style']})}
   function openDaily(tab){const b=document.getElementById('dmdaily');if(modal)modal._want=tab;if(b)b.click();else if(modal)modal.style.display='grid'}
   async function renderPane(){if(!pane)return;
-    const t=todaysText(),day=(G()&&G().day())||new Date().toISOString().slice(0,10),ol=pane.querySelector('ol');
-    pane.querySelector('.ty-quote').textContent='Today\'s sentence is hidden until you press Start. '+t.length+' characters, one lap: the car finishes the lap the moment you finish typing.';   // no head start from reading it first
-    pane.querySelector('.ty-meta').textContent=day+' (UTC) · same sentence for everyone · clock starts on your first key · ranked by time';
+    const day=(G()&&G().day())||new Date().toISOString().slice(0,10),ol=pane.querySelector('ol');
     const head='<li class="h"><span>#</span><span>Player</span><span class="num">Time</span><span class="num">WPM</span><span class="num acc">Acc</span></li>';
     ol.innerHTML=head+'<li><span></span><span style="opacity:.5">Loading…</span></li>';
     const rows=await Board.fetch(day),me=myName().toLowerCase();

@@ -4654,7 +4654,7 @@ const PLANETS={
         const fp=CM.n==='Bumper'?FP.bumper:FP.bonnet,fy=fp.y+FP.off;
         camT.set(0,fy,fp.z).applyQuaternion(car.quaternion).add(car.position);C.position.copy(camT);
         lookT.set(0,fy-.25,fp.z+18).applyQuaternion(car.quaternion).add(car.position)}
-      else{const dist=(CM.d+Math.min(5,sp*.2)*CM.k+ce*1.9)*pf,hgt=(CM.h+Math.min(2,sp*.07)*CM.k+ce*.7)*pf;
+      else{const ty=TYPEF.on?1:0,dist=(CM.d+Math.min(5,sp*.2)*CM.k+ce*1.9+ty*3)*pf,hgt=(CM.h+Math.min(2,sp*.07)*CM.k+ce*.7+ty*1.4)*pf;   // typing race: a step back so the whole car clears the panel
         camT.copy(car.position).addScaledVector(fwd,-dist).add(tmp.set(0,hgt,0));
         C.position.lerp(camT,1-Math.exp(-dt*(active?CM.lag:3.2)));
         lookT.copy(car.position).addScaledVector(fwd,CM.ahead).add(tmp.set(0,CM.ly,0))}
@@ -4729,6 +4729,9 @@ const PLANETS={
       cubeCam.position.set(car.position.x,car.position.y+1.6,car.position.z);cubeCam.updateMatrixWorld();hideCars(false);cubeCam.update(R,S);hideCars(true);
       cubeInit=true;cubeSun=sun.intensity;cubeX=car.position.x;cubeZ=car.position.z}
     if(active){ANOMALY.update(dt,now);SPACE.updateEarth()}
+    /* typing race: the panel fills the bottom of the screen, so the picture slides up to keep the car above it */
+    {const want=TYPEF.on?.34:0;TYPEF.vo=(TYPEF.vo||0)+(want-(TYPEF.vo||0))*.08;const cw=R.domElement.clientWidth||innerWidth,ch=R.domElement.clientHeight||innerHeight;
+     if(TYPEF.vo>.002)C.setViewOffset(cw,ch,0,TYPEF.vo*ch,cw,ch);else if(C.view&&C.view.enabled){TYPEF.vo=0;C.clearViewOffset()}}
     R.render(S,C);if(active&&frameN%6===0)drawMap(mx2,mm.width,false);
     /* ---------- rearview mirror PIP ---------- */
     if(rearMirrorOn&&active&&driving&&!cineOn)renderMirror(S,car.position,car.quaternion,FP.off);
