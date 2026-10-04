@@ -1557,7 +1557,7 @@ t.bd.position.set(x,y+.86,z);
       t.bd.aabbNeedsUpdate=true}}
   /* ---------- AI Racing Traffic ---------- */
   const aiRacers=[];
-  const AI_COUNT=4;
+  const AI_COUNT=0;   // the free-drive racers ran down the centre line into everyone; the loop keeps its traffic, circuits keep their rivals
   const AISkill=['rookie','amateur','pro','alien'];
   function spawnAIRacers(){
     aiRacers.length=0;
@@ -4167,13 +4167,13 @@ const PLANETS={
     let after=sec2;[['dptravel','Travel','Fly to another world',()=>SPACE.openTravel()],['dsprint','Race to UFO','Time trial to the next UFO station',()=>SPACE.startSprint()],['dhome','Earth','Fly back home to Earth',()=>SPACE.goEarth()]].forEach(([id,t,ti,fn])=>{
       const b=document.createElement('button');b.id=id;b.className='dbtn mono spaceonly';b.textContent=t;b.title=ti;b.onclick=()=>{fn();const m=$('#dmenu');if(m&&m.getAttribute('aria-expanded')==='true')m.click()};after.after(b);after=b})}}
   const AUTO=(function(){
-    let on=false,ci=0,wi=0;
+    let on=false,ci=0,wi=0,lock=false,vCap=null;   // lock: keys don't take over (typing race); vCap: a speed ceiling in m/s
     const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),btn=document.createElement('button');
     {const gb=$('#dgps');if(gb){btn.className=gb.className;btn.id='dauto';btn.textContent='Autodrive';btn.title='Autodrive (P)';gb.after(btn);btn.onclick=()=>set(!on)}}
     const badge=document.createElement('div');badge.className='mono';badge.textContent='AUTODRIVE · any key to take over';
     badge.style.cssText='position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:6;display:none;padding:6px 12px;border-radius:999px;background:rgba(0,200,120,.88);color:#04130b;font-size:10px;letter-spacing:.14em;pointer-events:none';
     sec.appendChild(badge);
-    function set(v){on=!!v;badge.style.display=on?'block':'none';btn.classList.toggle('on',on);if(!on)for(const k of ['f','b','l','r','h'])key[k]=0;toastMsg(on?'Autodrive on · steer or brake to take over':'Autodrive off')}
+    function set(v,quiet){on=!!v;badge.style.display=on&&!quiet?'block':'none';btn.classList.toggle('on',on);if(!on){for(const k of ['f','b','l','r','h'])key[k]=0;lock=false;vCap=null}if(!quiet)toastMsg(on?'Autodrive on · steer or brake to take over':'Autodrive off')}
     // a path for whatever world the car is in: sample(i) and its count, or a planet road by distance
     function samplePath(){
       if(SPACE.state==='surface'&&SPACE.SURF)return {planet:true};
@@ -4198,13 +4198,36 @@ const PLANETS={
         curve=Math.abs(wrap(hB-hA))/35;vmax=V.max;lat=latG(curCarId)*9.81*.8}
       // steer at the point ahead; slow to the speed this bend allows
       const err=wrap(Math.atan2(ahead.x-x,ahead.z-z)-h),st=Math.max(-1,Math.min(1,err*2.4));
-      const vT=Math.max(7,Math.min(vmax*.97,Math.sqrt(lat/Math.max(1e-4,curve))));
-      key.l=st>0?st:0;key.r=st<0?-st:0;key.f=sp<vT?1:0;key.b=sp>vT+4?1:0;key.h=0;if(window.__dev)window.__autoDbg=[+vT.toFixed(1),+curve.toFixed(4),+sp.toFixed(1),ci,+err.toFixed(2)]}
+      let vT=Math.max(7,Math.min(vmax*.97,Math.sqrt(lat/Math.max(1e-4,curve))));
+      // anything in our path ahead (traffic on the loop, circuit rivals): follow it at a safe gap instead of driving into it
+      if(!path.planet){const hx=Math.sin(h),hz=Math.cos(h),obs=traffic.map(t=>t.bd);try{CAI.bodies.forEach(b=>obs.push(b))}catch(e){}
+        for(const b of obs){const dx=b.position.x-x,dz=b.position.z-z,fwd=dx*hx+dz*hz,side=Math.abs(dx*hz-dz*hx);
+          if(fwd>0&&fwd<45&&side<2.6){const bv=Math.max(0,b.velocity.x*hx+b.velocity.z*hz),gap=fwd-7;
+            vT=Math.min(vT,gap<=0?0:bv+gap*.35)}}}
+      if(vCap!=null){vT=Math.min(vT,vCap);if(vCap<.5){key.l=key.r=0;key.f=0;key.b=1;key.h=0;return}}
+      key.l=st>0?st:0;key.r=st<0?-st:0;key.f=sp<vT?1:0;key.b=sp>vT+(vCap!=null?2:4)?1:0;key.h=0;if(window.__dev)window.__autoDbg=[+vT.toFixed(1),+curve.toFixed(4),+sp.toFixed(1),ci,+err.toFixed(2)]}
     // taking over: a driving key pressed by hand ends autodrive before the game sees it
     addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;
+      if(lock)return;
       if(e.code==='KeyP'&&active&&!e.repeat){set(!on);e.stopImmediatePropagation();return}
       if(on&&/^(Arrow|KeyW$|KeyA$|KeyS$|KeyD$|Space$)/.test(e.code))set(false)},true);
-    return {tick,set,get on(){return on}}})();
+    return {tick,set,get on(){return on},set lock(v){lock=!!v},set cap(v){vCap=v}}})();
+  /* ---------- bridge for self-contained modes (assets/typing-race.js) ----------
+     A mode outside this file drives the car only through these: put it on today's daily track,
+     hand autodrive a speed ceiling, read the speedometer. Nothing else in the game changes for it. */
+  window.GameBridge={
+    supa:SUPA,day:()=>dailyDay(),
+    name:()=>{try{return (localStorage.getItem('sl_name')||'').trim()}catch(e){return ''}},
+    toDailyStart(){if(!active)enterDrive();try{if(SPACE.state!=='earth')SPACE.forceEarth()}catch(e){}
+      try{if(window.RaceEngine&&window.RaceEngine.state!=='idle')window.RaceEngine.stopRace()}catch(e){}
+      window.__buildDaily();try{CAI.clear()}catch(e){}resetCar();
+      AUTO.set(true,true);AUTO.lock=true;AUTO.cap=0},
+    cap(kmh){AUTO.cap=Math.max(0,kmh)/3.6},
+    release(){AUTO.set(false,true)},
+    speedKmh:()=>Math.hypot(chassisB.velocity.x,chassisB.velocity.z)*3.6,
+    maxKmh:()=>V.max*3.6,
+    shake(v){shake=Math.max(shake,v)},
+    toast:m=>toastMsg(m)};
   const phoneSt={on:false,cam:false,reset:false};let rcSince=0;
   const garageEl=$('#dgarage');
   function loop(now){requestAnimationFrame(loop);
@@ -5427,7 +5450,7 @@ const PLANETS={
           const rows=[{name:'You',finishTime:RE.totalRaceTime,isMe:true}].concat(cars.map(a=>({name:a.name,finishTime:a.fin||null,racing:!a.fin,prog:a.prog})));
           rows.sort((p,q)=>p.finishTime&&q.finishTime?p.finishTime-q.finishTime:p.finishTime?-1:q.finishTime?1:q.prog-p.prog);
           rows.forEach((r,i)=>r.position=i+1);RE.leaderboard=rows;if(RE.refreshResults)RE.refreshResults()}}}
-    return {start,clear,update,get on(){return on}};
+    return {start,clear,update,get on(){return on},get bodies(){return cars.map(c=>c.bd)}};
   })();
   /* One lap count. In a room the host's choice (#dmplaps) is authoritative; on your own it is the draw-track
      panel's Laps setting. buildCircuit, enterCircuit and the race start all read it through here. */
@@ -6524,7 +6547,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
