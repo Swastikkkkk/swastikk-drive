@@ -69,7 +69,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      V:{engine:680,max:28,slip:3.0,xw:1.2,zf:1.5,zb:-1.5,r:.52,rest:.52,steer:.45,roll:.03},
      paints:[0x2d4a22,0x1a1a1a,0xd4a843,0x4a4a4a]},
     {id:'phantombike',label:'Phantom Bike',type:'bike',blurb:'Aerodynamic Superbike',mass:110,F:1.5,B:-1.5,W:1.0,price:600,
-     V:{engine:850,max:42,slip:2.8,xw:0.42,zf:1.0,zb:-1.0,r:.35,rest:.3,steer:.9,roll:.005},
+     V:{engine:660,max:42,slip:2.8,xw:0.5,zf:1.0,zb:-1.0,r:.35,rest:.3,steer:.62,roll:.005},   // calmer: steer .9 and 850 power made it twitchy and jumpy
      paints:[0x1a1a2e,0xff6b35,0x00d4aa,0xffd700]},
     {id:'valkyrie',label:'Valkyrie LeMans',type:'hypercar',blurb:'Le Mans Hypercar',mass:165,F:2.0,B:-1.9,W:1.8,price:1000,
      V:{engine:1050,max:46.5,slip:3.2,xw:1.15,zf:1.35,zb:-1.35,r:.4,rest:.32,steer:.7,roll:.01},
@@ -4340,14 +4340,10 @@ const PLANETS={
          without turning tilt off. */
       let steerIn=l-rr;
       if(tiltOn&&steerIn===0)steerIn=tiltSteer;
-      /* Speed-aware steering. Full lock used to stay at a third of its angle at any speed, so at
-         110 km/h a tap asked the tyres for 5-7 g and they gave it: the car snapped sideways like it
-         was on rails. Now the angle at speed is the one this car's tyres can actually hold (its
-         cornering limit, LAT_G), with a little extra so you can lean on the front and feel it
-         push wide. Low speed keeps the full lock for parking and hairpins. */
-      const wb=Math.max(1.6,V.zf-V.zb),aLat=latG(curCarId)*9.81*(key.h?2.2:1),vs2=Math.max(9,sp*sp);
-      const stMax=Math.min(V.steer,Math.atan(wb*aLat/vs2)+.008);
-      const st=steerIn*stMax;steerActual+=(st-steerActual)*Math.min(1,dt*8);veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
+      /* Steering: the direct, arcade response (full lock easing to a third of it by ~165 km/h). A grip-limited
+         version was tried and felt too hard to turn on a keyboard, so it is back to this. The handbrake still
+         adds lock for a handbrake turn. */
+      const st=steerIn*V.steer*Math.max(.35,1-sp/46)*(key.h?1.25:1);steerActual+=(st-steerActual)*Math.min(1,dt*8);veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
       tailM.emissiveIntensity=(b||key.h)?1.6:boost?1.2:.5;
       // cannon integrates damping as pow(1-damping,dt), so anything at or above 1 turns the whole
       // body into NaN on the next step. That was the real cause of the car "flying" over the pond.
@@ -4388,8 +4384,19 @@ const PLANETS={
           else{on=-1;circuit.lightsDone=true;
             if(counting){RE.startRace(now);bigCount('GO');blip(1040,.35,.14)}}
           if(L.setColorAt){for(let i=0;i<5;i++)L.setColorAt(i,new THREE.Color(on<0?0x12a52a:(i<on?0xff1e0a:0x3a0e0e)));if(L.instanceColor)L.instanceColor.needsUpdate=true}}
-        let best=1e9,bi=0;const {CSAMP,CN}=circuit;
-        for(let i=0;i<CN;i++){const dx=CSAMP[i].x-chassisB.position.x,dz=CSAMP[i].z-chassisB.position.z,d=dx*dx+dz*dz;if(d<best){best=d;bi=i}}
+        let best=1e9,bi=0,best2=1e9;const {CSAMP,CN}=circuit;
+        for(let i=0;i<CN;i++){const dx=CSAMP[i].x-chassisB.position.x,dz=CSAMP[i].z-chassisB.position.z,d=dx*dx+dz*dz;
+          // the road at the car's own level counts (a flyover above or a road below is not where it is)
+          const dy=Math.abs(CSAMP[i].y-chassisB.position.y),pen=dy>4?dy*dy*9:0;if(d+pen<best2){best2=d+pen;best=d;bi=i}}
+        /* containment: past the barrier line by more than a little means the car found a way through the wall
+           (a seam, a bank it climbed). Put it back on the line and take away the outward speed. A safety net
+           under the walls, not a replacement for them. */
+        {const lim=CIRC_W/2+BARRIER_OFF+.8,d=Math.sqrt(best);
+         if(d>lim&&d<lim+25){const c0=CSAMP[bi],c1=CSAMP[(bi+1)%CN],tx=c1.x-c0.x,tz=c1.z-c0.z,tl=Math.hypot(tx,tz)||1;
+           const ox=chassisB.position.x-c0.x,oz=chassisB.position.z-c0.z,along=(ox*tx+oz*tz)/tl,px=c0.x+tx/tl*along,pz=c0.z+tz/tl*along;
+           const lx=chassisB.position.x-px,lz=chassisB.position.z-pz,ll=Math.hypot(lx,lz)||1,nx=lx/ll,nz=lz/ll;
+           if(ll>lim){chassisB.position.x=px+nx*lim;chassisB.position.z=pz+nz*lim;const vo=chassisB.velocity.x*nx+chassisB.velocity.z*nz;
+             if(vo>0){chassisB.velocity.x-=nx*vo*1.3;chassisB.velocity.z-=nz*vo*1.3}PREV.ok=false}}}
         const u=bi/CN;
         {const racing=window.RaceEngine&&window.RaceEngine.active;      // a race has its own respawn (RaceEngine.checkTrackBoundaries)
          if(!racing&&Math.sqrt(best)>CIRC_W/2+BARRIER_OFF+8){circOffT+=dt;if(circOffT>1.2){circOffT=0;const q=circAt(u,circuit.curve);resetCarTo({pos:q.p,tangent:q.tg});toastMsg('Back on track')}}else circOffT=0}
@@ -4980,6 +4987,7 @@ const PLANETS={
        const body=new CANNON.Body({mass:0,material:gM});body.addShape(new CANNON.Box(new CANNON.Vec3(1,wh,len/2+.4)));
        body.position.set((a.x+b.x)/2,CIRC_Y+wh,(a.z+b.z)/2);body.quaternion.setFromAxisAngle(wup,Math.atan2(b.x-a.x,b.z-a.z));
        world.addBody(body);wallBodies.push(body)}}
+    const barrierBodies=[];
     /* ---------- track limits ----------
        The corridor, from the centre out: road (CIRC_W/2) -> curb (+1.6) -> runoff -> barrier (+BARRIER_OFF) -> props (+6 and beyond).
        Each side gets a chain of invisible static boxes that the car glances off (low friction, a little bounce),
@@ -4987,20 +4995,34 @@ const PLANETS={
        segment that would stand on the other road is left out. Same code for Daily, Custom and Draw tracks. */
     {const railMat=M(0xc7cbd1,{roughness:.4}),postMat=M(0x5d5a55,{roughness:.8});ownedMats.push(railMat,postMat);
       const segL=7,NB=Math.max(60,Math.round(TL/segL)),off=CIRC_W/2+BARRIER_OFF;
-      const railIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.14,.34,segL+.15),railMat,NB*2),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,.8,.16),postMat,NB*2);
+      const railIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.14,.34,segL+.15),railMat,NB*6),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,.8,.16),postMat,NB*6);
       railIM.castShadow=!LOW;railIM.receiveShadow=true;postIM.castShadow=!LOW;root.add(railIM,postIM);railIM.userData.onTrack=postIM.userData.onTrack=true;
       const up=new THREE.Vector3(0,1,0),q=new THREE.Quaternion(),pp=new THREE.Vector3(),sc=new THREE.Vector3(1,1,1),mx=new THREE.Matrix4(),cup=new CANNON.Vec3(0,1,0);let nr=0;
-      for(let i=0;i<NB;i++){const {p,tg,n}=circAt((i+.5)/NB,curve),yaw=Math.atan2(tg.x,tg.z);q.setFromAxisAngle(up,yaw);
-        for(const side of [-1,1]){const x=p.x+n.x*side*off,z=p.z+n.z*side*off;
-          const lf=liftAt((i+.5)/NB);
-          if(trackDistL(x,z,off+2,lf)<off-1.5)continue;          // another part of the track at this level is closer than ours: no wall across it
-          const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(.35,1,segL/2+.4)));
-          const le=liftEff((i+.5)/NB,x,z);
-          b.position.set(x,CIRC_Y+.9+le,z);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);wallBodies.push(b);
-          pp.set(x,CIRC_Y+.66+le,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);pp.set(x,CIRC_Y+.4+le,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}}
+      /* Pieces are laid along the barrier's own line, not the centre line: on the outside of a tight bend the
+         barrier is much longer than the road, and centre-line spacing left metre-wide gaps you could drive through. */
+      const DSN=Math.max(400,Math.round(TL/1.5));
+      for(const side of [-1,1]){let A=null,uA=0;
+        const put=(P0,P1,u)=>{const dx=P1.x-P0.x,dz=P1.z-P0.z,L=Math.hypot(dx,dz);if(L<.5)return;const x=(P0.x+P1.x)/2,z=(P0.z+P1.z)/2,yaw=Math.atan2(dx,dz);
+          const lf=liftAt(u);if(trackDistL(x,z,off+2,lf)<off-1.5)return;          // another part of the track at this level is closer than ours: no wall across it
+          q.setFromAxisAngle(up,yaw);
+          /* the wall reaches from whichever is lower (the ground here or the road beside it) to above whichever
+             is higher (3.5 m, so a car nosing in at an angle cannot climb onto it on its wheels): on a hillside the ground under the barrier can sit below the road, and a wall at ground
+             height was one a car could hop straight over */
+          const {p:cp}=circAt(u,curve),gb=ELEV?groundAt(x,z):CIRC_Y,ry=roadY(u,cp.x,cp.z),bot=lf>1?ry-1.5:Math.min(gb,ry)-4,top=Math.max(gb,ry)+3.5;   /* on a bridge only the deck edge: a wall down to the ground would fence off the road underneath */   /* deep footing: the physics ground on a steep bank can sit metres under groundAt */
+          /* 3.2 m thick, grown outward so the face the car meets stays where it was: at 140 km/h a car moves ~0.6 m
+             per physics step, and a 0.7 m wall let the solver resolve the overlap out the far side */
+          const nX=dz/L*side,nZ=-dx/L*side,o2=1.25*(nX*(x-cp.x)+nZ*(z-cp.z)>0?1:-1);
+          const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(1.6,(top-bot)/2,L/2+1.5)));   /* long overlaps: no seam to slip through between pieces on a bend */
+          b.position.set(x+nX*o2,(top+bot)/2,z+nZ*o2);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);barrierBodies.push(b);
+          const vis=Math.max(gb,ry)-gb;   // the rail is drawn at road level (the settle pass adds the ground height on hills)
+          if(nr<railIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,CIRC_Y+.66+vis,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);sc.set(1,1,1);pp.set(x,CIRC_Y+.4+vis,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}};
+        for(let i=0;i<=DSN;i++){const u=i/DSN,{p,n}=circAt(u,curve),P={x:p.x+n.x*side*off,z:p.z+n.z*side*off};
+          if(!A){A=P;uA=u;continue}
+          if(Math.hypot(P.x-A.x,P.z-A.z)>=6||i===DSN){put(A,P,(uA+u)/2);A=P;uA=u}}}
       railIM.count=postIM.count=nr;railIM.instanceMatrix.needsUpdate=postIM.instanceMatrix.needsUpdate=true}
     /* ---------- the flyover decks: concrete slab out to the rails, pillars, and collision that follows the ramp ---------- */
     const bridgeBodies=[];
+    bridgeBodies.push(...barrierBodies);   // the track-limit walls, placed at absolute heights (not settled)
     if(BRIDGES.length){const deckMat=M(0x9a9893,{roughness:.9}),pillarMat=M(0x8a8780,{roughness:.9});ownedMats.push(deckMat,pillarMat);
       const half=CIRC_W/2+BARRIER_OFF+.5,STEP=4,segs=[],pils=[];
       const baseY=(x,z)=>ELEV?groundAt(x,z):CIRC_Y,surf=u=>{const {p}=circAt(u,curve);return roadY(u,p.x,p.z)+.12};
