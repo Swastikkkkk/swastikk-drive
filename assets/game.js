@@ -2924,7 +2924,7 @@ const F=chassisB.force,T=chassisB.torque;
     /* --- soft volumetric-ish glow sprite --- */
     const glowC=document.createElement('canvas'); glowC.width=glowC.height=128;
     {const g=glowC.getContext('2d'),rg=g.createRadialGradient(64,64,0,64,64,64);
-     rg.addColorStop(0,'rgba(255,190,110,0.9)');rg.addColorStop(0.35,'rgba(255,150,70,0.4)');rg.addColorStop(1,'rgba(255,120,40,0)');
+     rg.addColorStop(0,'rgba(255,190,110,0.9)');rg.addColorStop(0.35,'rgba(255,150,70,0.4)');rg.addColorStop(1,'rgba(77,141,255,0)');
      g.fillStyle=rg; g.fillRect(0,0,128,128);}
     const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(glowC),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:0,fog:false}));
     glow.scale.setScalar(HOR*7); grp.add(glow);
@@ -3190,7 +3190,7 @@ const F=chassisB.force,T=chassisB.torque;
       const road=(from,to,col,w)=>{c.strokeStyle=col;c.lineWidth=w;c.lineCap='round';c.lineJoin='round';c.beginPath();
         for(let s=Math.max(0,from),f=1;s<=to;s+=20,f=0){const r=roadAt(cfg,S.road,s),q=P(r.x,r.z);f?c.moveTo(q[0],q[1]):c.lineTo(q[0],q[1])}c.stroke()};
       road(S.s-span*1.5,S.s+span*1.5,'rgba(238,240,243,.85)',Math.max(3,size/160));
-      road(0,S.s,'rgba(255,106,26,.9)',Math.max(2,size/220));                        // the stretch you've already driven
+      road(0,S.s,'rgba(77,141,255,.9)',Math.max(2,size/220));                        // the stretch you've already driven
       if(api.gpsOn)road(S.s,(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery,'rgba(0,255,136,.9)',Math.max(3,size/150));   // route to the next UFO, with GPS on
       const every=cfg.ufoEvery;c.font='600 '+Math.round(size/48)+'px ui-monospace,monospace';c.textAlign='center';
       if(api.gpsOn)for(let k=Math.max(1,Math.floor((S.s-span*1.5)/every));k<=Math.floor((S.s+span*1.5)/every)+1;k++){
@@ -4171,7 +4171,7 @@ const PLANETS={
     const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),btn=document.createElement('button');
     {const gb=$('#dgps');if(gb){btn.className=gb.className;btn.id='dauto';btn.textContent='Autodrive';btn.title='Autodrive (P)';gb.after(btn);btn.onclick=()=>set(!on)}}
     const badge=document.createElement('div');badge.className='mono';badge.textContent='AUTODRIVE · any key to take over';
-    badge.style.cssText='position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:6;display:none;padding:6px 12px;border-radius:999px;background:rgba(18,20,25,.82);color:#ff9a52;border:1px solid rgba(255,106,26,.45);backdrop-filter:blur(12px);font-size:10px;letter-spacing:.14em;pointer-events:none';
+    badge.style.cssText='position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:6;display:none;padding:6px 12px;border-radius:999px;background:rgba(18,20,25,.82);color:#8db7ff;border:1px solid rgba(77,141,255,.45);backdrop-filter:blur(12px);font-size:10px;letter-spacing:.14em;pointer-events:none';
     sec.appendChild(badge);
     function set(v,quiet){on=!!v;badge.style.display=on&&!quiet?'block':'none';btn.classList.toggle('on',on);if(!on){for(const k of ['f','b','l','r','h'])key[k]=0;lock=false;vCap=null}if(!quiet)toastMsg(on?'Autodrive on · steer or brake to take over':'Autodrive off')}
     // a path for whatever world the car is in: sample(i) and its count, or a planet road by distance
@@ -5559,7 +5559,7 @@ const PLANETS={
   const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
   const circCx=circCv?circCv.getContext('2d'):null;
   let drawPts=[],drawingNow=false,pendingTrack=null,drawRS=[],drawObs=[],drawTool='draw';
-  const OBS_LOOK={speed_breaker:{c:'#ff6a1a',l:'S'},blocker:{c:'#d9d4c6',l:'B'},ramp:{c:'#5cf2ff',l:'R'}};
+  const OBS_LOOK={speed_breaker:{c:'#4d8dff',l:'S'},blocker:{c:'#d9d4c6',l:'B'},ramp:{c:'#5cf2ff',l:'R'}};
   const selVal=(id,d)=>{const e=$(id);return e&&e.value?e.value:d};
   function resizeDrawCv(){if(!circCv)return;circCv.width=innerWidth;circCv.height=innerHeight}
   addEventListener('resize',resizeDrawCv);
@@ -5953,8 +5953,8 @@ updCircBtn();
         const list=[...best.values()].sort((a,b)=>a.time-b.time).slice(0,50);
         const head='<li style="display:grid;grid-template-columns:40px 1fr 92px 82px;gap:8px;padding:6px 4px;font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.5)"><span>RANK</span><span>DRIVER</span><span style="text-align:right">TIME</span><span style="text-align:right">BEST LAP</span></li>';
         dailyListEl.innerHTML=list.length?head+list.map((r,i)=>{const mine=me&&String(r.name).toLowerCase()===me.toLowerCase();
-          return `<li style="display:grid;grid-template-columns:40px 1fr 92px 82px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;${mine?'background:rgba(255,106,26,.16);':''}">
-            <span style="color:#ff6a1a;font-weight:700">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}${mine?' (you)':''}</span>
+          return `<li style="display:grid;grid-template-columns:40px 1fr 92px 82px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;${mine?'background:rgba(77,141,255,.16);':''}">
+            <span style="color:#4d8dff;font-weight:700">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}${mine?' (you)':''}</span>
             <strong style="color:#eef0f3;font-family:monospace;text-align:right">${fmtT(r.time)}</strong><span style="font-family:monospace;text-align:right;opacity:.75">${r.best?fmtT(r.best):'--'}</span></li>`}).join('')+
           `<li style="padding:8px 4px;font-size:11px;color:rgba(255,255,255,.5)">${src}</li>`
           :'<li style="padding:12px;color:rgba(255,255,255,.5);font-size:13px;">No times yet for today\'s track. Be the first!</li>'};
@@ -6188,7 +6188,7 @@ updCircBtn();
         }break;
         case 'rdy':P.ready=!!m.val;paintReady();ui();break;
         case 'spec':P.watching=!!m.val;ui();break;
-        case 'chat':{if(!m.t||!m.n)return;const log=document.getElementById('dmpchatlog');if(log){const msg=String(m.t).slice(0,120);const name=String(m.n).slice(0,14);const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:11px;line-height:1.4;';line.innerHTML='<span style="color:#ff6a1a;font-weight:600;">'+esc(name)+':</span> <span style="color:var(--paper);">'+esc(msg)+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}}break;
+        case 'chat':{if(!m.t||!m.n)return;const log=document.getElementById('dmpchatlog');if(log){const msg=String(m.t).slice(0,120);const name=String(m.n).slice(0,14);const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:11px;line-height:1.4;';line.innerHTML='<span style="color:#4d8dff;font-weight:600;">'+esc(name)+':</span> <span style="color:var(--paper);">'+esc(msg)+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}}break;
         case 's':{
           if(!Array.isArray(m.p)||!Array.isArray(m.q))return;
           const x=num(m.p[0],-1e4,1e4,0),y=num(m.p[1],-500,2000,0),z=num(m.p[2],-1e4,1e4,0);
@@ -6612,7 +6612,7 @@ function carChanged(){if(room)sendHi(true)}
       if(list)list.innerHTML=rows.map((r,i)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span>${r.fin?i+1+'.':'–'} ${esc(r.n)}${r.me?' (you)':''}</span><span>${r.fin?fmtT(r.fin)+(best&&r.fin>best?' <span style="opacity:.6">+'+((r.fin-best)/1000).toFixed(2)+'s</span>':''):'DNF'}</span></div>`).join('')+
         `<div style="margin-top:8px;opacity:.7;font-size:12px">${race.planet?(SPACE.PLANETS[race.planet].name+' sprint · '+(SPACE.RACE_LEN/1000)+' km'):nl+' lap'+(nl>1?'s':'')+' · '+(MODE==='circuit'&&circuit?'drawn track':'Earth valley loop')}</div>`;
       let st=document.getElementById('dresstatus');
-      if(!st&&list){st=document.createElement('div');st.id='dresstatus';st.className='mono';st.style.cssText='margin-top:12px;font-size:12px;color:#ff6a1a;min-height:1.4em';list.parentNode.insertBefore(st,list.nextSibling)}
+      if(!st&&list){st=document.createElement('div');st.id='dresstatus';st.className='mono';st.style.cssText='margin-top:12px;font-size:12px;color:#4d8dff;min-height:1.4em';list.parentNode.insertBefore(st,list.nextSibling)}
       const lobby=document.getElementById('dreslobby');if(lobby)lobby.textContent=isHost()?'Change track / laps':'Room';
       m.style.display='';m.classList.add('on');paintReady();
     }

@@ -107,16 +107,16 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #dlap .lrow span{color:var(--bone)}
 #dlap b{font-family:var(--serif);font-weight:600;font-size:34px;line-height:1;font-variant-numeric:tabular-nums lining-nums;letter-spacing:-.022em}
 #dlap .lsub{display:flex;justify-content:space-between;gap:12px;color:var(--mute);margin-top:6px}
-#dlap.best b{color:#ff6a1a}
+#dlap.best b{color:#4d8dff}
 #dlap .lsec{display:flex;gap:4px;margin-top:8px}
 #dlap .lsec i{flex:1;height:3px;background:rgba(238,240,243,.24)}
 #dlap .lsec i.on{background:var(--paper)}
 #dlap.void{border-left-color:var(--ox)}
 #dlap.void b{color:var(--ox)}
-#dmiss{position:absolute;left:var(--gut);bottom:calc(58px + env(safe-area-inset-bottom,0px));background:rgba(10,10,9,.6);backdrop-filter:blur(8px);border-left:2px solid #ff6a1a;padding:9px 13px;max-width:290px;display:none}
+#dmiss{position:absolute;left:var(--gut);bottom:calc(58px + env(safe-area-inset-bottom,0px));background:rgba(10,10,9,.6);backdrop-filter:blur(8px);border-left:2px solid #4d8dff;padding:9px 13px;max-width:290px;display:none}
 #dmiss.on{display:none}
 #dlanding{display:none!important}
-#dmiss .mt{color:#ff6a1a}
+#dmiss .mt{color:#4d8dff}
 #dmiss .mh{font-family:var(--serif);font-weight:500;font-size:20px;line-height:1.1;margin-top:3px}
 #dmiss .ms{color:var(--bone);margin-top:4px}
 #dboard{position:absolute;inset:0;z-index:5;display:none;place-items:center;background:rgba(8,8,7,.86);backdrop-filter:blur(6px);padding:24px}
@@ -125,7 +125,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #dboard h3{font-size:clamp(38px,5vw,62px);line-height:1;margin:10px 0 18px;letter-spacing:-.02em}
 #dbdlist{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
 #dbdlist li{display:grid;grid-template-columns:26px 1fr auto;gap:12px;align-items:baseline;padding:11px 2px;border-bottom:1px solid var(--line)}
-#dbdlist li.me{background:rgba(255,106,26,.12)}
+#dbdlist li.me{background:rgba(77,141,255,.12)}
 #dbdlist li.em{display:block;color:var(--mute);padding:18px 2px}
 #dbdlist li.pend{opacity:.85}
 #dbdlist li.pend .t::after{content:" \00b7 unsaved";font:500 9px var(--mono);letter-spacing:.1em;color:var(--mute)}
@@ -159,7 +159,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 .drow.open{display:grid;animation:dvin .18s ease-out}
 .drow .dbtn{width:100%;text-align:center;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:8px;padding-right:8px}
 .drow .dmode{grid-column:1/-1;text-align:left;padding:11px 14px;font-size:11px}
-.drow .dmode.on{background:#ff6a1a;color:#06070b}
+.drow .dmode.on{background:#4d8dff;color:#06070b}
 .drow .dmsec{grid-column:1/-1;font-size:9px;color:rgba(238,240,243,.5);letter-spacing:.18em;text-transform:uppercase;padding:6px 2px 0}
 .drow .dmsec:first-child{padding-top:0}
 @media (max-height:520px){
@@ -193,7 +193,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 #dmplist{list-style:none;margin:16px 0 0;padding:0;border-top:1px solid var(--line)}
 #dmplist li{display:grid;grid-template-columns:14px minmax(100px,1fr) minmax(160px,auto);gap:12px;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line);font-weight:600}
 #dmplist li i,#dmpr i{display:inline-block;width:10px;height:10px;border-radius:50%}
-#dmplist li.me{background:rgba(255,106,26,.12)}
+#dmplist li.me{background:rgba(77,141,255,.12)}
 #dmplist .mp-driver{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #dmplist .mp-driver em{font-style:normal;color:var(--mute);margin-right:8px}
 #dmplist .mp-timing{text-align:right;color:var(--bone);font:500 12px/1.4 var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -271,11 +271,11 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 #dgstats{display:grid;gap:8px;margin-top:14px}
 .gg-st{display:grid;grid-template-columns:96px 1fr 76px;align-items:center;gap:10px;font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
 .gg-st b{display:block;height:6px;border-radius:3px;background:rgba(238,240,243,.12);overflow:hidden}
-.gg-st b i{display:block;height:100%;background:linear-gradient(90deg,#ff6a1a,#eef0f3);border-radius:3px;transition:width .35s cubic-bezier(.2,.8,.2,1)}
+.gg-st b i{display:block;height:100%;background:linear-gradient(90deg,#4d8dff,#eef0f3);border-radius:3px;transition:width .35s cubic-bezier(.2,.8,.2,1)}
 .gg-st span:last-child{color:var(--paper);text-align:right}
 #dgpick{width:100%;margin-top:14px;padding:13px;font-size:12px}
 #dgpick.sel{opacity:.6}
-#dgpick.buy{background:#ff6a1a;color:#111}
+#dgpick.buy{background:#4d8dff;color:#111}
 @media (max-height:620px){#dgview{height:34vh}.gg-head{margin-top:6px}#dgstats{gap:5px;margin-top:8px}}
 #dgarage{padding:16px}
 @media (max-height:540px) and (min-width:600px){
@@ -308,13 +308,13 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 
 /* Out of bounds banner */
 #doob{position:absolute;left:50%;top:24%;transform:translateX(-50%);background:rgba(184,50,47,.92);color:#fff;padding:12px 24px;font-weight:700;font-size:15px;letter-spacing:.08em;border-radius:10px;box-shadow:0 8px 30px rgba(184,50,47,.5);display:none;z-index:5;text-align:center;pointer-events:none}
-#dpos{position:absolute;left:var(--gut);top:calc(180px + env(safe-area-inset-top,0px));background:rgba(10,10,9,.65);backdrop-filter:blur(6px);border-left:2px solid #ff6a1a;padding:8px 14px;display:none;font-weight:700;font-size:18px;color:var(--paper);letter-spacing:.04em}
+#dpos{position:absolute;left:var(--gut);top:calc(180px + env(safe-area-inset-top,0px));background:rgba(10,10,9,.65);backdrop-filter:blur(6px);border-left:2px solid #4d8dff;padding:8px 14px;display:none;font-weight:700;font-size:18px;color:var(--paper);letter-spacing:.04em}
 
 /* Host settings grid */
 .dmp-cfg-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0;padding:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px}
 .dmp-cfg-grid label{display:grid;gap:4px;color:var(--mute);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
 .dmp-cfg-grid select,.dmp-cfg-grid input{height:34px;background:#171816;color:var(--paper);border:1px solid rgba(255,255,255,.2);padding:0 8px;font:500 12px var(--mono);border-radius:6px}
-.room-status-badge{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px;background:rgba(255,106,26,.08);border:1px solid rgba(255,106,26,.25);border-radius:8px;margin:10px 0;font-size:11px;color:var(--bone)}
+.room-status-badge{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px;background:rgba(77,141,255,.08);border:1px solid rgba(77,141,255,.25);border-radius:8px;margin:10px 0;font-size:11px;color:var(--bone)}
 
 /* =====================================================================
    Premium layer. One type pair (Inter Tight for display, Inter for UI with
@@ -327,9 +327,9 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
   --sans:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",sans-serif;
   --mono:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",sans-serif;
   --code:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-  /* graphite, cool white, one racing-orange accent */
+  /* graphite and white; one cool blue for small highlights only */
   --paper:#eef0f3;--bone:#b9bec8;--mute:#7d8592;--ink:#0a0b0e;
-  --gold:#ff7a2e;--gold2:#ff4f0f;--goldt:#170600;
+  --gold:#ffffff;--gold2:#dfe2e8;--goldt:#0b0c0f;--acc:#4d8dff;--acc2:#2f6ff0;
   --glass:rgba(18,20,25,.74);--glass2:rgba(13,14,18,.92);--hair:rgba(255,255,255,.07);--hair2:rgba(255,255,255,.13);--hair3:rgba(255,255,255,.22);
   --shadow:0 24px 64px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.35);
   --ease:cubic-bezier(.2,.8,.2,1);
@@ -346,21 +346,21 @@ body{font-family:var(--sans);letter-spacing:0;background:#0a0b0e}
 .dbtn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .dbtn.on,.drow .dmode.on{background:linear-gradient(180deg,var(--gold),var(--gold2))!important;color:var(--goldt)!important;border-color:transparent}
 #dgpick,#ddaily-start,.ty-go,#dmprace,#dresrematch,#dcircgo{background:linear-gradient(180deg,var(--gold),var(--gold2))!important;color:var(--goldt)!important;border-color:transparent!important;
-  font-weight:700!important;box-shadow:0 10px 30px rgba(255,106,26,.22),0 1px 0 rgba(255,255,255,.3) inset}
+  font-weight:700!important;box-shadow:0 10px 30px rgba(255,255,255,.08),0 1px 0 rgba(255,255,255,.6) inset}
 #dgpick:hover,#ddaily-start:hover,.ty-go:hover,#dmprace:hover{filter:brightness(1.06)}
-#dgpick.sel{opacity:1;background:rgba(255,106,26,.08)!important;color:#ff9a52!important;border:1px solid rgba(255,106,26,.55)!important;box-shadow:none}
+#dgpick.sel{opacity:1;background:rgba(77,141,255,.08)!important;color:#8db7ff!important;border:1px solid rgba(77,141,255,.55)!important;box-shadow:none}
 /* fields */
 .bd-me input,#dgname,#dmpcode,#dbdname,#dmp select,#dcircopts select,#dcircopts input,#dqrcode-text{background:rgba(255,255,255,.05)!important;border:1px solid var(--hair2)!important;border-radius:10px!important;
   color:#f3efe7;padding:10px 12px!important;font:500 14px var(--sans)!important;letter-spacing:0;outline:none;transition:border-color .18s,box-shadow .18s}
-.bd-me input:focus,#dgname:focus,#dmpcode:focus,#dbdname:focus,#dmp select:focus{border-color:var(--gold)!important;box-shadow:0 0 0 3px rgba(255,106,26,.18)}
+.bd-me input:focus,#dgname:focus,#dmpcode:focus,#dbdname:focus,#dmp select:focus{border-color:var(--gold)!important;box-shadow:0 0 0 3px rgba(77,141,255,.18)}
 /* overlays and the cards they hold */
-#dboard,#dgarage,#dmp,#dqr-modal,#ddaily-modal,#dresults{background:radial-gradient(ellipse at 50% 0%,rgba(46,20,8,.35),rgba(4,5,7,.82) 60%)!important;-webkit-backdrop-filter:blur(18px) saturate(1.2)!important;backdrop-filter:blur(18px) saturate(1.2)!important}
+#dboard,#dgarage,#dmp,#dqr-modal,#ddaily-modal,#dresults{background:radial-gradient(ellipse at 50% 0%,rgba(12,20,40,.35),rgba(4,5,7,.82) 60%)!important;-webkit-backdrop-filter:blur(18px) saturate(1.2)!important;backdrop-filter:blur(18px) saturate(1.2)!important}
 #dboard .bd-in,#dmp .bd-in,#dqr-modal .bd-in,#ddaily-modal .bd-in,#dresults .bd-in,#dgarage .gg-in{background:linear-gradient(180deg,rgba(26,27,32,.92),rgba(13,14,17,.95));border:1px solid var(--hair);border-radius:24px;
   padding:clamp(20px,3.4vw,32px);box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.05)}
 #dmp-in{background:linear-gradient(180deg,rgba(26,27,32,.92),rgba(13,14,17,.95));border:1px solid var(--hair);border-radius:24px;padding:clamp(20px,3.4vw,32px);box-shadow:var(--shadow)}
 #dboard h3,#dmp h3,#ddaily-modal h3{font-family:var(--serif)!important;font-weight:700;font-stretch:118%;letter-spacing:-.01em}
 #dbdlist li,#dmplist li,#ddaily-list li{border-color:var(--hair)!important}
-#dbdlist li.me,#dmplist li.me{background:rgba(255,106,26,.1);border-radius:8px}
+#dbdlist li.me,#dmplist li.me{background:rgba(77,141,255,.1);border-radius:8px}
 /* the in-game menu: a glass sheet */
 .drow{background:var(--glass2)!important;border:1px solid var(--hair2)!important;border-radius:18px!important;padding:12px!important;gap:7px!important;box-shadow:var(--shadow);width:268px}
 .drow .dbtn{background:rgba(255,255,255,.04);box-shadow:none;border-color:var(--hair);border-radius:10px;font-size:10.5px}
@@ -373,25 +373,25 @@ body{font-family:var(--sans);letter-spacing:0;background:#0a0b0e}
 /* HUD: speed, lap card, minimap, toasts */
 #dspeed{font-family:var(--serif);font-weight:700;font-stretch:112%;font-style:italic;font-size:58px;letter-spacing:-.02em;text-shadow:0 4px 30px rgba(0,0,0,.45)}
 .dbr .mono{color:rgba(243,239,231,.6)}
-#dlap,#dmpr,#dmiss{background:var(--glass)!important;border:1px solid var(--hair)!important;border-left:3px solid var(--gold)!important;border-radius:14px;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 12px 32px rgba(0,0,0,.35)}
+#dlap,#dmpr,#dmiss{background:var(--glass)!important;border:1px solid var(--hair)!important;border-left:3px solid var(--acc)!important;border-radius:14px;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 12px 32px rgba(0,0,0,.35)}
 #dlap b{font-family:var(--serif);font-weight:700;font-stretch:112%;letter-spacing:-.01em}
 #dmap{box-shadow:0 0 0 1px var(--hair2),0 16px 40px rgba(0,0,0,.45)!important}
 #dtoast{font-family:var(--serif);font-weight:700;font-stretch:118%;letter-spacing:-.01em;text-shadow:0 6px 40px rgba(0,0,0,.55)}
 #dwrong{border-radius:12px;font-family:var(--sans);font-weight:700;letter-spacing:.06em;box-shadow:0 12px 30px rgba(143,42,42,.4)}
 /* touch controls */
 .dsteer button,#dbrk{background:rgba(17,18,22,.5);box-shadow:inset 0 0 0 1px var(--hair3),0 10px 24px rgba(0,0,0,.3);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
-#dgas{background:linear-gradient(180deg,var(--gold),var(--gold2));color:var(--goldt);font-weight:800;box-shadow:0 12px 30px rgba(255,106,26,.3)}
+#dgas{background:linear-gradient(180deg,#fff,#dfe2e8);color:#0b0c0f;font-weight:800;box-shadow:0 12px 30px rgba(0,0,0,.35)}
 /* garage */
 #dgarage .gg-in{width:min(600px,100%)}
 #dgcname{font-family:var(--serif);font-weight:700;font-stretch:120%;letter-spacing:-.005em}
-#dgcclass{color:var(--gold)!important}
+#dgcclass{color:#8db7ff!important}
 .gg-arr{background:rgba(255,255,255,.05);border:1px solid var(--hair2);transition:background .18s,transform .18s}
 .gg-arr:hover{background:rgba(255,255,255,.12);transform:scale(1.05)}
-#dgview{background:radial-gradient(ellipse at 50% 72%,rgba(255,106,26,.12),rgba(255,255,255,.02) 55%,transparent 72%);border:1px solid var(--hair);border-radius:18px}
+#dgview{background:radial-gradient(ellipse at 50% 72%,rgba(77,141,255,.12),rgba(255,255,255,.02) 55%,transparent 72%);border:1px solid var(--hair);border-radius:18px}
 .gg-st{font-family:var(--sans);font-weight:600}
 .gg-st b{background:rgba(255,255,255,.08)}
-.gg-st b i{background:linear-gradient(90deg,var(--gold2),#ffb37a)}
-#dgdots i.on{background:var(--gold)}
+.gg-st b i{background:linear-gradient(90deg,var(--acc2),#8db7ff)}
+#dgdots i.on{background:#fff}
 #dgaragex{border-radius:999px!important;width:38px!important;height:38px;padding:0!important;display:grid;place-items:center}
 /* typing race sentence keeps a monospaced face so the cursor never jumps */
 #dtype .ty-text{font-family:var(--code)!important}
@@ -432,7 +432,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
     <div style="background:rgba(10,12,16,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(238,240,243,.15);border-radius:12px;padding:12px 14px;box-shadow:0 12px 36px rgba(0,0,0,.6);pointer-events:auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
-          <div class="mono" style="font-size:9px;color:#ff6a1a;letter-spacing:.18em;">SWASTIKK DRIVE</div>
+          <div class="mono" style="font-size:9px;color:#4d8dff;letter-spacing:.18em;">SWASTIKK DRIVE</div>
           <div style="font-family:var(--serif);font-size:16px;font-weight:600;color:var(--paper);line-height:1.2;">Select Mode</div>
         </div>
         <button id="dlnd-min" class="mono" style="background:rgba(255,255,255,.08);color:var(--bone);border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:4px 8px;font-size:10px;cursor:pointer;">Hide</button>
@@ -472,7 +472,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
   <!-- Daily Track Conqueror Modal & Leaderboard -->
   <div id="ddaily-modal" style="position:fixed;inset:0;background:rgba(8,8,7,.88);backdrop-filter:blur(10px);z-index:98;display:none;place-items:center;padding:24px;">
     <div class="bd-in" style="max-width:540px;">
-      <div class="mono" style="color:#ff6a1a;">Global Daily Challenge</div>
+      <div class="mono" style="color:#4d8dff;">Global Daily Challenge</div>
       <h3 class="disp" style="font-size:36px;margin:4px 0 10px;">Track of the Day</h3>
       <div id="ddaily-info" style="font-size:13px;color:var(--bone);margin-bottom:16px;background:rgba(255,255,255,.05);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.1);">
         <div><strong>Date:</strong> <span id="ddaily-date">Today</span></div>
@@ -482,7 +482,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
       <div class="mono" style="color:var(--bone);margin-bottom:6px;">Daily Leaderboard</div>
       <ol id="ddaily-list" style="list-style:none;margin:0 0 18px;padding:0;border-top:1px solid var(--line);max-height:220px;overflow-y:auto;"></ol>
       <div style="display:flex;gap:10px;">
-        <button id="ddaily-start" class="dbtn mono" style="background:#ff6a1a;color:#06070b;font-weight:700;flex:1;">Conquer Today's Track</button>
+        <button id="ddaily-start" class="dbtn mono" style="background:#4d8dff;color:#06070b;font-weight:700;flex:1;">Conquer Today's Track</button>
         <button id="ddaily-close" class="dbtn mono bd-x" style="margin-top:0;">Close</button>
       </div>
     </div>
@@ -559,7 +559,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
   </div></div>
 
   <!-- Multiplayer Room & Lobby -->
-  <div id="dqr-modal" role="dialog" aria-label="Phone controller"><div class="bd-in"><div class="mono" style="color:#ff6a1a;font-size:10px;letter-spacing:.18em">PHONE CONTROLLER</div><h3 class="disp" style="font-size:30px;margin:4px 0 6px">Drive with your phone</h3><div id="dqrdesc" class="mono" style="font-size:10px;color:var(--bone);margin-bottom:14px">Scan to use phone as controller</div><canvas id="dqrcanvas" width="240" height="240"></canvas><div class="mono" style="font-size:9px;color:var(--mute);margin:14px 0 6px">Or open this link on your phone</div><div style="display:flex;gap:8px"><input id="dqrcode-text" readonly aria-label="Controller link"><button id="dqrcopy" class="dbtn mono" type="button">Copy</button></div><div class="mono" style="font-size:9px;color:var(--mute);margin-top:12px;line-height:1.6">Phone and laptop both need internet. Keep this tab open; the car switches back to the keyboard if the phone goes quiet.</div><button id="dqrclose" class="dbtn mono bd-x" type="button" style="margin-top:16px">Close &#10005;</button></div></div>
+  <div id="dqr-modal" role="dialog" aria-label="Phone controller"><div class="bd-in"><div class="mono" style="color:#4d8dff;font-size:10px;letter-spacing:.18em">PHONE CONTROLLER</div><h3 class="disp" style="font-size:30px;margin:4px 0 6px">Drive with your phone</h3><div id="dqrdesc" class="mono" style="font-size:10px;color:var(--bone);margin-bottom:14px">Scan to use phone as controller</div><canvas id="dqrcanvas" width="240" height="240"></canvas><div class="mono" style="font-size:9px;color:var(--mute);margin:14px 0 6px">Or open this link on your phone</div><div style="display:flex;gap:8px"><input id="dqrcode-text" readonly aria-label="Controller link"><button id="dqrcopy" class="dbtn mono" type="button">Copy</button></div><div class="mono" style="font-size:9px;color:var(--mute);margin-top:12px;line-height:1.6">Phone and laptop both need internet. Keep this tab open; the car switches back to the keyboard if the phone goes quiet.</div><button id="dqrclose" class="dbtn mono bd-x" type="button" style="margin-top:16px">Close &#10005;</button></div></div>
   <div id="dmp"><div class="bd-in">
     <div class="mono" style="color:var(--bone)">Multiplayer Racing &middot; up to 4 drivers</div>
     <h3 class="disp">Race Lobby</h3>
@@ -627,7 +627,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 
   <!-- Race Results Modal -->
   <div id="dresults"><div class="bd-in">
-    <div class="mono" style="color:#ff6a1a">Race Complete</div>
+    <div class="mono" style="color:#4d8dff">Race Complete</div>
     <h3 class="disp">Results</h3>
     <ol id="dreslist"></ol>
     <div class="bd-me" style="margin-top:20px;display:flex;gap:10px;">
