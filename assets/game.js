@@ -157,6 +157,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     ULTRA.shEvery=c.shEvery;
   }
   function watchFps(dt){
+    if(window.Settings&&Settings.v.quality!=='auto')return;   // a quality picked in Settings stays put
     if(!active||!driving||dt<=0)return;
     const fps=1/dt;
     if(fps<42){qGoodT=0;qBadT+=dt*1000;if(qBadT>qDownMs()&&qTier<2){setTier(qTier+1);qBadT=0}}
@@ -1984,65 +1985,83 @@ t.bd.position.set(x,y+.86,z);
       L=b=>{const s=AC.createBufferSource();s.buffer=b;s.loop=true;s.start(T,Math.random()*1.5);return s};
     const comp=AC.createDynamicsCompressor();comp.threshold.value=-18;comp.knee.value=14;comp.ratio.value=3.5;comp.attack.value=.005;comp.release.value=.25;
     const bus=G(.9),tone=F('lowpass',18000,.5);bus.connect(tone);tone.connect(comp);comp.connect(AC.destination);
+    // two channels under the master, each with its own slider in Settings: the engine, and everything else
+    const engBus=G(1),fx=G(1);engBus.connect(bus);fx.connect(bus);
     const n=sr*2,pk=AC.createBuffer(1,n,sr),wh=AC.createBuffer(1,n,sr),pd=pk.getChannelData(0),wd=wh.getChannelData(0);
     {let b0=0,b1=0,b2=0;for(let i=0;i<n;i++){const w=Math.random()*2-1;wd[i]=w;b0=.99765*b0+w*.099046;b1=.963*b1+w*.2965164;b2=.57*b2+w*1.0526913;pd[i]=(b0+b1+b2+w*.1848)*.16}}
     // motor: fundamental, a half-order body and a thin inverter partial, softened by a lowpass
-    const mG=G(0),mF=F('lowpass',1000,.7);mF.connect(mG);mG.connect(bus);
+    const mG=G(0),mF=F('lowpass',1000,.7);mF.connect(mG);mG.connect(engBus);
     const m1=O('sine',130),m2=O('triangle',65),m3=O('sine',390),g1=G(.6),g2=G(.3),g3=G(.04);
     m1.connect(g1);m2.connect(g2);m3.connect(g3);g1.connect(mF);g2.connect(mF);g3.connect(mF);
     const lfo=O('sine',4.3),lg=G(1.4);lfo.connect(lg);lg.connect(m1.frequency);lg.connect(m3.frequency);
     // turbo / supercharger whistle, only some cars use it
-    const tO=O('sine',2200),tG=G(0),tF=F('bandpass',2400,6);tO.connect(tF);tF.connect(tG);tG.connect(bus);
+    const tO=O('sine',2200),tG=G(0),tF=F('bandpass',2400,6);tO.connect(tF);tF.connect(tG);tG.connect(engBus);
     // tyres: tarmac roar (pink noise, lowpassed) and gravel hiss (white, bandpassed)
-    const rG=G(0),rF=F('lowpass',300,.6);L(pk).connect(rF);rF.connect(rG);rG.connect(bus);
-    const gG=G(0),gF=F('bandpass',1900,.7);L(wh).connect(gF);gF.connect(gG);gG.connect(bus);
+    const rG=G(0),rF=F('lowpass',300,.6);L(pk).connect(rF);rF.connect(rG);rG.connect(fx);
+    const gG=G(0),gF=F('bandpass',1900,.7);L(wh).connect(gF);gF.connect(gG);gG.connect(fx);
     // wind: a low buffeting rumble, not a hiss
-    const wG=G(0),wF=F('lowpass',260,.5);L(pk).connect(wF);wF.connect(wG);wG.connect(bus);
+    const wG=G(0),wF=F('lowpass',260,.5);L(pk).connect(wF);wF.connect(wG);wG.connect(fx);
     // tyre squeal: rubber stick-slip is nearly a tone, so two detuned saws through a resonant band,
     // with a drifting pitch and a little grit of noise on top; only a real slide opens it
     const sG=G(0),sF=F('bandpass',1000,4.5),s1=O('sawtooth',860),s2=O('sawtooth',1290),s2g=G(.45),sNz=F('bandpass',1400,2),sNg=G(.35);
     s1.connect(sF);s2.connect(s2g);s2g.connect(sF);L(wh).connect(sNz);sNz.connect(sNg);sNg.connect(sF);
-    const sLp=F('lowpass',3200,.7);sF.connect(sLp);sLp.connect(sG);sG.connect(bus);
+    const sLp=F('lowpass',3200,.7);sF.connect(sLp);sLp.connect(sG);sG.connect(fx);
     const sLfo=O('sine',7.3),sLg=G(18);sLfo.connect(sLg);sLg.connect(s1.frequency);sLg.connect(s2.frequency);
     // braking: the tyres scrubbing the road, a deep rumble that swells with how hard you stop
-    const bG=G(0),bF=F('lowpass',520,.8);L(pk).connect(bF);bF.connect(bG);bG.connect(bus);
+    const bG=G(0),bF=F('lowpass',520,.8);L(pk).connect(bF);bF.connect(bG);bG.connect(fx);
     // combustion engines: their own voice, see assets/engine-audio.js
-    const engG=G(0);engG.connect(bus);let eng=null;try{if(window.EngineAudio)eng=EngineAudio.create(AC,engG)}catch(e){}
-    SND={bus,tone,pk,wh,mG,mF,m1,m2,m3,g1,g2,g3,lfo,lg,tO,tG,rG,rF,gG,wG,wF,sG,sF,s1,s2,bG,bF,engG,eng,ld:0,prof:null,sqP:0,brk:0};
-    document.addEventListener('visibilitychange',()=>{try{document.hidden?AC.suspend():AC.resume()}catch(e){}})}catch(e){SND=null}}
+    const engG=G(0);engG.connect(engBus);let eng=null;try{if(window.EngineAudio)eng=EngineAudio.create(AC,engG)}catch(e){}
+    SND={bus,engBus,fx,tone,pk,wh,mG,mF,m1,m2,m3,g1,g2,g3,lfo,lg,tO,tG,rG,rF,gG,wG,wF,sG,sF,s1,s2,bG,bF,engG,eng,ld:0,prof:null,sqP:0,brk:0};
+    document.addEventListener('visibilitychange',()=>{try{document.hidden?AC.suspend():AC.resume()}catch(e){}});applyMix()}catch(e){SND=null}}
   function blip(freq=880,dur=.12,vol=.08){if(!AC||muted)return;try{const T=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=freq;
-    g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(vol,T+.008);g.gain.exponentialRampToValueAtTime(.0001,T+dur);o.connect(g);g.connect(SND?SND.bus:AC.destination);o.start(T);o.stop(T+dur+.02)}catch(e){}}
+    g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(vol,T+.008);g.gain.exponentialRampToValueAtTime(.0001,T+dur);o.connect(g);g.connect(SND?SND.fx:AC.destination);o.start(T);o.stop(T+dur+.02)}catch(e){}}
   // turbo blow-off valve: a short hiss when the throttle closes on boost
   function blowoff(k){if(!AC||muted||!SND)return;try{const T=AC.currentTime,s=AC.createBufferSource();s.buffer=SND.wh;
     const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=1.4;f.frequency.setValueAtTime(3800,T);f.frequency.exponentialRampToValueAtTime(1600,T+.35);
     const g=AC.createGain();g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.09*k,T+.02);g.gain.exponentialRampToValueAtTime(.0001,T+.4);
-    s.connect(f);f.connect(g);g.connect(SND.bus);s.start(T,Math.random());s.stop(T+.45)}catch(e){}}
+    s.connect(f);f.connect(g);g.connect(SND.fx);s.start(T,Math.random());s.stop(T+.45)}catch(e){}}
   // air brakes: a sharp hiss that tails off
   function airBrake(){if(!AC||muted||!SND)return;try{const T=AC.currentTime,s=AC.createBufferSource();s.buffer=SND.wh;
     const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=2200;const g=AC.createGain();
     g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.08,T+.03);g.gain.setTargetAtTime(0,T+.25,.25);
-    s.connect(f);f.connect(g);g.connect(SND.bus);s.start(T,Math.random());s.stop(T+1.4)}catch(e){}}
+    s.connect(f);f.connect(g);g.connect(SND.fx);s.start(T,Math.random());s.stop(T+1.4)}catch(e){}}
   // impacts: a low body thud, plus a short panel clank on the hard ones
   function thud(k){if(!AC||muted||!SND)return;try{const T=AC.currentTime,S=SND;
     {const s=AC.createBufferSource();s.buffer=S.pk;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=240+k*520;const g=AC.createGain();
-     g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.12+.5*k,T+.006);g.gain.exponentialRampToValueAtTime(.0001,T+.42);s.connect(f);f.connect(g);g.connect(S.bus);s.start(T,Math.random());s.stop(T+.46)}
+     g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.12+.5*k,T+.006);g.gain.exponentialRampToValueAtTime(.0001,T+.42);s.connect(f);f.connect(g);g.connect(S.fx);s.start(T,Math.random());s.stop(T+.46)}
     {const o=AC.createOscillator();o.type='sine';o.frequency.setValueAtTime(92,T);o.frequency.exponentialRampToValueAtTime(36,T+.3);const g=AC.createGain();
-     g.gain.setValueAtTime(.08+.32*k,T);g.gain.exponentialRampToValueAtTime(.0001,T+.34);o.connect(g);g.connect(S.bus);o.start(T);o.stop(T+.38)}
+     g.gain.setValueAtTime(.08+.32*k,T);g.gain.exponentialRampToValueAtTime(.0001,T+.34);o.connect(g);g.connect(S.fx);o.start(T);o.stop(T+.38)}
     if(k>.45){const s=AC.createBufferSource();s.buffer=S.wh;const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=1600+Math.random()*500;f.Q.value=3;const g=AC.createGain();
-     g.gain.setValueAtTime(.16*k,T);g.gain.exponentialRampToValueAtTime(.0001,T+.15);s.connect(f);f.connect(g);g.connect(S.bus);s.start(T,Math.random());s.stop(T+.18)}}catch(e){}}
+     g.gain.setValueAtTime(.16*k,T);g.gain.exponentialRampToValueAtTime(.0001,T+.15);s.connect(f);f.connect(g);g.connect(S.fx);s.start(T,Math.random());s.stop(T+.18)}}catch(e){}}
   let hornOn=false;
   function honk(on){if(!AC||muted)return;try{
     if(on&&!hornOn){hornOn=true;const T=AC.currentTime,g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2300;lp.Q.value=.9;
-      g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.075,T+.025);lp.connect(g);g.connect(SND?SND.bus:AC.destination);
+      g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.075,T+.025);lp.connect(g);g.connect(SND?SND.fx:AC.destination);
       const oscs=[405,508].map(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start(T);return o});
       hornNodes={g,oscs}}
     else if(!on&&hornOn){hornOn=false;if(hornNodes){const {g,oscs}=hornNodes;g.gain.setTargetAtTime(0,AC.currentTime,.03);setTimeout(()=>{try{oscs.forEach(o=>o.stop());g.disconnect()}catch(e){}},200);hornNodes=null}}
   }catch(e){}}
   let hornNodes=null;
-  mute.onclick=()=>{muted=!muted;mute.textContent=muted?'Sound off':'Sound on';if(window.Radio)Radio.setMuted(muted)};
+  mute.onclick=()=>{muted=!muted;mute.textContent=muted?'Sound off':'Sound on';if(window.Radio)Radio.setMuted(muted);applyMix()};
   // FM radio (assets/radio.js): the button and T cycle off -> each station -> off
   const radioBtn=$('#dradio');
-  function radioCycle(){if(!window.Radio)return;Radio.cycle();Radio.setMuted(muted);if(radioBtn)radioBtn.textContent=Radio.label()}
+  function radioCycle(){if(!window.Radio)return;Radio.cycle();Radio.setMuted(muted);if(radioBtn)radioBtn.textContent=Radio.label();if(window.Settings)Settings.refreshRadio()}
+  /* ---------- settings (assets/settings.js): sound mix, graphics, display ---------- */
+  const SET=window.Settings||{v:{master:80,engine:80,effects:70,music:60,quality:'auto',hints:true,units:'kmh'},on(){}};
+  function VOL(k){const x=SET.v[k];return x==null?1:Math.max(0,Math.min(100,x))/100}
+  function applyMix(){
+    if(AC&&SND){const T=AC.currentTime;SND.engBus.gain.setTargetAtTime(VOL('engine')*1.25,T,.05);SND.fx.gain.setTargetAtTime(VOL('effects')*1.4,T,.05);
+      SND.bus.gain.setTargetAtTime(muted?0:.9*VOL('master'),T,.05)}
+    if(window.Radio)Radio.setVolume(VOL('music')*VOL('master')*1.1)}
+  // key and label are glued with no-break spaces so a wrapped line never splits "G" from "GPS"
+  const HINT=['WASD drive','Space handbrake','Shift boost','H horn','C camera','Z mirror','F lights','N night','T radio','L time a lap','M map','G GPS','P autodrive','R reset','O settings'].map(x=>x.replace(/ /g,'\u00a0')).join(' · ');
+  function applyDisplay(){hint.textContent=TOUCH?'':HINT;hint.style.display=SET.v.hints?'':'none';
+    const u=spd&&spd.nextElementSibling;if(u)u.textContent=SET.v.units==='mph'?'mph':'km/h'}
+  function applyQuality(){const q=SET.v.quality;if(q!=='auto'&&q!=null)setTier(+q)}
+  SET.on(k=>{if(k==='quality')applyQuality();else if(k==='hints'||k==='units')applyDisplay();else applyMix()});
+  SET.onOpen=()=>{for(const k in key)key[k]=0};
+  {const sb=$('#dsettings');if(sb)sb.onclick=()=>{if(window.Settings)Settings.open()}}
+  applyDisplay();applyQuality();applyMix();
   if(window.Radio){Radio.onInfo=t=>toastMsg(t);if(radioBtn)radioBtn.onclick=radioCycle}
   {const nb=$('#dnight');if(nb)nb.onclick=()=>toggleNight()}
   /* ---------- weather picker ---------- */
@@ -2248,7 +2267,7 @@ t.bd.position.set(x,y+.86,z);
         if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true);
       }else if(MODE==='circuit'||SPACE.state!=='earth')NAV.toggle();
       return
-    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyT'&&!e.repeat){radioCycle();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyT'&&!e.repeat){radioCycle();return}if(e.code==='KeyO'&&!e.repeat){if(window.Settings)Settings.open();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -4012,7 +4031,7 @@ const PLANETS={
     api.frame=function(dt,now){
       t+=dt;
       if(api.state!=='liftoff'&&C.far<20000){C.far=20000;C.near=0.5;C.updateProjectionMatrix()}   // space needs a 20 km view
-      if(AC&&SND){try{SND.bus.gain.setTargetAtTime(muted?0:.9,AC.currentTime,.05);}catch(e){}}
+      if(AC&&SND){try{SND.bus.gain.setTargetAtTime(muted?0:.9*VOL('master'),AC.currentTime,.05);}catch(e){}}
       if(gravBtn)gravBtn.style.display=(api.state==='surface'||api.state==='select')?'block':'none';
 
       /* ---- 1. lift-off, in the real Earth scene: beam on, car rises into the craft, craft shoots up ---- */
@@ -4491,7 +4510,7 @@ const PLANETS={
         const S=SND,T=AC.currentTime,vv=chassisB.velocity,spq=isFinite(sp)?sp:0,
           vf=vv.x*fwdScratch.x+vv.y*fwdScratch.y+vv.z*fwdScratch.z,r=Math.min(1.35,Math.abs(vf)/V.max),rev=vf<-.5,
           regen=b&&vf>1.5,load=f?1:regen?.55:(rev&&b)?.8:.1;let air=true;for(let i=0;i<4;i++)if(veh.wheelInfos[i].isInContact)air=false;
-        S.bus.gain.setTargetAtTime(muted?0:.9,T,.03);
+        S.bus.gain.setTargetAtTime(muted?0:.9*VOL('master'),T,.03);
         S.tone.frequency.setTargetAtTime(sub>.05?420:18000,T,.12);
         {
           /* engine: every car has its own voice (EngineAudio for petrol/diesel, ENGINES for the EVs) */
@@ -4523,14 +4542,15 @@ const PLANETS={
             if(air)tgt=f?red*1.02:idle;                                                   // wheels off the ground: free revs
             else if(S.gear===0&&!rev)tgt=Math.max(tgt,idle+thr*(red*.45-idle)*Math.max(0,1-tgt/(red*.6)));   // launch: clutch slip
             tgt=Math.max(idle*(shifting?.85:1),Math.min(red*1.02,tgt));
-            if(shifting)thr=S.blip?.55:0;                                                 // clutch in: throttle shut, or a blip on the way down
+            if(shifting)thr=S.blip&&S.shiftT>E.shift*.35?.3:0;                             // clutch in: throttle shut, or a short blip on the way down
             if(S.cutT>0){S.cutT-=dt;thr=0}else if(f&&S.rpm>=red*.995){S.cutT=.06;if(air)S.rpm-=red*.04}   // rev limiter bounce
             const rate=shifting?1/Math.max(.04,E.shift)*2.2:air?(tgt>S.rpm?4:3):tgt>S.rpm?10:14;
             S.rpm+=(tgt-S.rpm)*Math.min(1,dt*rate);
             if(sub>.3)thr*=.4;
             // a closed throttle still idles; coasting in gear the engine is pushed by the wheels (overrun)
             const ld=Math.max(thr*(boost?1:.92),S.rpm<idle*1.3?.25:0);
-            if(S.eng)S.eng.set(S.rpm,ld,S.cutT>0,1);
+            S.ovr=(S.ovr||0)+((b&&!f?1:0)-(S.ovr||0))*Math.min(1,dt*5);
+            if(S.eng)S.eng.set(S.rpm,ld,S.cutT>0,1,S.ovr);
             S.engG.gain.setTargetAtTime(muted?0:.42,T,.05);S.mG.gain.setTargetAtTime(0,T,.05);
             if(E.turbo){const rn=S.rpm/red;S.tO.frequency.setTargetAtTime((E.turboHz||1800)+rn*2600,T,.08);S.tG.gain.setTargetAtTime(muted?0:E.turbo*thr*rn*rn,T,.12)}
             else S.tG.gain.setTargetAtTime(0,T,.1)}
@@ -4550,7 +4570,7 @@ const PLANETS={
           S.s1.frequency.setTargetAtTime(sq,T,.06);S.s2.frequency.setTargetAtTime(sq*1.5,T,.06);S.sF.frequency.setTargetAtTime(sq*1.18,T,.08);
           S.sG.gain.setTargetAtTime(muted?0:sk*sk*.07,T,sk>.05?.05:.12);
           const brk=(b&&vf>1.5&&!air&&sub<.05)?Math.min(1,vf/V.max*1.4):0;S.brk+=(brk-S.brk)*Math.min(1,dt*(brk>S.brk?8:4));
-          S.bG.gain.setTargetAtTime(muted?0:S.brk*.12,T,.06);S.bF.frequency.setTargetAtTime(280+S.brk*420,T,.08);
+          S.bG.gain.setTargetAtTime(muted?0:S.brk*.055,T,.08);S.bF.frequency.setTargetAtTime(200+S.brk*240,T,.1);
           // the hauler sighs its air brakes as it comes to a stop
           if(curCarId==='truck'){if(S.brk>.25)S.airArm=1;if(S.airArm&&spq<1.2){S.airArm=0;airBrake()}}
         }
@@ -4723,6 +4743,8 @@ const PLANETS={
       C.lookAt(look);
       if(Math.abs(camRoll)>.0005){camRoll*=Math.exp(-dt*4)}
       if(Math.abs(C.fov-55)>.02){C.fov+=(55-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
+    // the horizon ridge is a ring round the valley; from the summit, which sits outside it, it would be a wall across the view
+    farRidge.visible=Math.hypot(car.position.x,car.position.z)<235;
     {const cf=recapCam?700:320;if(C.far!==cf&&C.far<=700){C.far=cf;C.updateProjectionMatrix()}}   // the lookout sees the whole map
     const sunOff=recapCam?SUN_OFF_LOW:SUN_OFF_DEFAULT;
     {const d=shD.copy(sunOff).normalize(),r=shR.set(0,1,0).cross(d).normalize(),u=shU.copy(d).cross(r),tx=60/(sun.shadow.mapSize.x||1024),p=car.position;
@@ -4755,7 +4777,7 @@ const PLANETS={
          shoot.t=0;shoot.dur=.55+Math.random()*.45;shootL.visible=true}}}
     sunSprite.position.copy(car.position).addScaledVector(recapCam?SUN_DIR_LOW:SUN_DIR,260);
     dust.position.set(car.position.x,0,car.position.z);dust.rotation.y+=dt*.02;
-    if(active&&frameN%3===0){spdS+=(sp*3.6-spdS)*.4;spd.textContent=String(Math.round(spdS)).padStart(3,'0')}
+    if(active&&frameN%3===0){spdS+=(sp*3.6-spdS)*.4;spd.textContent=String(Math.round(spdS*(SET.v.units==='mph'?.6214:1))).padStart(3,'0')}
     // the shadow map is only redrawn as often as the current tier asks for
     /* the light of the current stretch. Captured once the weather has set its own values, then pulled
        toward whatever band of the loop the car is in. */
@@ -5556,7 +5578,7 @@ const PLANETS={
     if(worldFogSave){S.fog.color.setHex(worldFogSave.fog);S.background.setHex(worldFogSave.bg);worldFogSave=null}
     if(worldGSave!=null){world.gravity.y=worldGSave;worldGSave=null}
     if(worldWeatherSave){const saved=worldWeatherSave;worldWeatherSave=null;setWeather(saved.lock||'auto',true);if(!saved.lock&&saved.id)mood(saved.id,.8)}
-    hint.textContent=TOUCH?'':'WASD drive · C camera · L time a lap · M map · R reset';
+    applyDisplay();
     toastMsg('Back to the valley');updCircBtn()}
   /* ---------- drawing overlay ---------- */
   /* ---------- AI rivals for solo races on drawn / daily tracks ----------
@@ -6709,7 +6731,7 @@ function carChanged(){if(room)sendHi(true)}
   function resize(){W=sec.clientWidth;H=sec.clientHeight;R.setPixelRatio(DPR());R.setSize(W,H,false);C.aspect=W/H;C.updateProjectionMatrix();if(sun.shadow)sun.shadow.needsUpdate=true}addEventListener('resize',resize);
   function enterDrive(){active=true;sec.classList.add('active');if(TOUCH)sec.classList.add('touch');resize();{const l=$('#dload');if(l)l.remove()}
     driving=true;hud.classList.add('on');if(TOUCH)mob.classList.add('on');checkRot();
-    hint.textContent=TOUCH?'':'WASD drive · C camera · Z mirror · F lights · T radio · L time a lap · M map · R reset';
+    applyDisplay();
     {const {p,tg}=at(progU||0);C.position.set(p.x-tg.x*10,p.y+5,p.z-tg.z*10);look.set(p.x+tg.x*6,p.y+1,p.z+tg.z*6)}
         if(typeof spawnAIRacers==='function')spawnAIRacers();
     if(!PCAR)setCar(curCarId,GARAGE[0].paints[0],true);

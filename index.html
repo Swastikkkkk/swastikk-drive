@@ -43,7 +43,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #dhud.on{display:block}
 #dhud>*{position:absolute}
 .dtl{left:var(--gut);top:calc(18px + env(safe-area-inset-top,0px))}
-#dhint{color:var(--bone);margin-top:6px}
+#dhint{color:var(--bone);margin-top:6px;max-width:calc(100vw - 2*var(--gut) - 260px);line-height:1.7}
 .dright{right:var(--gut);top:calc(18px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:auto}
 #dmap{width:150px;height:150px;border-radius:50%;cursor:pointer;transition:transform .3s}
 #dmap:hover{transform:scale(1.04)}
@@ -411,7 +411,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
   <canvas id="dc"></canvas>
   <div id="dhud">
     <div class="dtl"><div class="mono" id="dhint"></div></div>
-    <div class="dright"><canvas id="dmap" width="180" height="180" title="Open map (M)"></canvas><button id="dmenu" class="dbtn mono" aria-expanded="false" aria-controls="drow">Menu <span class="mchev">&#9662;</span></button><div class="drow" id="drow" role="menu"><div class="dmsec mono">Mode</div><button id="dmfree" class="dbtn mono dmode on" title="Open-world Earth drive, the default">Free drive</button><button id="droom" class="dbtn mono dmode" title="Race up to 4 friends with a room code">Multiplayer</button><button id="dmdaily" class="dbtn mono dmode" title="Today's track and its leaderboard">Daily track</button><div class="dmsec mono">Drive</div><button id="drace" class="dbtn mono" title="Start a timed lap (L)">Time a lap</button><button id="dboardb" class="dbtn mono" title="Fastest laps (B)">Leaderboard</button><button id="dgarageb" class="dbtn mono" title="Choose your car">Garage</button><button id="dcircb" class="dbtn mono" title="Enter venue or draw new track">Track</button><button id="dgps" class="dbtn mono" title="GPS Navigation (G)">GPS</button><div class="dmsec mono">World</div><button id="dweatherb" class="dbtn mono" aria-expanded="false" aria-controls="dwx" title="Weather">Weather</button><button id="dnight" class="dbtn mono" title="Night (N)">Night</button><button id="dmute" class="dbtn mono">Sound on</button><button id="dradio" class="dbtn mono" title="FM radio: cycle stations (T)">Radio: off</button><button id="dtiltb" class="dbtn mono dtouch">Tilt: off</button><button id="dresetb" class="dbtn mono dtouch">Reset</button></div><div id="dwx"><div id="dwxl"></div></div></div>
+    <div class="dright"><canvas id="dmap" width="180" height="180" title="Open map (M)"></canvas><button id="dmenu" class="dbtn mono" aria-expanded="false" aria-controls="drow">Menu <span class="mchev">&#9662;</span></button><div class="drow" id="drow" role="menu"><div class="dmsec mono">Mode</div><button id="dmfree" class="dbtn mono dmode on" title="Open-world Earth drive, the default">Free drive</button><button id="droom" class="dbtn mono dmode" title="Race up to 4 friends with a room code">Multiplayer</button><button id="dmdaily" class="dbtn mono dmode" title="Today's track and its leaderboard">Daily track</button><div class="dmsec mono">Drive</div><button id="drace" class="dbtn mono" title="Start a timed lap (L)">Time a lap</button><button id="dboardb" class="dbtn mono" title="Fastest laps (B)">Leaderboard</button><button id="dgarageb" class="dbtn mono" title="Choose your car">Garage</button><button id="dcircb" class="dbtn mono" title="Enter venue or draw new track">Track</button><button id="dgps" class="dbtn mono" title="GPS Navigation (G)">GPS</button><div class="dmsec mono">World</div><button id="dweatherb" class="dbtn mono" aria-expanded="false" aria-controls="dwx" title="Weather">Weather</button><button id="dnight" class="dbtn mono" title="Night (N)">Night</button><button id="dmute" class="dbtn mono">Sound on</button><button id="dradio" class="dbtn mono" title="FM radio: cycle stations (T)">Radio: off</button><button id="dsettings" class="dbtn mono" title="Sound, graphics, controls (O)">Settings</button><button id="dtiltb" class="dbtn mono dtouch">Tilt: off</button><button id="dresetb" class="dbtn mono dtouch">Reset</button></div><div id="dwx"><div id="dwxl"></div></div></div>
     <div id="dlap"><div class="lrow"><span class="mono">Lap</span><b id="dlapt">--:--.--</b></div><div class="lsub mono"><span id="dlapn">Lap 1</span><span id="dlapb">Best --:--.--</span></div><div class="lsec"><i></i><i></i><i></i><i></i></div></div>
     <div id="dpos" class="mono">P1 / 1</div>
     <div id="doob" class="mono">TRACK LIMIT EXCEEDED</div>
@@ -464,7 +464,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 
       <!-- Quick keys reference -->
       <div class="mono" style="font-size:9px;color:var(--mute2);padding:4px 6px 2px;line-height:1.4;border-top:1px solid rgba(255,255,255,.08);margin-top:2px;">
-        WASD Drive · Space Handbrake · Z Mirror · C Cam · T Radio · R Reset
+        WASD Drive · Space Handbrake · Z Mirror · C Cam · N Night · T Radio · O Settings · R Reset
       </div>
     </div>
   </div>
@@ -654,6 +654,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 <script src="assets/core-constants.js"></script>
 <script src="assets/engine-audio.js"></script>
 <script src="assets/radio.js"></script>
+<script src="assets/settings.js"></script>
 <script src="assets/car-builder.js"></script>
 <script src="assets/vehicles.js"></script>
 <script src="assets/track-drawer.js"></script>
