@@ -227,7 +227,7 @@
       var vx = (carPos.x - prev.x) / dt, vz = (carPos.z - prev.z) / dt, sp = Math.hypot(vx, vz);
       // the road's own direction right where the car is (dense centreline), not the nearest gate 150 m away,
       // which on a bend pointed somewhere else and flagged cars going the right way
-      var c = this.centerline, n = c.length, d = this.nearestCenterDist(carPos.x, carPos.z), i = this.cdIdx;
+      var c = this.centerline, n = c.length, d = this.nearestCenterDist(carPos.x, carPos.z, carPos.y), i = this.cdIdx;
       var a = c[(i - 2 + n) % n], b = c[(i + 2) % n], tx = b.x - a.x, tz = b.z - a.z, tl = Math.hypot(tx, tz) || 1;
       var against = sp > 6 && d < (this.roadHalf || 8) + 6 && (vx * tx + vz * tz) / (sp * tl) < -0.55;
       this.wrongWayT = against ? this.wrongWayT + dt : Math.max(0, this.wrongWayT - dt * 2);
@@ -288,6 +288,8 @@
       var s0 = (a.x - cp.pos.x) * tg.x + (a.z - cp.pos.z) * tg.z;
       var s1 = (b.x - cp.pos.x) * tg.x + (b.z - cp.pos.z) * tg.z;
       if (!(s0 < 0 && s1 >= 0)) return false;       // wrong direction, or no crossing this frame
+      // a flyover: the road above or below this gate is not this gate
+      if (cp.pos && typeof cp.pos.y === 'number' && typeof b.y === 'number' && Math.abs(b.y - cp.pos.y) > 4.5) return false;
       var t = s0 / (s0 - s1);
       var px = a.x + (b.x - a.x) * t, pz = a.z + (b.z - a.z) * t;
       var lat = Math.abs((px - cp.pos.x) * nx + (pz - cp.pos.z) * nz);
@@ -359,7 +361,7 @@
     // ----------------------------------------------------
     // TRACK BOUNDARIES & RESPAWN
     // ----------------------------------------------------
-    nearestCenterDist: function(x, z) {
+    nearestCenterDist: function(x, z, y) {
       var c = this.centerline, n = c.length;
       if (!n) return 0;
       var best = 1e12, bi = this.cdIdx;
@@ -368,6 +370,8 @@
         var span = pass ? n : 24;
         for (var k = -span; k <= span; k += 1) {
           var i = ((this.cdIdx + k) % n + n) % n, dx = x - c[i].x, dz = z - c[i].z, d = dx * dx + dz * dz;
+          // under or over a flyover, the road at the car's own level is the one it is on
+          if (typeof y === 'number' && typeof c[i].y === 'number') { var dy = Math.abs(y - c[i].y); if (dy > 3.5) d += dy * dy * 9; }
           if (d < best) { best = d; bi = i; }
         }
         if (best < 40 * 40) break;
@@ -378,7 +382,7 @@
 
     checkTrackBoundaries: function(carPos, dt, onRespawnTrigger) {
       if (this.checkpoints.length === 0) return;
-      var minDist = this.nearestCenterDist(carPos.x, carPos.z);
+      var minDist = this.nearestCenterDist(carPos.x, carPos.z, carPos.y);
       var maxAllowedDist = (this.roadHalf || 8) + 4.6 + 8;   // past the barrier line (game.js BARRIER_OFF) means the car got out
       var oobEl = document.getElementById('doob');
 

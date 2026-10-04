@@ -4737,7 +4737,7 @@ const PLANETS={
     for(let i=0;i<=Nseg;i++){const {p,n}=circAt(i/Nseg,curve),nx=n.x*w/2,nz=n.z*w/2;
       if(!isFinite(p.x)||!isFinite(p.y)||!isFinite(p.z)||!isFinite(n.x)||!isFinite(n.z)) continue;
       // with terrain, each edge vertex sits on the ground under it so the strip never floats or sinks
-      const ya=hFn?hFn(p.x-nx,p.z-nz):p.y,yb=hFn?hFn(p.x+nx,p.z+nz):p.y;
+      const ya=hFn?hFn(p.x-nx,p.z-nz,i/Nseg):p.y,yb=hFn?hFn(p.x+nx,p.z+nz,i/Nseg):p.y;
       pos.push(p.x-nx,ya+yo,p.z-nz,p.x+nx,yb+yo,p.z+nz);uv.push(0,i/Nseg*rep,1,i/Nseg*rep);
       if(i<Nseg){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2)}}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
@@ -4818,29 +4818,69 @@ const PLANETS={
     const ek1=2+Math.floor(er()*2),ek2=3+Math.floor(er()*3),ep1=er()*6.283,ep2=er()*6.283;
     const elevAt=u=>{if(!ELEV)return 0;const d=Math.min(u,1-u),flat=Math.min(1,Math.max(0,(d-.03)/.07)),k=flat*flat*(3-2*flat);
       return ELEV*k*(.62*Math.sin(6.283*ek1*u+ep1)+.38*Math.sin(6.283*ek2*u+ep2)-(.62*Math.sin(ep1)+.38*Math.sin(ep2)))};
-    const pts3=pts2D.map((q,i)=>new THREE.Vector3(CIRC_X+q.x,CIRC_Y+elevAt(i/pts2D.length),CIRC_Z+q.y));
+    let pts3=pts2D.map((q,i)=>new THREE.Vector3(CIRC_X+q.x,CIRC_Y+elevAt(i/pts2D.length),CIRC_Z+q.y));
+    /* ---------- flyovers ----------
+       A drawn loop may cross itself. Where it does, one of the two passes is lifted onto a bridge: flat
+       across the crossing (long enough to clear the lower road's barriers at that angle) with ~11% ramps
+       either side. The terrain and the lower road keep the un-lifted heights; the bridge gets its own
+       deck, pillars, rails and collision, built further down. liftAt(u) is the lift at arc position u. */
+    const BRIDGES=[],BH=7.5;
+    {const base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5),BL=base.getLength(),K=Math.max(120,Math.min(1600,Math.round(BL/3)));
+     const P=[];for(let k=0;k<K;k++){const q=base.getPointAt(k/K);P.push([q.x,q.z])}
+     const gapU=Math.min(.45,(CIRC_W*3+30)/BL),cell=12,G=new Map(),key=(x,z)=>Math.floor(x/cell)+','+Math.floor(z/cell);
+     for(let k=0;k<K;k++){const a=P[k],b=P[(k+1)%K];const kk=new Set([key(a[0],a[1]),key(b[0],b[1])]);kk.forEach(c=>{let L=G.get(c);if(!L)G.set(c,L=[]);L.push(k)})}
+     const found=[];
+     for(let i=0;i<K;i++){const a=P[i],b=P[(i+1)%K],cand=new Set();
+       for(const c of [key(a[0],a[1]),key(b[0],b[1])]){const L=G.get(c);if(L)L.forEach(j=>{if(j>i)cand.add(j)})}
+       cand.forEach(j=>{let du=Math.abs(j-i)/K;du=Math.min(du,1-du);if(du<gapU)return;const c=P[j],d=P[(j+1)%K];
+         const r1x=b[0]-a[0],r1z=b[1]-a[1],r2x=d[0]-c[0],r2z=d[1]-c[1],den=r1x*r2z-r1z*r2x;if(Math.abs(den)<1e-9)return;
+         const t=((c[0]-a[0])*r2z-(c[1]-a[1])*r2x)/den,w=((c[0]-a[0])*r1z-(c[1]-a[1])*r1x)/den;if(t<0||t>1||w<0||w>1)return;
+         const sin=Math.abs(den)/(Math.hypot(r1x,r1z)*Math.hypot(r2x,r2z)),x=a[0]+r1x*t,z=a[1]+r1z*t;
+         if(found.some(f=>Math.hypot(f.x-x,f.z-z)<CIRC_W))return;found.push({ua:(i+t)/K,ub:(j+w)/K,x,z,sin})})}
+     const arc=(u,v)=>{let d=Math.abs(u-v);return Math.min(d,1-d)*BL};
+     const nearStart=u=>Math.min(u,1-u)*BL<60;
+     found.forEach(f=>{if(f.sin<.22)return;   // nearly parallel overlap: a bridge would be absurdly long
+       const flat=(CIRC_W/2+BARRIER_OFF+3)/f.sin+CIRC_W/2+4,ramp=Math.max(60,BH*9);
+       // lift the pass whose ramps don't reach another crossing where it has to stay low, and never the start straight
+       const ok=u=>!nearStart(u)&&arc(u,0)>flat+ramp&&!found.some(g=>g!==f&&(arc(u,g.ua)<flat+ramp||arc(u,g.ub)<flat+ramp));
+       // on a hilly venue the two passes can already be metres apart: lift the higher one, by enough to clear the other
+       const ya=base.getPointAt(f.ua).y,yb=base.getPointAt(f.ub).y,hi=yb>=ya?f.ub:f.ua,lo2=hi===f.ub?f.ua:f.ub;
+       const u=ok(hi)?hi:ok(lo2)?lo2:null;if(u==null)return;
+       const yU=u===f.ub?yb:ya,yL=u===f.ub?ya:yb,h=Math.max(2,yL+BH-yU);if(h>24)return;   // already high above it: a short lift, just enough to make it a proper deck
+       if(BRIDGES.some(B=>arc(B.u,u)<B.flat+B.ramp+flat+ramp))return;
+       BRIDGES.push({u,flat,ramp:Math.max(ramp,h*9),h,x:f.x,z:f.z,low:u===f.ub?f.ua:f.ub})});
+     if(BRIDGES.length){
+       // the lift needs dense control points to be exact, so the curve is rebuilt from the base one
+       const M2=Math.max(80,Math.round(BL/5));pts3=[];
+       for(let k=0;k<M2;k++){const u=k/M2,q=base.getPointAt(u);pts3.push(new THREE.Vector3(q.x,q.y+BRIDGES.reduce((m,B)=>{const d=arc(u,B.u);return Math.max(m,d<B.flat?B.h:d<B.flat+B.ramp?B.h*SM(1-(d-B.flat)/B.ramp):0)},0),q.z))}}
+     var liftAt=u=>{if(!BRIDGES.length)return 0;u=((u%1)+1)%1;let m=0;for(const B of BRIDGES){const d=arc(u,B.u);m=Math.max(m,d<B.flat?B.h:d<B.flat+B.ramp?B.h*SM(1-(d-B.flat)/B.ramp):0)}return m}}
     const curve=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);
     const CN=Math.max(60,Math.min(480,Math.round(curve.getLength()/6)));
     const CSAMP=[];for(let i=0;i<CN;i++)CSAMP.push(curve.getPointAt(i/CN));
     /* dense track index: ~2.5 m samples in a 20 m spatial hash. Answers "how far is the nearest road"
        and "how high is the ground here" for the terrain, the clearance pass and prop placement. */
     const TL=curve.getLength(),DN=Math.max(240,Math.min(2400,Math.round(TL/2.5))),DX=new Float32Array(DN),DY=new Float32Array(DN),DZ=new Float32Array(DN),CELL=20,DH=new Map();
-    for(let i=0;i<DN;i++){const q=curve.getPointAt(i/DN);DX[i]=q.x;DY[i]=q.y;DZ[i]=q.z;const k=Math.floor(q.x/CELL)+','+Math.floor(q.z/CELL);let a=DH.get(k);if(!a)DH.set(k,a=[]);a.push(i)}
+    const DL=new Float32Array(DN);   // the bridge lift at each sample: the ground follows the road's height WITHOUT it
+    for(let i=0;i<DN;i++){const q=curve.getPointAt(i/DN);DX[i]=q.x;DL[i]=liftAt(i/DN);DY[i]=q.y-DL[i];DZ[i]=q.z;const k=Math.floor(q.x/CELL)+','+Math.floor(q.z/CELL);let a=DH.get(k);if(!a)DH.set(k,a=[]);a.push(i)}
     const nearIdx=(x,z,R,fn)=>{const r=Math.ceil(R/CELL),gx=Math.floor(x/CELL),gz=Math.floor(z/CELL);
       for(let a=-r;a<=r;a++)for(let b=-r;b<=r;b++){const L=DH.get((gx+a)+','+(gz+b));if(L)for(let t=0;t<L.length;t++)fn(L[t])}};
     const trackDist=(x,z,R)=>{let best=1e9;nearIdx(x,z,R,i=>{const dx=DX[i]-x,dz=DZ[i]-z,d=dx*dx+dz*dz;if(d<best)best=d});return Math.sqrt(best)};
+    // the same, counting only road at about this level (a bridge overhead or a road underneath is not 'close')
+    const trackDistL=(x,z,R,lift)=>{let best=1e9;nearIdx(x,z,R,i=>{if(Math.abs(DL[i]-lift)>3)return;const dx=DX[i]-x,dz=DZ[i]-z,d=dx*dx+dz*dz;if(d<best)best=d});return Math.sqrt(best)};
     // ground height: inverse-distance blend of nearby track heights, easing back to the base level
     // away from the road. On the road the nearest samples dominate, so asphalt and terrain agree.
     const H0W=1/((60*60+1)*(60*60+1));
     const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;let ws=H0W,hs=H0W*CIRC_Y;
-      nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,w=1/(q*q);ws+=w;hs+=w*DY[i]});return hs/ws};
-    const hFn=ELEV?groundAt:null;
+      nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,w=1/(q*q)*(1-SM(DL[i]/1.5));ws+=w;hs+=w*DY[i]});return hs/ws};   // a bridge in the air shapes no ground
+    /* the road's surface: the ground on hills, except where a bridge lifts it, which follows its own planned line */
+    const roadY=(u,x,z)=>{const lf=liftAt(u);if(!ELEV)return CIRC_Y+lf;const g=groundAt(x,z)+lf;if(lf<.01)return g;const k=SM(lf/1.5);return g*(1-k)+curve.getPointAt(((u%1)+1)%1).y*k};
+    const hFn=ELEV?groundAt:null,hRoad=ELEV?(x,z,u)=>roadY(u,x,z):null,liftEff=(u,x,z)=>roadY(u,x,z)-(ELEV?groundAt(x,z):CIRC_Y);
     let minY=CIRC_Y;for(let i=0;i<DN;i++)minY=Math.min(minY,DY[i]);
     const root=new THREE.Group();S.add(root);
     let stadiumBodies=[];
     const rep=curve.getLength()/12;
-    const edgeStrip=circStrip(curve,CN,CIRC_W+1.8,.06,edgeM,rep,hFn);edgeStrip.receiveShadow=true;root.add(edgeStrip);
-    const roadStrip=circStrip(curve,CN,CIRC_W,.12,roadM,rep,hFn);roadStrip.receiveShadow=true;root.add(roadStrip);
+    const edgeStrip=circStrip(curve,CN,CIRC_W+1.8,.06,edgeM,rep,hRoad);edgeStrip.receiveShadow=true;root.add(edgeStrip);
+    const roadStrip=circStrip(curve,CN,CIRC_W,.12,roadM,rep,hRoad);roadStrip.receiveShadow=true;root.add(roadStrip);
     edgeStrip.userData.fixedY=roadStrip.userData.fixedY=true;
     let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;pts3.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z)});
     const cx=(minX+maxX)/2,cz=(minZ+maxZ)/2;
@@ -4909,21 +4949,24 @@ const PLANETS={
       groundMesh.visible=false}
     const gy=(x,z)=>CIRC_Y+visH(x,z);                 // where props sit: the visual ground (ELEV venues are lifted by the settle pass later)
     roadStrip.userData.onTrack=edgeStrip.userData.onTrack=true;
-    const runoff=circStrip(curve,CN,CIRC_W+4,.035,groundMat,rep,hFn);runoff.receiveShadow=true;root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
+    const runoff=circStrip(curve,CN,CIRC_W+4,.035,groundMat,rep,hRoad);runoff.receiveShadow=true;root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
     const curbRed=M(theme.standTrim,{roughness:.75}),curbWhite=M(0xdad8d0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
     const curbGeo=new THREE.BoxGeometry(1.7,.18,Math.max(1.8,Math.min(4,curve.getLength()/CN)));
     const curbRedIM=new THREE.InstancedMesh(curbGeo,curbRed,CN*2),curbWhiteIM=new THREE.InstancedMesh(curbGeo,curbWhite,CN*2);
     curbRedIM.receiveShadow=true;curbWhiteIM.receiveShadow=true;root.add(curbRedIM,curbWhiteIM);curbRedIM.userData.onTrack=curbWhiteIM.userData.onTrack=true;
     {let redN=0,whiteN=0;const up=new THREE.Vector3(0,1,0),p0=new THREE.Vector3(),q0=new THREE.Quaternion(),s0=new THREE.Vector3(1,1,1),mx0=new THREE.Matrix4();
       for(let i=0;i<CN;i++){const {p,tg,n}=circAt(i/CN,curve),yaw=Math.atan2(tg.x,tg.z);
-        for(const side of [-1,1]){p0.set(p.x+n.x*side*(CIRC_W/2+.75),CIRC_Y+.16,p.z+n.z*side*(CIRC_W/2+.75));q0.setFromAxisAngle(up,yaw);mx0.compose(p0,q0,s0);
+        const lf=liftAt(i/CN);
+        for(const side of [-1,1]){const cxp=p.x+n.x*side*(CIRC_W/2+.75),czp=p.z+n.z*side*(CIRC_W/2+.75);if(trackDistL(cxp,czp,CIRC_W,lf)<CIRC_W/2-.5)continue;   // not across another road at this level
+          p0.set(cxp,CIRC_Y+.16+liftEff(i/CN,cxp,czp),czp);q0.setFromAxisAngle(up,yaw);mx0.compose(p0,q0,s0);
           if((i+side+CN)%2===0)curbRedIM.setMatrixAt(redN++,mx0);else curbWhiteIM.setMatrixAt(whiteN++,mx0)}}
       curbRedIM.count=redN;curbWhiteIM.count=whiteN;curbRedIM.instanceMatrix.needsUpdate=true;curbWhiteIM.instanceMatrix.needsUpdate=true}
 // perimeter barrier wall: one continuous strip just outside the paved plate, all the way round
     {const wallMat=M(0xd9d4c6,{roughness:.7});ownedMats.push(wallMat);
-      const wallCurve=new THREE.CatmullRomCurve3(pts3.map(p=>{
-          const dx=p.x-cx,dz=p.z-cz,len=Math.hypot(dx,dz)||1;
-          return new THREE.Vector3(cx+dx/len*(r0-4),CIRC_Y,cz+dz/len*(r0-4))}),true,'catmullrom',.5);
+      /* a true ring at the arena's edge. It used to be the track's own points pushed out radially, which on a
+         figure-8 (or any lap that passes the middle) folded the 7 m wall straight across the road */
+      const wallCurve=new THREE.CatmullRomCurve3(Array.from({length:96},(_,k)=>{const a=k/96*Math.PI*2;
+          return new THREE.Vector3(cx+Math.cos(a)*(r0-4),CIRC_Y,cz+Math.sin(a)*(r0-4))}),true,'catmullrom',.5);
       // Ensure wall curve points are valid
       const wallPts=[];for(let i=0;i<=CN;i++){const pt=wallCurve.getPointAt(i/CN);wallPts.push(pt)};
       const validWallPts=wallPts.filter(p=>isFinite(p.x)&&isFinite(p.y)&&isFinite(p.z));
@@ -4949,11 +4992,37 @@ const PLANETS={
       const up=new THREE.Vector3(0,1,0),q=new THREE.Quaternion(),pp=new THREE.Vector3(),sc=new THREE.Vector3(1,1,1),mx=new THREE.Matrix4(),cup=new CANNON.Vec3(0,1,0);let nr=0;
       for(let i=0;i<NB;i++){const {p,tg,n}=circAt((i+.5)/NB,curve),yaw=Math.atan2(tg.x,tg.z);q.setFromAxisAngle(up,yaw);
         for(const side of [-1,1]){const x=p.x+n.x*side*off,z=p.z+n.z*side*off;
-          if(trackDist(x,z,off+2)<off-1.5)continue;          // another part of the track is closer than ours: no wall across it
+          const lf=liftAt((i+.5)/NB);
+          if(trackDistL(x,z,off+2,lf)<off-1.5)continue;          // another part of the track at this level is closer than ours: no wall across it
           const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(.35,1,segL/2+.4)));
-          b.position.set(x,CIRC_Y+.9,z);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);wallBodies.push(b);
-          pp.set(x,CIRC_Y+.66,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);pp.set(x,CIRC_Y+.4,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}}
+          const le=liftEff((i+.5)/NB,x,z);
+          b.position.set(x,CIRC_Y+.9+le,z);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);wallBodies.push(b);
+          pp.set(x,CIRC_Y+.66+le,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);pp.set(x,CIRC_Y+.4+le,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}}
       railIM.count=postIM.count=nr;railIM.instanceMatrix.needsUpdate=postIM.instanceMatrix.needsUpdate=true}
+    /* ---------- the flyover decks: concrete slab out to the rails, pillars, and collision that follows the ramp ---------- */
+    const bridgeBodies=[];
+    if(BRIDGES.length){const deckMat=M(0x9a9893,{roughness:.9}),pillarMat=M(0x8a8780,{roughness:.9});ownedMats.push(deckMat,pillarMat);
+      const half=CIRC_W/2+BARRIER_OFF+.5,STEP=4,segs=[],pils=[];
+      const baseY=(x,z)=>ELEV?groundAt(x,z):CIRC_Y,surf=u=>{const {p}=circAt(u,curve);return roadY(u,p.x,p.z)+.12};
+      BRIDGES.forEach(B=>{const span=(B.flat+B.ramp)/TL,n=Math.ceil((B.flat+B.ramp)*2/STEP);
+        for(let k=0;k<n;k++){const u0=B.u-span+k*STEP/TL,u1=u0+STEP/TL;if(liftAt((u0+u1)/2)<.05)continue;
+          const A=circAt(u0,curve).p,C=circAt(u1,curve).p,ya=surf(u0),yc=surf(u1),dx=C.x-A.x,dz=C.z-A.z,h=Math.hypot(dx,dz)||1,len=Math.hypot(h,yc-ya);
+          segs.push({x:(A.x+C.x)/2,z:(A.z+C.z)/2,y:(ya+yc)/2,yaw:Math.atan2(dx,dz),pitch:-Math.atan2(yc-ya,h),len,lift:liftAt((u0+u1)/2)})}
+        for(let d=-B.flat-B.ramp;d<=B.flat+B.ramp;d+=14){const u=B.u+d/TL,lf=liftAt(u);if(lf<2.5)continue;const {p,n}=circAt(u,curve);
+          // no pillar standing on the road underneath
+          for(const sd of [-1,1]){const x=p.x+n.x*sd*(CIRC_W/2),z=p.z+n.z*sd*(CIRC_W/2);if(trackDistL(x,z,CIRC_W,0)<CIRC_W/2+1.5)continue;pils.push({x,z,top:surf(u)-1.1,bot:baseY(x,z)-.2})}}});
+      const cq=new CANNON.Quaternion(),tq=new THREE.Quaternion(),te=new THREE.Euler(0,0,0,'YXZ'),tp=new THREE.Vector3(),ts=new THREE.Vector3(),tm=new THREE.Matrix4();
+      const deckIM=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),deckMat,Math.max(1,segs.length));deckIM.castShadow=!LOW;deckIM.receiveShadow=true;let dn=0;
+      segs.forEach(g=>{te.set(g.pitch,g.yaw,0);tq.setFromEuler(te);
+        const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(half,.5,g.len/2+.35)));
+        // top face on the road surface
+        tp.set(0,-.5,0).applyQuaternion(tq);b.position.set(g.x+tp.x,g.y+tp.y,g.z+tp.z);cq.set(tq.x,tq.y,tq.z,tq.w);b.quaternion.copy(cq);world.addBody(b);bridgeBodies.push(b);
+        if(g.lift>.8){tp.set(0,-.62,0).applyQuaternion(tq).add(new THREE.Vector3(g.x,g.y,g.z));ts.set(half*2,1.1,g.len+.3);tm.compose(tp,tq,ts);deckIM.setMatrixAt(dn++,tm)}});
+      deckIM.count=dn;deckIM.instanceMatrix.needsUpdate=true;deckIM.userData.fixedY=deckIM.userData.onTrack=true;root.add(deckIM);
+      const pilIM=new THREE.InstancedMesh(new THREE.CylinderGeometry(.75,.9,1,12),pillarMat,Math.max(1,pils.length));pilIM.castShadow=!LOW;let pn=0;
+      pils.forEach(q=>{const h=q.top-q.bot;if(h<1)return;tp.set(q.x,q.bot+h/2,q.z);ts.set(1,h,1);tq.identity();tm.compose(tp,tq,ts);pilIM.setMatrixAt(pn++,tm);
+        const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Cylinder(.85,.85,h,10));b.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0),Math.PI/2);b.position.set(q.x,q.bot+h/2,q.z);world.addBody(b);   /* cannon's cylinder lies along Z: stood up */bridgeBodies.push(b)});
+      pilIM.count=pn;pilIM.instanceMatrix.needsUpdate=true;pilIM.userData.fixedY=pilIM.userData.onTrack=true;root.add(pilIM)}
     // Keep the grandstands close enough to read from the track, placed from its actual tangent.
     {const standN=Math.max(8,Math.min(16,Math.round(curve.getLength()/38)));
      const standMat=M(theme.stand,{roughness:.85}),trimMat=M(theme.standTrim,{roughness:.6});ownedMats.push(standMat,trimMat);
@@ -5343,7 +5412,7 @@ const PLANETS={
       if(o.isInstancedMesh&&o.userData.solidInst){const si=o.userData.solidInst;for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);const e=fpI.elements;if(e[0]===0&&e[5]===0&&e[10]===0)continue;
         fpM.multiplyMatrices(o.matrixWorld,fpI).multiply(new THREE.Matrix4().makeTranslation(0,si.yo,0));addSolid(fpM,si.hx,si.hy,si.hz)}}});
     stadiumBodies=stadiumBodies.concat(solidBodies);
-    circuit={hazeTo:circuit_hazeFn,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies),lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,cleared:removed};
+    circuit={hazeTo:circuit_hazeFn,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies),liftAt,roadY,bridges:BRIDGES.length,lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,cleared:removed};
     if(window.RaceEngine){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
     return circuit}
   function enterCircuit(){if(!circuit)return;
@@ -5415,7 +5484,7 @@ const PLANETS={
       const Cc=circuit;
       cars.forEach(a=>{
         a.lane+=(a.laneT-a.lane)*Math.min(1,dt*1.6);
-        const P=circAt(a.u,Cc.curve),x=P.p.x+P.n.x*a.lane,z=P.p.z+P.n.z*a.lane,y=Cc.groundAt?Cc.groundAt(x,z):P.p.y;
+        const P=circAt(a.u,Cc.curve),x=P.p.x+P.n.x*a.lane,z=P.p.z+P.n.z*a.lane,y=Cc.roadY?Cc.roadY(a.u,x,z):Cc.groundAt?Cc.groundAt(x,z):P.p.y;   // the road's own surface, so over a flyover, not under it
         const yaw=Math.atan2(P.tg.x,P.tg.z),pitch=Math.atan2(P.tg.y,Math.hypot(P.tg.x,P.tg.z));
         const G=a.car.g;G.position.set(x,y+.02,z);G.rotation.set(-pitch,yaw,0);
         const acc=dt>0?(a.spd-a.pv)/dt:0;a.pv=a.spd;a.dive+=(Math.max(-.03,Math.min(.03,acc*.012))-a.dive)*Math.min(1,dt*5);a.car.body.rotation.x=a.dive;
@@ -6547,7 +6616,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
