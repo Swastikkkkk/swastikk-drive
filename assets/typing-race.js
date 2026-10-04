@@ -32,7 +32,7 @@
   #dtype .ty-tag{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#4d8dff}
   #dtype .ty-x{background:transparent;border:1px solid rgba(238,240,243,.18);color:rgba(238,240,243,.7);border-radius:999px;font:500 10px var(--mono,monospace);letter-spacing:.14em;padding:5px 11px;cursor:pointer;text-transform:uppercase}
   #dtype .ty-x:hover{color:#fff;border-color:rgba(238,240,243,.5)}
-  #dtype .ty-text{font:500 clamp(15px,1.6vw,20px)/1.5 var(--mono,ui-monospace,monospace);letter-spacing:.01em;word-break:break-word;min-height:1.5em}
+  #dtype .ty-text{font:500 clamp(18px,2vw,26px)/1.45 var(--mono,ui-monospace,monospace);letter-spacing:.01em;word-break:break-word;min-height:1.5em}
   #dtype .ty-text span{transition:color .08s}
   #dtype .ty-text .d{color:#eef0f3;text-shadow:0 0 18px rgba(77,141,255,.25)}
   #dtype .ty-text .t{color:rgba(238,240,243,.32)}
