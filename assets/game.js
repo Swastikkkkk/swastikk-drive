@@ -4135,6 +4135,19 @@ const PLANETS={
       S.vel.set(0,0,0);S.vy=0;S.grounded=true;S.yaw=Math.atan2(r.tx,r.tz);S.visY=null;toastMsg('Back on the road')};
     api.openTravel=()=>{if(api.state!=='surface')return;buildSelButtons();selEl.style.display='grid';api.state='select';t=0;say('');if(travelEl)travelEl.hidden=true};
     api.goEarth=()=>{if(api.state==='surface'||api.state==='select')chooseDest('earth')};
+    /* ---- multiplayer on planets: straight there, a grid at the road start, home again ---- */
+    api.RACE_S0=30;api.RACE_LEN=3000;
+    api.warpTo=key=>{selEl.style.display='none';
+      if(api.state==='earth'){buildSpace();ufoHome.copy(UFO.g.position);carWasVisible=car.visible;api._carFrom=car.position.clone()}
+      if(api.state==='surface'&&api.planet===key)return;   // already here: the grid puts us on the line
+      beginArrival(key)};
+    api.holdStart=(slot)=>{const S=SURF;if(!S||api.state!=='surface')return;const s0=api.RACE_S0-Math.floor(slot/2)*9,r=roadAt(S.cfg,S.road,s0),off=(slot%2?1:-1)*2.4;
+      S.pos.set(r.x+r.nx*off,roadY(S.cfg,S.road,s0)+1.1,r.z+r.nz*off);S.vel.set(0,0,0);S.vy=0;S.grounded=true;S.yaw=Math.atan2(r.tx,r.tz);S.s=s0;S.maxS=Math.max(S.maxS,s0);S.sprint=null};
+    api.raceProgress=()=>{const S=SURF;return S&&api.state==='surface'?(S.s-api.RACE_S0)/api.RACE_LEN:0};
+    api.forceEarth=()=>{if(api.state==='earth')return;selEl.style.display='none';try{resetCar()}catch(e){}go('earth')};
+    // where a remote car should be drawn when it reports a pose from this world
+    api.poseOut=(pv,qv)=>{const S=SURF;if(!S||api.state!=='surface')return false;pv.set(0,S.ccY||0,0).applyQuaternion(S.rover.quaternion).add(S.rover.position);qv.copy(S.rover.quaternion);return true};
+    api.sceneFor=pl=>pl===api.planet&&api.state==='surface'&&SURF?SURF.scene:null;
     /* a time trial on any planet: from here to the next UFO station along the road, best time kept per world */
     api.startSprint=()=>{const S=SURF;if(!S||api.state!=='surface')return;const every=S.cfg.ufoEvery,goal=(Math.floor(S.s/every)+1)*every;
       S.sprint={t0:performance.now(),goal,from:S.s};toastMsg('Race to the UFO station · '+((goal-S.s)/1000).toFixed(2)+' km · go!')};
@@ -4230,6 +4243,7 @@ const PLANETS={
         phoneSt.on=false;key.f=key.b=key.l=key.r=key.h=key.boost=key.horn=0;toastMsg('Phone controller disconnected')}
     }
     if(SPACE.state==='surface')AUTO.tick();
+    if(SPACE.state!=='earth'&&active&&MP.on)try{MP.tick(now,dt)}catch(e){}   // a room keeps talking while you are off-world
     if(SPACE.state!=='earth'){ try{SPACE.frame(dt,now);}catch(e){console.error('[space]',e);try{var b=document.getElementById('dspaceerr');if(!b){b=document.createElement('div');b.id='dspaceerr';b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:rgba(150,20,20,.96);color:#fff;font:600 12px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px 12px;white-space:pre-wrap;max-height:46vh;overflow:auto';document.body.appendChild(b);}b.textContent='SURFACE/SPACE ERROR @ state='+SPACE.state+String.fromCharCode(10)+((e&&e.stack)||(e&&e.message)||e);}catch(_){}} return; }   // space/moon takes over the frame; Earth paused
     watchFps(dt);
     /* watchdog: a countdown with no start lights to end it (or lights that never ran) must not hold the car forever */
@@ -5998,7 +6012,7 @@ updCircBtn();
       tg.renderOrder=999;tg.scale.set(6,1.5,1);
       S.add(g);S.add(tg);g.visible=false;tg.visible=false;
       return {g,tg,wl,col,name,carId:spec.id}}
-    function killGhost(P){if(!P.gh)return;const G=P.gh;S.remove(G.g);S.remove(G.tg);
+    function killGhost(P){if(!P.gh)return;const G=P.gh;if(G.g.parent)G.g.parent.remove(G.g);if(G.tg.parent)G.tg.parent.remove(G.tg);
       G.g.traverse(o=>{if(o.material&&!CARMATS.includes(o.material)){const mm=Array.isArray(o.material)?o.material:[o.material];mm.forEach(m=>m.dispose&&m.dispose())}});
       if(G.tg.material.map)G.tg.material.map.dispose();G.tg.material.dispose();P.gh=null}
     /* ----- members ----- */
@@ -6070,7 +6084,7 @@ updCircBtn();
           else{const dt=Math.max(.04,Math.min(.5,(now-P.pt)/1000)),a=.6;
             P.vx+=((x-P.tp.x)/dt-P.vx)*a;P.vy+=((y-P.tp.y)/dt-P.vy)*a;P.vz+=((z-P.tp.z)/dt-P.vz)*a;
             P.tp.set(x,y,z);P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize()}
-          P.pt=now;P.st=num(m.st,-1,1,0);P.vf=num(m.vf,-80,120,0);P.d=num(m.d,-5,50,0);break}
+          P.pt=now;P.st=num(m.st,-1,1,0);P.vf=num(m.vf,-80,120,0);P.d=num(m.d,-5,50,0);P.pl=typeof m.pl==='string'&&/^[a-z]{3,8}$/.test(m.pl)?m.pl:'earth';break}
         case 'race':beginCountdown(P.n,num(m.startAt,0,1e15,Date.now()+CD_LEAD),String(m.rid||''),num(m.laps,1,20,3),m.v&&typeof m.v==='object'?m.v:null);break;
         case 'fin':
           if(!m.rid||m.rid!==race.id||(race.st<2&&race.st!==4)||P.fin)return;
@@ -6136,6 +6150,9 @@ updCircBtn();
       if(!isHost()){note('The host starts the race. Press Ready so they know you are set.');return}
       if(race.st===1||race.st===2){note('A race is already running');return}
       const laps=getLaps(),pick=$('#dmpmap')?$('#dmpmap').value:'earth';
+      // a sprint down a planet's road: everybody flies there first, so the countdown leaves time for the landing
+      if(SPACE.PLANETS&&SPACE.PLANETS[pick]){const startAt=Date.now()+CD_LEAD+1500+6000,rid=me.id+'-'+startAt,v={planet:pick};
+        send({k:'race',startAt,rid,laps:1,v});beginCountdown('You',startAt,rid,1,v);return}
       // get the host onto the chosen track first, then send it with the race so nobody races somewhere else
       if(pick==='circuit'){
         if(!circuit||circuit.daily){note('Draw a track first: Menu → Draw track, then GO & Publish');return}
@@ -6153,16 +6170,19 @@ updCircBtn();
       if(window.RaceEngine&&window.RaceEngine.state!=='idle')window.RaceEngine.stopRace();
       try{CAI.clear()}catch(e){}
       // a guest goes to whatever track the host is racing on
-      if(v){try{if(v.earth){if(MODE==='circuit')leaveCircuit()}else{adoptVenue(v);if(MODE!=='circuit'&&circuit)enterCircuit()}}catch(e){lg('race venue',e&&e.message)}}
+      const planet=v&&typeof v.planet==='string'&&SPACE.PLANETS&&SPACE.PLANETS[v.planet]?v.planet:null;
+      if(planet){try{if(MODE==='circuit')leaveCircuit();SPACE.warpTo(planet)}catch(e){lg('race planet',e&&e.message)}}
+      else{if(SPACE.state!=='earth')try{SPACE.forceEarth()}catch(e){}   // an Earth race brings planet drivers home
+      if(v){try{if(v.earth){if(MODE==='circuit')leaveCircuit()}else{adoptVenue(v);if(MODE!=='circuit'&&circuit)enterCircuit()}}catch(e){lg('race venue',e&&e.message)}}}
       closePanel();
       myReady=false;autoStartAt=0;peers.forEach(p=>{p.ready=false});paintReady();
       {const rm=document.getElementById('dresults');if(rm){rm.classList.remove('on');rm.style.display=''}}
       // startAt is a shared wall-clock instant (Date.now(), not performance.now(), since it has to mean
       // the same thing on every client's clock) so everyone's countdown hits GO at roughly the same moment,
       // regardless of when the 'race' broadcast actually arrived on each connection
-      race={id:rid,st:1,startAt,t0:0,d0:0,rp:0,lastU:0,slot:slotOf(),ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0,laps:Math.max(1,Math.min(20,+laps||getLaps())),lapShown:1};myFin=0;
+      race={id:rid,st:1,startAt,t0:0,d0:0,rp:0,lastU:0,slot:slotOf(),ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0,laps:planet?1:Math.max(1,Math.min(20,+laps||getLaps())),lapShown:1,planet};myFin=0;
       peers.forEach(p=>{p.fin=0;p.d=0});
-      gridTo(race.slot,peers.size+1);toast2(who+' started a race');ui()}
+      if(!planet)gridTo(race.slot,peers.size+1);toast2(who+' started a race');ui()}
     function endRace(quiet){
       race.st=0;race.hold=null;if(el.count){el.count.classList.remove('on');el.count.textContent=''}
       if(!quiet)ui()}
@@ -6170,6 +6190,7 @@ updCircBtn();
     function raceTick(now,dt){
       if(race.st===1){
         const remain=race.startAt-Date.now(),n=Math.max(1,Math.min(3,Math.ceil(remain/1000)));
+        if(race.planet)SPACE.holdStart(race.slot);   // on the grid at the road start until GO
         if(race.hold){chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.position.x=race.hold.x;chassisB.position.z=race.hold.z;chassisB.quaternion.copy(race.hold.q)}
         if(remain>0&&n!==race.cdN){race.cdN=n;cdShow(String(n));blip(520,.14,.1)}
         if(remain<=0){race.st=2;race.t0=now;race.rp=0;race.lastP=0;race.hold=null;race.lastU=-1;cdShow('GO');blip(1040,.35,.14);
@@ -6179,7 +6200,14 @@ updCircBtn();
         let all=peers.size>0;peers.forEach(p=>{if(!p.fin&&(!p.last||now-p.last<STALE))all=false});
         if(all||race.endAt&&now>race.endAt){race.st=3;ui()}return}
       if(race.st!==2)return;
-      if(now-race.lastP>=100){race.lastP=now;
+      if(race.planet&&now-race.lastP>=100){race.lastP=now;
+        // a planet sprint: progress is distance down the road, the finish is RACE_LEN past the line
+        if(SPACE.state==='surface'&&SPACE.planet===race.planet){race.d0=0;race.rp=Math.max(race.rp,Math.min(1.001,SPACE.raceProgress()))}
+        if(!myFin&&race.rp>=1){myFin=now-race.t0;race.ms=myFin;race.fins++;send({k:'fin',rid:race.id,ms:Math.round(myFin)});
+          blip(880,.4,.14);setTimeout(()=>blip(1175,.5,.12),140);
+          let pl=1;peers.forEach(p=>{if(p.fin&&p.fin<myFin)pl++});
+          toast2((pl===1?'You win · ':'Finished P'+pl+' · ')+fmtT(myFin));race.endAt=now+45000;ui()}}
+      else if(!race.planet&&now-race.lastP>=100){race.lastP=now;
         const onCirc=MODE==='circuit'&&circuit,rn=onCirc?circProg():roadNear(car.position.x,car.position.z);
         if(race.lastU<0){race.lastU=rn.u;race.d0=rn.u>.5?rn.u-1:rn.u;race.rp=0}
         else{let du=rn.u-race.lastU;if(du<-.5)du+=1;else if(du>.5)du-=1;
@@ -6192,7 +6220,7 @@ updCircBtn();
       if(race.endAt&&now>race.endAt){race.st=3;ui()}
       if(myFin){let all=true;peers.forEach(p=>{if(!p.fin&&p.got&&now-p.last<STALE)all=false});if(all&&race.st===2){race.st=3;ui()}}}
     /* ----- per frame ----- */
-    const tmpV=new THREE.Vector3(),fwdV=new THREE.Vector3(),qq=new THREE.Quaternion(),UPQ=new CANNON.Vec3(0,0,1),fw=new CANNON.Vec3();
+    const tmpV=new THREE.Vector3(),fwdV=new THREE.Vector3(),qq=new THREE.Quaternion(),UPQ=new CANNON.Vec3(0,0,1),fw=new CANNON.Vec3(),plP=new THREE.Vector3(),plQ=new THREE.Quaternion();
     let spinMe=0;
     function tick(now,dt){
       if(!room)return;
@@ -6200,18 +6228,23 @@ updCircBtn();
       peers.forEach(P=>{if(P.last&&now-P.last>STALE)dropPeer(P.id,true)});
       if(status==='up'){
         if(now-lastSend>=1000/HZ){lastSend=now;
-          chassisB.quaternion.vmult(UPQ,fw);const v=chassisB.velocity,vf=v.x*fw.x+v.y*fw.y+v.z*fw.z;
-          const q=car.quaternion,p=car.position,st=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0;
+          chassisB.quaternion.vmult(UPQ,fw);const v=chassisB.velocity;let vf=v.x*fw.x+v.y*fw.y+v.z*fw.z;
+          let q=car.quaternion,p=car.position,st=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0,pl='earth';
+          if(SPACE.state!=='earth'){if(!SPACE.poseOut(plP,plQ))pl='transit';else{p=plP;q=plQ;pl=SPACE.planet;const S=SPACE.SURF;vf=S?Math.hypot(S.vel.x,S.vel.z):0;st=0}}   // in flight: hidden for everyone else
           const d=race.st===2||race.st===3?race.d0+race.rp:0;
           send({k:'s',n:myName(),j:me.j,p:[+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2)],q:[+q.x.toFixed(3),+q.y.toFixed(3),+q.z.toFixed(3),+q.w.toFixed(3)],
-            st:+st.toFixed(3),vf:+vf.toFixed(1),d:+d.toFixed(4)})}
+            st:+st.toFixed(3),vf:+vf.toFixed(1),d:+d.toFixed(4),pl})}
         if(now-lastHi>3000){lastHi=now;sendHi(true)}
         if(now-lastPing>1500&&peers.size){lastPing=now;
           peers.forEach(P=>{const seq=++pingSeq,key=P.id+':'+seq;pendingPings.set(key,performance.now());send({k:'pg',target:P.id,seq})});
           pendingPings.forEach((sentAt,key)=>{if(performance.now()-sentAt>8000)pendingPings.delete(key)})}}
       // ghosts
       const k=1-Math.exp(-dt*11);
+      const here=SPACE.state==='earth'?'earth':SPACE.planet;
       peers.forEach(P=>{const G=P.gh;if(!G)return;
+        // a friend is drawn only in the world they are actually driving in
+        {const pl=P.pl||'earth',sc=pl==='earth'?(SPACE.state==='earth'?S:null):SPACE.sceneFor(pl);
+         if(sc&&G.g.parent!==sc){sc.add(G.g);sc.add(G.tg)}G.away=!sc}
         const ex=Math.min(.22,(now-P.pt)/1000);
         tmpV.set(P.tp.x+P.vx*ex,P.tp.y+P.vy*ex,P.tp.z+P.vz*ex);
         G.g.position.lerp(tmpV,k);G.g.quaternion.slerp(P.tq,k);
@@ -6219,7 +6252,7 @@ updCircBtn();
         for(let i=0;i<4;i++){const w=G.wl[i];w.spin.rotation.x=P.wr;if(i<2)w.w.rotation.y+=(P.st-w.w.rotation.y)*Math.min(1,dt*12)}
         G.tg.position.set(G.g.position.x,G.g.position.y+2.5,G.g.position.z);
         const dd=C.position.distanceTo(G.tg.position),s=Math.max(1,Math.min(8,dd*.032));G.tg.scale.set(s*4,s,1);
-        G.tg.visible=dd<520&&G.g.visible;
+        G.g.visible=!G.away;G.tg.visible=dd<520&&!G.away;
         P.sp=Math.hypot(car.position.x-G.g.position.x,car.position.z-G.g.position.z)});
       raceTick(now,dt);autoStart(now);
       if(now-lastUI>250){lastUI=now;if(el.panel&&el.panel.classList.contains('on')&&room)ui();else roster()}}
@@ -6463,7 +6496,7 @@ function carChanged(){if(room)sendHi(true)}
       rows.sort((a,b)=>a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:0);
       const best=rows.length&&rows[0].fin?rows[0].fin:0,list=document.getElementById('dreslist'),nl=race.laps||getLaps();
       if(list)list.innerHTML=rows.map((r,i)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span>${r.fin?i+1+'.':'–'} ${esc(r.n)}${r.me?' (you)':''}</span><span>${r.fin?fmtT(r.fin)+(best&&r.fin>best?' <span style="opacity:.6">+'+((r.fin-best)/1000).toFixed(2)+'s</span>':''):'DNF'}</span></div>`).join('')+
-        `<div style="margin-top:8px;opacity:.7;font-size:12px">${nl} lap${nl>1?'s':''} · ${MODE==='circuit'&&circuit?'drawn track':'Earth valley loop'}</div>`;
+        `<div style="margin-top:8px;opacity:.7;font-size:12px">${race.planet?(SPACE.PLANETS[race.planet].name+' sprint · '+(SPACE.RACE_LEN/1000)+' km'):nl+' lap'+(nl>1?'s':'')+' · '+(MODE==='circuit'&&circuit?'drawn track':'Earth valley loop')}</div>`;
       let st=document.getElementById('dresstatus');
       if(!st&&list){st=document.createElement('div');st.id='dresstatus';st.className='mono';st.style.cssText='margin-top:12px;font-size:12px;color:#d4a83a;min-height:1.4em';list.parentNode.insertBefore(st,list.nextSibling)}
       const lobby=document.getElementById('dreslobby');if(lobby)lobby.textContent=isHost()?'Change track / laps':'Room';
@@ -6491,7 +6524,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
