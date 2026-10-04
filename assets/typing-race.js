@@ -46,6 +46,8 @@
   #dtype .ty-st span{display:block;margin-top:5px;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:rgba(238,240,243,.45)}
   #dtype .ty-st.speed b{color:#8db7ff}
   #dtype input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;left:0;top:0}
+  #dtype .ty-kbwrap{display:flex;justify-content:center;margin-top:14px}
+  @media (max-width:760px),(pointer:coarse){#dtype .ty-kbwrap{display:none}}
   #dtype .ty-hint{font-size:10px;color:rgba(238,240,243,.4);letter-spacing:.12em;margin-top:8px;text-align:center}
   #dtypecd{position:absolute;inset:0;z-index:31;display:none;place-items:center;pointer-events:none}
   #dtypecd.on{display:grid}
@@ -98,7 +100,7 @@
 
   /* ---------- race HUD ---------- */
   const hud=mk('div',{id:'dtype'},`<div class="ty-card"><div class="ty-bar"></div>
-      <div class="ty-head"><span class="ty-tag">Daily Typing Race · type this</span><button class="ty-x" type="button">Quit · Esc</button></div>
+      <div class="ty-head"><span class="ty-tag">Daily Typing Race · type this</span><span style="display:flex;gap:8px"><button class="ty-x ty-snd" type="button">Sound on</button><button class="ty-x" type="button" data-q="1">Quit · Esc</button></span></div>
       <div class="ty-text" aria-live="off"></div>
       <div class="ty-stats">
         <div class="ty-st speed"><b data-k="kmh">0</b><span>km/h</span></div>
@@ -112,7 +114,12 @@
   sec.appendChild(lines);sec.appendChild(hud);sec.appendChild(cd);sec.appendChild(res);
   const input=hud.querySelector('input'),textEl=hud.querySelector('.ty-text'),bar=hud.querySelector('.ty-bar'),stat={};
   hud.querySelectorAll('[data-k]').forEach(b=>stat[b.dataset.k]=b);
-  hud.querySelector('.ty-x').onclick=()=>quit();
+  hud.querySelector('[data-q]').onclick=()=>quit();
+  // the keyboard under the stats (assets/typing-keyboard.js); hidden on phones, which bring their own
+  const KB=window.TypingKeyboard;
+  if(KB){const wrap=document.createElement('div');wrap.className='ty-kbwrap';hud.querySelector('.ty-card').insertBefore(wrap,hud.querySelector('.ty-hint'));KB.mount(wrap);
+    const sb=hud.querySelector('.ty-snd'),paintS=()=>{sb.textContent=KB.sound?'Sound on':'Sound off'};paintS();sb.onclick=()=>{KB.sound=!KB.sound;paintS();setTimeout(()=>input.focus(),0)}}
+  else hud.querySelector('.ty-snd').style.display='none';
   hud.querySelector('.ty-card').addEventListener('pointerdown',()=>setTimeout(()=>input.focus(),0));
 
   /* ---------- state ---------- */
@@ -121,15 +128,17 @@
 
   function paintText(errAt){
     for(let i=0;i<spans.length;i++){const cls=i<pos?'d':i===pos?'c':'t';const sp=spans[i];if(sp.className!==cls)sp.className=cls}
+    if(KBR())KBR().hint(text[pos]);
     if(errAt!=null&&spans[pos]){spans[pos].classList.add('err');hud.classList.add('err');clearTimeout(paintText._t);paintText._t=setTimeout(()=>{hud.classList.remove('err');if(spans[pos])spans[pos].classList.remove('err')},220)}}
   function buildText(){textEl.innerHTML='';spans=[...text].map(ch=>{const s=document.createElement('span');s.textContent=ch;textEl.appendChild(s);return s});paintText()}
 
   /* ---------- typing ---------- */
+  const KBR=()=>window.TypingKeyboard;
   function onChar(ch,t){
     if(st==='ready'){st='racing';t0=t;cd.classList.remove('on')}   // the clock starts on your first key, not on a countdown
-    if(st!=='racing')return;ch=norm(ch);keys++;
+    if(st!=='racing')return;ch=norm(ch);keys++;if(KBR())KBR().flashChar(ch);
     if(ch===text[pos]){pos++;correct++;stamps.push(t);paintText();G().typeTarget(pos/text.length);if(pos>=text.length)finish(t)}
-    else{errors++;penaltyTill=t+PENALTY_MS;G().typePenalty(PENALTY_MS);paintText(true);try{G().shake(.18)}catch(e){}}}
+    else{errors++;penaltyTill=t+PENALTY_MS;G().typePenalty(PENALTY_MS);if(KBR())KBR().miss(ch);paintText(true);try{G().shake(.18)}catch(e){}}}
   input.addEventListener('input',e=>{
     const v=input.value;input.value='';
     if(!e.isTrusted||(st!=='racing'&&st!=='ready'))return;
@@ -167,11 +176,11 @@
     const dm=document.getElementById('ddaily-modal');if(dm)dm.style.display='none';
     stat.kmh.textContent='0';stat.wpm.textContent='0';stat.acc.textContent='100%';stat.prog.textContent='0%';stat.time.textContent='0.00s';bar.style.width='0';
     // no countdown: the car waits on the line and the clock starts with your first key
-    st='ready';t0=0;input.value='';input.focus();
+    st='ready';t0=0;input.value='';input.focus();if(KBR()){KBR().active=true;KBR().hint(text[0])}
     cd.innerHTML='<div><b style="font-size:clamp(34px,6vw,64px)">Start typing</b><small>The clock starts on your first key</small></div>';cd.classList.add('on');
     if(!raf)raf=requestAnimationFrame(frame)}
   let doneT=0;
-  function finish(t){st='done';doneT=t;lines.style.opacity='0';
+  function finish(t){st='done';doneT=t;lines.style.opacity='0';if(KBR())KBR().active=false;
     const ms=Math.round(t-t0),acc=correct/keys*100,wpm=correct/5/(ms/60000);
     // fairness: believable speed, real keystrokes, not a stream of key events spaced by a machine
     let fast=0;for(let i=1;i<stamps.length;i++)if(stamps[i]-stamps[i-1]<12)fast++;
@@ -182,7 +191,7 @@
     // the result appears as the car crosses the line (it chases your last letter for a moment)
     (function wait(){if(G().typeU()>=1||now()-t1>2500)setTimeout(()=>showResults(r),600);else requestAnimationFrame(wait)})()}
   function quit(){if(st==='idle')return;st='idle';cdTimers.forEach(clearTimeout);cd.classList.remove('on');hud.classList.remove('on');sec.classList.remove('typing');
-    lines.style.opacity='0';try{G().typeEnd()}catch(e){}input.blur()}
+    lines.style.opacity='0';if(KBR())KBR().active=false;try{G().typeEnd()}catch(e){}input.blur()}
 
   /* ---------- leaderboard (Supabase typing_times; the database re-checks every stat) ---------- */
   const Board={
