@@ -1778,6 +1778,12 @@ t.bd.position.set(x,y+.86,z);
      Drag is quadratic so the top end tapers on its own instead of hitting the governor,
      and downforce is taken along the body's own up axis so it plants the floor, not the world. */
   const ARB_F=5200,ARB_R=4200,AERO_DRAG=.3,LOAD_CAP=1.6,LOAD_EXP=.6;
+  /* Cornering limit per car, in g: what full steering lock asks of the tyres at speed (see the
+     steering code). Road cars sit around 1.45 g, the race cars well above, the heavy ones below.
+     BRAKE_DECEL is the service-brake deceleration in m/s^2, about 1.2 g: 100 to 0 in roughly 32 m. */
+  const LAT_G={f1apex:2.3,valkyrie:1.9,gt40:1.75,phantombike:1.35,truck:.85,titan4x4:1.0,ridgeback:1.15,classicmini:1.3,
+    countach:1.55,skyline:1.55,rx7spirit:1.6,mamba:1.5,kestrel:1.5,phantom:1.55,voltgt:1.5,aster:1.4};
+  const latG=id=>LAT_G[id]||1.45,BRAKE_DECEL=12;
   /* Careful with applyForce in this build of cannon: the second argument is a point in
      WORLD space, not an offset from the centre of mass, whatever the docs say. Passing
      a small offset silently applies the force way out near the world origin instead, and
@@ -1977,7 +1983,7 @@ t.bd.position.set(x,y+.86,z);
      const CLASS={f1:'F1 racer',suv:'4x4 SUV',bike:'Superbike',hypercar:'Hypercar',ev:'Electric',truck:'Truck'};
      const classOf=spec=>CLASS[spec.type]||'Petrol';
      /* stats as 0..1 against the rest of the garage, so the bars compare the cars to each other */
-     const raw=spec=>({top:spec.V.max,acc:spec.V.engine/spec.mass,hand:spec.V.slip*(.6+spec.V.steer),mass:spec.mass});
+     const raw=spec=>({top:spec.V.max,acc:spec.V.engine/spec.mass,hand:latG(spec.id),mass:spec.mass});
      const RNG={};GARAGE.forEach(sp=>{const r=raw(sp);for(const k in r){const q=RNG[k]||(RNG[k]=[1e9,-1e9]);q[0]=Math.min(q[0],r[k]);q[1]=Math.max(q[1],r[k])}});
      const norm=(k,v)=>{const q=RNG[k];return q[1]>q[0]?.14+.86*(v-q[0])/(q[1]-q[0]):.6};
      let idx=Math.max(0,GARAGE.findIndex(g=>g.id===curCarId)),viewPaint=curPaint;
@@ -2045,7 +2051,7 @@ t.bd.position.set(x,y+.86,z);
        const row=(lb,k,txt)=>'<div class="gg-st"><span>'+lb+'</span><b><i style="width:'+Math.round(norm(k,r[k])*100)+'%"></i></b><span>'+txt+'</span></div>';
        const ten=k=>(norm(k,r[k])*10).toFixed(1)+' / 10',wt=norm('mass',r.mass);
        gstats.innerHTML=row('Top speed','top',Math.round(spec.V.max*3.6)+' km/h')+row('Acceleration','acc',ten('acc'))+
-         row('Handling','hand',ten('hand'))+row('Weight','mass',wt<.4?'Light':wt<.7?'Medium':'Heavy');
+         row('Cornering','hand',r.hand.toFixed(2)+' g')+row('Weight','mass',wt<.4?'Light':wt<.7?'Medium':'Heavy');
        gblurb.textContent=spec.blurb;
        paintPaints();
        gpick.classList.remove('sel','buy');
@@ -2681,7 +2687,7 @@ t.bd.position.set(x,y+.86,z);
            fScratch.set(-vv.x/vs*dg,0,-vv.z/vs*dg);chassisB.applyForce(fScratch,chassisB.position)}}
        lvScratch.copy(chassisB.velocity);chassisB.quaternion.conjugate(qScratch);qScratch.vmult(lvScratch,lvScratch);
 let lateral=Math.min(1,Math.abs(lvScratch.x)/8),
-      rearGrip=key.h?.58:1,
+      rearGrip=key.h?.42:1,
       // weather effects on grip
       weatherGripMult=wx.slip,
       grip=V.slip*weatherGripMult*(1-sub*.72)*(1+gradeNow*.55)*(1+lateral*.22);
@@ -4093,8 +4099,14 @@ const PLANETS={
       /* Brakes are plumbed the way a real car's are: front biased under normal braking,
          because that is where the weight goes when you slow down, and the handbrake on
          the rear axle only, which is what lets it rotate the car instead of just stopping it. */
-      const svc=Math.max(coast,gradeBrake,govBrake,braking?16*(V.brake||1):0);
-      for(let i=0;i<4;i++){const fr=i<2;veh.setBrake(Math.max(svc*(fr?1.25:.75),key.h?(fr?0:52):0),i)}
+      /* service brakes: a deceleration, not a fixed clamp, so a light car no longer stops dead
+         and a heavy one still stops. cannon's brake value is an impulse per wheel per step. */
+      const brakeImp=chassisB.mass*BRAKE_DECEL*(V.brake||1)*PSTEP/4;
+      const svc=Math.max(coast,gradeBrake,govBrake,braking?brakeImp:0);
+      /* handbrake: the rear wheels drag at about 0.8 g and lose their side grip (rearGrip), so the
+         tail swings round instead of the car stopping dead the way the old fixed clamp made it */
+      const hbImp=chassisB.mass*8*PSTEP/2;
+      for(let i=0;i<4;i++){const fr=i<2;veh.setBrake(Math.max(svc*(fr?1.25:.75),key.h&&!fr?hbImp:0),i)}
       // hard ceiling: if it is still climbing past the cap, damp the velocity directly
       if(sp>vmax*1.18&&!inPond){const s=vmax*1.18/sp;chassisB.velocity.x*=s;chassisB.velocity.z*=s}
       // steeper ground => more angular damping, which is what kills the hillside wobble
@@ -4104,7 +4116,14 @@ const PLANETS={
          without turning tilt off. */
       let steerIn=l-rr;
       if(tiltOn&&steerIn===0)steerIn=tiltSteer;
-      const st=steerIn*V.steer*Math.max(.35,1-sp/46);steerActual+=(st-steerActual)*Math.min(1,dt*8);veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
+      /* Speed-aware steering. Full lock used to stay at a third of its angle at any speed, so at
+         110 km/h a tap asked the tyres for 5-7 g and they gave it: the car snapped sideways like it
+         was on rails. Now the angle at speed is the one this car's tyres can actually hold (its
+         cornering limit, LAT_G), with a little extra so you can lean on the front and feel it
+         push wide. Low speed keeps the full lock for parking and hairpins. */
+      const wb=Math.max(1.6,V.zf-V.zb),aLat=latG(curCarId)*9.81*(key.h?2.2:1),vs2=Math.max(9,sp*sp);
+      const stMax=Math.min(V.steer,Math.atan(wb*aLat/vs2)+.008);
+      const st=steerIn*stMax;steerActual+=(st-steerActual)*Math.min(1,dt*8);veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
       tailM.emissiveIntensity=(b||key.h)?1.6:boost?1.2:.5;
       // cannon integrates damping as pow(1-damping,dt), so anything at or above 1 turns the whole
       // body into NaN on the next step. That was the real cause of the car "flying" over the pond.
@@ -6289,6 +6308,12 @@ function carChanged(){if(room)sendHi(true)}
     if(!PCAR)setCar(curCarId,GARAGE[0].paints[0],true);
     /* compile every material now instead of the first time it scrolls into view mid-drive */
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
+  /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
+     test pad far from the world and can put the car on it; nothing here exists in normal play. */
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,
+    pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
+      PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
+      chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
   HF.paint(0,[1,1,1]);applyWx(true);applyQ();
   let _audioInited=false;
   function maybeInitAudio(){
