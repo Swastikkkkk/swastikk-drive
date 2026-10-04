@@ -1841,6 +1841,7 @@ t.bd.position.set(x,y+.86,z);
   function applyLights(ni){if(ni!=null)lastNi=ni;const n=lightsOff?0:lastNi;
     if(carHL)carHL.intensity=n;headM.emissiveIntensity=lightsOff?0:1+n*.5;
     if(beams){const o=Math.min(.5,n*.3);beams.m.opacity=o;beams.list.forEach(b=>b.visible=o>.02)}}
+  function toggleLights(){lightsOff=!lightsOff;const lb=document.getElementById('dlights');if(lb)lb.textContent='Lights: '+(lightsOff?'off':'on');applyLights();toastMsg(lightsOff?'Lights off':'Lights on')}
   /* real reflections: a small cube map rendered from the car, one face every few frames, so the
      paint and glass pick up the actual trees, sky and road around you */
   let cubeCam=null,cubeRT=null,cubeFace=0,cubeInit=false,cubeSun=0,cubeX=0,cubeZ=0;
@@ -2234,7 +2235,7 @@ t.bd.position.set(x,y+.86,z);
         if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true);
       }else if(MODE==='circuit'||SPACE.state!=='earth')NAV.toggle();
       return
-    }if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -2329,8 +2330,8 @@ t.bd.position.set(x,y+.86,z);
   let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}
   function cycleCam(){camMode=(camMode+1)%CAMS.length;try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' · C to switch')}
   {const nb=document.getElementById('dnight');if(nb){const cb=nb.cloneNode(true);cb.id='dcam';cb.textContent='Camera';cb.title='Camera (C)';nb.after(cb);cb.onclick=()=>cycleCam();
-   const lb=nb.cloneNode(true);lb.id='dlights';lb.title='Headlights';lb.removeAttribute('class');lb.className='dbtn mono';lb.textContent='Lights: on';cb.after(lb);
-   lb.onclick=()=>{lightsOff=!lightsOff;lb.textContent='Lights: '+(lightsOff?'off':'on');applyLights()}}}
+   const lb=nb.cloneNode(true);lb.id='dlights';lb.title='Headlights (F)';lb.removeAttribute('class');lb.className='dbtn mono';lb.textContent='Lights: on';cb.after(lb);
+   lb.onclick=()=>toggleLights()}}
   function resetCar(){try{if(SPACE.state==='surface'){SPACE.resetRover();return}}catch(e){}const {p,tg}=(MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve):at(progU);PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
     chassisB.position.set(p.x,p.y+1.4,p.z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
     chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0);chassisB.linearDamping=.01;chassisB.angularDamping=.4;
@@ -6664,7 +6665,7 @@ function carChanged(){if(room)sendHi(true)}
   function resize(){W=sec.clientWidth;H=sec.clientHeight;R.setPixelRatio(DPR());R.setSize(W,H,false);C.aspect=W/H;C.updateProjectionMatrix();if(sun.shadow)sun.shadow.needsUpdate=true}addEventListener('resize',resize);
   function enterDrive(){active=true;sec.classList.add('active');if(TOUCH)sec.classList.add('touch');resize();{const l=$('#dload');if(l)l.remove()}
     driving=true;hud.classList.add('on');if(TOUCH)mob.classList.add('on');checkRot();
-    hint.textContent=TOUCH?'':'WASD drive · C camera · Z mirror · L time a lap · M map · R reset';
+    hint.textContent=TOUCH?'':'WASD drive · C camera · Z mirror · F lights · L time a lap · M map · R reset';
     {const {p,tg}=at(progU||0);C.position.set(p.x-tg.x*10,p.y+5,p.z-tg.z*10);look.set(p.x+tg.x*6,p.y+1,p.z+tg.z*6)}
         if(typeof spawnAIRacers==='function')spawnAIRacers();
     if(!PCAR)setCar(curCarId,GARAGE[0].paints[0],true);
