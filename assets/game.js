@@ -2039,7 +2039,11 @@ t.bd.position.set(x,y+.86,z);
     else if(!on&&hornOn){hornOn=false;if(hornNodes){const {g,oscs}=hornNodes;g.gain.setTargetAtTime(0,AC.currentTime,.03);setTimeout(()=>{try{oscs.forEach(o=>o.stop());g.disconnect()}catch(e){}},200);hornNodes=null}}
   }catch(e){}}
   let hornNodes=null;
-  mute.onclick=()=>{muted=!muted;mute.textContent=muted?'Sound off':'Sound on'};
+  mute.onclick=()=>{muted=!muted;mute.textContent=muted?'Sound off':'Sound on';if(window.Radio)Radio.setMuted(muted)};
+  // FM radio (assets/radio.js): the button and T cycle off -> each station -> off
+  const radioBtn=$('#dradio');
+  function radioCycle(){if(!window.Radio)return;Radio.cycle();Radio.setMuted(muted);if(radioBtn)radioBtn.textContent=Radio.label()}
+  if(window.Radio){Radio.onInfo=t=>toastMsg(t);if(radioBtn)radioBtn.onclick=radioCycle}
   {const nb=$('#dnight');if(nb)nb.onclick=()=>toggleNight()}
   /* ---------- weather picker ---------- */
   {const wb=$('#dweatherb'),wx=$('#dwx'),wl=$('#dwxl');
@@ -2244,7 +2248,7 @@ t.bd.position.set(x,y+.86,z);
         if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true);
       }else if(MODE==='circuit'||SPACE.state!=='earth')NAV.toggle();
       return
-    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyT'&&!e.repeat){radioCycle();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -6705,7 +6709,7 @@ function carChanged(){if(room)sendHi(true)}
   function resize(){W=sec.clientWidth;H=sec.clientHeight;R.setPixelRatio(DPR());R.setSize(W,H,false);C.aspect=W/H;C.updateProjectionMatrix();if(sun.shadow)sun.shadow.needsUpdate=true}addEventListener('resize',resize);
   function enterDrive(){active=true;sec.classList.add('active');if(TOUCH)sec.classList.add('touch');resize();{const l=$('#dload');if(l)l.remove()}
     driving=true;hud.classList.add('on');if(TOUCH)mob.classList.add('on');checkRot();
-    hint.textContent=TOUCH?'':'WASD drive · C camera · Z mirror · F lights · L time a lap · M map · R reset';
+    hint.textContent=TOUCH?'':'WASD drive · C camera · Z mirror · F lights · T radio · L time a lap · M map · R reset';
     {const {p,tg}=at(progU||0);C.position.set(p.x-tg.x*10,p.y+5,p.z-tg.z*10);look.set(p.x+tg.x*6,p.y+1,p.z+tg.z*6)}
         if(typeof spawnAIRacers==='function')spawnAIRacers();
     if(!PCAR)setCar(curCarId,GARAGE[0].paints[0],true);

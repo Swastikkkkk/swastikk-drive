@@ -20,6 +20,10 @@ Coins come from playing, not from a store:
 
 Cars cost 150–600 coins. The Garage shows "Buy · price" on anything you haven't unlocked yet; clicking it spends the coins and switches you to that car in one step, or tells you how many more coins you need.
 
+## Radio
+
+Press T (or Menu, then Radio) to tune through three stations, then off: 88.6 Lo-fi Drive, 94.2 Sunset Wave and 101.7 Night Jazz. The music is written live in the browser (`assets/radio.js`): each song picks a key, tempo and chord progression and plays for about three minutes, so there are no music files and nothing to license.
+
 ## Draw your own track
 
 Open Menu, then "Draw track". Freehand-draw a closed loop on the screen; it gets checked (does it close up, does it cross itself, is any corner too sharp) and, if it's valid, built into a real drivable track — asphalt, a bit of scenery around it, lap counting — somewhere off on its own away from the main map. The same button becomes "Go to track" once you have one, and "Back to world" while you're on it. The **Laps** option (1, 2, 3, 5 or 10) in the draw panel is the race's lap count. Pressing GO on your own starts a real race on the circuit: grid, start lights, then exactly that many laps. The lap counter only advances when you drive through every checkpoint gate in order and in the right direction and then cross the start/finish line; skipping a gate, cutting across, reversing over the line or an impossibly fast lap are not counted, and driving the wrong way shows WRONG WAY. In a room, the host's lap setting is the one that applies and it is frozen once the countdown starts. See `ROADMAP.md` for what is still missing (saved-circuit list, etc.).
@@ -32,6 +36,7 @@ Open Menu, then "Draw track". Freehand-draw a closed loop on the screen; it gets
 | Space | handbrake |
 | Shift | boost |
 | H | horn |
+| T | FM radio: cycle stations / off |
 | C | change camera |
 | L | time a lap |
 | B | fastest laps |
