@@ -2441,10 +2441,24 @@ t.bd.position.set(x,y+.86,z);
   const wrongEl=$('#dwrong');let wrongT=0,wrongMain=false;
   /* ---------- minimap ---------- */
   const MAPS=SAMP.filter((_,i)=>i%2===0);let mapRot=0;
-  const MAPR=116*MK*LAND+26;let mapCache=null;
+  const MAPR=BOUND+40;let mapCache=null;   // the whole world out to the edge walls: the sea and the mountains are on the map
   function buildMapCache(){
-    const CS=720,k=(CS/2)/MAPR,cv2=document.createElement('canvas');cv2.width=cv2.height=CS;
-    const c=cv2.getContext('2d');c.translate(CS/2,CS/2);
+    const CS=1200,k=(CS/2)/MAPR,cv2=document.createElement('canvas');cv2.width=cv2.height=CS;
+    const c=cv2.getContext('2d');
+    /* the land itself, read off the real terrain: the sea in blue (shallows lighter by the beach), sand on the
+       shore, and the western range shaded rock to snow by height */
+    {const R=800,im=c.createImageData(R,R),d=im.data,cell=MAPR*2/R,seaHere=(x,z)=>x>470||Math.abs(z)>470&&x>-150||Math.abs(z)>BOUND+40;   // where the sea sheets are
+     for(let j=0;j<R;j++)for(let i=0;i<R;i++){const x=-MAPR+(i+.5)*cell,z=-MAPR+(j+.5)*cell,e=worldEdge(x,z),q=(j*R+i)*4;
+       let r=0,g=0,b=0,a=0;
+       if(Math.abs(x)>WS||Math.abs(z)>WS){if(e.wM<.5){r=38;g=78;b=100;a=230}else{r=170;g=172;b=178;a=230}}   // past the terrain: open sea, or more range
+       else{const h=HF.h(x,z);
+         if(h<WATER_Y&&seaHere(x,z)){const dp=Math.min(1,(WATER_Y-h)/6);r=LRP(70,32,dp);g=LRP(122,72,dp);b=LRP(140,96,dp);a=235}
+         else if(e.de>480&&e.wM<1&&h<1.6){r=176;g=160;b=118;a=200}
+         else if(e.wM>.2&&h>14){const t=Math.min(1,(h-14)/90);r=LRP(92,232,t);g=LRP(90,234,t);b=LRP(86,240,t);a=LRP(120,235,Math.min(1,(h-14)/30))}}
+       d[q]=r;d[q+1]=g;d[q+2]=b;d[q+3]=a}
+     const tc=document.createElement('canvas');tc.width=tc.height=R;tc.getContext('2d').putImageData(im,0,0);
+     c.imageSmoothingEnabled=true;c.drawImage(tc,0,0,CS,CS)}
+    c.translate(CS/2,CS/2);
     c.fillStyle='rgba(45,76,92,.9)';c.beginPath();c.arc(POND.x*k,POND.z*k,POND.r*k,0,6.283);c.fill();
     c.strokeStyle='rgba(143,42,42,.8)';c.lineWidth=1.6;c.strokeRect((PG.x-12)*k,(PG.z-12)*k,24*k,24*k);
     c.fillStyle='rgba(120,150,110,.4)';treePts.forEach(([x,z])=>{c.beginPath();c.arc(x*k,z*k,1.7,0,6.283);c.fill()});
@@ -2538,7 +2552,7 @@ t.bd.position.set(x,y+.86,z);
       c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
       c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
     // Earth world mode
-    const sc=size/2/(big?116*MK*LAND+14:60);
+    const sc=size/2/(big?BOUND+20:60);
     c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);
     c.beginPath();c.arc(0,0,size/2-1,0,6.283);c.fillStyle='rgba(18,17,15,.88)';c.fill();c.clip();
     if(!big){let d=(yaw+Math.PI-mapRot);d=Math.atan2(Math.sin(d),Math.cos(d));mapRot+=d*.1;c.rotate(mapRot);c.translate(-chassisB.position.x*sc,-chassisB.position.z*sc)}
@@ -2558,7 +2572,8 @@ t.bd.position.set(x,y+.86,z);
     {c.fillStyle=atSummit?'#f2b26b':'#c98a4a';c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,big?5:3.4,0,6.283);c.fill();
      if(atSummit){c.strokeStyle='rgba(242,178,107,.8)';c.lineWidth=1.5;c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,(big?9:6)+Math.sin(t)*2,0,6.283);c.stroke()}
      if(big){c.fillStyle='#f2b26b';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.textAlign='left';c.fillText('SUMMIT',PEAK.x*sc+9,PEAK.z*sc+4)}}
-    if(big){c.font='600 11px ui-monospace,"SF Mono",Menlo,Consolas,monospace';c.fillStyle='#e8c28a';[['STUNT PARK',VZ.stunt],['UFO',VZ.ufo],['VOLCANO',VZ.volc]].forEach(([t,q])=>c.fillText(t,q.x*sc-t.length*3.3,q.z*sc+4))}
+    if(big){c.font='600 11px ui-monospace,"SF Mono",Menlo,Consolas,monospace';c.fillStyle='#e8c28a';[['STUNT PARK',VZ.stunt],['UFO',VZ.ufo],['VOLCANO',VZ.volc]].forEach(([t,q])=>c.fillText(t,q.x*sc-t.length*3.3,q.z*sc+4));
+      c.font='600 12px ui-monospace,"SF Mono",Menlo,Consolas,monospace';c.textAlign='center';c.fillStyle='rgba(235,238,245,.85)';c.fillText('MOUNTAINS',-(BOUND-70)*sc,0);c.fillStyle='rgba(150,205,230,.9)';c.fillText('SEA',(BOUND-40)*sc,0);c.textAlign='left'}
     if(big){c.fillStyle='#9fc3d6';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.fillText('POND',POND.x*sc-14,POND.z*sc+4);c.fillStyle='#d88';c.fillText('PLAYGROUND',(PG.x-12)*sc,(PG.z-13)*sc);c.fillStyle='#cdb98f';const hp=SAMP[Math.floor(.44*N)];c.fillText('HILL',hp.x*sc+10,hp.z*sc-10)}
     NAV.drawOnMap(c,sc,big);
     c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
