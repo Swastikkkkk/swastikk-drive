@@ -14,7 +14,7 @@
   function EngineDSP(sr){
     this.sr=sr;this.c=null;
     this.rpm=800;this.tRpm=800;this.load=0;this.tLoad=0;this.cut=0;this.vol=0;this.tVol=0;
-    this.cyc=0;this.nEnv=0;this.pop=0;this.dcx=0;this.dcy=0;this.ix1=0;this.ix2=0;this.iy1=0;this.iy2=0;
+    this.cyc=0;this.nEnv=0;this.pop=0;this.pl=0;this.lift=0;this.dcx=0;this.dcy=0;this.ix1=0;this.ix2=0;this.iy1=0;this.iy2=0;
     this.bank=[0,1].map(function(){return{p1:0,p2:0,imp:0,n:0,d:new Float32Array(8192),w:0,lp:0}});
     this.eq=[];this.lp1=0;this.lp2=0;
   }
@@ -44,13 +44,14 @@
         imp=2.718/(1-pa),na=Math.exp(-1/(Math.max(.0002,tau*.7)*sr)),popA=Math.exp(-1/(.035*sr)),
         rN=Math.min(1.2,this.rpm/c.red),idleRough=1+Math.max(0,1-rN*2.5)*1.5;
     for(i=0;i<n;i++){
-      this.rpm+=(this.tRpm-this.rpm)*rs;this.load+=(this.tLoad-this.load)*ls;this.vol+=(this.tVol-this.vol)*vs;
+      this.lift=this.tLoad<.1?this.lift+1/sr:0;this.rpm+=(this.tRpm-this.rpm)*rs;this.load+=(this.tLoad-this.load)*ls;this.vol+=(this.tVol-this.vol)*vs;
       var prev=this.cyc,cy=prev+this.rpm/120/sr,wrap=cy>=1;if(wrap)cy-=1;this.cyc=cy;
       for(k=0;k<nc;k++){var C=cyl[k];
         if(wrap?(C.a>prev||C.a<=cy):(C.a>prev&&C.a<=cy)){
           var ld=this.load,amp=C.g*(.22+.78*ld)*(1+c.rough*idleRough*(Math.random()-.5)*2);
           if(this.cut>.5)amp*=.1;
-          else if(ld<.1&&rN>.45&&Math.random()<c.crackle*rN){amp*=2.2+Math.random()*2;this.pop+=c.crackle>0?.35+Math.random()*.5:0}
+          // overrun: a few pops in the first second or so after lifting, then it settles
+          else if(ld<.1&&rN>.4&&Math.random()<c.crackle*rN*.18*Math.exp(-this.lift/.9)){amp*=2+Math.random()*1.6;this.pop+=.15+Math.random()*.2}
           var bk=B[C.b];bk.imp+=amp*imp;bk.n+=amp*c.noise}}
       var mix=0,pulse=0;
       for(k=0;k<2;k++){var b=B[k],N=this.pipeN[k];if(N==null)continue;
@@ -59,12 +60,12 @@
         // exhaust pipe: open end reflects inverted, a little damped
         var r=b.w-N;if(r<0)r+=8192;b.lp+=(b.d[r]-b.lp)*c.damp;
         var y=s-c.pipes[k][1]*b.lp;b.d[b.w]=y;b.w=(b.w+1)&8191;mix+=y}
-      this.pop*=popA;mix+=(Math.random()*2-1)*this.pop;
+      this.pop*=popA;this.pl+=((Math.random()*2-1)*this.pop-this.pl)*.22;mix+=this.pl*1.8;   // the pop's noise is darkened: a bang, not a hiss
       // DC blocker: the pulses only push one way
       var dc=mix-this.dcx+.996*this.dcy;this.dcx=mix;this.dcy=dc;var x=dc;
       for(k=0;k<ne;k++){var e=eq[k],yv=e.b0*x+e.b1*e.x1+e.b2*e.x2-e.a1*e.y1-e.a2*e.y2;e.x2=e.x1;e.x1=x;e.y2=e.y1;e.y1=yv;x=yv}
       // intake roar, breathing with the firing pulses
-      if(c.intake){var iw=(Math.random()*2-1)*(.25+Math.min(2,pulse*.6))*this.load*rN*c.intake,
+      if(c.intake){var iw=(Math.random()*2-1)*(.25+Math.min(2,pulse*.6))*this.load*Math.min(.8,rN)*c.intake*.5,
           iy=ib.b0*iw+ib.b2*this.ix2-ib.a1*this.iy1-ib.a2*this.iy2;this.ix2=this.ix1;this.ix1=iw;this.iy2=this.iy1;this.iy1=iy;x+=iy}
       this.lp1+=(x-this.lp1)*this.lpa;this.lp2+=(this.lp1-this.lp2)*this.lpa;
       out[i]=Math.tanh(this.lp2*c.gain*.35*this.drive)*this.norm*this.vol}
