@@ -184,6 +184,28 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const rearCam=new THREE.PerspectiveCamera(60,280/90,.5,200);
   let rearMirrorOn=false;
   const rearEl=document.getElementById('drear');
+  /* The mirror is drawn into a texture first and then onto the frame flipped left to right, the way a
+     real mirror shows the road, inside whatever box #drear occupies (it used to be a fixed patch of
+     screen that drifted off the frame). It takes the scene you are in, so on the Moon it shows the Moon. */
+  const mirRT=new THREE.WebGLRenderTarget(4,4),mirScene=new THREE.Scene(),mirCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  mirRT.texture.repeat.set(-1,1);mirRT.texture.offset.set(1,0);
+  mirScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:mirRT.texture,depthTest:false,depthWrite:false})));
+  const _mo=new THREE.Vector3(),_ml=new THREE.Vector3();
+  function renderMirror(scene,origin,quat,yOff){
+    if(!rearEl||rearEl.style.display==='none')return;
+    const br=cv.getBoundingClientRect(),r=rearEl.getBoundingClientRect();
+    const mw=Math.round(r.width-4),mh=Math.round(r.height-4);if(mw<8||mh<8)return;
+    const mx=Math.round(r.left-br.left+2),my=Math.round(br.bottom-r.bottom+2);
+    const pr=R.getPixelRatio(),tw=Math.round(mw*pr),th=Math.round(mh*pr);
+    if(mirRT.width!==tw||mirRT.height!==th)mirRT.setSize(tw,th);
+    // eye just behind the tail at roof height, looking back down the road
+    _mo.set(0,yOff+FP.top+.3,FP.back-.25).applyQuaternion(quat).add(origin);
+    _ml.set(0,yOff+1.1,FP.back-30).applyQuaternion(quat).add(origin);
+    rearCam.position.copy(_mo);rearCam.up.set(0,1,0).applyQuaternion(quat);rearCam.lookAt(_ml);
+    if(rearCam.aspect!==mw/mh){rearCam.aspect=mw/mh;rearCam.updateProjectionMatrix()}
+    const prevT=R.getRenderTarget();R.setRenderTarget(mirRT);R.clear();R.render(scene,rearCam);R.setRenderTarget(prevT);
+    const ac=R.autoClear;R.autoClear=false;R.setViewport(mx,my,mw,mh);R.setScissor(mx,my,mw,mh);R.setScissorTest(true);
+    R.render(mirScene,mirCam);R.setScissorTest(false);R.setViewport(0,0,W,H);R.autoClear=ac}
   let ZN={drag:0,fog:1,tint:[1,1,1]},fogFar0=170,fogNear0=55,hemi0=.55,sunI0=1.05;
   let progU=0;
   const hemi=new THREE.HemisphereLight(0xdfeaff,0x3c3a30,.55);S.add(hemi);
@@ -1831,6 +1853,51 @@ t.bd.position.set(x,y+.86,z);
   function applyVehicle(){veh.wheelInfos.forEach((w,i)=>{const sx=i%2?-1:1;w.chassisConnectionPointLocal.set(sx*V.xw,.05,i<2?V.zf:V.zb);w.radius=V.r;w.suspensionRestLength=V.rest;w.frictionSlip=V.slip*wx.slip;w.rollInfluence=V.roll});chassisB.angularDamping=.4}
   /* ---------- swap the whole car: physics rig, body mesh, wheels, mass, shadow ---------- */
   let curCarId='aster',mpCarNotify=null;
+  /* Where the first-person cameras and the mirror sit on the current body, measured from the mesh
+     itself (body-local: y=0 is the ground, +z forward). One fixed height used to put the bonnet cam
+     inside the truck's cab and floating over the F1. */
+  let FP={bonnet:{y:1.25,z:.6},bumper:{y:.5,z:2.5},top:1.4,back:-2.4,off:0};
+  function measureBody(g,spec){
+    const rc=new THREE.Raycaster(),o=new THREE.Vector3(),d=new THREE.Vector3(0,-1,0),py=g.position.y;
+    g.position.set(0,0,0);g.updateMatrixWorld(true);
+    // generated bodies edit vertices after building, so the raycaster's cached bounds can be stale and skip a mesh
+    g.traverse(m=>{if(m.isMesh&&m.geometry){m.geometry.computeBoundingSphere();m.geometry.computeBoundingBox()}});
+    const solid=[];g.traverse(m=>{if(m.isMesh&&m.visible&&m.material&&!(m.material.opacity<.3))solid.push(m)});
+    const all=[];g.traverse(m=>{if(m.isMesh&&m.visible)all.push(m)});   // glass included: a camera must not sit behind a tinted screen
+    const top=z=>{let h=null;for(const x of [0,-.25,.25]){o.set(x,12,z);rc.set(o,d);const hit=rc.intersectObjects(solid,false)[0];if(hit&&(h==null||hit.point.y>h))h=hit.point.y}return h};
+    const F=spec.F,B=spec.B,prof=[];let mx=0;
+    for(let z=F-.05;z>=B;z-=.1){const h=top(z);prof.push([z,h]);if(h!=null&&h>mx)mx=h}
+    // bonnet: the cabin is where the body comes within 35 cm of the roof; the camera sits just ahead of it,
+    // above the highest point of the bonnet in front (a long sloping bonnet no longer reads as the screen)
+    const ref=[F-.4,top(F-.4)||mx*.7];let bz=null;
+    for(const q of prof){if(q[1]!=null&&q[0]<F-.3&&q[1]>=mx-.35){bz=q[0];break}}
+    if(bz!=null&&bz<F-.6){let hood=0;for(const q of prof)if(q[1]!=null&&q[0]>bz+.25&&q[0]<bz+.9)hood=Math.max(hood,q[1]);if(hood>0)ref[1]=hood}
+    let bonnet;
+    const up=new THREE.Vector3(0,1,0),roofed=(y,z)=>{o.set(0,y,z);rc.set(o,up);return rc.intersectObjects(all,false).length>0};
+    if(bz!=null&&bz<F-.6){let hz=bz+.3,hh=ref[1];
+      // a cab or a visor overhead means the camera is still inside: slide it forward over the hood
+      while(hz<F-.3&&roofed(hh+.32,hz))hz+=.1;
+      // and lift it until the view straight ahead is clear of grille, lights and mirrors
+      const fwd=new THREE.Vector3(0,0,1),blocked=(y,z)=>{for(const x of [-.15,0,.15]){o.set(x,y,z);rc.set(o,fwd);rc.far=2.5;const h=rc.intersectObjects(all,false).length>0;rc.far=Infinity;if(h)return true}return false};
+      let by=hh+.32;while(by<mx+.3&&blocked(by,hz))by+=.05;
+      bonnet={y:by,z:hz}}
+    else if(spec.type==='f1'||spec.type==='bike'){const hz=Math.max(B*.15,.1);bonnet={y:(top(hz)||mx)+.32,z:hz}}   // open cockpit or bike: sit over the rider
+    else{ // low hypercars: just ahead of where the roof starts, a little over the bonnet, never above the roof
+      const zr=(prof.find(q=>q[1]!=null&&q[0]<F-.3&&q[1]>=mx-.12)||[0])[0],hz=Math.min(F-.5,zr+.5),hh=top(hz)||mx*.8;
+      bonnet={y:Math.min(hh+.3,mx+.05),z:hz}}
+    // a face the rays miss (inverted winding) can still leave the camera inside a part: check boxes too
+    {const boxes=[];g.traverse(m=>{if(!m.isMesh||!m.geometry)return;if(!m.geometry.boundingBox)m.geometry.computeBoundingBox();
+       const bb=m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld),sz=bb.getSize(new THREE.Vector3());if(sz.x>.3&&sz.y>.15&&sz.z>.3&&sz.z<(F-B)*.6)boxes.push(bb)});   // parts, not the whole shell
+     for(let k=0;k<6;k++){const pt=new THREE.Vector3(0,bonnet.y,bonnet.z),inb=boxes.find(bb=>bb.containsPoint(pt));if(!inb)break;bonnet.y=inb.max.y+.3}}
+    // keep a road car's camera over the back half of its bonnet so the bonnet is in view, re-seating it on the surface
+    if(spec.type!=='f1'&&spec.type!=='bike'&&bonnet.z>F*.45){const hz=F*.45,hh=top(hz);bonnet={z:hz,y:hh!=null?Math.max(hh+.3,Math.min(bonnet.y,hh+.45)):bonnet.y}}
+    // hand-set where no rule fits: the hauler's tallest part is its trailer, and the wedge has no screen line
+    const FP_SET={truck:{y:2.05,z:2.8},countach:{y:1.27,z:.75}};if(FP_SET[spec.id])bonnet=Object.assign({},FP_SET[spec.id]);
+    const nose=top(F-.15)||.6;
+    const out={bonnet,bumper:{y:Math.max(.32,Math.min(.75,nose*.55)),z:F+.12},top:mx,back:B};
+    if(window.__dev)out.prof=prof.filter((q,i)=>i%2===0).map(q=>[+q[0].toFixed(1),q[1]==null?null:+q[1].toFixed(2)]);
+    g.position.y=py;g.updateMatrixWorld(true);return out}
+  window.__fp=()=>FP;
   const GARAGE_BASE_LEN=2.42-(-2.36);
   function garageOf(id){return GARAGE.find(g=>g.id===id)||GARAGE[0]}
   /* the body mesh for one garage entry; shared by the car you drive and the garage preview */
@@ -1863,8 +1930,9 @@ t.bd.position.set(x,y+.86,z);
     chassisB.mass=spec.mass;chassisB.updateMassProperties();
     if(PCAR)vis.bodyIn.remove(PCAR.g);
     const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,xw:V.xw,head:headM,tail:tailM};
-    PCAR=makeBody(spec,o);
-    PCAR.g.position.y=.05-(V.rest-.07)-V.r;vis.bodyIn.add(PCAR.g);
+    PCAR=makeBody(spec,o);FP=measureBody(PCAR.g,spec);
+    PCAR.glass=[];PCAR.g.traverse(m=>{if(m.isMesh&&m.material&&m.material.transparent&&m.material.opacity<.8)PCAR.glass.push(m)});
+    PCAR.g.position.y=.05-(V.rest-.07)-V.r;FP.off=PCAR.g.position.y;vis.bodyIn.add(PCAR.g);
     if(cubeRT)PCAR.g.traverse(m=>{if(m.material&&m.material.reflectivity!==undefined){m.material.envMap=cubeRT.texture;m.material.needsUpdate=true}});
     if(wv)wv.car.forEach(k=>vis.car.remove(k.w));
     const nW=spec.type==='bike'?2:spec.type==='truck'?6:4,wheelWd=wheelWdOf(spec);
@@ -3631,7 +3699,7 @@ const PLANETS={
     const _fv=new THREE.Vector3(),_rv=new THREE.Vector3(),_uv=new THREE.Vector3(),_xv=new THREE.Vector3(),_mb=new THREE.Matrix4();
     function roverPose(S,fx,fz,dt,ease){
       const f=S.foot;if(!f)return;
-      _fv.set(fx*4,f.hF-f.hB,fz*4);_rv.set(f.rxv*3,f.hR-f.hL,f.rzv*3);
+      const fL=S.halfL||2,fW=S.halfW||1.5;_fv.set(fx*2*fL,f.hF-f.hB,fz*2*fL);_rv.set(f.rxv*2*fW,f.hR-f.hL,f.rzv*2*fW);
       _uv.crossVectors(_fv,_rv).normalize();if(_uv.y<0)_uv.negate();
       if(_uv.y<0.8){_uv.y=0.8;_uv.normalize()}                       // never more than ~37 degrees of tilt
       _fv.addScaledVector(_uv,-_fv.dot(_uv)).normalize();_xv.crossVectors(_uv,_fv).normalize();
@@ -3639,7 +3707,10 @@ const PLANETS={
       S.rover.quaternion.slerp(_qt,1-Math.pow(ease,dt));
       // ride height eases over small bumps instead of snapping to every height change
       S.visY=S.visY==null||Math.abs(S.visY-S.pos.y)>3?S.pos.y:S.visY+(S.pos.y-S.visY)*Math.min(1,dt*12);
-      S.comp=(S.comp||0)*Math.exp(-dt*4.5);   // suspension compresses on landing, then settles
+      // the easing used to trail half a metre behind on a climb, which drew the car sunk into the hill:
+      // it may smooth a bump, but never sit more than a few centimetres off the ground it is on
+      S.visY=Math.max(S.pos.y-.03,Math.min(S.pos.y+.08,S.visY));
+      S.comp=Math.min(.1,(S.comp||0)*Math.exp(-dt*4.5));   // landing squat, kept small so the wheels stay on top of the ground
       S.rover.position.set(S.pos.x,S.visY-S.comp,S.pos.z).add(new THREE.Vector3(0,-1.1,0).applyQuaternion(S.rover.quaternion));
     }
     /* =================== GENERALIZED SURFACE DRIVING (kinematic) =================== */
@@ -3689,10 +3760,16 @@ const PLANETS={
       // ground under the four corners of the rover's footprint: its height and tilt come from these,
       // so a sharp bump under one point can no longer spin it onto its side
       const rxv=Math.cos(S.yaw), rzv=-Math.sin(S.yaw);
-      const hF=groundH(cfg,S.road,p.x+fx*2,p.z+fz*2,S.s), hB=groundH(cfg,S.road,p.x-fx*2,p.z-fz*2,S.s);
-      const hR=groundH(cfg,S.road,p.x+rxv*1.5,p.z+rzv*1.5,S.s), hL=groundH(cfg,S.road,p.x-rxv*1.5,p.z-rzv*1.5,S.s);
+      const fL=S.halfL||2,fW=S.halfW||1.5;
+      const hF=groundH(cfg,S.road,p.x+fx*fL,p.z+fz*fL,S.s), hB=groundH(cfg,S.road,p.x-fx*fL,p.z-fz*fL,S.s);
+      const hR=groundH(cfg,S.road,p.x+rxv*fW,p.z+rzv*fW,S.s), hL=groundH(cfg,S.road,p.x-rxv*fW,p.z-rzv*fW,S.s);
       S.foot={hF,hB,hR,hL,rxv,rzv};
-      const gy=Math.max(groundH(cfg,S.road,p.x,p.z,S.s),(hF+hB+hR+hL)/4)+1.1;
+      /* ride height: the body plane comes from the four footprint samples, then it is lifted until it
+         clears every point of a 5 x 3 grid under the vehicle, so a bump between samples can't poke through */
+      const hC=groundH(cfg,S.road,p.x,p.z,S.s),pa=(hF-hB)/(2*fL),pb=(hR-hL)/(2*fW);
+      let lift=0;for(const u of [-1,-.5,0,.5,1])for(const w of [-1,0,1]){const lu=u*fL,lw=w*fW;
+        const h=groundH(cfg,S.road,p.x+fx*lu+rxv*lw,p.z+fz*lu+rzv*lw,S.s)-(hC+pa*lu+pb*lw);if(h>lift)lift=h}
+      const gy=hC+Math.min(lift,1.5)+1.1;
       const terrV=(gy-(S.prevGY||gy))/Math.max(dt,0.001); S.prevGY=gy;
       const G=(moonGravityOn?cfg.g:24);
       // vertical: hug the ground. Only a real ramp at speed launches, and only in low gravity.
@@ -3715,7 +3792,7 @@ const PLANETS={
       if(S.s>S.maxS)S.maxS=S.s;
 
       // ORIENTATION from the footprint: forward and right vectors along the ground, up = their cross
-      roverPose(S,fx,fz,dt,0.0008);
+      roverPose(S,fx,fz,dt,0.00005);
       const roll=speed*dt*1.6; S.wheels.forEach(w=>w.rotation.x+=roll);
 
       // dust integrate
@@ -3737,10 +3814,13 @@ const PLANETS={
 
       // camera: the same modes as on Earth (C / Camera button / phone CAM), sized for the rover
       { const CM=CAMS[camMode]||CAMS[0];
+        if(S.glass&&S.glassOff!==!!CM.fp){S.glassOff=!!CM.fp;S.glass.forEach(m=>m.visible=!CM.fp)}
         if(CM.fp){
           // bonnet / bumper: ride with the rover, tilted with it
-          _cv.set(0,.75+CM.y,CM.z+.4).applyQuaternion(S.rover.quaternion).add(S.rover.position);C.position.copy(_cv);
-          _cv.set(0,.75+CM.y,CM.z+30).applyQuaternion(S.rover.quaternion).add(S.rover.position);C.lookAt(_cv);
+          // the rover is a copy of the car with its ground at the holder's origin, so the same measured spots apply
+          const fp=CM.n==='Bumper'?FP.bumper:FP.bonnet,fy=fp.y+FP.off+(S.ccY||0);
+          _cv.set(0,fy,fp.z).applyQuaternion(S.rover.quaternion).add(S.rover.position);C.position.copy(_cv);
+          _cv.set(0,fy-.25,fp.z+30).applyQuaternion(S.rover.quaternion).add(S.rover.position);C.lookAt(_cv);
         } else {
           const k=(cfg.camBack||12)/9.5, sgn=CM.d<0?-1:1;                 // wider on the Moon so jumps read
           const back=CM.d*k+sgn*Math.min(6,speed*0.1), upH=CM.h*(cfg.camUp||5.5)/4.8;
@@ -3750,6 +3830,7 @@ const PLANETS={
           { const cf=groundH(cfg,S.road,C.position.x,C.position.z,S.s)+2.2; if(C.position.y<cf)C.position.y=cf; }
           C.lookAt(p.x+fx*CM.ahead, p.y+1.5*CM.ly, p.z+fz*CM.ahead);
         }
+        {const nr=CM.fp?.12:.5;if(C.near!==nr){C.near=nr;C.updateProjectionMatrix()}}   // a 0.5 m near plane cut the bonnet away
         const fov=CM.fov+(CM.fp?0:Math.min(8,speed*.18));
         if(Math.abs(C.fov-fov)>.05){C.fov+=(fov-C.fov)*Math.min(1,dt*4);C.updateProjectionMatrix()} }
 
@@ -3799,8 +3880,11 @@ const PLANETS={
         // lowest point of what is actually drawn (wheels / contact shadow) sits on y=0
         {let lo=Infinity;const v=new THREE.Vector3();cc.traverse(o=>{if(!o.isMesh||!o.geometry)return;for(let q=o;q&&q!==holder;q=q.parent)if(!q.visible)return;
           if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const b=o.geometry.boundingBox;for(const xx of [b.min.x,b.max.x])for(const yy of [b.min.y,b.max.y])for(const zz of [b.min.z,b.max.z]){v.set(xx,yy,zz).applyMatrix4(o.matrixWorld);if(v.y<lo)lo=v.y}});
-         if(isFinite(lo))cc.position.y=-lo+.02;}
-        S.scene.add(holder);S.rover=holder;S.wheels=[];}
+         if(isFinite(lo))cc.position.y=-lo+.02;S.ccY=cc.position.y;}
+        S.glass=[];cc.traverse(o=>{if(o.isMesh&&o.material&&o.material.transparent&&o.material.opacity<.8)S.glass.push(o)});
+        S.scene.add(holder);S.rover=holder;S.wheels=[];
+        // footprint the ground is sampled at: the vehicle's own length and width, so a long truck rests on its ends
+        {const bb=new THREE.Box3().setFromObject(holder);S.halfL=Math.max(1.6,(bb.max.z-bb.min.z)*.42);S.halfW=Math.max(.6,(bb.max.x-bb.min.x)*.4)}}
       const r0=roadAt(cfg,S.road,0);
       S.vel.set(0,0,0); S.vy=0; S.yaw=Math.atan2(r0.tx,r0.tz); S.grounded=false; S.s=0; S.maxS=0; S.land=0;
       S.groundY=roadY(cfg,S.road,0)+1.1;
@@ -3965,7 +4049,7 @@ const PLANETS={
         const kr=Math.max(0,Math.min(1,(t-1.3)/1.6)),er=1-Math.pow(1-kr,3);
         S.pos.set(r0.x,(hov-1.5)+(g0-(hov-1.5))*er,r0.z);
         const rxv=Math.cos(S.yaw),rzv=-Math.sin(S.yaw);
-        S.foot={hF:groundH(cfg,S.road,r0.x+fx*2,r0.z+fz*2,0),hB:groundH(cfg,S.road,r0.x-fx*2,r0.z-fz*2,0),hR:groundH(cfg,S.road,r0.x+rxv*1.5,r0.z+rzv*1.5,0),hL:groundH(cfg,S.road,r0.x-rxv*1.5,r0.z-rzv*1.5,0),rxv,rzv};
+        const fL=S.halfL||2,fW=S.halfW||1.5;S.foot={hF:groundH(cfg,S.road,r0.x+fx*fL,r0.z+fz*fL,0),hB:groundH(cfg,S.road,r0.x-fx*fL,r0.z-fz*fL,0),hR:groundH(cfg,S.road,r0.x+rxv*fW,r0.z+rzv*fW,0),hL:groundH(cfg,S.road,r0.x-rxv*fW,r0.z-rzv*fW,0),rxv,rzv};
         if(kr<1){S.rover.quaternion.setFromAxisAngle(_up,S.yaw+(1-er)*2.5);S.rover.position.copy(S.pos).add(new THREE.Vector3(0,-1.1,0))}
         else roverPose(S,fx,fz,dt,0.002);
         if(kr>=1&&!S._touched){S._touched=true;S.emitDust(r0.x,g0-1.1,r0.z,40,7,1.1);try{thud(.5)}catch(e){}}
@@ -3985,6 +4069,7 @@ const PLANETS={
         if(t>4)say('');
         driveSurface(dt);
         R.render(SURF.scene,C);
+        if(rearMirrorOn)renderMirror(SURF.scene,SURF.rover.position,SURF.rover.quaternion,SURF.ccY||0);
         return;
       }
       if(api.state==='select'){
@@ -4003,6 +4088,7 @@ const PLANETS={
     }
     /* the map + GPS code outside this module reads these */
     api.PLANETS=PLANETS;api.DS=DS;api.groundH=groundH;
+    api._arrive=k=>{beginArrival(k)};   // used by the ?dev=1 test hooks only
     Object.defineProperty(api,'SURF',{get:()=>SURF});
     return api;
   })();
@@ -4394,9 +4480,11 @@ const PLANETS={
       const effCamMode = lookBehind ? 3 : camMode;
       const CM=CAMS[effCamMode],pf=W<H?1.5:1;
       const camDir = lookBehind ? tmp.copy(fwd).negate() : fwd;
+      if(PCAR&&PCAR.glass&&PCAR.glassOff!==!!CM.fp){PCAR.glassOff=!!CM.fp;PCAR.glass.forEach(m=>m.visible=!CM.fp)}   // no tinted screen in front of a cockpit view
       if(CM.fp){/* bonnet and bumper cams ride on the car itself */
-        camT.set(0,CM.y,CM.z).applyQuaternion(car.quaternion).add(car.position);C.position.copy(camT);
-        lookT.set(0,CM.y-.25,CM.z+18).applyQuaternion(car.quaternion).add(car.position)}
+        const fp=CM.n==='Bumper'?FP.bumper:FP.bonnet,fy=fp.y+FP.off;
+        camT.set(0,fy,fp.z).applyQuaternion(car.quaternion).add(car.position);C.position.copy(camT);
+        lookT.set(0,fy-.25,fp.z+18).applyQuaternion(car.quaternion).add(car.position)}
       else{const dist=(CM.d+Math.min(5,sp*.2)*CM.k+ce*1.9)*pf,hgt=(CM.h+Math.min(2,sp*.07)*CM.k+ce*.7)*pf;
         camT.copy(car.position).addScaledVector(fwd,-dist).add(tmp.set(0,hgt,0));
         C.position.lerp(camT,1-Math.exp(-dt*(active?CM.lag:3.2)));
@@ -4474,15 +4562,7 @@ const PLANETS={
     if(active){ANOMALY.update(dt,now);SPACE.updateEarth()}
     R.render(S,C);if(active&&frameN%6===0)drawMap(mx2,mm.width,false);
     /* ---------- rearview mirror PIP ---------- */
-    if(rearMirrorOn&&active&&driving&&!cineOn){
-      const mw=282,mh=92;
-      const mx=Math.round((W-mw)/2),my=Math.round(H-mh-12);
-      rearCam.position.copy(car.position).addScaledVector(fwd,-2).add(tmp.set(0,2.2,0));
-      rearCam.lookAt(tmp.copy(car.position).addScaledVector(fwd,-30).add(new THREE.Vector3(0,1.8,0)));
-      R.setViewport(mx,my,mw,mh);R.setScissor(mx,my,mw,mh);R.setScissorTest(true);
-      R.render(S,rearCam);
-      R.setScissorTest(false);R.setViewport(0,0,W,H);
-    }
+    if(rearMirrorOn&&active&&driving&&!cineOn)renderMirror(S,car.position,car.quaternion,FP.off);
     /* Grab the still immediately after the draw, in this same frame: the drawing buffer
        is not preserved past the end of it, so this is the only moment it can be read. */
     if(!active&&posterState===0&&++posterWarm>=4){
@@ -6310,7 +6390,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
