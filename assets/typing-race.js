@@ -1,16 +1,15 @@
 /* Daily Typing Race
-   Your keyboard is the throttle. Everyone gets the same sentence each UTC day (TYPING_POOL, in a fixed
-   permutation so nothing repeats until the pool runs out). Correct characters raise the car's speed,
-   which comes from your recent WPM scaled by accuracy; a wrong key costs a short speed penalty but never
-   sends you back. Finishing the sentence finishes the race, and the time goes on today's typing board.
-   The car itself is the real game car on today's daily track: autodrive steers it and this module only
-   hands it a speed ceiling through window.GameBridge, so the physics are the same ones you drive with. */
+   Your keyboard drives the car round one lap. Everyone gets the same sentence each UTC day (TYPING_POOL, in a
+   fixed permutation so nothing repeats until the pool runs out), on the same ~490 m lap; only the weather and time
+   of day change. The sentence stays hidden until you press Start, and the clock starts on your first key. The car's
+   place on the lap is the share of the sentence you have typed correctly, chased smoothly, so typing faster is
+   driving faster and the last letter takes it over the line. A wrong key never sends you back; it slows the car for
+   a moment. The time goes on today's typing board. The car is the game's own, moved through window.GameBridge. */
 (function(){
   'use strict';
   const POOL=window.TYPING_POOL||[];
   const G=()=>window.GameBridge;
-  // speed model: ~30 WPM slow, 50 normal, 70 fast, 90 very fast, 120+ flat out (capped by the car)
-  const BASE_KMH=18,KMH_PER_WPM=1.25,WINDOW_S=4,PENALTY_MS=700,PENALTY=.55;
+  const WINDOW_S=4,PENALTY_MS=700;   // live WPM over the last 4 s; a wrong key slows the car for 0.7 s
   const MAX_WPM=220;                       // above this a run is not believable and is not submitted
 
   /* ---------- today's sentence ---------- */
@@ -127,12 +126,13 @@
 
   /* ---------- typing ---------- */
   function onChar(ch,t){
+    if(st==='ready'){st='racing';t0=t;cd.classList.remove('on')}   // the clock starts on your first key, not on a countdown
     if(st!=='racing')return;ch=norm(ch);keys++;
-    if(ch===text[pos]){pos++;correct++;stamps.push(t);paintText();if(pos>=text.length)finish(t)}
-    else{errors++;penaltyTill=t+PENALTY_MS;paintText(true);try{G().shake(.18)}catch(e){}}}
+    if(ch===text[pos]){pos++;correct++;stamps.push(t);paintText();G().typeTarget(pos/text.length);if(pos>=text.length)finish(t)}
+    else{errors++;penaltyTill=t+PENALTY_MS;G().typePenalty(PENALTY_MS);paintText(true);try{G().shake(.18)}catch(e){}}}
   input.addEventListener('input',e=>{
     const v=input.value;input.value='';
-    if(!e.isTrusted||st!=='racing')return;
+    if(!e.isTrusted||(st!=='racing'&&st!=='ready'))return;
     const kind=e.inputType||'';
     if(/paste|drop|Replacement|Yank/i.test(kind)){toast('Pasting is switched off · type it');return}
     // a keyboard sends one character at a time; a whole word at once is autocomplete or a macro
@@ -141,21 +141,14 @@
   input.addEventListener('paste',e=>{e.preventDefault();toast('Pasting is switched off · type it')});
   input.addEventListener('drop',e=>e.preventDefault());
   input.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();quit()}});
-  input.addEventListener('blur',()=>{if(st==='racing'||st==='countdown')setTimeout(()=>{if(st==='racing'||st==='countdown')input.focus()},50)});
+  input.addEventListener('blur',()=>{if(st==='racing'||st==='ready')setTimeout(()=>{if(st==='racing'||st==='ready')input.focus()},50)});
 
   /* ---------- the speed model ---------- */
   function rollingWpm(t){const from=t-WINDOW_S*1000;let n=0;for(let i=stamps.length-1;i>=0&&stamps[i]>=from;i--)n++;
     const span=Math.max(1,Math.min(WINDOW_S,(t-t0)/1000));return n/5/(span/60)}
-  function targetKmh(t){
-    const w=rollingWpm(t);if(w<=0)return 0;
-    const acc=keys?correct/keys:1,accMult=Math.max(.5,acc);
-    let v=BASE_KMH+w*KMH_PER_WPM*accMult;
-    if(t<penaltyTill)v*=PENALTY;
-    return Math.min(v,G().maxKmh()*.97,230)}
   function frame(){
     raf=requestAnimationFrame(frame);if(st!=='racing'&&st!=='done')return;
-    const t=now(),el=(st==='done'?doneT:t)-t0,b=G(),sp=b.speedKmh();
-    if(st==='racing')b.cap(targetKmh(t));
+    const t=now(),el=(st==='done'?doneT:t)-t0,b=G(),sp=b.typeSpeedKmh();   // the car's real pace round the lap
     maxKmh=Math.max(maxKmh,sp);
     const mins=Math.max(1/60,el/60000),wpm=correct/5/mins,acc=keys?correct/keys*100:100;
     stat.kmh.textContent=Math.round(sp);stat.wpm.textContent=Math.round(st==='racing'?rollingWpm(t):wpm);
@@ -170,26 +163,26 @@
   function start(){
     const b=G();if(!b){alert('The game is still loading');return}
     closeResults();text=todaysText();pos=keys=correct=errors=0;stamps=[];maxKmh=0;penaltyTill=0;rejected='';
-    buildText();b.toDailyStart();sec.classList.add('typing');hud.classList.add('on');
+    b.toTypingLap(dayNum());buildText();sec.classList.add('typing');hud.classList.add('on');
     const dm=document.getElementById('ddaily-modal');if(dm)dm.style.display='none';
-    st='countdown';input.value='';input.focus();
-    if(!raf)raf=requestAnimationFrame(frame);
-    const steps=[['GET READY','Your typing is your throttle'],['3',''],['2',''],['1',''],['GO!','']];
-    cdTimers.forEach(clearTimeout);cdTimers=[];cd.classList.add('on');
-    steps.forEach((s,i)=>cdTimers.push(setTimeout(()=>{if(st!=='countdown')return;
-      cd.innerHTML='<div class="pop"><b class="'+(s[0]==='GO!'?'go':'')+'">'+s[0]+'</b>'+(s[1]?'<small>'+s[1]+'</small>':'')+'</div>';
-      if(s[0]==='GO!'){st='racing';t0=now();input.focus();cdTimers.push(setTimeout(()=>cd.classList.remove('on'),700))}},i===0?0:1100+(i-1)*1000)))}
+    stat.kmh.textContent='0';stat.wpm.textContent='0';stat.acc.textContent='100%';stat.prog.textContent='0%';stat.time.textContent='0.00s';bar.style.width='0';
+    // no countdown: the car waits on the line and the clock starts with your first key
+    st='ready';t0=0;input.value='';input.focus();
+    cd.innerHTML='<div><b style="font-size:clamp(34px,6vw,64px)">Start typing</b><small>The clock starts on your first key</small></div>';cd.classList.add('on');
+    if(!raf)raf=requestAnimationFrame(frame)}
   let doneT=0;
-  function finish(t){st='done';doneT=t;const b=G();b.cap(0);lines.style.opacity='0';
+  function finish(t){st='done';doneT=t;lines.style.opacity='0';
     const ms=Math.round(t-t0),acc=correct/keys*100,wpm=correct/5/(ms/60000);
     // fairness: believable speed, real keystrokes, not a stream of key events spaced by a machine
     let fast=0;for(let i=1;i<stamps.length;i++)if(stamps[i]-stamps[i-1]<12)fast++;
     if(!rejected&&wpm>MAX_WPM)rejected='faster than any human typist';
     if(!rejected&&stamps.length>8&&fast/stamps.length>.2)rejected='key timing looked automated';
     if(!rejected&&keys<text.length)rejected='keystrokes missing';
-    setTimeout(()=>showResults({ms,acc,wpm,chars:text.length,keys,maxKmh:Math.round(maxKmh)}),900)}
+    const r={ms,acc,wpm,chars:text.length,keys,maxKmh:Math.round(maxKmh)},t1=now();
+    // the result appears as the car crosses the line (it chases your last letter for a moment)
+    (function wait(){if(G().typeU()>=1||now()-t1>2500)setTimeout(()=>showResults(r),600);else requestAnimationFrame(wait)})()}
   function quit(){if(st==='idle')return;st='idle';cdTimers.forEach(clearTimeout);cd.classList.remove('on');hud.classList.remove('on');sec.classList.remove('typing');
-    lines.style.opacity='0';try{G().release()}catch(e){}input.blur()}
+    lines.style.opacity='0';try{G().typeEnd()}catch(e){}input.blur()}
 
   /* ---------- leaderboard (Supabase typing_times; the database re-checks every stat) ---------- */
   const Board={
@@ -251,8 +244,8 @@
   function openDaily(tab){const b=document.getElementById('dmdaily');if(modal)modal._want=tab;if(b)b.click();else if(modal)modal.style.display='grid'}
   async function renderPane(){if(!pane)return;
     const t=todaysText(),day=(G()&&G().day())||new Date().toISOString().slice(0,10),ol=pane.querySelector('ol');
-    pane.querySelector('.ty-quote').textContent='“'+t+'”';
-    pane.querySelector('.ty-meta').textContent=day+' (UTC) · '+t.length+' characters · same sentence for everyone · ranked by time';
+    pane.querySelector('.ty-quote').textContent='Today\'s sentence is hidden until you press Start. '+t.length+' characters, one lap: the car finishes the lap the moment you finish typing.';   // no head start from reading it first
+    pane.querySelector('.ty-meta').textContent=day+' (UTC) · same sentence for everyone · clock starts on your first key · ranked by time';
     const head='<li class="h"><span>#</span><span>Player</span><span class="num">Time</span><span class="num">WPM</span><span class="num acc">Acc</span></li>';
     ol.innerHTML=head+'<li><span></span><span style="opacity:.5">Loading…</span></li>';
     const rows=await Board.fetch(day),me=myName().toLowerCase();

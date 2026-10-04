@@ -4215,9 +4215,22 @@ const PLANETS={
   /* ---------- bridge for self-contained modes (assets/typing-race.js) ----------
      A mode outside this file drives the car only through these: put it on today's daily track,
      hand autodrive a speed ceiling, read the speedometer. Nothing else in the game changes for it. */
+  const TYPEF={on:false,u:0,target:0,v:0,L:0,penTill:0,e:new THREE.Euler(),q:new THREE.Quaternion()};
+  /* the Typing Race lap: one fixed ~490 m circuit, the same every day; only the weather and time of day change */
+  function typingLap(){const pts=[];for(let i=0;i<64;i++){const t=i/64*Math.PI*2,k=1+.13*Math.sin(3*t+.6)+.05*Math.cos(5*t);pts.push({x:96*k*Math.cos(t),y:60*k*Math.sin(t)})}return pts}   /* ~490 m: 60 WPM drives it at ~110 km/h, 100 WPM at ~190 */
   window.GameBridge={
     supa:SUPA,day:()=>dailyDay(),
     name:()=>{try{return (localStorage.getItem('sl_name')||'').trim()}catch(e){return ''}},
+    toTypingLap(day){if(!active)enterDrive();try{if(SPACE.state!=='earth')SPACE.forceEarth()}catch(e){}
+      try{if(window.RaceEngine&&window.RaceEngine.state!=='idle')window.RaceEngine.stopRace()}catch(e){}AUTO.set(false,true);
+      const WX=['day','sunset','overcast','rain','dusk','fog','night','snow','autumn'],w=WX[((day%WX.length)+WX.length)%WX.length];
+      const th=THEMES.find(t=>t.id===(w==='snow'?'snow':'meadow'))||THEME_DEFAULT;
+      buildCircuit(typingLap(),th,90210,{width:16,elev:'rolling',weather:w,time:w,typing:true});enterCircuit();try{CAI.clear()}catch(e){}
+      Object.assign(TYPEF,{on:true,u:0,target:0,v:0,L:circuit.curve.getLength(),penTill:0});return w},
+    typeTarget(f){TYPEF.target=Math.max(TYPEF.target,Math.min(1,f))},
+    typePenalty(ms){TYPEF.penTill=performance.now()+ms},
+    typeU:()=>TYPEF.u,typeSpeedKmh:()=>TYPEF.v*3.6,
+    typeEnd(){TYPEF.on=false;try{if(MODE==='circuit')leaveCircuit()}catch(e){}},
     toDailyStart(){if(!active)enterDrive();try{if(SPACE.state!=='earth')SPACE.forceEarth()}catch(e){}
       try{if(window.RaceEngine&&window.RaceEngine.state!=='idle')window.RaceEngine.stopRace()}catch(e){}
       window.__buildDaily();try{CAI.clear()}catch(e){}resetCar();
@@ -4353,6 +4366,17 @@ const PLANETS={
          unevenly on 90-240 Hz screens, which reads as judder, so the car is stepped here and
          drawn interpolated between the last two physics states. */
       physAcc+=dt;{let n=0;while(physAcc>=PSTEP&&n<4){world.step(PSTEP);physAcc-=PSTEP;n++}if(n>=4)physAcc=0}
+      /* typing race: the car rides the lap at the place your typing has reached, chasing it smoothly, so the
+         lap ends exactly as the sentence does and the speed you see is the speed you are typing at */
+      if(TYPEF.on&&MODE==='circuit'&&circuit){const L=TYPEF.L||circuit.curve.getLength(),gap=TYPEF.target-TYPEF.u;
+        let want=TYPEF.target>=1&&TYPEF.u>=1?TYPEF.v*.97:Math.max(0,Math.min(95,gap*L*2.4));
+        if(performance.now()<TYPEF.penTill)want*=.45;
+        TYPEF.v+=(want-TYPEF.v)*Math.min(1,dt*5);TYPEF.u+=TYPEF.v*dt/L;if(TYPEF.target<1)TYPEF.u=Math.min(TYPEF.u,TYPEF.target);
+        const u=TYPEF.u,{p,tg}=circAt(u,circuit.curve),hl=Math.hypot(tg.x,tg.z)||1,y=(circuit.roadY?circuit.roadY(((u%1)+1)%1,p.x,p.z):p.y)+V.rest+V.r-.18;
+        TYPEF.e.set(-Math.atan2(tg.y,hl),Math.atan2(tg.x,tg.z),0,'YXZ');TYPEF.q.setFromEuler(TYPEF.e);
+        chassisB.position.set(p.x,y,p.z);chassisB.quaternion.set(TYPEF.q.x,TYPEF.q.y,TYPEF.q.z,TYPEF.q.w);
+        chassisB.velocity.set(tg.x/hl*TYPEF.v,0,tg.z/hl*TYPEF.v);chassisB.angularVelocity.set(0,0,0);PREV.ok=false;
+        for(const k of ['f','b','l','r','h'])key[k]=0}
       const dv=tmp.set(chassisB.velocity.x,chassisB.velocity.y,chassisB.velocity.z).sub(lastV).length();lastV.set(chassisB.velocity.x,chassisB.velocity.y,chassisB.velocity.z);if(dv>7){shake=Math.min(1,dv/25);thud(Math.min(1,(dv-5)/18))}
       if(chassisB.position.y<(MODE==='circuit'?((circuit&&circuit.minY!=null?circuit.minY:CIRC_Y)-25):-9)||!isFinite(chassisB.position.y)||!isFinite(chassisB.velocity.x)){resetCar();toastMsg('Pulled you back onto the road')}
       UPV.set(0,1,0);const up=bodyUp;chassisB.quaternion.vmult(UPV,up);if(up.y<.25){flipT+=dt;if(flipT>1.8){resetCar();flipT=0;toastMsg('Back on the road, lock in')}}else flipT=0;
