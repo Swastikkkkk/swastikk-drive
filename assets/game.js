@@ -1760,7 +1760,7 @@ t.bd.position.set(x,y+.86,z);
   /* Night is a mode you hold, not a mood the road hands you. While it is on it outranks
      the road's moods and the summit's dusk, so driving into a new stretch does not
      yank the sky back to daylight underneath you; turning it off hands control back. */
-  let nightOn=false,ltT=4,flashV=0,thunderAt=0,wxLock=null;
+  let nightOn=false,lightsOff=false,ltT=4,flashV=0,thunderAt=0,wxLock=null;
   function setWeather(id,quiet){
     if(id==='auto'||!id){wxLock=null;nightOn=false;mood(MODE==='circuit'?'day':(atSummit?'dusk':(CHMOOD[act]||'day')),4);if(!quiet)toastMsg('Weather · auto')}
     else{wxLock=id;nightOn=true;mood(id,3.5);if(!quiet)toastMsg(wxOf(id).label)}
@@ -1836,6 +1836,11 @@ t.bd.position.set(x,y+.86,z);
     const bm=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
     const bg=new THREE.ConeGeometry(2.8,15,20,1,true);bg.rotateX(-Math.PI/2);bg.translate(0,0,7.5);
     beams={m:bm,list:[1,-1].map(sd=>{const b=new THREE.Mesh(bg,bm);b.position.set(sd*.72,-.1,2.42);b.rotation.x=.08;b.visible=false;vis.car.add(b);return b})}}
+  /* the lights switch: off means no beam, no spot and dark lamps, whatever the hour */
+  let lastNi=0;
+  function applyLights(ni){if(ni!=null)lastNi=ni;const n=lightsOff?0:lastNi;
+    if(carHL)carHL.intensity=n;headM.emissiveIntensity=lightsOff?0:1+n*.5;
+    if(beams){const o=Math.min(.5,n*.3);beams.m.opacity=o;beams.list.forEach(b=>b.visible=o>.02)}}
   /* real reflections: a small cube map rendered from the car, one face every few frames, so the
      paint and glass pick up the actual trees, sky and road around you */
   let cubeCam=null,cubeRT=null,cubeFace=0,cubeInit=false,cubeSun=0,cubeX=0,cubeZ=0;
@@ -2241,7 +2246,7 @@ t.bd.position.set(x,y+.86,z);
    window.__setMenu=setMenu;
    mb.onclick=e=>{e.stopPropagation();setMenu(!row.classList.contains('open'));if(row.classList.contains('open')&&window.__updModes)window.__updModes()};
    // anything that opens a panel or switches mode closes the menu; quick toggles leave it open
-   const KEEP_OPEN=['dweatherb','dnight','dmute','dtiltb','dgps'];
+   const KEEP_OPEN=['dweatherb','dnight','dmute','dtiltb','dgps','dlights'];
    row.addEventListener('click',e=>{const b=e.target.closest('button');if(b&&!KEEP_OPEN.includes(b.id))setMenu(false)});
    // tapping the road (anywhere outside the menu, its button and the weather list) closes it
    addEventListener('pointerdown',e=>{
@@ -2323,7 +2328,9 @@ t.bd.position.set(x,y+.86,z);
     {n:'Bonnet',fp:1,y:.5,z:1.1,fov:66},{n:'Bumper',fp:1,y:.02,z:2.5,fov:70}];
   let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}
   function cycleCam(){camMode=(camMode+1)%CAMS.length;try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' · C to switch')}
-  {const nb=document.getElementById('dnight');if(nb){const cb=nb.cloneNode(true);cb.id='dcam';cb.textContent='Camera';cb.title='Camera (C)';nb.after(cb);cb.onclick=()=>cycleCam()}}
+  {const nb=document.getElementById('dnight');if(nb){const cb=nb.cloneNode(true);cb.id='dcam';cb.textContent='Camera';cb.title='Camera (C)';nb.after(cb);cb.onclick=()=>cycleCam();
+   const lb=nb.cloneNode(true);lb.id='dlights';lb.title='Headlights';lb.removeAttribute('class');lb.className='dbtn mono';lb.textContent='Lights: on';cb.after(lb);
+   lb.onclick=()=>{lightsOff=!lightsOff;lb.textContent='Lights: '+(lightsOff?'off':'on');applyLights()}}}
   function resetCar(){try{if(SPACE.state==='surface'){SPACE.resetRover();return}}catch(e){}const {p,tg}=(MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve):at(progU);PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
     chassisB.position.set(p.x,p.y+1.4,p.z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
     chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0);chassisB.linearDamping=.01;chassisB.angularDamping=.4;
@@ -4562,10 +4569,8 @@ const PLANETS={
     if(frameN%10===0){
       const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
       const ni=isNight ? 1.8 : Math.max(0,Math.min(1.8,(.85-sun.intensity)*3.2));
-      if(carHL)carHL.intensity=ni;
-      headM.emissiveIntensity=1+ni*.5;
+      applyLights(ni);
       npcHeadM.emissiveIntensity=.9+ni*.6;
-      if(beams){const o=Math.min(.5,ni*.3);beams.m.opacity=o;beams.list.forEach(b=>b.visible=o>.02)};
       CLOUDM.opacity=.2+.6*Math.min(1,sun.intensity);
       // night gameplay effects
       if(isNight && !nightOn){
