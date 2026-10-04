@@ -976,7 +976,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         if(bs>.15&&bb.position.y<B.home.y+.4)bb.angularVelocity.set(bb.velocity.z/B.R,0,-bb.velocity.x/B.R);
         // timers run on game time (dt), so a slow device or a stutter cannot end a roll before the ball arrives
         B.el=(B.el||0)+dt;
-        if(B.st===0){if(bs>1.2||(frameN%10===0&&pinsDown()>0)){B.st=1;B.el=0;B.slow=0}}
+        if(B.st===0){const was=B.ri===1&&B.frames[B.fi]?B.frames[B.fi][0]:0;   // pins swept after the first roll are already down
+          if(bs>1.2||(frameN%10===0&&pinsDown()>was)){B.st=1;B.el=0;B.slow=0}}
         else if(B.st===1){B.slow=bs<.5?B.slow+dt:0;if(al>B.s1-2||B.slow>1.4||B.el>16||bb.position.y<-4){B.st=2;B.el=0}}
         else if(B.st===2){if(B.el>2.6){const n=pinsDown();if(n>0)missSet('strike',n);
             if(B.over){B.frames=[];B.fi=0;B.ri=0;B.over=0}
