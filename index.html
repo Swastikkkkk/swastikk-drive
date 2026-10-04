@@ -216,6 +216,10 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 @media (max-height:520px){#dmp{padding:14px 20px}#dmp h3{font-size:34px;margin:2px 0 0}.dmp-code{font-size:46px;margin:6px 0 0}#dmp .bd-me{margin-top:10px}#dmp .bd-x{margin-top:10px}#dmplist li{padding:7px 2px}#dmp .bd-note{margin-top:8px}}
 @media (max-width:560px){#dcircopts{left:10px;top:calc(56px + env(safe-area-inset-top,0px));grid-template-columns:repeat(2,minmax(105px,1fr));max-width:calc(100vw - 20px);gap:6px;padding:9px}#dcircopts select,#dcircopts input{height:32px;font-size:10px}#dcircbtns{bottom:calc(12px + env(safe-area-inset-bottom,0px))}}
 #dload{position:fixed;inset:0;display:grid;place-items:center;background:#06070b;color:var(--bone);z-index:9;font:500 11px var(--mono);letter-spacing:.2em;text-transform:uppercase}
+#dhud.space>*:not(.dbr):not(.dright){display:none!important}   /* on a planet: speedometer and the menu, nothing Earth-only */
+#dhud.space #dmap,#dhud.space .dmsec:not(.spaceonly),#dhud.space #dmfree,#dhud.space #droom,#dhud.space #dmdaily,#dhud.space #drace,#dhud.space #dboardb,#dhud.space #dcircb,#dhud.space #dweatherb,#dhud.space #dwx,#dhud.space #dnight{display:none!important}
+#dhud:not(.space) .spaceonly{display:none!important}
+#dhud.space{z-index:42}   /* the open menu sits over the planet minimap */
 #dgarage{position:absolute;inset:0;z-index:5;display:none;place-items:center;background:rgba(8,8,7,.86);backdrop-filter:blur(6px);padding:24px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 #dgarage.on{display:grid;animation:dvin .35s cubic-bezier(.2,.8,.2,1)}
 #dcirc{position:absolute;inset:0;z-index:100;display:none;background:rgba(8,8,7,.85)}

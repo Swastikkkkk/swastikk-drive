@@ -1941,6 +1941,7 @@ t.bd.position.set(x,y+.86,z);
     if(carShadow){carShadow.position.y=.05-(V.rest-.07)-.02;carShadow.scale.z=(spec.F-spec.B)/GARAGE_BASE_LEN}
     try{localStorage.setItem('sl_car',JSON.stringify({id:spec.id,paint:paintHex}))}catch(e){}
     if(mpCarNotify)mpCarNotify();
+    try{if(SPACE.state==='surface'||SPACE.state==='select')SPACE.refreshRover()}catch(e){}   // changing car on a planet swaps the rover too
     if(!quiet)toastMsg(spec.label)}
   /* ---------- audio ----------
      It is an electric car, so there is no gearbox drone any more. A motor whine that rises
@@ -2323,7 +2324,7 @@ t.bd.position.set(x,y+.86,z);
   let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}
   function cycleCam(){camMode=(camMode+1)%CAMS.length;try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' · C to switch')}
   {const nb=document.getElementById('dnight');if(nb){const cb=nb.cloneNode(true);cb.id='dcam';cb.textContent='Camera';cb.title='Camera (C)';nb.after(cb);cb.onclick=()=>cycleCam()}}
-  function resetCar(){const {p,tg}=(MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve):at(progU);PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
+  function resetCar(){try{if(SPACE.state==='surface'){SPACE.resetRover();return}}catch(e){}const {p,tg}=(MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve):at(progU);PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
     chassisB.position.set(p.x,p.y+1.4,p.z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
     chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0);chassisB.linearDamping=.01;chassisB.angularDamping=.4;
     chassisB.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),Math.atan2(tg.x,tg.z));
@@ -3056,6 +3057,22 @@ const F=chassisB.force,T=chassisB.torque;
     // one soft round dot shared by every star field (PointsMaterial without a map draws squares)
     const DOT_TEX=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d'),rg=g.createRadialGradient(32,32,0,32,32,32);
       rg.addColorStop(0,'rgba(255,255,255,1)');rg.addColorStop(.25,'rgba(255,255,255,.85)');rg.addColorStop(.6,'rgba(255,255,255,.18)');rg.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=rg;g.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
+    function twinkleStars(n,dim){
+      const p=new Float32Array(n*3),col=new Float32Array(n*3),ph=new Float32Array(n),sz=new Float32Array(n);
+      for(let i=0;i<n;i++){const r=3200+Math.random()*4200,th=Math.random()*Math.PI*2,y=Math.random()*.96+.04,ring=Math.sqrt(1-y*y);   // upper sky only
+        p[i*3]=r*ring*Math.cos(th);p[i*3+1]=r*y;p[i*3+2]=r*ring*Math.sin(th);
+        const tn=Math.random();col[i*3]=tn<.2?1:tn>.8?.75:.95;col[i*3+1]=tn<.2?.88:tn>.8?.86:.95;col[i*3+2]=tn<.2?.72:1;
+        ph[i]=Math.random();sz[i]=2.6+Math.pow(Math.random(),3)*6}
+      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(p,3));g.setAttribute('color',new THREE.BufferAttribute(col,3));
+      g.setAttribute('phase',new THREE.BufferAttribute(ph,1));g.setAttribute('sz',new THREE.BufferAttribute(sz,1));
+      const m=new THREE.ShaderMaterial({uniforms:{t:{value:0},dim:{value:dim},pr:{value:Math.min(2,devicePixelRatio||1)}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+        vertexShader:'attribute float phase;attribute float sz;attribute vec3 color;uniform float t;uniform float pr;varying vec3 vC;varying float vA;'+
+          'void main(){float w=.5+.5*sin(t*(1.3+phase*3.4)+phase*61.0);w=w*w;vA=.35+.65*w;vC=color;gl_PointSize=sz*pr*(.75+.5*w);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+        fragmentShader:'uniform float dim;varying vec3 vC;varying float vA;'+
+          'void main(){vec2 q=gl_PointCoord-.5;float d=length(q),core=smoothstep(.5,.0,d);'+
+          'float spike=max(0.,1.-abs(q.x)*16.)*max(0.,1.-abs(q.y)*2.2)+max(0.,1.-abs(q.y)*16.)*max(0.,1.-abs(q.x)*2.2);'+   // a soft four-point sparkle
+          'float a=(core*core+spike*.45)*vA*dim;if(a<.01)discard;gl_FragColor=vec4(vC*a,a);}'});
+      const pts=new THREE.Points(g,m);pts.frustumCulled=false;pts.renderOrder=-.5;return pts}
     function starPoints(n,rmin,rmax,px){
       const p=new Float32Array(n*3),col=new Float32Array(n*3);
       for(let i=0;i<n;i++){
@@ -3207,7 +3224,7 @@ const F=chassisB.force,T=chassisB.torque;
     // gravity toggle: default Earth gravity on every surface; this button enables the real planet g
     const gravBtn=document.createElement('button');
     gravBtn.className='dbtn mono';
-    gravBtn.style.cssText='position:fixed;right:max(8px,env(safe-area-inset-right,0px));top:calc(54px + env(safe-area-inset-top,0px));z-index:41;display:none';
+    gravBtn.style.cssText='position:fixed;left:max(12px,env(safe-area-inset-left,0px));top:calc(14px + env(safe-area-inset-top,0px));z-index:41;display:none';   // top left: the menu owns the top right
     gravBtn.textContent='Low gravity: on';
     gravBtn.onclick=()=>{ moonGravityOn=!moonGravityOn; gravBtn.textContent='Low gravity: '+(moonGravityOn?'on':'off'); };
     sec.appendChild(gravBtn);
@@ -3490,8 +3507,10 @@ const PLANETS={
         dg.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
         skyDome=new THREE.Mesh(dg,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,fog:false,depthWrite:false}));skyDome.renderOrder=-1;skyG.add(skyDome);
       }else{
-        skyG.add(starPoints(4500,3000,9000,1.6)); skyG.add(starPoints(400,3000,9000,3));
+        skyG.add(starPoints(12000,3000,7600,1.4)); skyG.add(starPoints(1400,3000,7600,2.4));
       }
+      // a layer of bright stars that twinkle, each at its own rate (dimmer through an atmosphere)
+      {const tw=twinkleStars(cfg.atmo?260:900,cfg.atmo?.35:1);skyG.add(tw);skyG.userData.twk=tw}
       if(cfg.jupiter){ const jd=new THREE.Vector3(0.3,0.17,0.94).normalize(),jup=makePlanet('giant',1300,'rgba(240,200,150,1)');jup.position.copy(jd).multiplyScalar(7600);jup.rotation.z=.12;skyG.add(jup); }
       if(cfg.earthInSky){ // Earth hanging in the black lunar sky, lit from the same sun
         const earthDir=new THREE.Vector3(-0.12,0.2,0.97).normalize();   // ahead and low enough to sit in the chase view
@@ -3770,8 +3789,13 @@ const PLANETS={
       /* ride height: the body plane comes from the four footprint samples, then it is lifted until it
          clears every point of a 5 x 3 grid under the vehicle, so a bump between samples can't poke through */
       const hC=groundH(cfg,S.road,p.x,p.z,S.s),pa=(hF-hB)/(2*fL),pb=(hR-hL)/(2*fW);
+      // clearance is checked against the ground as it is drawn: straight lines between the terrain's grid
+      // points, which in a hollow sit above the true curve and used to swallow the wheels
+      const ge=S.TILE/S.SEG,meshH=(x,z)=>{const i=Math.floor(x/ge),j=Math.floor(z/ge),u=x/ge-i,v=z/ge-j,
+        a=groundH(cfg,S.road,i*ge,j*ge,S.s),b=groundH(cfg,S.road,(i+1)*ge,j*ge,S.s),c=groundH(cfg,S.road,i*ge,(j+1)*ge,S.s),d=groundH(cfg,S.road,(i+1)*ge,(j+1)*ge,S.s);
+        return Math.max(groundH(cfg,S.road,x,z,S.s),(a*(1-u)+b*u)*(1-v)+(c*(1-u)+d*u)*v)};
       let lift=0;for(const u of [-1,-.5,0,.5,1])for(const w of [-1,0,1]){const lu=u*fL,lw=w*fW;
-        const h=groundH(cfg,S.road,p.x+fx*lu+rxv*lw,p.z+fz*lu+rzv*lw,S.s)-(hC+pa*lu+pb*lw);if(h>lift)lift=h}
+        const h=meshH(p.x+fx*lu+rxv*lw,p.z+fz*lu+rzv*lw)-(hC+pa*lu+pb*lw);if(h>lift)lift=h}
       const gy=hC+Math.min(lift,1.5)+1.1;
       const terrV=(gy-(S.prevGY||gy))/Math.max(dt,0.001); S.prevGY=gy;
       const G=(moonGravityOn?cfg.g:24);
@@ -3813,6 +3837,7 @@ const PLANETS={
       // stream world + stations; the sky travels with the rover
       rebuildTerrain(S,false); rebuildRoad(S); syncStations(S);
       if(S.skyG)S.skyG.position.set(p.x,0,p.z);
+      if(S.skyG&&S.skyG.userData.twk)S.skyG.userData.twk.material.uniforms.t.value=performance.now()/1000;
       S.sunL.target.position.copy(p); S.sunL.position.copy(p).add(new THREE.Vector3(cfg.sunDir[0],cfg.sunDir[1],cfg.sunDir[2]).multiplyScalar(400));
 
       // camera: the same modes as on Earth (C / Camera button / phone CAM), sized for the rover
@@ -3846,10 +3871,15 @@ const PLANETS={
       // HUD odometer
       const km=(S.maxS/1000), nextUFO=(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery, toNext=(nextUFO-S.s)/1000;
       odo.style.opacity='1'; if(frameN%3===0)drawSurfMap(S);
+      if(frameN%3===0){S.spdS=(S.spdS||0)+(speed*3.6-(S.spdS||0))*.4;spd.textContent=String(Math.round(S.spdS)).padStart(3,'0')}
       if(odo._mir!==rearMirrorOn){odo._mir=rearMirrorOn;odo.style.top=rearMirrorOn?'calc(116px + env(safe-area-inset-top,0px))':'calc(16px + env(safe-area-inset-top,0px))'}   // below the mirror when it is up
       try{NAV.tick(dt,performance.now())}catch(e){}
       if(frameN%6===0&&bigmap.classList.contains('on'))api.drawBigMap(bmc.getContext('2d'),bmc.width);
       odo.textContent=cfg.name+'  ·  '+Math.round(speed*3.6)+' km/h  ·  '+km.toFixed(2)+' km driven'+(api.gpsOn?'  ·  next UFO in '+toNext.toFixed(2)+' km':'');
+      if(S.sprint){const el=(performance.now()-S.sprint.t0)/1000;
+        if(S.s>=S.sprint.goal){const k='sl_sprint_'+S.key;let best=0;try{best=+localStorage.getItem(k)||0}catch(e){}const nb=!best||el<best;if(nb)try{localStorage.setItem(k,el.toFixed(2))}catch(e){}
+          toastMsg('UFO reached · '+el.toFixed(2)+' s'+(nb?' · new best!':' · best '+best.toFixed(2)+' s'));S.sprint=null}
+        else odo.textContent=cfg.name+'  ·  RACE  '+el.toFixed(2)+' s  ·  '+((S.sprint.goal-S.s)/1000).toFixed(2)+' km to the UFO  ·  '+Math.round(speed*3.6)+' km/h'}
       audioSurface(dt);
     }
 
@@ -3859,7 +3889,7 @@ const PLANETS={
     /* =================== STATE MACHINE =================== */
     const ufoHome=new THREE.Vector3();let carWasVisible=true;
     function spaceHud(on){ // Earth's HUD (speed, map, menu, key hints) has no meaning out here
-      try{hud.classList.toggle('on',!on);if(hint)hint.style.visibility=on?'hidden':'';}catch(e){} }
+      try{hud.classList.toggle('space',on);if(hint)hint.style.visibility=on?'hidden':'';}catch(e){} }   // out here only the speedometer stays
     function go(s,arg){ api.state=s; t=0;
       if(s==='space'){ buildSpace(); }
       if(s==='surface'){ odo.style.opacity='1'; bedOff(); pmap.style.display='block'; }
@@ -3872,10 +3902,8 @@ const PLANETS={
       }else spaceHud(true);
     }
 
-    // arrival onto planet `key`: the craft hovers over the road and lowers the rover on its beam
-    function beginArrival(key){
-      buildSurface(key); api.planet=key; const S=SURF, cfg=S.cfg;
-      // drive your own car out here: copy whatever car is selected, wheels resting on y=0
+    // the rover is a copy of whatever car is selected, wheels resting on y=0 (rebuilt when you change car out here)
+    function rebuildRover(S){
       {const old=S.rover;S.scene.remove(old);const holder=new THREE.Group(),cc=car.clone(true);cc.visible=true;cc.position.set(0,0,0);cc.quaternion.identity();cc.rotation.set(0,0,0);cc.scale.set(1,1,1);
         cc.traverse(o=>{if(o.isMesh&&o.visible&&!o.material.transparent)o.castShadow=true});   // don't unhide helpers like headlight cones
         // Earth's fake contact-shadow square is not needed under a real sun shadow
@@ -3888,7 +3916,15 @@ const PLANETS={
         S.glass=[];cc.traverse(o=>{if(o.isMesh&&o.material&&o.material.transparent&&o.material.opacity<.8)S.glass.push(o)});
         S.scene.add(holder);S.rover=holder;S.wheels=[];
         // footprint the ground is sampled at: the vehicle's own length and width, so a long truck rests on its ends
-        {const bb=new THREE.Box3().setFromObject(holder);S.halfL=Math.max(1.6,(bb.max.z-bb.min.z)*.42);S.halfW=Math.max(.6,(bb.max.x-bb.min.x)*.4)}}
+        // measured from the solid, visible body only: the headlight beam cones are many metres long
+        {const bb=new THREE.Box3(),tb=new THREE.Box3();holder.updateMatrixWorld(true);cc.traverse(o=>{if(!o.isMesh||!o.geometry||(o.material&&o.material.transparent))return;for(let q=o;q&&q!==holder;q=q.parent)if(!q.visible)return;
+           if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);bb.union(tb)});
+         S.halfL=Math.max(1.6,Math.min(5,(bb.max.z-bb.min.z)*.42));S.halfW=Math.max(.6,Math.min(1.6,(bb.max.x-bb.min.x)*.4))}}
+    }
+    // arrival onto planet `key`: the craft hovers over the road and lowers the rover on its beam
+    function beginArrival(key){
+      buildSurface(key); api.planet=key; const S=SURF, cfg=S.cfg;
+      rebuildRover(S);
       const r0=roadAt(cfg,S.road,0);
       S.vel.set(0,0,0); S.vy=0; S.yaw=Math.atan2(r0.tx,r0.tz); S.grounded=false; S.s=0; S.maxS=0; S.land=0;
       S.groundY=roadY(cfg,S.road,0)+1.1;
@@ -4093,6 +4129,15 @@ const PLANETS={
     /* the map + GPS code outside this module reads these */
     api.PLANETS=PLANETS;api.DS=DS;api.groundH=groundH;
     api._arrive=k=>{beginArrival(k)};
+    api.refreshRover=()=>{const S=SURF;if(!S||(api.state!=='surface'&&api.state!=='select'))return;const q=S.rover.quaternion.clone(),p=S.rover.position.clone();
+      rebuildRover(S);S.rover.quaternion.copy(q);S.rover.position.copy(p);S.glassOff=null};
+    api.resetRover=()=>{const S=SURF;if(!S||api.state!=='surface')return;const r=roadAt(S.cfg,S.road,S.s);S.pos.set(r.x,roadY(S.cfg,S.road,S.s)+1.1,r.z);
+      S.vel.set(0,0,0);S.vy=0;S.grounded=true;S.yaw=Math.atan2(r.tx,r.tz);S.visY=null;toastMsg('Back on the road')};
+    api.openTravel=()=>{if(api.state!=='surface')return;buildSelButtons();selEl.style.display='grid';api.state='select';t=0;say('');if(travelEl)travelEl.hidden=true};
+    api.goEarth=()=>{if(api.state==='surface'||api.state==='select')chooseDest('earth')};
+    /* a time trial on any planet: from here to the next UFO station along the road, best time kept per world */
+    api.startSprint=()=>{const S=SURF;if(!S||api.state!=='surface')return;const every=S.cfg.ufoEvery,goal=(Math.floor(S.s/every)+1)*every;
+      S.sprint={t0:performance.now(),goal,from:S.s};toastMsg('Race to the UFO station · '+((goal-S.s)/1000).toFixed(2)+' km · go!')};
     api.roadPoint=s=>{const S=SURF;if(!S)return null;const r=roadAt(S.cfg,S.road,Math.max(0,s));return {x:r.x,z:r.z,h:Math.atan2(r.tx,r.tz)}};   // autodrive follows this   // used by the ?dev=1 test hooks only
     Object.defineProperty(api,'SURF',{get:()=>SURF});
     return api;
@@ -4104,6 +4149,10 @@ const PLANETS={
      speed the car's own grip allows. It drives through the same inputs you do, so the physics, lap
      timing and the race rules all treat it exactly like a person. Any steering, throttle or brake key
      takes control straight back. */
+  /* planet-only menu entries; the Earth-only ones are hidden out there by CSS (#dhud.space) */
+  {const row=$('#drow');if(row){const sec2=document.createElement('div');sec2.className='dmsec mono spaceonly';sec2.textContent='Planet';row.prepend(sec2);
+    let after=sec2;[['dptravel','Travel','Fly to another world',()=>SPACE.openTravel()],['dsprint','Race to UFO','Time trial to the next UFO station',()=>SPACE.startSprint()],['dhome','Earth','Fly back home to Earth',()=>SPACE.goEarth()]].forEach(([id,t,ti,fn])=>{
+      const b=document.createElement('button');b.id=id;b.className='dbtn mono spaceonly';b.textContent=t;b.title=ti;b.onclick=()=>{fn();const m=$('#dmenu');if(m&&m.getAttribute('aria-expanded')==='true')m.click()};after.after(b);after=b})}}
   const AUTO=(function(){
     let on=false,ci=0,wi=0;
     const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),btn=document.createElement('button');
