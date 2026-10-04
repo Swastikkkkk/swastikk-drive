@@ -492,6 +492,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(h>.2){const rr=(fbm2(x*.055+4,z*.055-6)-.5)*(5.4+h*.5)+(fbm2(x*.17-11,z*.17+8)-.5)*2.1;
       h=Math.max(.2,h+rr*SM((md-9)/13)*Math.min(1,h/3))}
     return h}
+  // how far out a point is (square distance, with a wandering coast) and how much of the west range it belongs to
+  function worldEdge(x,z){return {de:Math.max(Math.abs(x),Math.abs(z))+(fbm2(x*.006+3,z*.006-8)-.8)*70,wM:SM((140-x)/280)}}
   function terrainH(x,z){
     let h=rollingH(x,z);
     const m=mountH(x,z);if(m>h)h=m;
@@ -500,9 +502,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const pd=Math.hypot(x-POND.x,z-POND.z),pr=pondR(x,z);
     if(pd<pr*2.7){const lw=(1-SM((pd-pr*1.1)/(pr*1.55)))*.92;h=h*(1-lw)+.3*lw}
     if(pd<pr*1.32){const bw=1-SM((pd-pr*.94)/(pr*.36));h=h*(1-bw)+(-POND.depth*SM((pr*.99-pd)/(pr*.52)))*bw}
-    // valley rim, so the world has a horizon instead of an edge
-    const de=Math.max(Math.abs(x),Math.abs(z));
-    if(de>116*MK*LAND){const t=SM((de-116*MK*LAND)/(32*MK));h+=t*(18+(fbm2(x*.04+7,z*.04-3)-.5)*20)}
+    /* the edges of the world: to the west a wall of real mountains, too steep to drive; to the east the
+       land falls to a beach and the sea, which runs on to the horizon. North and south the range runs
+       down into the water. The coastline wanders so the map never reads as a square. */
+    {const e=worldEdge(x,z);
+     if(e.wM>0&&e.de>440){const t=SM((e.de-440)/230),ridge=1-Math.abs(fbm2(x*.012+11,z*.012-5)*2-1);
+       h+=e.wM*t*t*(70+ridge*170+(fbm2(x*.05,z*.05)-.5)*30)}
+     if(e.wM<1&&e.de>460){const shore=LRP(.55,WATER_Y-.75,SM((e.de-525)/45))-9*SM((e.de-(BOUND+8))/50);   // beach, wading depth, then the shelf drops away
+       h=LRP(h,shore,(1-e.wM)*SM((e.de-460)/70))}}
     // the road corridor stays true to the spline, and wins over everything
     const rn=roadNear(x,z),fw=1-SM((rn.d-(9.8+RWX))/30);
     if(fw>0)h=h*(1-fw)+(rn.ring?BR_H:rn.branch?brHAt(rn.u):hAt(rn.u))*fw;
@@ -551,6 +558,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         const dirt=SM((sl-.3)/.45)*.7;r=LRP(r,.34,dirt);g2=LRP(g2,.245,dirt);b=LRP(b,.15,dirt);
         const rk=Math.max(SM((sl-.62)/.5),SM((h-9)/10)*.85);r=LRP(r,.42,rk);g2=LRP(g2,.4,rk);b=LRP(b,.365,rk);
         const sc=Math.max(SM((h-16.5)/5.5)*(1-SM((sl-1.3)/.6)*.75),snowAmt);r=LRP(r,.93,sc);g2=LRP(g2,.95,sc);b=LRP(b,.98,sc);
+        // sand on the real shore only, not in low dips inland
+        {const e=worldEdge(x,z);if(e.wM<1&&e.de>495&&h<1.6){const sand=SM((1.6-h)/1.2)*SM((e.de-495)/25)*(1-e.wM)*(1-snowAmt*.8);r=LRP(r,.74,sand);g2=LRP(g2,.66,sand);b=LRP(b,.48,sand)}}
         const pd=Math.hypot(x-POND.x,z-POND.z),pr=pondR(x,z);
         if(pd<pr*1.55&&h<1.2){const sand=SM((1.2-h)/1.05)*SM((pr*1.55-pd)/(pr*.5))*(1-snowAmt*.8);r=LRP(r,.7,sand);g2=LRP(g2,.61,sand);b=LRP(b,.42,sand)}
         {const V=VZ.volc,vd=Math.hypot(x-V.x,z-V.z);if(vd<V.R*1.08){const vb=SM((V.R*1.08-vd)/(V.R*.3));r=LRP(r,.12,vb);g2=LRP(g2,.105,vb);b=LRP(b,.1,vb);
@@ -676,6 +685,15 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const pondPts=[];{const K=34;for(let k=0;k<K;k++){const a=k/K*Math.PI*2,rr=edgeR(a);pondPts.push({a,rr,x:POND.x+Math.cos(a)*rr,z:POND.z+Math.sin(a)*rr})}}
   const waterNorm=waterNormTex();
   const waterM=new THREE.MeshPhongMaterial({color:0x2f5566,shininess:64,specular:0x6f8f9f,transparent:true,opacity:.86,normalMap:waterNorm,normalScale:new THREE.Vector2(.45,.45)});
+  /* the sea: four big sheets round the east, north and south coasts (none over the valley, where low ground
+     would show water through it), out far enough that the fog meets it before its edge does */
+  (function(){const sm=waterM,F=20000,IN=470,WX=-150;   // the pond's own water, so it follows the weather's colours
+    const sheet=(x0,x1,z0,z1)=>{const g=new THREE.PlaneGeometry(x1-x0,z1-z0).rotateX(-Math.PI/2);
+      const uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*(x1-x0)/14,uv.getY(i)*(z1-z0)/14);
+      const m=new THREE.Mesh(g,sm);m.position.set((x0+x1)/2,WATER_Y-.01,(z0+z1)/2);m.receiveShadow=true;S.add(m)};
+    sheet(IN,F,-F,F);sheet(WX,IN,IN,F);sheet(WX,IN,-F,-IN);
+    // the range's foot reaches the shore north and south; carry the sea a little way west under it there
+    sheet(-F,WX,BOUND+40,F);sheet(-F,WX,-F,-BOUND-40)})();
   const water=(function(){const s=new THREE.Shape();pondPts.forEach((p,k)=>{const x=Math.cos(p.a)*p.rr*1.02,z=Math.sin(p.a)*p.rr*1.02;k===0?s.moveTo(x,z):s.lineTo(x,z)});s.closePath();
     const g=new THREE.ShapeGeometry(s,26);const m=new THREE.Mesh(g,waterM);m.rotation.x=-Math.PI/2;m.position.set(POND.x,WATER_Y,POND.z);S.add(m);return m})();
   const ripple=new THREE.Mesh(new THREE.RingGeometry(.9,1.1,28),new THREE.MeshBasicMaterial({color:0xdfe9ef,transparent:true,opacity:0,depthWrite:false}));ripple.rotation.x=-Math.PI/2;S.add(ripple);
