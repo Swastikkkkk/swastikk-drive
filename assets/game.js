@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   if(window.PhoneController&&window.PhoneController.isControllerMode)return;   // this tab is a phone gamepad, not a game
   const show3DFallback=()=>{
     const loading=$('#dload');
-    if(loading){loading.textContent='This game requires WebGL for the full 3D experience. Please use a modern browser with hardware acceleration enabled.';loading.style.cssText='position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:28px;background:#06070b;color:#f2eee6;font:500 15px/1.6 system-ui,sans-serif;text-align:center;letter-spacing:0;text-transform:none'}
+    if(loading){loading.textContent='This game requires WebGL for the full 3D experience. Please use a modern browser with hardware acceleration enabled.';loading.style.cssText='position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:28px;background:#06070b;color:#eef0f3;font:500 15px/1.6 system-ui,sans-serif;text-align:center;letter-spacing:0;text-transform:none'}
   };
   if(!window.THREE||!window.CANNON){show3DFallback();return}
   try{const probe=document.createElement('canvas');if(!(probe.getContext('webgl')||probe.getContext('experimental-webgl'))){show3DFallback();return}}catch(e){show3DFallback();return}
@@ -677,7 +677,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     lilies.forEach(([x,z,s],i)=>{o.position.set(x,WATER_Y+.03,z);o.scale.set(s,s,s);o.rotation.set(-Math.PI/2,0,i);o.updateMatrix();lilyIM.setMatrixAt(i,o.matrix)});S.add(lilyIM)})();
   SCN.grass=null;
   /* ---------- labels ---------- */
-  function label(txt,sub,w=1024,h=256,dark=false){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle=dark?'#f2eee6':'#15140f';x.fillRect(0,0,w,h);x.fillStyle=dark?'#15140f':'#f2eee6';x.textAlign='center';x.textBaseline='middle';x.font=`600 ${sub?h*.4:h*.5}px -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Inter,"Helvetica Neue",Arial,sans-serif`;x.fillText(txt,w/2,sub?h*.38:h*.5,w*.94);if(sub){x.font=`600 ${h*.12}px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace`;x.fillStyle=dark?'#6b675f':'#9a958c';x.fillText(sub.toUpperCase(),w/2,h*.78,w*.94)}const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t}
+  function label(txt,sub,w=1024,h=256,dark=false){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle=dark?'#eef0f3':'#15140f';x.fillRect(0,0,w,h);x.fillStyle=dark?'#15140f':'#eef0f3';x.textAlign='center';x.textBaseline='middle';x.font=`600 ${sub?h*.4:h*.5}px -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Inter,"Helvetica Neue",Arial,sans-serif`;x.fillText(txt,w/2,sub?h*.38:h*.5,w*.94);if(sub){x.font=`600 ${h*.12}px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace`;x.fillStyle=dark?'#6b675f':'#9a958c';x.fillText(sub.toUpperCase(),w/2,h*.78,w*.94)}const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t}
   function signPost(x,z,y,txt,sub,dark,ry){const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=ry;S.add(g);const post=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,3.2,6),steel);post.position.y=1.6;g.add(post);const b=new THREE.Mesh(new THREE.BoxGeometry(6.4,1.8,.2),dark?paper:ink);b.position.y=3.8;g.add(b);const pl=new THREE.Mesh(new THREE.PlaneGeometry(6.2,1.6),new THREE.MeshBasicMaterial({map:label(txt,sub,1024,264,dark)}));pl.position.set(0,3.8,.12);g.add(pl);const p2=pl.clone();p2.rotation.y=Math.PI;p2.position.z=-.12;g.add(p2);staticBox(x,y+1.6,z,.15,1.6,.15);return g}
   signPost(POND.x+POND.r+2,POND.z,0,'The pond','drive in · you can swim',false,-Math.PI/2);
   signPost(PG.x,PG.z+15,0,'Playground','ramps · crates · cones',false,0);
@@ -750,7 +750,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   (function(){const q=VZ.stunt,gy=HF.h(q.x,q.z),ry=SAX.ry;
     const pad=new THREE.Mesh(new THREE.CircleGeometry(q.r-1,64).rotateX(-Math.PI/2),M(0x3b3c3f,{map:grainTex(64,.2,10,.55),polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));pad.position.set(q.x,gy+.03,q.z);pad.receiveShadow=true;S.add(pad);
     // run-up stripe so you can see the line from the track
-    {const c=document.createElement('canvas');c.width=64;c.height=512;const x=c.getContext('2d');x.clearRect(0,0,64,512);x.fillStyle='rgba(242,238,230,.85)';for(let i=0;i<512;i+=64)x.fillRect(26,i,12,36);
+    {const c=document.createElement('canvas');c.width=64;c.height=512;const x=c.getContext('2d');x.clearRect(0,0,64,512);x.fillStyle='rgba(238,240,243,.85)';for(let i=0;i<512;i+=64)x.fillRect(26,i,12,36);
      const t=new THREE.CanvasTexture(c);const m=new THREE.Mesh(new THREE.PlaneGeometry(1.2,40).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
      const [x0,z0]=SP(-58+20,0);m.position.set(x0,gy+.05,z0);m.rotation.y=ry;S.add(m)}
     // the mega jump: kicker, table top, landing
@@ -819,8 +819,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function drawBowl(){const B=BOWL,c=B.sc,x=c.getContext('2d');x.fillStyle='#0b0c0e';x.fillRect(0,0,1024,300);
     x.fillStyle='#e8c28a';x.font='600 30px ui-monospace,"SF Mono",Menlo,Consolas,monospace';x.textBaseline='top';x.fillText('LANE 1 · GIANT BOWLING',40,30);
     const cols=[['LAST',B.last==null?'–':String(B.last)],['BEST',String(B.best)],['STRIKES',String(B.strikes)],['ROLLS',String(B.rolls)]];
-    cols.forEach(([k,v],i)=>{const x0=40+i*245;x.fillStyle='rgba(242,238,230,.55)';x.font='500 24px ui-monospace,"SF Mono",Menlo,Consolas,monospace';x.fillText(k,x0,100);
-      x.fillStyle=i===0&&B.last===10?'#ff6a4a':'#f2eee6';x.font='700 120px -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif';x.fillText(v,x0-4,132)});
+    cols.forEach(([k,v],i)=>{const x0=40+i*245;x.fillStyle='rgba(238,240,243,.55)';x.font='500 24px ui-monospace,"SF Mono",Menlo,Consolas,monospace';x.fillText(k,x0,100);
+      x.fillStyle=i===0&&B.last===10?'#ff6a4a':'#eef0f3';x.font='700 120px -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif';x.fillText(v,x0-4,132)});
     B.tex.needsUpdate=true}
   function pinsDown(){let n=0;const up=new CANNON.Vec3(),Y=new CANNON.Vec3(0,1,0);PINS.forEach(P=>{P.b.quaternion.vmult(Y,up);if(up.y<.8||Math.hypot(P.b.position.x-P.x,P.b.position.z-P.z)>1.3)n++});return n}
   function rackBowl(){const B=BOWL,cp=chassisB.position;
@@ -860,7 +860,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     for(let k=0;k<3;k++){const bg=new THREE.BoxGeometry(.9,15,.25);bg.translate(0,7.8,0);const b=new THREE.Mesh(bg,wm);b.rotation.z=k*Math.PI*2/3;rot.add(b)}
     staticBox(x,y+10,z,1,10,1);TURB.push({rot,sp:.8+i*.08})});
   /* --- hot air balloons drifting over the valley --- */
-  const BAL=[];[['#b8322f','#f2eee6'],['#2f4f9e','#d9b23a'],['#3f8a56','#f2eee6'],['#d9b23a','#b8322f']].forEach(([a,b],i)=>{
+  const BAL=[];[['#b8322f','#eef0f3'],['#2f4f9e','#d9b23a'],['#3f8a56','#eef0f3'],['#d9b23a','#b8322f']].forEach(([a,b],i)=>{
     const c=document.createElement('canvas');c.width=128;c.height=64;const x=c.getContext('2d');for(let s=0;s<8;s++){x.fillStyle=s%2?a:b;x.fillRect(s*16,0,16,64)}
     const g=new THREE.Group(),env=new THREE.Mesh(new THREE.SphereGeometry(6,20,16),M(0xffffff,{map:new THREE.CanvasTexture(c)}));env.scale.y=1.18;env.position.y=9;g.add(env);
     const sk=new THREE.Mesh(new THREE.CylinderGeometry(2.6,1.1,3.4,14,1,true),M(new THREE.Color(a).getHex(),{side:THREE.DoubleSide}));sk.position.y=2.4;g.add(sk);
@@ -1085,7 +1085,7 @@ async function submitToLeaderboard(ms,vehicle){
   (function(){const {p,ry,n}=at(0);
     // painted line
     const lw=6.2+RWX*2,seg=10;const cg=document.createElement('canvas');cg.width=seg*2;cg.height=8;const cx=cg.getContext('2d');
-    for(let i=0;i<seg;i++)for(let j=0;j<2;j++){cx.fillStyle=(i+j)%2?'#f2eee6':'#1b1a16';cx.fillRect(i*2,j*4,2,4)}
+    for(let i=0;i<seg;i++)for(let j=0;j<2;j++){cx.fillStyle=(i+j)%2?'#eef0f3':'#1b1a16';cx.fillRect(i*2,j*4,2,4)}
     const lt=new THREE.CanvasTexture(cg);lt.magFilter=THREE.NearestFilter;
     const line=new THREE.Mesh(new THREE.PlaneGeometry(lw,1.5),new THREE.MeshBasicMaterial({map:lt}));
     line.rotation.set(-Math.PI/2,0,-ry);line.position.set(p.x,p.y+.115,p.z);S.add(line);
@@ -2399,7 +2399,7 @@ t.bd.position.set(x,y+.86,z);
   let planetMapCache=null;
   function drawMap(c,size,big){
     if(SPACE.state!=='earth'){   // off Earth: this planet's map, or nothing in flight; never Earth's valley
-      if(!(SPACE.drawBigMap&&SPACE.drawBigMap(c,size))){c.clearRect(0,0,size,size);c.fillStyle='rgba(242,238,230,.7)';c.font='600 '+Math.round(size/30)+'px ui-monospace,monospace';c.textAlign='center';c.fillText('No map in flight',size/2,size/2)}
+      if(!(SPACE.drawBigMap&&SPACE.drawBigMap(c,size))){c.clearRect(0,0,size,size);c.fillStyle='rgba(238,240,243,.7)';c.font='600 '+Math.round(size/30)+'px ui-monospace,monospace';c.textAlign='center';c.fillText('No map in flight',size/2,size/2)}
       return}
     const q=chassisB.quaternion, yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
     // circuit mode: draw custom track
@@ -2411,13 +2411,13 @@ t.bd.position.set(x,y+.86,z);
       c.beginPath();c.arc(0,0,size/2-1,0,6.283);c.fillStyle='rgba(18,17,15,.88)';c.fill();c.clip();
       if(!big){let d=(yaw+Math.PI-mapRot);d=Math.atan2(Math.sin(d),Math.cos(d));mapRot+=d*.1;c.rotate(mapRot);c.translate(-chassisB.position.x*csc,-chassisB.position.z*csc)}
       else c.translate(-ccx*csc,-ccz*csc);
-      c.strokeStyle='rgba(242,238,230,.9)';c.lineWidth=big?5:3.5;c.lineJoin='round';c.beginPath();
+      c.strokeStyle='rgba(238,240,243,.9)';c.lineWidth=big?5:3.5;c.lineJoin='round';c.beginPath();
       pts.forEach((p,i)=>{i?c.lineTo(p.x*csc,p.z*csc):c.moveTo(p.x*csc,p.z*csc)});c.closePath();c.stroke();
       if(circuit.startP){c.fillStyle='#f2b26b';c.beginPath();c.arc(circuit.startP.p.x*csc,circuit.startP.p.z*csc,big?5:3.4,0,6.283);c.fill()}
       NAV.drawOnMap(c,csc,big);
       c.translate(chassisB.position.x*csc,chassisB.position.z*csc);c.rotate(Math.PI-yaw);
-      c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
-      c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
+      c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
+      c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
     // planet surface mode (Moon/Mars): only show planet features
     if(MODE==='surface' && S.planet && SPACE.PLANETS[S.planet]){
       const cfg=SPACE.PLANETS[S.planet];
@@ -2447,8 +2447,8 @@ t.bd.position.set(x,y+.86,z);
         c.fillText('→ '+Math.round(bearing*180/Math.PI)+'°',size/2-8,-size/2+18);
       }
       c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);
-      c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
-      c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
+      c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
+      c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
     // Earth world mode
     const sc=size/2/(big?116*MK*LAND+14:60);
     c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);
@@ -2456,15 +2456,15 @@ t.bd.position.set(x,y+.86,z);
     if(!big){let d=(yaw+Math.PI-mapRot);d=Math.atan2(Math.sin(d),Math.cos(d));mapRot+=d*.1;c.rotate(mapRot);c.translate(-chassisB.position.x*sc,-chassisB.position.z*sc)}
     if(!mapCache)buildMapCache();
     {const s=MAPR*sc;c.drawImage(mapCache,-s,-s,s*2,s*2)}
-    c.strokeStyle='#f2eee6';c.lineWidth=2;c.beginPath();const n=Math.floor(progU*MAPS.length);for(let i=0;i<=n&&i<MAPS.length;i++){const p=MAPS[i];i?c.lineTo(p.x*sc,p.z*sc):c.moveTo(p.x*sc,p.z*sc)}c.stroke();
+    c.strokeStyle='#eef0f3';c.lineWidth=2;c.beginPath();const n=Math.floor(progU*MAPS.length);for(let i=0;i<=n&&i<MAPS.length;i++){const p=MAPS[i];i?c.lineTo(p.x*sc,p.z*sc):c.moveTo(p.x*sc,p.z*sc)}c.stroke();
     const t=performance.now()/500;
     {
      // traffic shows up on the map so you can see what you are racing into
-     c.fillStyle='rgba(242,238,230,.75)';traffic.forEach(tc=>{const pt=at(tc.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?3.4:2.2,0,6.283);c.fill()})}
+     c.fillStyle='rgba(238,240,243,.75)';traffic.forEach(tc=>{const pt=at(tc.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?3.4:2.2,0,6.283);c.fill()})}
 // AI racers on map
       {c.fillStyle='rgba(255,100,100,.9)';aiRacers.forEach(ai=>{const pt=at(ai.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?4:2.5,0,6.283);c.fill();if(big){c.fillStyle='#fff';c.font='600 8px ui-monospace,monospace';c.textAlign='center';c.fillText(ai.skill.charAt(0).toUpperCase(),pt.x*sc,pt.z*sc+2);c.fillStyle='rgba(255,100,100,.9)'}})}
     // the ring road
-    {c.strokeStyle='rgba(242,238,230,.45)';c.lineWidth=big?3:2;
+    {c.strokeStyle='rgba(238,240,243,.45)';c.lineWidth=big?3:2;
      c.beginPath();c.arc(RING.x*sc,RING.z*sc,RING.r*sc,0,6.283);c.stroke()}
     // the summit
     {c.fillStyle=atSummit?'#f2b26b':'#c98a4a';c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,big?5:3.4,0,6.283);c.fill();
@@ -2473,8 +2473,8 @@ t.bd.position.set(x,y+.86,z);
     if(big){c.font='600 11px ui-monospace,"SF Mono",Menlo,Consolas,monospace';c.fillStyle='#e8c28a';[['STUNT PARK',VZ.stunt],['UFO',VZ.ufo],['VOLCANO',VZ.volc]].forEach(([t,q])=>c.fillText(t,q.x*sc-t.length*3.3,q.z*sc+4))}
     if(big){c.fillStyle='#9fc3d6';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.fillText('POND',POND.x*sc-14,POND.z*sc+4);c.fillStyle='#d88';c.fillText('PLAYGROUND',(PG.x-12)*sc,(PG.z-13)*sc);c.fillStyle='#cdb98f';const hp=SAMP[Math.floor(.44*N)];c.fillText('HILL',hp.x*sc+10,hp.z*sc-10)}
     NAV.drawOnMap(c,sc,big);
-    c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
-    c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke()}
+    c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
+    c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke()}
   /* ---------- navigation ----------
      Routes follow real roads, never a straight line across the grass.
      Earth: a graph of the valley loop, the branch road, the ring road and the spur roads, joined wherever two of them
@@ -2573,7 +2573,7 @@ t.bd.position.set(x,y+.86,z);
       const css=document.createElement('style');css.textContent=
         '#dnav{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3;display:none;pointer-events:none;'+
           'grid-template-columns:auto 1fr auto;align-items:center;gap:12px;min-width:min(380px,calc(100vw - 32px));max-width:calc(100vw - 32px);padding:8px 12px 8px 8px;border-radius:16px;'+
-          'background:linear-gradient(180deg,rgba(18,20,22,.86),rgba(10,11,12,.8));backdrop-filter:blur(10px);box-shadow:0 8px 28px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);color:#f2eee6}'+
+          'background:linear-gradient(180deg,rgba(18,20,22,.86),rgba(10,11,12,.8));backdrop-filter:blur(10px);box-shadow:0 8px 28px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);color:#eef0f3}'+
         '#dnav.on{display:grid}#dnav .ic{width:52px;height:52px;border-radius:12px;background:#1f7a4a;display:grid;place-items:center}#dnav.off .ic{background:#b5761a}'+
         '#dnav .md{font:700 22px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;letter-spacing:-.01em;white-space:nowrap}'+
         '#dnav .mt{font:600 12px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;opacity:.85;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
@@ -2602,7 +2602,7 @@ t.bd.position.set(x,y+.86,z);
         c.fillStyle='rgba(255,255,255,.06)';c.beginPath();c.arc(48,48,44,0,6.283);c.fill();c.strokeStyle='rgba(255,255,255,.25)';c.lineWidth=2;c.stroke();
         const n=wrap(Math.PI-h);c.fillStyle='#ff5a4a';c.font='700 16px ui-monospace,monospace';c.textAlign='center';c.textBaseline='middle';c.fillText('N',48-Math.sin(n)*33,48-Math.cos(n)*33);
         needle+=wrap(rel-needle)*Math.min(1,dt*8);
-        c.save();c.translate(48,48);c.rotate(-needle);c.strokeStyle='#3ee08a';c.fillStyle='#3ee08a';c.lineWidth=6;c.lineCap='round';c.beginPath();c.moveTo(0,22);c.lineTo(0,-12);c.stroke();c.beginPath();c.moveTo(0,-32);c.lineTo(12,-10);c.lineTo(-12,-10);c.closePath();c.fill();c.restore();c.fillStyle='#f2eee6';c.beginPath();c.arc(48,48,4,0,6.283);c.fill()}   // arrow with a shaft: unmistakable which end is the front
+        c.save();c.translate(48,48);c.rotate(-needle);c.strokeStyle='#3ee08a';c.fillStyle='#3ee08a';c.lineWidth=6;c.lineCap='round';c.beginPath();c.moveTo(0,22);c.lineTo(0,-12);c.stroke();c.beginPath();c.moveTo(0,-32);c.lineTo(12,-10);c.lineTo(-12,-10);c.closePath();c.fill();c.restore();c.fillStyle='#eef0f3';c.beginPath();c.arc(48,48,4,0,6.283);c.fill()}   // arrow with a shaft: unmistakable which end is the front
       function render(R,g,dt){
         d.classList.toggle('off',!!R.off);drawIcon(g.kind,g.dir);drawCompass(R.h,g.rel,dt);
         md.textContent=g.kind==='straight'?fmtD(g.remain):g.manD?fmtD(g.manD):g.man;
@@ -3186,11 +3186,11 @@ const F=chassisB.force,T=chassisB.torque;
       const cfg=S.cfg,R0=size/2,span=3000,sc=(R0-6)/span,px=S.pos.x,pz=S.pos.z,P=(x,z)=>[R0+(x-px)*sc,R0+(z-pz)*sc];
       c.clearRect(0,0,size,size);c.save();c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.clip();
       c.fillStyle=cfg.atmo?'rgba(70,34,20,.92)':cfg.cracks?'rgba(40,46,58,.92)':'rgba(20,20,24,.92)';c.fillRect(0,0,size,size);
-      c.strokeStyle='rgba(242,238,230,.08)';c.lineWidth=1;for(let r=500;r<span;r+=500){c.beginPath();c.arc(R0,R0,r*sc,0,6.283);c.stroke()}
+      c.strokeStyle='rgba(238,240,243,.08)';c.lineWidth=1;for(let r=500;r<span;r+=500){c.beginPath();c.arc(R0,R0,r*sc,0,6.283);c.stroke()}
       const road=(from,to,col,w)=>{c.strokeStyle=col;c.lineWidth=w;c.lineCap='round';c.lineJoin='round';c.beginPath();
         for(let s=Math.max(0,from),f=1;s<=to;s+=20,f=0){const r=roadAt(cfg,S.road,s),q=P(r.x,r.z);f?c.moveTo(q[0],q[1]):c.lineTo(q[0],q[1])}c.stroke()};
-      road(S.s-span*1.5,S.s+span*1.5,'rgba(242,238,230,.85)',Math.max(3,size/160));
-      road(0,S.s,'rgba(212,168,58,.9)',Math.max(2,size/220));                        // the stretch you've already driven
+      road(S.s-span*1.5,S.s+span*1.5,'rgba(238,240,243,.85)',Math.max(3,size/160));
+      road(0,S.s,'rgba(255,106,26,.9)',Math.max(2,size/220));                        // the stretch you've already driven
       if(api.gpsOn)road(S.s,(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery,'rgba(0,255,136,.9)',Math.max(3,size/150));   // route to the next UFO, with GPS on
       const every=cfg.ufoEvery;c.font='600 '+Math.round(size/48)+'px ui-monospace,monospace';c.textAlign='center';
       if(api.gpsOn)for(let k=Math.max(1,Math.floor((S.s-span*1.5)/every));k<=Math.floor((S.s+span*1.5)/every)+1;k++){
@@ -3198,28 +3198,28 @@ const F=chassisB.force,T=chassisB.torque;
         c.fillStyle=ahead?'#5cf2ff':'rgba(92,242,255,.45)';c.beginPath();c.arc(q[0],q[1],size/90,0,6.283);c.fill();
         c.fillText('UFO '+(Math.abs(k*every-S.s)/1000).toFixed(1)+' km',q[0],q[1]-size/60)}
       c.translate(R0,R0);c.rotate(Math.atan2(Math.sin(S.yaw),-Math.cos(S.yaw)));const a=size/60;
-      c.fillStyle='#f2eee6';c.beginPath();c.moveTo(0,-a*1.4);c.lineTo(a,a);c.lineTo(0,a*.45);c.lineTo(-a,a);c.closePath();c.fill();c.restore();
-      c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=2;c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.stroke();
-      c.fillStyle='rgba(242,238,230,.85)';c.font='600 '+Math.round(size/36)+'px ui-monospace,monospace';c.textAlign='center';
+      c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-a*1.4);c.lineTo(a,a);c.lineTo(0,a*.45);c.lineTo(-a,a);c.closePath();c.fill();c.restore();
+      c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=2;c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.stroke();
+      c.fillStyle='rgba(238,240,243,.85)';c.font='600 '+Math.round(size/36)+'px ui-monospace,monospace';c.textAlign='center';
       c.fillText(cfg.name.toUpperCase()+' · '+(S.maxS/1000).toFixed(2)+' km driven',R0,size*.08);
-      c.fillStyle='rgba(242,238,230,.6)';c.font='500 '+Math.round(size/52)+'px ui-monospace,monospace';c.fillText('rings every 500 m · N up',R0,size*.94);
+      c.fillStyle='rgba(238,240,243,.6)';c.font='500 '+Math.round(size/52)+'px ui-monospace,monospace';c.fillText('rings every 500 m · N up',R0,size*.94);
       return true};
     function drawSurfMap(S){
       const cfg=S.cfg,c=pmx,N=180,R0=N/2,sc=R0/1100,yaw=S.yaw,cs=Math.cos(yaw),sn=Math.sin(yaw),px=S.pos.x,pz=S.pos.z;
       const P=(x,z)=>{const dx=x-px,dz=z-pz;return [R0+(-dx*cs+dz*sn)*sc,R0-(dx*sn+dz*cs)*sc]};   // heading up, right on the right
       c.clearRect(0,0,N,N);c.save();c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.clip();
       c.fillStyle=cfg.atmo?'rgba(70,34,20,.86)':cfg.cracks?'rgba(40,46,58,.86)':'rgba(22,22,26,.86)';c.fillRect(0,0,N,N);
-      c.strokeStyle='rgba(242,238,230,.85)';c.lineWidth=4;c.lineCap='round';c.beginPath();
+      c.strokeStyle='rgba(238,240,243,.85)';c.lineWidth=4;c.lineCap='round';c.beginPath();
       for(let s=Math.max(0,S.s-1400),f=1;s<=S.s+1400;s+=25,f=0){const r=roadAt(cfg,S.road,s),q=P(r.x,r.z);f?c.moveTo(q[0],q[1]):c.lineTo(q[0],q[1])}c.stroke();
       // stations within range, and the next one ahead with its distance
       const every=cfg.ufoEvery,kNext=Math.floor(S.s/every)+1;
       if(api.gpsOn)for(let k=Math.max(1,kNext-1);k<=kNext+1;k++){const r=roadAt(cfg,S.road,k*every),q=P(r.x,r.z);
         c.fillStyle=k===kNext?'#5cf2ff':'rgba(92,242,255,.5)';c.beginPath();c.arc(q[0],q[1],k===kNext?6:4,0,6.283);c.fill()}
       c.restore();
-      c.strokeStyle='rgba(242,238,230,.5)';c.lineWidth=2;c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.stroke();
-      c.fillStyle='#f2eee6';c.beginPath();c.moveTo(R0,R0-9);c.lineTo(R0+6,R0+7);c.lineTo(R0,R0+3);c.lineTo(R0-6,R0+7);c.closePath();c.fill();
+      c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=2;c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.stroke();
+      c.fillStyle='#eef0f3';c.beginPath();c.moveTo(R0,R0-9);c.lineTo(R0+6,R0+7);c.lineTo(R0,R0+3);c.lineTo(R0-6,R0+7);c.closePath();c.fill();
       const toNext=Math.max(0,kNext*every-S.s);c.font='600 13px ui-monospace,monospace';c.textAlign='center';c.fillStyle='#5cf2ff';if(api.gpsOn)c.fillText('UFO '+(toNext/1000).toFixed(2)+' km',R0,N-16);
-      c.fillStyle='rgba(242,238,230,.75)';c.font='600 11px ui-monospace,monospace';c.fillText(cfg.name.toUpperCase(),R0,22);
+      c.fillStyle='rgba(238,240,243,.75)';c.font='600 11px ui-monospace,monospace';c.fillText(cfg.name.toUpperCase(),R0,22);
     }
     // gravity toggle: default Earth gravity on every surface; this button enables the real planet g
     const gravBtn=document.createElement('button');
@@ -3253,14 +3253,14 @@ const F=chassisB.force,T=chassisB.torque;
       DEST.forEach(d=>{
         const b=document.createElement('button');
         b.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;'+
-          'background:rgba(242,238,230,.06);border:1px solid rgba(242,238,230,.18);border-radius:12px;padding:12px 15px;'+
+          'background:rgba(238,240,243,.06);border:1px solid rgba(238,240,243,.18);border-radius:12px;padding:12px 15px;'+
           'color:#eef2ff;cursor:pointer;width:100%';
         const here=d.key===api.planet&&api.state==='select';
         b.innerHTML='<span><b style="font:600 19px var(--serif,sans-serif)">'+d.name+(here?' (here)':'')+
           '</b><br><span style="color:#9aa3ab;font-size:11px">'+d.env+'</span></span>'+
           '<span style="color:#9fc3d6;font-size:12px;white-space:nowrap">'+d.g+'</span>';
-        b.onmouseenter=()=>{b.style.background='rgba(242,238,230,.14)'};
-        b.onmouseleave=()=>{b.style.background='rgba(242,238,230,.06)'};
+        b.onmouseenter=()=>{b.style.background='rgba(238,240,243,.14)'};
+        b.onmouseleave=()=>{b.style.background='rgba(238,240,243,.06)'};
         b.onclick=()=>chooseDest(d.key);
         selList.appendChild(b);
       });
@@ -4171,7 +4171,7 @@ const PLANETS={
     const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),btn=document.createElement('button');
     {const gb=$('#dgps');if(gb){btn.className=gb.className;btn.id='dauto';btn.textContent='Autodrive';btn.title='Autodrive (P)';gb.after(btn);btn.onclick=()=>set(!on)}}
     const badge=document.createElement('div');badge.className='mono';badge.textContent='AUTODRIVE · any key to take over';
-    badge.style.cssText='position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:6;display:none;padding:6px 12px;border-radius:999px;background:rgba(0,200,120,.88);color:#04130b;font-size:10px;letter-spacing:.14em;pointer-events:none';
+    badge.style.cssText='position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:6;display:none;padding:6px 12px;border-radius:999px;background:rgba(18,20,25,.82);color:#ff9a52;border:1px solid rgba(255,106,26,.45);backdrop-filter:blur(12px);font-size:10px;letter-spacing:.14em;pointer-events:none';
     sec.appendChild(badge);
     function set(v,quiet){on=!!v;badge.style.display=on&&!quiet?'block':'none';btn.classList.toggle('on',on);if(!on){for(const k of ['f','b','l','r','h'])key[k]=0;lock=false;vCap=null}if(!quiet)toastMsg(on?'Autodrive on · steer or brake to take over':'Autodrive off')}
     // a path for whatever world the car is in: sample(i) and its count, or a planet road by distance
@@ -5468,21 +5468,21 @@ const PLANETS={
   const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
   const circCx=circCv?circCv.getContext('2d'):null;
   let drawPts=[],drawingNow=false,pendingTrack=null,drawRS=[],drawObs=[],drawTool='draw';
-  const OBS_LOOK={speed_breaker:{c:'#d4a83a',l:'S'},blocker:{c:'#d9d4c6',l:'B'},ramp:{c:'#5cf2ff',l:'R'}};
+  const OBS_LOOK={speed_breaker:{c:'#ff6a1a',l:'S'},blocker:{c:'#d9d4c6',l:'B'},ramp:{c:'#5cf2ff',l:'R'}};
   const selVal=(id,d)=>{const e=$(id);return e&&e.value?e.value:d};
   function resizeDrawCv(){if(!circCv)return;circCv.width=innerWidth;circCv.height=innerHeight}
   addEventListener('resize',resizeDrawCv);
   function redrawPath(){if(!circCx)return;circCx.clearRect(0,0,circCv.width,circCv.height);
     const line=drawingNow||!drawRS.length?drawPts:drawRS.concat([drawRS[0]]);
     if(line.length<2)return;
-    circCx.strokeStyle='#f2eee6';circCx.lineWidth=4;circCx.lineJoin='round';circCx.lineCap='round';
+    circCx.strokeStyle='#eef0f3';circCx.lineWidth=4;circCx.lineJoin='round';circCx.lineCap='round';
     circCx.beginPath();circCx.moveTo(line[0].x,line[0].y);
     for(let i=1;i<line.length;i++)circCx.lineTo(line[i].x,line[i].y);
     circCx.stroke();
     if(!drawRS.length)return;
     // start/finish + direction of travel
     {const a=drawRS[0],b=drawRS[1];circCx.fillStyle='#3f8a56';circCx.beginPath();circCx.arc(a.x,a.y,8,0,6.283);circCx.fill();
-     const ang=Math.atan2(b.y-a.y,b.x-a.x);circCx.save();circCx.translate(a.x,a.y);circCx.rotate(ang);circCx.fillStyle='#f2eee6';circCx.beginPath();circCx.moveTo(22,0);circCx.lineTo(12,-6);circCx.lineTo(12,6);circCx.closePath();circCx.fill();circCx.restore()}
+     const ang=Math.atan2(b.y-a.y,b.x-a.x);circCx.save();circCx.translate(a.x,a.y);circCx.rotate(ang);circCx.fillStyle='#eef0f3';circCx.beginPath();circCx.moveTo(22,0);circCx.lineTo(12,-6);circCx.lineTo(12,6);circCx.closePath();circCx.fill();circCx.restore()}
     // obstacle markers, offset to the side of the line they block
     drawObs.forEach(o=>{const q=obsCanvasPos(o),L=OBS_LOOK[o.t]||OBS_LOOK.speed_breaker;
       circCx.fillStyle=L.c;circCx.beginPath();circCx.arc(q.x,q.y,10,0,6.283);circCx.fill();
@@ -5714,14 +5714,14 @@ updCircBtn();
     if(!list||!window.TrackEditor)return;
     const tracks=window.TrackEditor.savedTracks||[];
     if(!tracks.length){
-      list.innerHTML='<div style="color:rgba(242,238,230,.5);font-size:13px;padding:12px;">No saved tracks yet. Draw and save one!</div>';
+      list.innerHTML='<div style="color:rgba(238,240,243,.5);font-size:13px;padding:12px;">No saved tracks yet. Draw and save one!</div>';
       return;
     }
     list.innerHTML=tracks.map(t=>`
       <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:8px 12px;margin-bottom:8px;">
         <div>
-          <strong style="color:#f2eee6;font-size:14px;">${esc(t.name)}</strong>
-          <div style="font-size:11px;color:rgba(242,238,230,.5);">${t.points.length} nodes · Width ${t.roadWidth}m · ${new Date(t.createdAt||Date.now()).toLocaleDateString()}</div>
+          <strong style="color:#eef0f3;font-size:14px;">${esc(t.name)}</strong>
+          <div style="font-size:11px;color:rgba(238,240,243,.5);">${t.points.length} nodes · Width ${t.roadWidth}m · ${new Date(t.createdAt||Date.now()).toLocaleDateString()}</div>
         </div>
         <div style="display:flex;gap:6px;">
           <button type="button" class="dcirc-pill" style="font-size:11px;padding:4px 10px;" onclick="window.loadCustomTrack('${t.id||t.name}')">Load</button>
@@ -5862,9 +5862,9 @@ updCircBtn();
         const list=[...best.values()].sort((a,b)=>a.time-b.time).slice(0,50);
         const head='<li style="display:grid;grid-template-columns:40px 1fr 92px 82px;gap:8px;padding:6px 4px;font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.5)"><span>RANK</span><span>DRIVER</span><span style="text-align:right">TIME</span><span style="text-align:right">BEST LAP</span></li>';
         dailyListEl.innerHTML=list.length?head+list.map((r,i)=>{const mine=me&&String(r.name).toLowerCase()===me.toLowerCase();
-          return `<li style="display:grid;grid-template-columns:40px 1fr 92px 82px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;${mine?'background:rgba(212,168,58,.16);':''}">
-            <span style="color:#d4a83a;font-weight:700">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}${mine?' (you)':''}</span>
-            <strong style="color:#f2eee6;font-family:monospace;text-align:right">${fmtT(r.time)}</strong><span style="font-family:monospace;text-align:right;opacity:.75">${r.best?fmtT(r.best):'--'}</span></li>`}).join('')+
+          return `<li style="display:grid;grid-template-columns:40px 1fr 92px 82px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;${mine?'background:rgba(255,106,26,.16);':''}">
+            <span style="color:#ff6a1a;font-weight:700">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}${mine?' (you)':''}</span>
+            <strong style="color:#eef0f3;font-family:monospace;text-align:right">${fmtT(r.time)}</strong><span style="font-family:monospace;text-align:right;opacity:.75">${r.best?fmtT(r.best):'--'}</span></li>`}).join('')+
           `<li style="padding:8px 4px;font-size:11px;color:rgba(255,255,255,.5)">${src}</li>`
           :'<li style="padding:12px;color:rgba(255,255,255,.5);font-size:13px;">No times yet for today\'s track. Be the first!</li>'};
       let local=[];try{local=JSON.parse(localStorage.getItem('sl_daily_'+dStr)||'[]')}catch(_){}
@@ -6011,7 +6011,7 @@ updCircBtn();
     function tagTex(name,col){const c=document.createElement('canvas');c.width=256;c.height=64;const x=c.getContext('2d');
       x.fillStyle='rgba(10,10,9,.78)';const r=26;x.beginPath();x.moveTo(r,6);x.lineTo(256-r,6);x.arc(256-r,32,26,-Math.PI/2,Math.PI/2);x.lineTo(r,58);x.arc(r,32,26,Math.PI/2,Math.PI*1.5);x.fill();
       x.fillStyle=HEX(col);x.beginPath();x.arc(30,32,9,0,6.283);x.fill();
-      x.fillStyle='#f2eee6';x.font='700 27px -apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif';x.textBaseline='middle';
+      x.fillStyle='#eef0f3';x.font='700 27px -apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif';x.textBaseline='middle';
       let t=name;while(x.measureText(t).width>176&&t.length>2)t=t.slice(0,-1);x.fillText(t,50,34);
       const tx=new THREE.CanvasTexture(c);tx.minFilter=THREE.LinearFilter;return tx}
     function makeGhost(carId,col,name){
@@ -6097,7 +6097,7 @@ updCircBtn();
         }break;
         case 'rdy':P.ready=!!m.val;paintReady();ui();break;
         case 'spec':P.watching=!!m.val;ui();break;
-        case 'chat':{if(!m.t||!m.n)return;const log=document.getElementById('dmpchatlog');if(log){const msg=String(m.t).slice(0,120);const name=String(m.n).slice(0,14);const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:11px;line-height:1.4;';line.innerHTML='<span style="color:#d4a83a;font-weight:600;">'+esc(name)+':</span> <span style="color:var(--paper);">'+esc(msg)+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}}break;
+        case 'chat':{if(!m.t||!m.n)return;const log=document.getElementById('dmpchatlog');if(log){const msg=String(m.t).slice(0,120);const name=String(m.n).slice(0,14);const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:11px;line-height:1.4;';line.innerHTML='<span style="color:#ff6a1a;font-weight:600;">'+esc(name)+':</span> <span style="color:var(--paper);">'+esc(msg)+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}}break;
         case 's':{
           if(!Array.isArray(m.p)||!Array.isArray(m.q))return;
           const x=num(m.p[0],-1e4,1e4,0),y=num(m.p[1],-500,2000,0),z=num(m.p[2],-1e4,1e4,0);
@@ -6521,7 +6521,7 @@ function carChanged(){if(room)sendHi(true)}
       if(list)list.innerHTML=rows.map((r,i)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span>${r.fin?i+1+'.':'–'} ${esc(r.n)}${r.me?' (you)':''}</span><span>${r.fin?fmtT(r.fin)+(best&&r.fin>best?' <span style="opacity:.6">+'+((r.fin-best)/1000).toFixed(2)+'s</span>':''):'DNF'}</span></div>`).join('')+
         `<div style="margin-top:8px;opacity:.7;font-size:12px">${race.planet?(SPACE.PLANETS[race.planet].name+' sprint · '+(SPACE.RACE_LEN/1000)+' km'):nl+' lap'+(nl>1?'s':'')+' · '+(MODE==='circuit'&&circuit?'drawn track':'Earth valley loop')}</div>`;
       let st=document.getElementById('dresstatus');
-      if(!st&&list){st=document.createElement('div');st.id='dresstatus';st.className='mono';st.style.cssText='margin-top:12px;font-size:12px;color:#d4a83a;min-height:1.4em';list.parentNode.insertBefore(st,list.nextSibling)}
+      if(!st&&list){st=document.createElement('div');st.id='dresstatus';st.className='mono';st.style.cssText='margin-top:12px;font-size:12px;color:#ff6a1a;min-height:1.4em';list.parentNode.insertBefore(st,list.nextSibling)}
       const lobby=document.getElementById('dreslobby');if(lobby)lobby.textContent=isHost()?'Change track / laps':'Room';
       m.style.display='';m.classList.add('on');paintReady();
     }

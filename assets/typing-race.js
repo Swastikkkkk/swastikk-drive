@@ -23,72 +23,72 @@
   /* ---------- styles (scoped to this mode) ---------- */
   const css=document.createElement('style');css.textContent=`
   #dtype{position:absolute;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(980px,calc(100% - 32px));z-index:30;display:none;
-    color:#f2eee6;font-family:var(--mono,ui-monospace,monospace);pointer-events:auto}
+    color:#eef0f3;font-family:var(--mono,ui-monospace,monospace);pointer-events:auto}
   #dtype.on{display:block;animation:dtyIn .45s cubic-bezier(.2,.8,.2,1)}
   @keyframes dtyIn{from{opacity:0;transform:translate(-50%,18px)}to{opacity:1;transform:translate(-50%,0)}}
-  #dtype .ty-card{background:linear-gradient(180deg,rgba(14,15,17,.82),rgba(8,8,9,.92));border:1px solid rgba(242,238,230,.12);border-radius:18px;
+  #dtype .ty-card{background:linear-gradient(180deg,rgba(14,15,17,.82),rgba(8,8,9,.92));border:1px solid rgba(238,240,243,.12);border-radius:18px;
     box-shadow:0 24px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);padding:16px 20px 14px;overflow:hidden;position:relative}
-  #dtype .ty-bar{position:absolute;left:0;top:0;height:3px;width:0;background:linear-gradient(90deg,#d4a83a,#ffe7a3);box-shadow:0 0 14px rgba(212,168,58,.8);transition:width .12s linear}
+  #dtype .ty-bar{position:absolute;left:0;top:0;height:3px;width:0;background:linear-gradient(90deg,#ff6a1a,#ffb37a);box-shadow:0 0 14px rgba(255,106,26,.8);transition:width .12s linear}
   #dtype .ty-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
-  #dtype .ty-tag{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#d4a83a}
-  #dtype .ty-x{background:transparent;border:1px solid rgba(242,238,230,.18);color:rgba(242,238,230,.7);border-radius:999px;font:500 10px var(--mono,monospace);letter-spacing:.14em;padding:5px 11px;cursor:pointer;text-transform:uppercase}
-  #dtype .ty-x:hover{color:#fff;border-color:rgba(242,238,230,.5)}
+  #dtype .ty-tag{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#ff6a1a}
+  #dtype .ty-x{background:transparent;border:1px solid rgba(238,240,243,.18);color:rgba(238,240,243,.7);border-radius:999px;font:500 10px var(--mono,monospace);letter-spacing:.14em;padding:5px 11px;cursor:pointer;text-transform:uppercase}
+  #dtype .ty-x:hover{color:#fff;border-color:rgba(238,240,243,.5)}
   #dtype .ty-text{font:500 clamp(17px,2.1vw,25px)/1.55 var(--mono,ui-monospace,monospace);letter-spacing:.01em;word-break:break-word;min-height:2.6em}
   #dtype .ty-text span{transition:color .08s}
-  #dtype .ty-text .d{color:#f2eee6;text-shadow:0 0 18px rgba(212,168,58,.25)}
-  #dtype .ty-text .t{color:rgba(242,238,230,.32)}
-  #dtype .ty-text .c{color:#111;background:#d4a83a;border-radius:3px;box-shadow:0 0 0 2px rgba(212,168,58,.25);animation:dtyBlink 1s steps(2) infinite}
+  #dtype .ty-text .d{color:#eef0f3;text-shadow:0 0 18px rgba(255,106,26,.25)}
+  #dtype .ty-text .t{color:rgba(238,240,243,.32)}
+  #dtype .ty-text .c{color:#111;background:#ff6a1a;border-radius:3px;box-shadow:0 0 0 2px rgba(255,106,26,.25);animation:dtyBlink 1s steps(2) infinite}
   #dtype .ty-text .c.err{background:#e5484d;color:#fff;animation:dtyShake .18s}
-  @keyframes dtyBlink{50%{box-shadow:0 0 0 2px rgba(212,168,58,.05)}}
+  @keyframes dtyBlink{50%{box-shadow:0 0 0 2px rgba(255,106,26,.05)}}
   @keyframes dtyShake{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
   #dtype.err .ty-card{border-color:rgba(229,72,77,.55)}
-  #dtype .ty-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(242,238,230,.08)}
+  #dtype .ty-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(238,240,243,.08)}
   #dtype .ty-st b{display:block;font:600 clamp(18px,2.2vw,26px)/1 var(--serif,Georgia,serif);color:#fff;font-variant-numeric:tabular-nums}
-  #dtype .ty-st span{display:block;margin-top:5px;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:rgba(242,238,230,.45)}
-  #dtype .ty-st.speed b{color:#ffd36b}
+  #dtype .ty-st span{display:block;margin-top:5px;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:rgba(238,240,243,.45)}
+  #dtype .ty-st.speed b{color:#ff9a52}
   #dtype input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;left:0;top:0}
-  #dtype .ty-hint{font-size:10px;color:rgba(242,238,230,.4);letter-spacing:.12em;margin-top:8px;text-align:center}
+  #dtype .ty-hint{font-size:10px;color:rgba(238,240,243,.4);letter-spacing:.12em;margin-top:8px;text-align:center}
   #dtypecd{position:absolute;inset:0;z-index:31;display:none;place-items:center;pointer-events:none}
   #dtypecd.on{display:grid}
   #dtypecd b{font:700 clamp(64px,13vw,170px)/1 var(--serif,Georgia,serif);color:#fff;letter-spacing:-.03em;text-shadow:0 10px 60px rgba(0,0,0,.6)}
-  #dtypecd b.go{color:#ffd36b}
-  #dtypecd small{display:block;text-align:center;font:500 12px var(--mono,monospace);letter-spacing:.4em;color:rgba(242,238,230,.75);margin-top:10px;text-transform:uppercase}
+  #dtypecd b.go{color:#ff9a52}
+  #dtypecd small{display:block;text-align:center;font:500 12px var(--mono,monospace);letter-spacing:.4em;color:rgba(238,240,243,.75);margin-top:10px;text-transform:uppercase}
   #dtypecd .pop{animation:dtyPop .8s cubic-bezier(.2,.8,.2,1)}
   @keyframes dtyPop{0%{opacity:0;transform:scale(1.6)}25%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(.92)}}
   #dtypelines{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;transition:opacity .25s;
     background:repeating-conic-gradient(from 0deg at 50% 46%,rgba(255,255,255,.0) 0deg,rgba(255,255,255,.0) 3.2deg,rgba(255,255,255,.11) 3.6deg,rgba(255,255,255,0) 4deg);
     -webkit-mask:radial-gradient(circle at 50% 46%,transparent 0 26%,#000 62%);mask:radial-gradient(circle at 50% 46%,transparent 0 26%,#000 62%)}
-  #dtyperes{position:absolute;inset:0;z-index:40;display:none;place-items:center;background:radial-gradient(ellipse at 50% 30%,rgba(40,32,12,.55),rgba(6,6,7,.92));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:20px;overflow-y:auto}
+  #dtyperes{position:absolute;inset:0;z-index:40;display:none;place-items:center;background:radial-gradient(ellipse at 50% 30%,rgba(48,18,6,.55),rgba(6,6,7,.92));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:20px;overflow-y:auto}
   #dtyperes.on{display:grid;animation:dtyIn2 .5s cubic-bezier(.2,.8,.2,1)}
   @keyframes dtyIn2{from{opacity:0}to{opacity:1}}
-  #dtyperes .rs{width:min(560px,100%);text-align:center;color:#f2eee6}
-  #dtyperes .rs-k{font:500 11px var(--mono,monospace);letter-spacing:.34em;color:#d4a83a;text-transform:uppercase}
+  #dtyperes .rs{width:min(560px,100%);text-align:center;color:#eef0f3}
+  #dtyperes .rs-k{font:500 11px var(--mono,monospace);letter-spacing:.34em;color:#ff6a1a;text-transform:uppercase}
   #dtyperes h2{font:700 clamp(40px,7vw,72px)/1 var(--serif,Georgia,serif);margin:8px 0 6px;letter-spacing:-.03em}
   #dtyperes .rs-badge{display:inline-block;margin:6px 0 4px;padding:7px 14px;border-radius:999px;font:600 11px var(--mono,monospace);letter-spacing:.16em;text-transform:uppercase}
   #dtyperes .rs-badge.pb{background:rgba(255,120,40,.16);color:#ffb37a;border:1px solid rgba(255,140,60,.4)}
-  #dtyperes .rs-badge.one{background:rgba(212,168,58,.18);color:#ffd36b;border:1px solid rgba(212,168,58,.5)}
+  #dtyperes .rs-badge.one{background:rgba(255,106,26,.18);color:#ff9a52;border:1px solid rgba(255,106,26,.5)}
   #dtyperes .rs-time{font:700 clamp(54px,10vw,96px)/1 var(--serif,Georgia,serif);letter-spacing:-.03em;margin:14px 0 2px;font-variant-numeric:tabular-nums;
-    background:linear-gradient(180deg,#fff,#d9c38a);-webkit-background-clip:text;background-clip:text;color:transparent}
+    background:linear-gradient(180deg,#fff,#ffb37a);-webkit-background-clip:text;background-clip:text;color:transparent}
   #dtyperes .rs-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0 18px}
-  #dtyperes .rs-grid div{background:rgba(242,238,230,.05);border:1px solid rgba(242,238,230,.1);border-radius:14px;padding:14px 6px}
+  #dtyperes .rs-grid div{background:rgba(238,240,243,.05);border:1px solid rgba(238,240,243,.1);border-radius:14px;padding:14px 6px}
   #dtyperes .rs-grid b{display:block;font:600 24px/1 var(--serif,Georgia,serif);font-variant-numeric:tabular-nums}
-  #dtyperes .rs-grid span{display:block;margin-top:6px;font:500 9px var(--mono,monospace);letter-spacing:.22em;color:rgba(242,238,230,.5);text-transform:uppercase}
-  #dtyperes .rs-note{font:500 11px var(--mono,monospace);color:rgba(242,238,230,.55);min-height:1.4em;letter-spacing:.06em}
+  #dtyperes .rs-grid span{display:block;margin-top:6px;font:500 9px var(--mono,monospace);letter-spacing:.22em;color:rgba(238,240,243,.5);text-transform:uppercase}
+  #dtyperes .rs-note{font:500 11px var(--mono,monospace);color:rgba(238,240,243,.55);min-height:1.4em;letter-spacing:.06em}
   #dtyperes .rs-btns{display:flex;gap:10px;margin-top:16px}
-  #dtyperes .rs-btns button{flex:1;padding:14px;border-radius:12px;border:1px solid rgba(242,238,230,.18);font:600 12px var(--mono,monospace);letter-spacing:.16em;text-transform:uppercase;cursor:pointer;background:rgba(242,238,230,.06);color:#f2eee6}
-  #dtyperes .rs-btns button.pri{background:linear-gradient(180deg,#e8bf55,#c99a2e);color:#140f04;border-color:transparent}
+  #dtyperes .rs-btns button{flex:1;padding:14px;border-radius:12px;border:1px solid rgba(238,240,243,.18);font:600 12px var(--mono,monospace);letter-spacing:.16em;text-transform:uppercase;cursor:pointer;background:rgba(238,240,243,.06);color:#eef0f3}
+  #dtyperes .rs-btns button.pri{background:linear-gradient(180deg,#ff8a3d,#ff5a0f);color:#140f04;border-color:transparent}
   #drive.typing #dmob,#drive.typing .dbr,#drive.typing #dhint,#drive.typing #dauto,#drive.typing #dnav{display:none!important}
   /* daily modal tabs */
-  .ty-tabs{display:flex;gap:6px;padding:4px;background:rgba(242,238,230,.06);border:1px solid rgba(242,238,230,.1);border-radius:12px;margin-bottom:16px}
-  .ty-tabs button{flex:1;padding:10px 8px;border:0;border-radius:9px;background:transparent;color:rgba(242,238,230,.6);font:600 11px var(--mono,monospace);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
-  .ty-tabs button.on{background:#f2eee6;color:#0b0b0a}
-  .ty-pane .ty-quote{font:500 17px/1.55 var(--serif,Georgia,serif);color:#f2eee6;background:rgba(242,238,230,.05);border:1px solid rgba(242,238,230,.1);border-left:3px solid #d4a83a;border-radius:10px;padding:14px 16px;margin:6px 0 16px}
-  .ty-pane .ty-meta{font:500 11px var(--mono,monospace);color:rgba(242,238,230,.55);letter-spacing:.08em;margin-bottom:14px}
-  .ty-pane ol{list-style:none;margin:0 0 18px;padding:0;border-top:1px solid rgba(242,238,230,.1);max-height:230px;overflow-y:auto}
-  .ty-pane li{display:grid;grid-template-columns:38px 1fr 76px 52px 56px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid rgba(242,238,230,.07);font:500 13px var(--mono,monospace)}
-  .ty-pane li.h{font-size:9px;letter-spacing:.2em;color:rgba(242,238,230,.45);padding:7px 4px}
-  .ty-pane li.me{background:rgba(212,168,58,.14)}
-  .ty-pane li .r{color:#d4a83a;font-weight:700}.ty-pane li .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--serif,Georgia,serif);font-size:15px}
+  .ty-tabs{display:flex;gap:6px;padding:4px;background:rgba(238,240,243,.06);border:1px solid rgba(238,240,243,.1);border-radius:12px;margin-bottom:16px}
+  .ty-tabs button{flex:1;padding:10px 8px;border:0;border-radius:9px;background:transparent;color:rgba(238,240,243,.6);font:600 11px var(--mono,monospace);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+  .ty-tabs button.on{background:#eef0f3;color:#0b0b0a}
+  .ty-pane .ty-quote{font:500 17px/1.55 var(--serif,Georgia,serif);color:#eef0f3;background:rgba(238,240,243,.05);border:1px solid rgba(238,240,243,.1);border-left:3px solid #ff6a1a;border-radius:10px;padding:14px 16px;margin:6px 0 16px}
+  .ty-pane .ty-meta{font:500 11px var(--mono,monospace);color:rgba(238,240,243,.55);letter-spacing:.08em;margin-bottom:14px}
+  .ty-pane ol{list-style:none;margin:0 0 18px;padding:0;border-top:1px solid rgba(238,240,243,.1);max-height:230px;overflow-y:auto}
+  .ty-pane li{display:grid;grid-template-columns:38px 1fr 76px 52px 56px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid rgba(238,240,243,.07);font:500 13px var(--mono,monospace)}
+  .ty-pane li.h{font-size:9px;letter-spacing:.2em;color:rgba(238,240,243,.45);padding:7px 4px}
+  .ty-pane li.me{background:rgba(255,106,26,.14)}
+  .ty-pane li .r{color:#ff6a1a;font-weight:700}.ty-pane li .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--serif,Georgia,serif);font-size:15px}
   .ty-pane li .num{text-align:right;font-variant-numeric:tabular-nums}
   @media (max-width:640px){#dtype .ty-stats{grid-template-columns:repeat(3,1fr)}#dtype .ty-st.hide-s{display:none}#dtyperes .rs-grid{grid-template-columns:repeat(2,1fr)}
     .ty-pane li{grid-template-columns:30px 1fr 64px 44px;font-size:12px}.ty-pane li .acc{display:none}}`;
@@ -234,11 +234,11 @@
     const orig=[...inner.children];
     const tabs=mk('div',{className:'ty-tabs'},'<button type="button" data-t="track" class="on">Track of the Day</button><button type="button" data-t="type">🏎️ Typing Race</button>');
     inner.prepend(tabs);tabBtns=[...tabs.children];
-    pane=mk('div',{className:'ty-pane'},`<div class="mono" style="color:#d4a83a">Daily Typing Race</div>
+    pane=mk('div',{className:'ty-pane'},`<div class="mono" style="color:#ff6a1a">Daily Typing Race</div>
       <h3 class="disp" style="font-size:34px;margin:4px 0 6px">Race with your keyboard</h3>
       <div class="ty-meta"></div><div class="ty-quote"></div>
       <div class="mono" style="color:var(--bone);margin-bottom:6px">Today's typing leaderboard</div><ol></ol>
-      <div style="display:flex;gap:10px"><button type="button" class="dbtn mono ty-go" style="background:#d4a83a;color:#06070b;font-weight:700;flex:1">Start typing race</button>
+      <div style="display:flex;gap:10px"><button type="button" class="dbtn mono ty-go" style="background:#ff6a1a;color:#06070b;font-weight:700;flex:1">Start typing race</button>
       <button type="button" class="dbtn mono ty-close bd-x" style="margin-top:0">Close</button></div>`);
     pane.style.display='none';inner.appendChild(pane);
     pane.querySelector('.ty-go').onclick=()=>start();
