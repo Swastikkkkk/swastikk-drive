@@ -4092,11 +4092,57 @@ const PLANETS={
     }
     /* the map + GPS code outside this module reads these */
     api.PLANETS=PLANETS;api.DS=DS;api.groundH=groundH;
-    api._arrive=k=>{beginArrival(k)};   // used by the ?dev=1 test hooks only
+    api._arrive=k=>{beginArrival(k)};
+    api.roadPoint=s=>{const S=SURF;if(!S)return null;const r=roadAt(S.cfg,S.road,Math.max(0,s));return {x:r.x,z:r.z,h:Math.atan2(r.tx,r.tz)}};   // autodrive follows this   // used by the ?dev=1 test hooks only
     Object.defineProperty(api,'SURF',{get:()=>SURF});
     return api;
   })();
 
+  /* ---------- autodrive ----------
+     P (or Menu > Autodrive) hands the wheel over: it follows the road you are on (the Earth loop, the
+     circuit, or a planet's road), looks ahead further the faster it goes, and slows for a bend to the
+     speed the car's own grip allows. It drives through the same inputs you do, so the physics, lap
+     timing and the race rules all treat it exactly like a person. Any steering, throttle or brake key
+     takes control straight back. */
+  const AUTO=(function(){
+    let on=false,ci=0,wi=0;
+    const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),btn=document.createElement('button');
+    {const gb=$('#dgps');if(gb){btn.className=gb.className;btn.id='dauto';btn.textContent='Autodrive';btn.title='Autodrive (P)';gb.after(btn);btn.onclick=()=>set(!on)}}
+    const badge=document.createElement('div');badge.className='mono';badge.textContent='AUTODRIVE · any key to take over';
+    badge.style.cssText='position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:6;display:none;padding:6px 12px;border-radius:999px;background:rgba(0,200,120,.88);color:#04130b;font-size:10px;letter-spacing:.14em;pointer-events:none';
+    sec.appendChild(badge);
+    function set(v){on=!!v;badge.style.display=on?'block':'none';btn.classList.toggle('on',on);if(!on)for(const k of ['f','b','l','r','h'])key[k]=0;toastMsg(on?'Autodrive on · steer or brake to take over':'Autodrive off')}
+    // a path for whatever world the car is in: sample(i) and its count, or a planet road by distance
+    function samplePath(){
+      if(SPACE.state==='surface'&&SPACE.SURF)return {planet:true};
+      if(MODE==='circuit'&&circuit&&circuit.CSAMP)return {P:circuit.CSAMP,n:circuit.CN,loop:true};
+      return {P:SAMP,n:N,loop:true}}
+    function nearest(P,n,x,z,hint){let bi=hint,bd=1e18;const scan=(a,b)=>{for(let k=a;k<=b;k++){const i=((k%n)+n)%n,d=(P[i].x-x)**2+(P[i].z-z)**2;if(d<bd){bd=d;bi=i}}};
+      scan(hint-40,hint+40);if(bd>900)scan(0,n-1);return bi}
+    function tick(){
+      if(!on||!active||!driving)return;
+      let x,z,h,sp,ahead,curve,vmax,lat;
+      const path=samplePath();
+      if(path.planet){const S=SPACE.SURF;x=S.pos.x;z=S.pos.z;h=S.yaw;sp=Math.hypot(S.vel.x,S.vel.z);
+        const L=7+sp*.75;const a=SPACE.roadPoint(S.s+L),b=SPACE.roadPoint(S.s+L+35);ahead=a;curve=Math.abs(wrap(b.h-a.h))/35;vmax=S.cfg.vmax;lat=7}
+      else{const q=chassisB.quaternion;x=chassisB.position.x;z=chassisB.position.z;h=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
+        sp=Math.hypot(chassisB.velocity.x,chassisB.velocity.z);const P=path.P,n=path.n;
+        ci=nearest(P,n,x,z,ci);
+        // drive the way the car is already pointing along the loop
+        const i2=(ci+2)%n,dir=Math.cos(wrap(Math.atan2(P[i2].x-P[ci].x,P[i2].z-P[ci].z)-h))>=0?1:-1;
+        const seg=Math.max(.5,Math.hypot(P[(ci+1)%n].x-P[ci].x,P[(ci+1)%n].z-P[ci].z)),L=7+sp*.75,k=Math.round(L/seg);
+        const at=j=>P[(((ci+dir*j)%n)+n)%n];ahead=at(k);
+        const hA=Math.atan2(at(k+1).x-ahead.x,at(k+1).z-ahead.z),far=at(k+Math.round(35/seg)),hB=Math.atan2(at(k+Math.round(35/seg)+1).x-far.x,at(k+Math.round(35/seg)+1).z-far.z);
+        curve=Math.abs(wrap(hB-hA))/35;vmax=V.max;lat=latG(curCarId)*9.81*.8}
+      // steer at the point ahead; slow to the speed this bend allows
+      const err=wrap(Math.atan2(ahead.x-x,ahead.z-z)-h),st=Math.max(-1,Math.min(1,err*2.4));
+      const vT=Math.max(7,Math.min(vmax*.97,Math.sqrt(lat/Math.max(1e-4,curve))));
+      key.l=st>0?st:0;key.r=st<0?-st:0;key.f=sp<vT?1:0;key.b=sp>vT+4?1:0;key.h=0;if(window.__dev)window.__autoDbg=[+vT.toFixed(1),+curve.toFixed(4),+sp.toFixed(1),ci,+err.toFixed(2)]}
+    // taking over: a driving key pressed by hand ends autodrive before the game sees it
+    addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;
+      if(e.code==='KeyP'&&active&&!e.repeat){set(!on);e.stopImmediatePropagation();return}
+      if(on&&/^(Arrow|KeyW$|KeyA$|KeyS$|KeyD$|Space$)/.test(e.code))set(false)},true);
+    return {tick,set,get on(){return on}}})();
   const phoneSt={on:false,cam:false,reset:false};let rcSince=0;
   const garageEl=$('#dgarage');
   function loop(now){requestAnimationFrame(loop);
@@ -4134,6 +4180,7 @@ const PLANETS={
         // phone went quiet: let go of everything it was holding so the car does not drive off on its own
         phoneSt.on=false;key.f=key.b=key.l=key.r=key.h=key.boost=key.horn=0;toastMsg('Phone controller disconnected')}
     }
+    if(SPACE.state==='surface')AUTO.tick();
     if(SPACE.state!=='earth'){ try{SPACE.frame(dt,now);}catch(e){console.error('[space]',e);try{var b=document.getElementById('dspaceerr');if(!b){b=document.createElement('div');b.id='dspaceerr';b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:rgba(150,20,20,.96);color:#fff;font:600 12px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px 12px;white-space:pre-wrap;max-height:46vh;overflow:auto';document.body.appendChild(b);}b.textContent='SURFACE/SPACE ERROR @ state='+SPACE.state+String.fromCharCode(10)+((e&&e.stack)||(e&&e.message)||e);}catch(_){}} return; }   // space/moon takes over the frame; Earth paused
     watchFps(dt);
     /* watchdog: a countdown with no start lights to end it (or lights that never ran) must not hold the car forever */
@@ -4143,6 +4190,7 @@ const PLANETS={
       if(!lightsRunning&&now-rcSince>3500||now-rcSince>9000)window.RaceEngine.startRace(now)}else rcSince=0;
     const raceHolding = (window.RaceEngine && window.RaceEngine.isHolding) || (typeof MP!=='undefined' && MP.isHolding && MP.isHolding());
     const sp=chassisB.velocity.length();
+    AUTO.tick();
     if(active&&driving){
       const kv=v=>v===true?1:(+v>0?Math.min(1,+v):0);
       let f=key.f?1:0,b=key.b?1:0,l=kv(key.l),rr=kv(key.r);
@@ -6394,7 +6442,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
