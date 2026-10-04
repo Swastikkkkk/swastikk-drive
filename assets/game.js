@@ -1944,6 +1944,9 @@ t.bd.position.set(x,y+.86,z);
     PCAR=makeBody(spec,o);FP=measureBody(PCAR.g,spec);
     PCAR.glass=[];PCAR.g.traverse(m=>{if(m.isMesh&&m.material&&m.material.transparent&&m.material.opacity<.8)PCAR.glass.push(m)});
     PCAR.g.position.y=.05-(V.rest-.07)-V.r;FP.off=PCAR.g.position.y;vis.bodyIn.add(PCAR.g);
+    // some generated panels come out with their faces wound inside-out; single-sided they vanish from above
+    // or behind and the car reads as a see-through shell, so the solid body draws both faces
+    PCAR.g.traverse(m=>{if(m.isMesh&&m.material){const ms=Array.isArray(m.material)?m.material:[m.material];ms.forEach(x=>{if(!x.transparent&&x.side!==THREE.DoubleSide){x.side=THREE.DoubleSide;x.needsUpdate=true}})}});
     if(cubeRT)PCAR.g.traverse(m=>{if(m.material&&m.material.reflectivity!==undefined){m.material.envMap=cubeRT.texture;m.material.needsUpdate=true}});
     if(wv)wv.car.forEach(k=>vis.car.remove(k.w));
     const nW=spec.type==='bike'?2:spec.type==='truck'?6:4,wheelWd=wheelWdOf(spec);
@@ -4734,15 +4737,19 @@ const PLANETS={
       const tf=CAMS[camMode].fov+Math.min(10,sp*.35)-ce*2.6;
       if(Math.abs(C.fov-tf)>.02){C.fov+=(tf-C.fov)*(1-Math.exp(-dt*3.2));C.updateProjectionMatrix()}}
     else if(recapCam){
-      // at the summit: stand behind the car on the cliff side and look inland, down over the map and into the sunset
-      camT.set(car.position.x+BR_OUT.x*11-PEAK_SIDE.x*3,0,car.position.z+BR_OUT.z*11-PEAK_SIDE.z*3);
+      // at the summit: stand behind the car on the cliff side and look out over the map, turned from
+      // straight inland toward the volcano so the valley road and the smoking cone share the frame
+      const vx=VZ.volc.x-car.position.x,vz=VZ.volc.z-car.position.z,ix=-BR_OUT.x,iz=-BR_OUT.z,along=vx*ix+vz*iz;
+      let px=vx-ix*along,pz=vz-iz*along;const pl=Math.hypot(px,pz)||1;px/=pl;pz/=pl;
+      const lx=ix*.71+px*.71,lz=iz*.71+pz*.71;
+      camT.set(car.position.x-lx*11,0,car.position.z-lz*11);
       camT.y=Math.max(car.position.y+7.5,HF.h(camT.x,camT.z)+3);
       C.position.lerp(camT,1-Math.exp(-dt*1.1));
-      lookT.set(car.position.x-BR_OUT.x*80,car.position.y-14,car.position.z-BR_OUT.z*80);
+      lookT.set(car.position.x+lx*80,car.position.y-12,car.position.z+lz*80);
       look.lerp(lookT,1-Math.exp(-dt*1.4));
       C.lookAt(look);
       if(Math.abs(camRoll)>.0005){camRoll*=Math.exp(-dt*4)}
-      if(Math.abs(C.fov-55)>.02){C.fov+=(55-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
+      if(Math.abs(C.fov-60)>.02){C.fov+=(60-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
     // the horizon ridge is a ring round the valley; from the summit, which sits outside it, it would be a wall across the view
     farRidge.visible=Math.hypot(car.position.x,car.position.z)<235;
     {const cf=recapCam?700:320;if(C.far!==cf&&C.far<=700){C.far=cf;C.updateProjectionMatrix()}}   // the lookout sees the whole map
@@ -6739,7 +6746,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={PEAK,PEAK_H,BR_OUT,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
