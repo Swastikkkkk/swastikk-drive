@@ -363,6 +363,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   if(peakR>SAFE_R){const s=SAFE_R/peakR;peakX*=s;peakZ*=s}
   const PEAK={x:peakX,z:peakZ};
   const PEAK_H=BR_H+PEAK_RISE;
+  /* the summit looks inland, back over the whole map; put the low sun out there too, a little off to
+     one side, so the sunset sits in the view rather than behind the camera */
+  const PEAK_SIDE=new THREE.Vector3(BR_OUT.z,0,-BR_OUT.x);
+  SUN_OFF_LOW.set(-BR_OUT.x*34+PEAK_SIDE.x*16,8,-BR_OUT.z*34+PEAK_SIDE.z*16);SUN_DIR_LOW.copy(SUN_OFF_LOW).normalize();
   const BR_MID=new THREE.Vector3(BR_START.x+BR_OUT.x*BR_LEN*.55+BR_OUT.z*6,0,BR_START.z+BR_OUT.z*BR_LEN*.55-BR_OUT.x*6);
   const BR_END=new THREE.Vector3(RAMPYARD.x,0,RAMPYARD.z);
   const BR_MID2=new THREE.Vector3((RAMPYARD.x+PEAK.x)/2+BR_OUT.z*7,0,(RAMPYARD.z+PEAK.z)/2-BR_OUT.x*7);
@@ -684,7 +688,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   signPost(RAMPYARD.x,RAMPYARD.z+13,BR_H,'Ramp yard','launch off all three',false,0);
   /* was 4m from the centre line, i.e. a solid pole on the asphalt since the road was widened; 9m puts it on the verge */
   signPost(BR_START.x-BR_OUT.x*9,BR_START.z-BR_OUT.z*9,BR_H,'Ramp yard →','off the main road',false,Math.atan2(BR_OUT.x,BR_OUT.z));
-  signPost(PEAK.x-BR_OUT.x*7,PEAK.z-BR_OUT.z*7,PEAK_H,'The summit','stop for the view',false,Math.atan2(BR_OUT.x,BR_OUT.z));
+  signPost(PEAK.x-BR_OUT.x*14+PEAK_SIDE.x*9,PEAK.z-BR_OUT.z*14+PEAK_SIDE.z*9,PEAK_H,'The summit','stop for the view',false,Math.atan2(BR_OUT.x,BR_OUT.z));
   const CULL=[];
   /* ---------- playground obstacles: instanced so 10 crates + 7 cones + 5 tires cost a handful of draw
      calls instead of ~40, while staying individually knockable via dynBoxI ---------- */
@@ -1992,14 +1996,19 @@ t.bd.position.set(x,y+.86,z);
     // tyres: tarmac roar (pink noise, lowpassed) and gravel hiss (white, bandpassed)
     const rG=G(0),rF=F('lowpass',300,.6);L(pk).connect(rF);rF.connect(rG);rG.connect(bus);
     const gG=G(0),gF=F('bandpass',1900,.7);L(wh).connect(gF);gF.connect(gG);gG.connect(bus);
-    // wind
-    const wG=G(0),wF=F('bandpass',700,.45);L(pk).connect(wF);wF.connect(wG);wG.connect(bus);
-    // squeal: two narrow resonances on noise, wobbled every frame so it sounds like rubber, not a tone
-    const sG=G(0),s1=F('bandpass',1050,11),s2=F('bandpass',2200,13),s2g=G(.55),sn=L(wh);
-    sn.connect(s1);sn.connect(s2);s1.connect(sG);s2.connect(s2g);s2g.connect(sG);sG.connect(bus);
+    // wind: a low buffeting rumble, not a hiss
+    const wG=G(0),wF=F('lowpass',260,.5);L(pk).connect(wF);wF.connect(wG);wG.connect(bus);
+    // tyre squeal: rubber stick-slip is nearly a tone, so two detuned saws through a resonant band,
+    // with a drifting pitch and a little grit of noise on top; only a real slide opens it
+    const sG=G(0),sF=F('bandpass',1000,4.5),s1=O('sawtooth',860),s2=O('sawtooth',1290),s2g=G(.45),sNz=F('bandpass',1400,2),sNg=G(.35);
+    s1.connect(sF);s2.connect(s2g);s2g.connect(sF);L(wh).connect(sNz);sNz.connect(sNg);sNg.connect(sF);
+    const sLp=F('lowpass',3200,.7);sF.connect(sLp);sLp.connect(sG);sG.connect(bus);
+    const sLfo=O('sine',7.3),sLg=G(18);sLfo.connect(sLg);sLg.connect(s1.frequency);sLg.connect(s2.frequency);
+    // braking: the tyres scrubbing the road, a deep rumble that swells with how hard you stop
+    const bG=G(0),bF=F('lowpass',520,.8);L(pk).connect(bF);bF.connect(bG);bG.connect(bus);
     // combustion engines: their own voice, see assets/engine-audio.js
     const engG=G(0);engG.connect(bus);let eng=null;try{if(window.EngineAudio)eng=EngineAudio.create(AC,engG)}catch(e){}
-    SND={bus,tone,pk,wh,mG,mF,m1,m2,m3,g1,g2,g3,lfo,lg,tO,tG,rG,rF,gG,wG,wF,sG,s1,s2,engG,eng,ld:0,prof:null};
+    SND={bus,tone,pk,wh,mG,mF,m1,m2,m3,g1,g2,g3,lfo,lg,tO,tG,rG,rF,gG,wG,wF,sG,sF,s1,s2,bG,bF,engG,eng,ld:0,prof:null,sqP:0,brk:0};
     document.addEventListener('visibilitychange',()=>{try{document.hidden?AC.suspend():AC.resume()}catch(e){}})}catch(e){SND=null}}
   function blip(freq=880,dur=.12,vol=.08){if(!AC||muted)return;try{const T=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=freq;
     g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(vol,T+.008);g.gain.exponentialRampToValueAtTime(.0001,T+dur);o.connect(g);g.connect(SND?SND.bus:AC.destination);o.start(T);o.stop(T+dur+.02)}catch(e){}}
@@ -2008,6 +2017,11 @@ t.bd.position.set(x,y+.86,z);
     const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=1.4;f.frequency.setValueAtTime(3800,T);f.frequency.exponentialRampToValueAtTime(1600,T+.35);
     const g=AC.createGain();g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.09*k,T+.02);g.gain.exponentialRampToValueAtTime(.0001,T+.4);
     s.connect(f);f.connect(g);g.connect(SND.bus);s.start(T,Math.random());s.stop(T+.45)}catch(e){}}
+  // air brakes: a sharp hiss that tails off
+  function airBrake(){if(!AC||muted||!SND)return;try{const T=AC.currentTime,s=AC.createBufferSource();s.buffer=SND.wh;
+    const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=2200;const g=AC.createGain();
+    g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.08,T+.03);g.gain.setTargetAtTime(0,T+.25,.25);
+    s.connect(f);f.connect(g);g.connect(SND.bus);s.start(T,Math.random());s.stop(T+1.4)}catch(e){}}
   // impacts: a low body thud, plus a short panel clank on the hard ones
   function thud(k){if(!AC||muted||!SND)return;try{const T=AC.currentTime,S=SND;
     {const s=AC.createBufferSource();s.buffer=S.pk;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=240+k*520;const g=AC.createGain();
@@ -3016,7 +3030,7 @@ const F=chassisB.force,T=chassisB.torque;
        road rumble follows speed and drops when airborne. UFO power-up / landing
        are one-shot sweeps; a low spacecraft bed hums through the space phases. */
     let bed=null;
-    function silenceSnd(){ if(!AC||!SND)return; const T=AC.currentTime; [SND.mG,SND.rG,SND.gG,SND.wG,SND.sG,SND.engG].forEach(g=>{try{g.gain.setTargetAtTime(0,T,.05)}catch(e){}}); }
+    function silenceSnd(){ if(!AC||!SND)return; const T=AC.currentTime; [SND.mG,SND.rG,SND.gG,SND.wG,SND.sG,SND.engG,SND.bG].forEach(g=>{try{g.gain.setTargetAtTime(0,T,.05)}catch(e){}}); }
     function audioSurface(dt){ if(!AC||!SND)return; const S=SURF; if(!S)return; const cfg=S.cfg,A=SND,T=AC.currentTime,mars=cfg===PLANETS.mars;
       const speed=Math.hypot(S.vel.x,S.vel.z), spN=Math.min(1,speed/cfg.vmax), thr=(key.f?1:0)-(key.b?1:0);
       S.ld=(S.ld==null?0:S.ld)+((thr>0?1:0)-(S.ld==null?0:S.ld))*Math.min(1,dt*3);
@@ -4123,7 +4137,7 @@ const PLANETS={
     };
     // keep the surface gently alive while the menu is open (dust settles, reflectors spin)
     function S_idle(S,dt){
-      if(AC&&SND){try{SND.engG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.mG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.rG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.wG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.gG.gain.setTargetAtTime(0,AC.currentTime,.1);}catch(e){}}
+      if(AC&&SND){try{SND.engG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.bG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.sG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.mG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.rG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.wG.gain.setTargetAtTime(0,AC.currentTime,.1);SND.gG.gain.setTargetAtTime(0,AC.currentTime,.1);}catch(e){}}
       const arr=S.dgeo.attributes.position.array;
       for(let i=0;i<S.dlife.length;i++){ if(S.dlife[i]>0){ S.dlife[i]-=dt; S.dvel[i].y-=(moonGravityOn?S.cfg.g:24)*0.5*dt;
         arr[i*3]+=S.dvel[i].x*dt;arr[i*3+1]+=S.dvel[i].y*dt;arr[i*3+2]+=S.dvel[i].z*dt; if(S.dlife[i]<=0)arr[i*3+1]=-9999; } }
@@ -4517,17 +4531,27 @@ const PLANETS={
             if(E.turbo){const rn=S.rpm/red;S.tO.frequency.setTargetAtTime((E.turboHz||1800)+rn*2600,T,.08);S.tG.gain.setTargetAtTime(muted?0:E.turbo*thr*rn*rn,T,.12)}
             else S.tG.gain.setTargetAtTime(0,T,.1)}
           const ground=air?0:Math.min(1,spq/V.max),off=offD>7+RWX?1:0;
-          S.rF.frequency.setTargetAtTime(200+ground*1000,T,.1);
-          S.rG.gain.setTargetAtTime(ground*(off?.05:.09),T,.1);
+          S.rF.frequency.setTargetAtTime(160+ground*420,T,.1);
+          S.rG.gain.setTargetAtTime(ground*(off?.05:.07),T,.1);
           S.gG.gain.setTargetAtTime(ground*off*.075,T,.1);
-          const wv=Math.max(0,spq/V.max-.2);S.wG.gain.setTargetAtTime(Math.min(.075,wv*wv*.13),T,.15);S.wF.frequency.setTargetAtTime(480+spq*20,T,.2);
-          let sk=0;for(let i=0;i<4;i++){const w=veh.wheelInfos[i];if(w.isInContact)sk=Math.max(sk,1-(w.skidInfo==null?1:w.skidInfo))}if(key.h&&spq>5)sk=Math.max(sk,.75);
-          sk=(spq<4||sub>.05||off)?0:Math.max(0,sk-.15)/.85;
-          S.sG.gain.setTargetAtTime(Math.min(.18,sk*.22),T,.03);
-          S.s1.frequency.setTargetAtTime(960+Math.random()*150+spq*4,T,.03);S.s2.frequency.setTargetAtTime(2100+Math.random()*240,T,.03)
+          const wv=Math.max(0,spq/V.max-.35);S.wG.gain.setTargetAtTime(Math.min(.035,wv*wv*.09),T,.25);S.wF.frequency.setTargetAtTime(200+spq*3,T,.3);
+          /* tyres. Squeal only when the car is really sliding: sideways speed, or the handbrake at speed.
+             Straight-line braking is a scrub rumble that swells with the deceleration instead. */
+          const lat=Math.abs(vv.x*fwdScratch.z-vv.z*fwdScratch.x);
+          let sk=Math.max(0,Math.min(1,(lat-2.2)/6));if(key.h&&spq>5)sk=Math.max(sk,.7);
+          if(b&&vf>18&&!air)sk=Math.max(sk,Math.min(.35,(vf-18)*.03));                       // locking up from high speed
+          sk=(spq<4||sub>.05||off||air)?0:sk;
+          S.sqP+=(Math.random()-.5)*dt*240;S.sqP*=Math.exp(-dt*2);                               // slow pitch drift, not a jump every frame
+          const sq=780+sk*260+S.sqP;
+          S.s1.frequency.setTargetAtTime(sq,T,.06);S.s2.frequency.setTargetAtTime(sq*1.5,T,.06);S.sF.frequency.setTargetAtTime(sq*1.18,T,.08);
+          S.sG.gain.setTargetAtTime(muted?0:sk*sk*.07,T,sk>.05?.05:.12);
+          const brk=(b&&vf>1.5&&!air&&sub<.05)?Math.min(1,vf/V.max*1.4):0;S.brk+=(brk-S.brk)*Math.min(1,dt*(brk>S.brk?8:4));
+          S.bG.gain.setTargetAtTime(muted?0:S.brk*.12,T,.06);S.bF.frequency.setTargetAtTime(280+S.brk*420,T,.08);
+          // the hauler sighs its air brakes as it comes to a stop
+          if(curCarId==='truck'){if(S.brk>.25)S.airArm=1;if(S.airArm&&spq<1.2){S.airArm=0;airBrake()}}
         }
         honk(!!key.horn);
-      }else{if(AC&&SND){const T=AC.currentTime;[SND.mG,SND.rG,SND.gG,SND.wG,SND.sG,SND.tG,SND.engG].forEach(g=>g&&g.gain.setTargetAtTime(0,T,.06))}honk(false)}
+      }else{if(AC&&SND){const T=AC.currentTime;[SND.mG,SND.rG,SND.gG,SND.wG,SND.sG,SND.tG,SND.engG,SND.bG].forEach(g=>g&&g.gain.setTargetAtTime(0,T,.06))}honk(false)}
     }
     {const cp=chassisB.position,pp=PREV.p,dx=cp.x-pp.x,dy=cp.y-pp.y,dz=cp.z-pp.z;
      if(active&&driving&&PREV.ok&&dx*dx+dy*dy+dz*dz<36){const a=Math.min(1,physAcc/PSTEP);
@@ -4686,14 +4710,16 @@ const PLANETS={
       const tf=CAMS[camMode].fov+Math.min(10,sp*.35)-ce*2.6;
       if(Math.abs(C.fov-tf)>.02){C.fov+=(tf-C.fov)*(1-Math.exp(-dt*3.2));C.updateProjectionMatrix()}}
     else if(recapCam){
-      // parked at the summit: swing the camera round behind the car so the low sun stays in frame
-      camT.copy(car.position).addScaledVector(SUN_DIR_LOW,-15).add(tmp.set(0,6.5,0));
+      // at the summit: stand behind the car on the cliff side and look inland, down over the map and into the sunset
+      camT.set(car.position.x+BR_OUT.x*11-PEAK_SIDE.x*3,0,car.position.z+BR_OUT.z*11-PEAK_SIDE.z*3);
+      camT.y=Math.max(car.position.y+7.5,HF.h(camT.x,camT.z)+3);
       C.position.lerp(camT,1-Math.exp(-dt*1.1));
-      lookT.copy(car.position).addScaledVector(SUN_DIR_LOW,45).add(tmp.set(0,2.5,0));
+      lookT.set(car.position.x-BR_OUT.x*80,car.position.y-14,car.position.z-BR_OUT.z*80);
       look.lerp(lookT,1-Math.exp(-dt*1.4));
       C.lookAt(look);
       if(Math.abs(camRoll)>.0005){camRoll*=Math.exp(-dt*4)}
-      if(Math.abs(C.fov-42)>.02){C.fov+=(42-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
+      if(Math.abs(C.fov-55)>.02){C.fov+=(55-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
+    {const cf=recapCam?700:320;if(C.far!==cf&&C.far<=700){C.far=cf;C.updateProjectionMatrix()}}   // the lookout sees the whole map
     const sunOff=recapCam?SUN_OFF_LOW:SUN_OFF_DEFAULT;
     {const d=shD.copy(sunOff).normalize(),r=shR.set(0,1,0).cross(d).normalize(),u=shU.copy(d).cross(r),tx=60/(sun.shadow.mapSize.x||1024),p=car.position;
      const a=Math.round((p.x*r.x+p.y*r.y+p.z*r.z)/tx)*tx,b=Math.round((p.x*u.x+p.y*u.y+p.z*u.z)/tx)*tx,c=p.x*d.x+p.y*d.y+p.z*d.z;
@@ -4731,7 +4757,8 @@ const PLANETS={
        toward whatever band of the loop the car is in. */
     {const z=ZN,e=.08;
      // a custom venue is open ground out to the mountains, so clear weather there gets a much longer view than the tight valley map
-     const fk=MODE==='circuit'&&fogFar0>=200?3.6:1,fn=fk>1?2.4:1;
+     // and the summit lookout pulls the haze back so the whole valley shows below
+     const fk=MODE==='circuit'&&fogFar0>=200?3.6:recapCam?3.8:1,fn=fk>1?2.4:1;
      S.fog.far+=(fogFar0*z.fog*fk-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,z.fog)*fn-S.fog.near)*e;
      const lt=(z.tint[0]+z.tint[1]+z.tint[2])/3;
      if(wxB.id==='storm'){ltT-=dt;if(ltT<=0){ltT=2.5+Math.random()*7;flashV=1;thunderAt=now+300+Math.random()*1800}}
@@ -6686,7 +6713,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={PEAK,PEAK_H,BR_OUT,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
