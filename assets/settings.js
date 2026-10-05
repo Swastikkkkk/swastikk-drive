@@ -67,7 +67,7 @@
     inn.appendChild(slider('master','Master'));inn.appendChild(slider('engine','Engine'));
     inn.appendChild(slider('effects','Effects'));inn.appendChild(slider('music','Music'));
     inn.appendChild(h4('Radio'));
-    const R=window.Radio,rs=R?R.stations:[];
+    const R=window.Radio,rs=R?(R.live||R.stations):[];
     const radioSeg=seg([[-1,'Off']].concat(rs.map((s,i)=>[i,s.fm+' '+s.name])),R?R.station():-1,i=>{if(window.Radio)Radio.tune(+i)});
     radioSeg.id='st-radio';inn.appendChild(radioSeg);
     {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Fast songs (Indie Pop Rocks above 120 km/h)</span>';
