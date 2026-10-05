@@ -486,7 +486,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const SPURS=[];
   function spurTo(q,stop){let bi=0,bd=1e9;for(let i=0;i<N;i+=2){const d=(SAMP[i].x-q.x)**2+(SAMP[i].z-q.z)**2;if(d<bd){bd=d;bi=i}}
     const p=SAMP[bi],dx=q.x-p.x,dz=q.z-p.z,l=Math.hypot(dx,dz),L=l-stop,pts=[];for(let s=7;s<=L;s+=2)pts.push([p.x+dx/l*s,p.z+dz/l*s]);SPURS.push(pts)}
-  spurTo(VZ.stunt,VZ.stunt.r-6);spurTo(VZ.ufo,VZ.ufo.r-2);spurTo(VZ.volc,VZ.volc.R*.92);
+  spurTo(VZ.stunt,VZ.stunt.r-6);spurTo(VZ.ufo,5);spurTo(VZ.volc,VZ.volc.R*.92);
   function zoneHit(x,z,m=0){for(const k of ['stunt','ufo']){const q=VZ[k];if((x-q.x)**2+(z-q.z)**2<(q.r+m)**2)return true}
     const v=VZ.volc;if((x-v.x)**2+(z-v.z)**2<(v.R*.8+m)**2)return true;
     for(const S2 of SPURS)for(let i=0;i<S2.length;i+=2){const dx=S2[i][0]-x,dz=S2[i][1]-z;if(dx*dx+dz*dz<(5+m)*(5+m))return true}return false}
@@ -501,6 +501,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     for(let i=0;i<N;i+=6){const dx=SAMP[i].x-x,dz=SAMP[i].z-z,d=dx*dx+dz*dz;if(d<bd){bd=d;bi=i}}
     for(let i=bi-6;i<=bi+6;i++){const k=(i+N)%N,dx=SAMP[k].x-x,dz=SAMP[k].z-z,d=dx*dx+dz*dz;if(d<bd){bd=d;bi=k}}
     let bestD=bd,bestU=bi/N,branch=false,ring=false;
+    // refine onto the segments either side of the nearest sample, so u is continuous (no staircase on the hills)
+    for(const k of [(bi+N-1)%N,bi]){const A=SAMP[k],B=SAMP[k+1],ex=B.x-A.x,ez=B.z-A.z,
+      t=Math.max(0,Math.min(1,((x-A.x)*ex+(z-A.z)*ez)/(ex*ex+ez*ez||1))),dx=A.x+ex*t-x,dz=A.z+ez*t-z,d=dx*dx+dz*dz;
+      if(d<=bestD){bestD=d;bestU=((k+t)/N)%1}}
     // the branch spur is short, so a full linear scan of it is cheap
     // projected onto each segment, so u (and the road height taken from it) is continuous instead of a staircase
     if(x>BR_BB.a&&x<BR_BB.b&&z>BR_BB.c&&z<BR_BB.d)for(let i=0;i<BN;i++){const A=BSAMP[i],B=BSAMP[i+1],ex=B.x-A.x,ez=B.z-A.z,
@@ -525,7 +529,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return h}
   // how far out a point is (square distance, with a wandering coast) and how much of the west range it belongs to
   function worldEdge(x,z){return {de:Math.max(Math.abs(x),Math.abs(z))+(fbm2(x*.006+3,z*.006-8)-.8)*70,wM:SM((140-x)/280)}}
-  function terrainH(x,z){
+  function baseH(x,z){
     let h=rollingH(x,z);
     const m=mountH(x,z);if(m>h)h=m;
     {const vh=volcH(x,z);if(vh>-50)h=Math.max(h,vh+Math.min(h,0))}
@@ -546,6 +550,33 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(fw>0)h=h*(1-fw)+(rn.ring?BR_H:rn.branch?brHAt(rn.u):hAt(rn.u))*fw;
     for(let i=0;i<PADS.length;i++){const p=PADS[i],dd=Math.hypot(p.x-x,p.z-z);
       if(dd<p.f){const w=1-SM((dd-p.r)/(p.f-p.r));h=h*(1-w)+p.y*w}}
+    return h}
+  /* ---------- the dirt tracks get a graded bed ----------
+     They used to be painted straight onto the raw hills, so the UFO and volcano tracks were up to 90% steep in
+     places and tipped 30% sideways. Each one now gets its own height profile: the ground along it, smoothed out
+     hard (a road is cut and filled, not draped), pinned to the main road where it leaves and to the level pad
+     where it arrives, and capped at a 9% grade. The bed is flat across and blends into the hillside either side. */
+  const SPUR_PROF=SPURS.map(pts=>{const n=pts.length;if(n<2)return null;
+    const A={x:pts[0][0],z:pts[0][1]},B={x:pts[n-1][0],z:pts[n-1][1]},L=Math.hypot(B.x-A.x,B.z-A.z)||1;
+    const h=pts.map(([x,z])=>baseH(x,z)),fix=pts.map(([x,z],i)=>i<3||i===n-1||PADS.some(P=>Math.hypot(P.x-x,P.z-z)<P.r));
+    for(let it=0;it<400;it++)for(let i=1;i<n-1;i++)if(!fix[i])h[i]=h[i]*.5+(h[i-1]+h[i+1])*.25;
+    // 9% over the 2 m spacing, or the even grade the track needs between its pinned ends if that is steeper (the
+    // UFO track starts on top of the loop's hill), so the drop is spread along the whole track, not bunched at one end
+    let need=0;{let pi=0;for(let i=1;i<n;i++)if(fix[i]){need=Math.max(need,Math.abs(h[i]-h[pi])/((i-pi)*2));pi=i}}
+    const G=Math.max(.09,need*1.15)*2;
+    for(let pass=0;pass<4;pass++){for(let i=1;i<n;i++)if(!fix[i])h[i]=Math.max(h[i-1]-G,Math.min(h[i-1]+G,h[i]));
+      for(let i=n-2;i>=0;i--)if(!fix[i])h[i]=Math.max(h[i+1]-G,Math.min(h[i+1]+G,h[i]))}
+    for(let it=0;it<30;it++)for(let i=1;i<n-1;i++)if(!fix[i])h[i]=h[i]*.5+(h[i-1]+h[i+1])*.25;   // round off the clamp's corners
+    return {ax:A.x,az:A.z,dx:(B.x-A.x)/L,dz:(B.z-A.z)/L,L,h,bb:{a:Math.min(A.x,B.x)-30,b:Math.max(A.x,B.x)+30,c:Math.min(A.z,B.z)-30,d:Math.max(A.z,B.z)+30}}});
+  function spurAt(x,z){let best=null;
+    for(const P of SPUR_PROF){if(!P||x<P.bb.a||x>P.bb.b||z<P.bb.c||z>P.bb.d)continue;
+      const t=(x-P.ax)*P.dx+(z-P.az)*P.dz,tc=Math.max(0,Math.min(P.L,t)),px=P.ax+P.dx*tc,pz=P.az+P.dz*tc,d=Math.hypot(x-px,z-pz);
+      if(!best||d<best.d){const f=tc/2,i=Math.min(P.h.length-2,f|0),fr=Math.min(1,f-i);best={d,h:P.h[i]+(P.h[i+1]-P.h[i])*fr,t}}}
+    return best}
+  function terrainH(x,z){let h=baseH(x,z);
+    // the main road wins where they meet: the track's bed fades out over the asphalt instead of flattening it
+    const sp=spurAt(x,z);if(sp){let fw=1-SM((sp.d-5)/16);if(fw>0&&sp.t<14){const rn=roadNear(x,z);if(!rn.branch)fw*=SM((rn.d-(5.8+RWX))/3)}
+      if(fw>0)h=h*(1-fw)+sp.h*fw}
     return h}
   const rockPts=[];
   const terrainM=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(160,.07,Math.round(120*MK*LAND),.55)});
@@ -608,7 +639,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const rockIM=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),M(0x585349,{roughness:.98,flatShading:true,map:grainTex(64,.09,2,.52)}),rockPts.length);
     rockIM.receiveShadow=true;
     {const o=new THREE.Object3D();rockPts.forEach(([x,hh,z,s,ry],i)=>{o.position.set(x,hh+s*.22,z);o.scale.set(s,s*.78,s*.92);o.rotation.set(ry*.5,ry,ry*.3);o.updateMatrix();rockIM.setMatrixAt(i,o.matrix)});S.add(rockIM)}
-    return {h:hAcc,slope:slAcc,paint,mesh}})();
+    return {h:hAcc,slope:slAcc,paint,mesh,body}})();
   /* ---------- distant ridge line, so the horizon is land and not fog ---------- */
   const farRidge=(function(){const pos=[],idx=[],col=[];const SEG=84,R0=268;
     for(let i=0;i<=SEG;i++){const a=i/SEG*Math.PI*2;const hh=16+fbm2(Math.cos(a)*7+31,Math.sin(a)*7-12)*30;
@@ -2670,34 +2701,53 @@ t.bd.position.set(x,y+.86,z);
   /* ---------- minimap ---------- */
   const MAPS=SAMP.filter((_,i)=>i%2===0);let mapRot=0;
   const MAPR=BOUND+40;let mapCache=null;   // the whole world out to the edge walls: the sea and the mountains are on the map
+  /* The map's ground is painted once from the real heightfield: grass shaded by height and by a light from the
+     north-west (so hills, the summit and the volcano read as relief), rock and snow up in the range, sand on the
+     shore, and the sea. Roads are not in this picture: they are drawn as vectors every frame (mapRoads) so they
+     stay sharp at the minimap's zoom. */
   function buildMapCache(){
-    const CS=1200,k=(CS/2)/MAPR,cv2=document.createElement('canvas');cv2.width=cv2.height=CS;
+    const CS=1200,cv2=document.createElement('canvas');cv2.width=cv2.height=CS;
     const c=cv2.getContext('2d');
-    /* the land itself, read off the real terrain: the sea in blue (shallows lighter by the beach), sand on the
-       shore, and the western range shaded rock to snow by height */
     {const R=800,im=c.createImageData(R,R),d=im.data,cell=MAPR*2/R,seaHere=(x,z)=>x>470||Math.abs(z)>470&&x>-150||Math.abs(z)>BOUND+40;   // where the sea sheets are
      for(let j=0;j<R;j++)for(let i=0;i<R;i++){const x=-MAPR+(i+.5)*cell,z=-MAPR+(j+.5)*cell,e=worldEdge(x,z),q=(j*R+i)*4;
-       let r=0,g=0,b=0,a=0;
-       if(Math.abs(x)>WS||Math.abs(z)>WS){if(e.wM<.5){r=38;g=78;b=100;a=230}else{r=170;g=172;b=178;a=230}}   // past the terrain: open sea, or more range
+       let r,g,b;
+       if(Math.abs(x)>WS||Math.abs(z)>WS){if(e.wM<.5){r=34;g=72;b=94}else{r=150;g=152;b=158}}   // past the terrain: open sea, or more range
        else{const h=HF.h(x,z);
-         if(h<WATER_Y&&seaHere(x,z)){const dp=Math.min(1,(WATER_Y-h)/6);r=LRP(70,32,dp);g=LRP(122,72,dp);b=LRP(140,96,dp);a=235}
-         else if(e.de>480&&e.wM<1&&h<1.6){r=176;g=160;b=118;a=200}
-         else if(e.wM>.2&&h>14){const t=Math.min(1,(h-14)/90);r=LRP(92,232,t);g=LRP(90,234,t);b=LRP(86,240,t);a=LRP(120,235,Math.min(1,(h-14)/30))}}
-       d[q]=r;d[q+1]=g;d[q+2]=b;d[q+3]=a}
+         if(h<WATER_Y&&seaHere(x,z)){const dp=Math.min(1,(WATER_Y-h)/6);r=LRP(78,30,dp);g=LRP(136,70,dp);b=LRP(150,96,dp)}
+         else{
+           const sh=Math.max(.55,Math.min(1.35,1+((HF.h(x-cell,z-cell)-HF.h(x+cell,z+cell))/(cell*2))*.85));   // light from the north-west
+           if(e.de>480&&e.wM<1&&h<1.6){r=186;g=168;b=124}
+           else if(e.wM>.2&&h>14){const t=Math.min(1,(h-14)/90);r=LRP(104,236,t);g=LRP(100,238,t);b=LRP(94,242,t)}
+           else{const t=Math.max(0,Math.min(1,(h+2)/26));r=LRP(52,96,t);g=LRP(74,104,t);b=LRP(44,70,t)}
+           r*=sh;g*=sh;b*=sh}}
+       d[q]=Math.min(255,r);d[q+1]=Math.min(255,g);d[q+2]=Math.min(255,b);d[q+3]=255}
      const tc=document.createElement('canvas');tc.width=tc.height=R;tc.getContext('2d').putImageData(im,0,0);
      c.imageSmoothingEnabled=true;c.drawImage(tc,0,0,CS,CS)}
-    c.translate(CS/2,CS/2);
-    c.fillStyle='rgba(45,76,92,.9)';c.beginPath();c.arc(POND.x*k,POND.z*k,POND.r*k,0,6.283);c.fill();
-    c.strokeStyle='rgba(143,42,42,.8)';c.lineWidth=1.6;c.strokeRect((PG.x-12)*k,(PG.z-12)*k,24*k,24*k);
-    c.fillStyle='rgba(120,150,110,.4)';treePts.forEach(([x,z])=>{c.beginPath();c.arc(x*k,z*k,1.7,0,6.283);c.fill()});
-    c.strokeStyle='#5a5750';c.lineWidth=3.2*k;c.beginPath();MAPS.forEach((p,i)=>{i?c.lineTo(p.x*k,p.z*k):c.moveTo(p.x*k,p.z*k)});c.closePath();c.stroke();
-    c.strokeStyle='#8a7a5a';c.lineWidth=4.2*k;HILLS.forEach(HL=>{c.beginPath();for(let i=Math.floor(HL.a*N);i<=HL.d*N;i++){const p=SAMP[i];i===Math.floor(HL.a*N)?c.moveTo(p.x*k,p.z*k):c.lineTo(p.x*k,p.z*k)}c.stroke()});
-    c.strokeStyle='rgba(150,120,80,.85)';c.lineWidth=2.4;SPURS.forEach(pts=>{c.beginPath();pts.forEach(([x,z],i)=>i?c.lineTo(x*k,z*k):c.moveTo(x*k,z*k));c.stroke()});
-    {const V=VZ.volc;c.fillStyle='rgba(70,50,44,.8)';c.beginPath();c.arc(V.x*k,V.z*k,V.R*.8*k,0,6.283);c.fill();c.fillStyle='rgba(255,110,50,.95)';c.beginPath();c.arc(V.x*k,V.z*k,V.cr*k,0,6.283);c.fill()}
-    c.lineWidth=1.8;c.strokeStyle='rgba(216,136,136,.85)';c.beginPath();c.arc(VZ.stunt.x*k,VZ.stunt.z*k,VZ.stunt.r*k,0,6.283);c.stroke();
-    c.strokeStyle='rgba(120,240,230,.85)';c.beginPath();c.arc(VZ.ufo.x*k,VZ.ufo.z*k,VZ.ufo.r*k,0,6.283);c.stroke();
+    const k=(CS/2)/MAPR;c.translate(CS/2,CS/2);
+    c.fillStyle='rgba(60,110,130,.95)';c.beginPath();c.arc(POND.x*k,POND.z*k,POND.r*k,0,6.283);c.fill();
+    c.fillStyle='rgba(30,52,30,.55)';treePts.forEach(([x,z])=>{c.beginPath();c.arc(x*k,z*k,1.6,0,6.283);c.fill()});
+    {const V=VZ.volc;const gr=c.createRadialGradient(V.x*k,V.z*k,V.cr*k,V.x*k,V.z*k,V.R*.85*k);gr.addColorStop(0,'rgba(60,44,40,.95)');gr.addColorStop(1,'rgba(60,44,40,0)');
+     c.fillStyle=gr;c.beginPath();c.arc(V.x*k,V.z*k,V.R*.85*k,0,6.283);c.fill();c.fillStyle='rgba(255,112,48,.95)';c.beginPath();c.arc(V.x*k,V.z*k,V.cr*k,0,6.283);c.fill()}
+    // the level grounds: stunt park and UFO field as paved / lit areas
+    c.fillStyle='rgba(205,196,178,.28)';c.beginPath();c.arc(VZ.stunt.x*k,VZ.stunt.z*k,VZ.stunt.r*k,0,6.283);c.fill();
+    c.fillStyle='rgba(120,240,230,.22)';c.beginPath();c.arc(VZ.ufo.x*k,VZ.ufo.z*k,VZ.ufo.r*k,0,6.283);c.fill();
     mapCache=cv2;
   }
+  /* every road on Earth, at its real width with a dark edge, so the map reads like a road map */
+  function mapRoads(c,sc,big){
+    const px=Math.max(big?1:1.4,sc);   // never thinner than a pixel and a bit
+    const path=(pts,closed)=>{c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p.x*sc,p.z*sc):c.moveTo(p.x*sc,p.z*sc));if(closed)c.closePath()};
+    const spurPts=SPURS.map(sp=>sp.map(([x,z])=>({x,z})));
+    c.lineCap='round';c.lineJoin='round';
+    // casings first, so crossings merge cleanly
+    c.strokeStyle='rgba(12,12,10,.85)';
+    c.lineWidth=Math.max(3,9*px);spurPts.forEach(p=>{path(p,false);c.stroke()});
+    c.lineWidth=Math.max(4,12*px);path(MAPS,true);c.stroke();path(BSAMP,false);c.stroke();c.beginPath();c.arc(RING.x*sc,RING.z*sc,RING.r*sc,0,6.283);c.stroke();
+    c.strokeStyle='#b08f5c';c.lineWidth=Math.max(1.6,6*px);spurPts.forEach(p=>{path(p,false);c.stroke()});
+    c.strokeStyle="#9a958b";c.lineWidth=Math.max(2.4,8.5*px);path(MAPS,true);c.stroke();path(BSAMP,false);c.stroke();c.beginPath();c.arc(RING.x*sc,RING.z*sc,RING.r*sc,0,6.283);c.stroke()}
+  function mapLabel(c,t,x,y,col){c.font='700 '+(t.length>8?10:11)+'px ui-monospace,"SF Mono",Menlo,Consolas,monospace';const w=c.measureText(t).width+12;
+    c.fillStyle='rgba(10,11,14,.78)';c.beginPath();if(c.roundRect)c.roundRect(x-w/2,y-9,w,18,9);else c.rect(x-w/2,y-9,w,18);c.fill();
+    c.fillStyle=col;c.textAlign='center';c.textBaseline='middle';c.fillText(t,x,y+.5);c.textBaseline='alphabetic';c.textAlign='left'}
   function buildPlanetMapCache(cfg){
     const CS=720, MAPR_P=8000, k=(CS/2)/MAPR_P, cv2=document.createElement('canvas'); cv2.width=cv2.height=CS;
     const c=cv2.getContext('2d'); c.translate(CS/2,CS/2);
@@ -2782,27 +2832,26 @@ t.bd.position.set(x,y+.86,z);
     // Earth world mode
     const sc=size/2/(big?BOUND+20:60);
     c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);
-    c.beginPath();c.arc(0,0,size/2-1,0,6.283);c.fillStyle='rgba(18,17,15,.88)';c.fill();c.clip();
+    c.beginPath();c.arc(0,0,size/2-1,0,6.283);c.fillStyle='#22301f';c.fill();c.clip();
     if(!big){let d=(yaw+Math.PI-mapRot);d=Math.atan2(Math.sin(d),Math.cos(d));mapRot+=d*.1;c.rotate(mapRot);c.translate(-chassisB.position.x*sc,-chassisB.position.z*sc)}
     if(!mapCache)buildMapCache();
     {const s=MAPR*sc;c.drawImage(mapCache,-s,-s,s*2,s*2)}
-    c.strokeStyle='#eef0f3';c.lineWidth=2;c.beginPath();const n=Math.floor(progU*MAPS.length);for(let i=0;i<=n&&i<MAPS.length;i++){const p=MAPS[i];i?c.lineTo(p.x*sc,p.z*sc):c.moveTo(p.x*sc,p.z*sc)}c.stroke();
+    mapRoads(c,sc,big);
+    c.strokeStyle='#eef0f3';c.lineWidth=big?3:2.5;c.lineCap='round';c.beginPath();const n=Math.floor(progU*MAPS.length);for(let i=0;i<=n&&i<MAPS.length;i++){const p=MAPS[i];i?c.lineTo(p.x*sc,p.z*sc):c.moveTo(p.x*sc,p.z*sc)}c.stroke();
     const t=performance.now()/500;
     {
      // traffic shows up on the map so you can see what you are racing into
      c.fillStyle='rgba(238,240,243,.75)';traffic.forEach(tc=>{const pt=at(tc.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?3.4:2.2,0,6.283);c.fill()})}
 // AI racers on map
       {c.fillStyle='rgba(255,100,100,.9)';aiRacers.forEach(ai=>{const pt=at(ai.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?4:2.5,0,6.283);c.fill();if(big){c.fillStyle='#fff';c.font='600 8px ui-monospace,monospace';c.textAlign='center';c.fillText(ai.skill.charAt(0).toUpperCase(),pt.x*sc,pt.z*sc+2);c.fillStyle='rgba(255,100,100,.9)'}})}
-    // the ring road
-    {c.strokeStyle='rgba(238,240,243,.45)';c.lineWidth=big?3:2;
-     c.beginPath();c.arc(RING.x*sc,RING.z*sc,RING.r*sc,0,6.283);c.stroke()}
     // the summit
     {c.fillStyle=atSummit?'#f2b26b':'#c98a4a';c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,big?5:3.4,0,6.283);c.fill();
      if(atSummit){c.strokeStyle='rgba(242,178,107,.8)';c.lineWidth=1.5;c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,(big?9:6)+Math.sin(t)*2,0,6.283);c.stroke()}
-     if(big){c.fillStyle='#f2b26b';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.textAlign='left';c.fillText('SUMMIT',PEAK.x*sc+9,PEAK.z*sc+4)}}
-    if(big){c.font='600 11px ui-monospace,"SF Mono",Menlo,Consolas,monospace';c.fillStyle='#e8c28a';[['STUNT PARK',VZ.stunt],['UFO',VZ.ufo],['VOLCANO',VZ.volc]].forEach(([t,q])=>c.fillText(t,q.x*sc-t.length*3.3,q.z*sc+4));
-      c.font='600 12px ui-monospace,"SF Mono",Menlo,Consolas,monospace';c.textAlign='center';c.fillStyle='rgba(235,238,245,.85)';c.fillText('MOUNTAINS',-(BOUND-70)*sc,0);c.fillStyle='rgba(150,205,230,.9)';c.fillText('SEA',(BOUND-40)*sc,0);c.textAlign='left'}
-    if(big){c.fillStyle='#9fc3d6';c.font='600 11px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';c.fillText('POND',POND.x*sc-14,POND.z*sc+4);c.fillStyle='#d88';c.fillText('PLAYGROUND',(PG.x-12)*sc,(PG.z-13)*sc);c.fillStyle='#cdb98f';const hp=SAMP[Math.floor(.44*N)];c.fillText('HILL',hp.x*sc+10,hp.z*sc-10)}
+     if(big)mapLabel(c,'SUMMIT',PEAK.x*sc,PEAK.z*sc-16,'#f2b26b')}
+    if(big){mapLabel(c,'STUNT PARK',VZ.stunt.x*sc,VZ.stunt.z*sc,'#f0c9b8');mapLabel(c,'UFO',VZ.ufo.x*sc,VZ.ufo.z*sc-VZ.ufo.r*sc-12,'#9ff0e8');mapLabel(c,'VOLCANO',VZ.volc.x*sc,VZ.volc.z*sc+VZ.volc.cr*sc+16,'#ffb48a');
+      mapLabel(c,'RAMP YARD',RAMPYARD.x*sc,(RAMPYARD.z+RING.r+10)*sc,'#d9d2c4');
+      mapLabel(c,'MOUNTAINS',-(BOUND-70)*sc,0,'#eef0f3');mapLabel(c,'SEA',(BOUND-40)*sc,0,'#a8d8ee');
+      mapLabel(c,'POND',POND.x*sc,(POND.z+POND.r+9)*sc,'#9fc3d6');mapLabel(c,'PLAYGROUND',PG.x*sc,(PG.z-20)*sc,'#e8a0a0')}
     NAV.drawOnMap(c,sc,big);
     c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
     c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke()}
@@ -4859,11 +4908,14 @@ const PLANETS={
             S.rpm+=(tgt-S.rpm)*Math.min(1,dt*rate);
             if(sub>.3)thr*=.4;
             // a closed throttle still idles; coasting in gear the engine is pushed by the wheels (overrun)
-            const ld=Math.max(thr*(boost?1:.92),S.rpm<idle*1.3?.25:0);
+            /* cruising in top gear the engine is no longer working hard: it settles into a quieter, darker hum
+               instead of a full-throttle drone at one pitch, which got grating on a long run */
+            S.cru=(S.cru||0)+(((S.gear===G-1&&!air&&!shifting)?1:0)-(S.cru||0))*Math.min(1,dt*1.2);
+            const ld=Math.max(thr*(boost?1:.92)*(1-.4*S.cru),S.rpm<idle*1.3?.25:0);
             S.ovr=(S.ovr||0)+((b&&!f?1:0)-(S.ovr||0))*Math.min(1,dt*5);
-            if(S.eng)S.eng.set(S.rpm,ld,S.cutT>0,1,S.ovr);
+            if(S.eng)S.eng.set(S.rpm,ld,S.cutT>0,1-.3*S.cru,S.ovr,S.cru);
             S.engG.gain.setTargetAtTime(muted?0:.42,T,.05);S.mG.gain.setTargetAtTime(0,T,.05);
-            if(E.turbo){const rn=S.rpm/red;S.tO.frequency.setTargetAtTime((E.turboHz||1800)+rn*2600,T,.08);S.tG.gain.setTargetAtTime(muted?0:E.turbo*thr*rn*rn,T,.12)}
+            if(E.turbo){const rn=S.rpm/red;S.tO.frequency.setTargetAtTime((E.turboHz||1800)+rn*2600,T,.08);S.tG.gain.setTargetAtTime(muted?0:E.turbo*thr*rn*rn*(1-.7*(S.cru||0)),T,.12)}
             else S.tG.gain.setTargetAtTime(0,T,.1)}
           const ground=air?0:Math.min(1,spq/V.max),off=offD>7+RWX?1:0;
           S.rF.frequency.setTargetAtTime(160+ground*420,T,.1);
@@ -7071,7 +7123,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
