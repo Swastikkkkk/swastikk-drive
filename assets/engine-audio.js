@@ -5,7 +5,7 @@
    and a little saturation. Intake roar rides on top. Lifting off at high revs pops and crackles,
    and the fuel cut (rev limiter, gear changes) drops the firing pulses to almost nothing.
    No sound files: the DSP runs in an AudioWorklet, or a ScriptProcessor where worklets aren't allowed.
-   window.EngineAudio.create(ctx, destination) -> {setCar(id), set(rpm, load, cut, vol, overrun)}.
+   window.EngineAudio.create(ctx, destination) -> {setCar(id), set(rpm, load, cut, vol, overrun, soft)}.
    window.EngineAudio.CARS holds each car's engine and gearbox. */
 (function(window){
   'use strict';
@@ -13,7 +13,7 @@
   /* ---- the DSP; self-contained because its source is also shipped into the worklet ---- */
   function EngineDSP(sr){
     this.sr=sr;this.c=null;
-    this.rpm=800;this.tRpm=800;this.load=0;this.tLoad=0;this.cut=0;this.ovr=0;this.tOvr=0;this.vol=0;this.tVol=0;
+    this.rpm=800;this.tRpm=800;this.load=0;this.tLoad=0;this.cut=0;this.ovr=0;this.tOvr=0;this.vol=0;this.tVol=0;this.soft=0;this.tSoft=0;
     this.cyc=0;this.nEnv=0;this.pop=0;this.pl=0;this.lift=0;this.dcx=0;this.dcy=0;this.ix1=0;this.ix2=0;this.iy1=0;this.iy2=0;
     this.bank=[0,1].map(function(){return{p1:0,p2:0,imp:0,n:0,d:new Float32Array(8192),w:0,lp:0}});
     this.eq=[];this.lp1=0;this.lp2=0;
@@ -34,7 +34,7 @@
     if(!this.c){this.rpm=this.tRpm=c.idle}
     this.c=c;
   };
-  EngineDSP.prototype.set=function(rpm,load,cut,vol,ovr){this.tRpm=rpm;this.tLoad=load;this.cut=cut;this.tVol=vol;this.tOvr=ovr||0};
+  EngineDSP.prototype.set=function(rpm,load,cut,vol,ovr,soft){this.tRpm=rpm;this.tLoad=load;this.cut=cut;this.tVol=vol;this.tOvr=ovr||0;this.tSoft=soft||0};
   EngineDSP.prototype.process=function(out,n){
     var c=this.c,i,k;if(!c){for(i=0;i<n;i++)out[i]=0;return}
     var sr=this.sr,B=this.bank,cyl=this.cyl,nc=cyl.length,eq=this.eq,ne=eq.length,ib=this.ib;
@@ -44,7 +44,7 @@
         imp=2.718/(1-pa),na=Math.exp(-1/(Math.max(.0002,tau*.7)*sr)),popA=Math.exp(-1/(.035*sr)),
         rN=Math.min(1.2,this.rpm/c.red),idleRough=1+Math.max(0,1-rN*2.5)*1.5;
     for(i=0;i<n;i++){
-      this.lift=this.tLoad<.1?this.lift+1/sr:0;this.rpm+=(this.tRpm-this.rpm)*rs;this.load+=(this.tLoad-this.load)*ls;this.vol+=(this.tVol-this.vol)*vs;this.ovr+=(this.tOvr-this.ovr)*vs;
+      this.lift=this.tLoad<.1?this.lift+1/sr:0;this.rpm+=(this.tRpm-this.rpm)*rs;this.load+=(this.tLoad-this.load)*ls;this.vol+=(this.tVol-this.vol)*vs;this.ovr+=(this.tOvr-this.ovr)*vs;this.soft+=(this.tSoft-this.soft)*vs*.2;
       var prev=this.cyc,cy=prev+this.rpm/120/sr,wrap=cy>=1;if(wrap)cy-=1;this.cyc=cy;
       for(k=0;k<nc;k++){var C=cyl[k];
         if(wrap?(C.a>prev||C.a<=cy):(C.a>prev&&C.a<=cy)){
@@ -66,9 +66,9 @@
       var dc=mix-this.dcx+.996*this.dcy;this.dcx=mix;this.dcy=dc;var x=dc;
       for(k=0;k<ne;k++){var e=eq[k],yv=e.b0*x+e.b1*e.x1+e.b2*e.x2-e.a1*e.y1-e.a2*e.y2;e.x2=e.x1;e.x1=x;e.y2=e.y1;e.y1=yv;x=yv}
       // intake roar, breathing with the firing pulses
-      if(c.intake){var iw=(Math.random()*2-1)*(.25+Math.min(2,pulse*.6))*this.load*Math.min(.8,rN)*c.intake*.5,
+      if(c.intake){var iw=(Math.random()*2-1)*(.25+Math.min(2,pulse*.6))*this.load*Math.min(.8,rN)*c.intake*.5*(1-.75*this.soft),
           iy=ib.b0*iw+ib.b2*this.ix2-ib.a1*this.iy1-ib.a2*this.iy2;this.ix2=this.ix1;this.ix1=iw;this.iy2=this.iy1;this.iy1=iy;x+=iy}
-      this.lp1+=(x-this.lp1)*this.lpa;this.lp2+=(this.lp1-this.lp2)*this.lpa;
+      var lpa=this.lpa*(1-.6*this.soft);this.lp1+=(x-this.lp1)*lpa;this.lp2+=(this.lp1-this.lp2)*lpa;   // cruising: a darker, rounder tone
       out[i]=Math.tanh(this.lp2*c.gain*.35*this.drive)*this.norm*this.vol}
   };
 
@@ -102,19 +102,19 @@
   var SRC=EngineDSP.toString()+';EngineDSP.prototype.setCar='+EngineDSP.prototype.setCar.toString()+
     ';EngineDSP.prototype.set='+EngineDSP.prototype.set.toString()+';EngineDSP.prototype.process='+EngineDSP.prototype.process.toString()+
     ';registerProcessor("engine-dsp",class extends AudioWorkletProcessor{constructor(){super();this.d=new EngineDSP(sampleRate);'+
-    'this.port.onmessage=e=>{const m=e.data;if(m.car)this.d.setCar(m.car);if(m.s)this.d.set(m.s[0],m.s[1],m.s[2],m.s[3],m.s[4])}}'+
+    'this.port.onmessage=e=>{const m=e.data;if(m.car)this.d.setCar(m.car);if(m.s)this.d.set(m.s[0],m.s[1],m.s[2],m.s[3],m.s[4],m.s[5])}}'+
     'process(i,o){const ch=o[0];this.d.process(ch[0],ch[0].length);for(let k=1;k<ch.length;k++)ch[k].set(ch[0]);return true}})';
 
   function create(ac,dest){
     var api={car:null,ready:false,node:null,send:null,
       setCar:function(id){var c=CARS[id];if(!c||api.car===id)return c;api.car=id;if(api.send)api.send({car:c});return c},
-      set:function(rpm,load,cut,vol,ovr){if(api.send)api.send({s:[rpm,load,cut?1:0,vol,ovr||0]})}};
+      set:function(rpm,load,cut,vol,ovr,soft){if(api.send)api.send({s:[rpm,load,cut?1:0,vol,ovr||0,soft||0]})}};
     function fallback(){
       if(api.node)return;
       var d=new EngineDSP(ac.sampleRate),sp=ac.createScriptProcessor(1024,0,1);
       sp.onaudioprocess=function(e){d.process(e.outputBuffer.getChannelData(0),e.outputBuffer.length)};
       sp.connect(dest);api.node=sp;
-      api.send=function(m){if(m.car)d.setCar(m.car);if(m.s)d.set(m.s[0],m.s[1],m.s[2],m.s[3],m.s[4])};
+      api.send=function(m){if(m.car)d.setCar(m.car);if(m.s)d.set(m.s[0],m.s[1],m.s[2],m.s[3],m.s[4],m.s[5])};
       if(api.car)d.setCar(CARS[api.car]);api.ready=true}
     try{
       if(!ac.audioWorklet||typeof AudioWorkletNode==='undefined')throw 0;
