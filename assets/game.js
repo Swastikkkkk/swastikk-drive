@@ -1041,7 +1041,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      cab.traverse(o=>{if(o.isMesh){o.castShadow=!LOW}});cab.rotation.y=YAW}
     const floorB=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});floorB.addShape(new CANNON.Box(new CANNON.Vec3(CW/2,.12,CL/2)));floorB.quaternion.set(qY.x,qY.y,qY.z,qY.w);world.addBody(floorB);
     // state: s along the rope (0 base, 1 top); 'dock0'/'dock1' waiting, 'up'/'down' moving; ride: carrying the car
-    let s=0,st='dock0',ride=null,wait=0,count=0,speedK=1,panT=0,vel=0,armed=true;   // armed: you have driven out since the last rideconst tmpV=new THREE.Vector3(),camA={a:0};
+    // armed: you have driven out of the bay since the last ride, so arriving never sends you straight back
+    let s=0,st='dock0',ride=null,wait=0,count=0,speedK=1,panT=0,vel=0,armed=true;const tmpV=new THREE.Vector3(),camA={a:0};
     const floorAt=u=>{curve.getPointAt(Math.max(0,Math.min(1,u)),tmpV);return {x:tmpV.x,y:tmpV.y-HANG,z:tmpV.z}};
     function place(){const f=floorAt(s);cab.position.set(f.x,f.y,f.z);const vy=(floorB.position.y?f.y-floorB.position.y:0);floorB.position.set(f.x,f.y-.12,f.z)}
     place();
