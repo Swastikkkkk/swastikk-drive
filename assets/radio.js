@@ -1,4 +1,5 @@
-/* In-car FM radio. Every song is written on the fly with Web Audio, so there are no music files and
+/* In-car FM radio. The first twelve FMs are live SomaFM channels (real music, free, ad-free; see LIVE below).
+   The four studio stations after them write every song on the fly with Web Audio, so there are no music files and
    nothing to license: a station picks a key, a tempo and a chord progression, then plays an intro,
    a groove, a melody section, a breakdown and an outro over about three minutes before the next song.
      88.6  Lo-fi Drive   dusty electric piano, swung beat, vinyl crackle
@@ -16,7 +17,23 @@
   const mul=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
   let sr=rnd;const spick=a=>a[Math.floor(sr()*a.length)];
   const CH={maj7:[0,4,7,11],maj9:[0,4,7,11,14],m7:[0,3,7,10],m9:[0,3,7,10,14],d7:[0,4,7,10],d9:[0,4,10,14],m11:[0,3,7,10,17],sus:[0,5,7,10,14],add9:[0,4,7,14]};
-  const STATIONS=[
+  /* Live stations: real music from SomaFM, a free, listener-supported, ad-free internet radio (somafm.com).
+     Each FM is a different SomaFM channel streamed in an <audio> element, with the track name read from their
+     public song list. If a stream can't be reached (offline, blocked), the radio drops to the studio stations below. */
+  const LIVE=[
+    {fm:'88.1',name:'Groove Salad',live:'groovesalad',genre:'Chill downtempo beats'},
+    {fm:'90.5',name:'Indie Pop Rocks',live:'indiepop',genre:'Indie pop and rock'},
+    {fm:'92.3',name:'Underground 80s',live:'u80s',genre:'80s new wave and synthpop'},
+    {fm:'94.7',name:'PopTron',live:'poptron',genre:'Electropop and indie dance'},
+    {fm:'96.9',name:'DEF CON Radio',live:'defcon',genre:'Dark electronic for hacking and driving'},
+    {fm:'98.5',name:'Beat Blender',live:'beatblender',genre:'Deep house and downtempo'},
+    {fm:'99.9',name:'Secret Agent',live:'secretagent',genre:'Spy lounge and cinematic grooves'},
+    {fm:'101.1',name:'Sonic Universe',live:'sonicuniverse',genre:'Modern jazz'},
+    {fm:'102.7',name:'Fluid',live:'fluid',genre:'Instrumental hip-hop and future soul'},
+    {fm:'104.3',name:'Seven Inch Soul',live:'7soul',genre:'Vintage soul 45s'},
+    {fm:'105.9',name:'Metal Detector',live:'metal',genre:'Heavy metal'},
+    {fm:'106.7',name:'Boot Liquor',live:'bootliquor',genre:'Americana and roots'}];
+  const STATIONS=LIVE.concat([
     {fm:'88.6',name:'Lo-fi Drive',style:'lofi',bpm:[72,84],swing:.18,
      progs:[[[2,'m9'],[7,'d9'],[0,'maj9'],[9,'m7']],[[5,'maj7'],[4,'m7'],[2,'m9'],[0,'maj9']],[[9,'m9'],[5,'maj9'],[0,'maj7'],[7,'sus']],[[0,'maj9'],[4,'m7'],[5,'maj7'],[5,'m7']]]},
     {fm:'94.2',name:'Sunset Wave',style:'wave',bpm:[96,110],swing:0,
@@ -26,7 +43,9 @@
     // minor-key progressions that loop under one riff; roots are semitones above a minor tonic
     {fm:'107.5',name:'Night Riff',style:'indie',bpm:[132,146],swing:0,
      progs:[[[0,'mi'],[0,'mi'],[8,'ma'],[10,'ma']],[[0,'mi'],[10,'ma'],[8,'ma'],[7,'mi']],[[0,'mi'],[3,'ma'],[10,'ma'],[8,'ma']],[[0,'mi'],[8,'ma'],[3,'ma'],[10,'ma']],[[0,'mi'],[0,'mi'],[5,'mi'],[7,'ma']]]}
-  ];
+  ]);
+  const isLive=i=>i>=0&&!!(STATIONS[i]&&STATIONS[i].live),NR=STATIONS.length-1,FASTLIVE=LIVE.findIndex(s=>s.live==='indiepop');
+  let liveDown=false;const fastIdx=()=>liveDown?NR:FASTLIVE;
   CH.mi=[0,3,7];CH.ma=[0,4,7];
   const TI=['Five Hundred Nights','Blue Exit','Tail Lights','Room 214','Last Train South','Neon Static','Slow Burn','Do You Still Drive','Glass Highway','After Hours','Velvet Overpass','Red Line Home','Midnight Return','Hotel Corridor'],
         AI=['The Late Arcades','Monday Static','Hollow Avenue','Velvet Signals','The Night Ferries','Arcade Moons'];
@@ -112,7 +131,26 @@
     step=0;
     if(crackleG)crackleG.gain.setTargetAtTime(STATIONS[st].style==='lofi'&&!muted?.035:0,ac.currentTime,.4);
     info()}
-  function info(){if(R.onInfo&&song)R.onInfo('FM '+STATIONS[st].fm+' · '+STATIONS[st].name+' — “'+song.title+'” · '+song.artist);if(R.onChange)R.onChange()}
+  /* ---- live streams ---- */
+  let el=null,liveOk=false,liveTimer=null,metaT=null,srvI=0,meta=null,recent=[];
+  const SRV=[2,4,1,6,5,3],liveUrl=id=>'https://ice'+SRV[srvI%SRV.length]+'.somafm.com/'+id+'-128-mp3';
+  function liveEl(){if(el)return el;el=new Audio();el.preload='none';el.setAttribute('playsinline','');
+    el.addEventListener('playing',()=>{liveOk=true;liveDown=false;clearTimeout(liveTimer);if(R.onChange)R.onChange()});
+    el.addEventListener('error',()=>{if(el.getAttribute('src'))liveFail()});return el}
+  function liveVol(){if(el){el.volume=Math.min(1,vol);el.muted=muted||!on||!isLive(st)}}
+  function livePlay(){const a=liveEl();a.src=liveUrl(STATIONS[st].live);liveVol();const p=a.play();
+    if(p&&p.catch)p.catch(e=>{if(!e||e.name!=='NotAllowedError')liveFail()});   // NotAllowed: waits for a tap, not a failure
+    clearTimeout(liveTimer);liveTimer=setTimeout(()=>{if(!liveOk&&!a.paused)liveFail()},10000)}
+  function liveStart(){srvI=0;liveOk=false;meta=null;recent=[];livePlay();fetchMeta();clearInterval(metaT);metaT=setInterval(fetchMeta,20000);info()}
+  function liveStop(){clearInterval(metaT);clearTimeout(liveTimer);if(el&&el.getAttribute('src')){el.pause();el.removeAttribute('src');try{el.load()}catch(e){}}}
+  function liveFail(){if(!on||!isLive(st))return;srvI++;if(srvI<3){livePlay();return}   // try two more relay servers
+    liveDown=true;const n=STATIONS[st].name;tune(LIVE.length);if(R.onInfo)R.onInfo(n+' is offline · playing a studio station')}
+  function fetchMeta(){const S=STATIONS[st];if(!S||!S.live)return;const id=S.live;
+    fetch('https://somafm.com/songs/'+id+'.json',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(!STATIONS[st]||STATIONS[st].live!==id)return;
+      recent=(j.songs||[]).slice(0,8);const t=recent[0],k=t?t.title+'|'+t.artist:null;if(k!==meta){meta=k;info()}}).catch(()=>{})}
+  function liveNow(){const S=STATIONS[st],t=recent[0];return {title:t&&t.title||S.genre,artist:t&&t.artist||'SomaFM · live'}}
+  function info(){if(on&&isLive(st)){const n=liveNow();if(R.onInfo)R.onInfo('FM '+STATIONS[st].fm+' · '+STATIONS[st].name+' — “'+n.title+'” · '+n.artist);if(R.onChange)R.onChange();return}
+    if(R.onInfo&&song)R.onInfo('FM '+STATIONS[st].fm+' · '+STATIONS[st].name+' — “'+song.title+'” · '+song.artist);if(R.onChange)R.onChange()}
   function section(b,n){
     // the slow-build arc: a quiet riff, the verse, a bigger chorus, a near-silent break, then the loud finale
     if(song.style==='indie'){if(b<8)return'intro';if(b>=n-4)return'outro';const k=(b-8)/(n-12);return k<.3?'verse':k<.5?'chorus':k<.58?'break':k<.75?'verse':'finale'}
@@ -204,36 +242,43 @@
   function tune(i){
     init();st=i;on=i>=0;
     const T=ac.currentTime;
-    if(!on){master.gain.setTargetAtTime(0,T,.15);crackleG.gain.setTargetAtTime(0,T,.15);clearInterval(timer);timer=null;if(R.onInfo)R.onInfo('Radio off');return}
+    if(!isLive(i))liveStop();
+    if(!on){master.gain.setTargetAtTime(0,T,.15);crackleG.gain.setTargetAtTime(0,T,.15);clearInterval(timer);timer=null;if(R.onInfo)R.onInfo('Radio off');if(R.onChange)R.onChange();return}
+    if(isLive(i)){master.gain.setTargetAtTime(0,T,.15);crackleG.gain.setTargetAtTime(0,T,.15);clearInterval(timer);timer=null;song=null;try{ac.resume()}catch(e){}liveStart();return}
     try{ac.resume()}catch(e){}
     master.gain.cancelScheduledValues(T);master.gain.setValueAtTime(0,T);master.gain.linearRampToValueAtTime(muted?0:vol,T+.8);
     song=null;newSong();nextT=T+.1;if(!timer)timer=setInterval(tick,60)}
   // jump to song i of the history with a short fade
-  function playAt(i){if(i<0||i>=hist.length)return;init();const T=ac.currentTime;if(!on){on=true;try{ac.resume()}catch(e){};if(!timer)timer=setInterval(tick,60)}
+  function playAt(i){if(i<0||i>=hist.length)return;if(isLive(st))liveStop();init();const T=ac.currentTime;if(!on){on=true;try{ac.resume()}catch(e){};if(!timer)timer=setInterval(tick,60)}
     master.gain.cancelScheduledValues(T);master.gain.setValueAtTime(master.gain.value,T);master.gain.linearRampToValueAtTime(0,T+.15);master.gain.linearRampToValueAtTime(muted?0:vol,T+.9);
     hi=i;newSong(hist[i].st,hist[i].seed);nextT=T+.2}
 
   R.cycle=()=>tune(st+1>=STATIONS.length?-1:st+1);
-  R.prev=()=>{if(!on)return;if(song&&song.bar>=3||hi<=0){playAt(hi)}else playAt(hi-1)};   // like a car stereo: back restarts the song, twice goes to the one before
-  R.next=()=>{if(!on){tune(Math.max(0,homeSt));return}if(hi<hist.length-1)playAt(hi+1);else{const T=ac.currentTime;master.gain.setValueAtTime(master.gain.value,T);master.gain.linearRampToValueAtTime(0,T+.15);master.gain.linearRampToValueAtTime(muted?0:vol,T+.9);newSong();nextT=T+.2}};
+  // on a live station back and next move along the live dial (a live stream can't be skipped)
+  const liveStep=d=>{const n=LIVE.length;tune(((st+d)%n+n)%n)};
+  R.prev=()=>{if(!on)return;if(isLive(st))return liveStep(-1);if(song&&song.bar>=3||hi<=0){playAt(hi)}else playAt(hi-1)};   // like a car stereo: back restarts the song, twice goes to the one before
+  R.next=()=>{if(!on){tune(Math.max(0,homeSt));return}if(isLive(st))return liveStep(1);if(hi<hist.length-1)playAt(hi+1);else{const T=ac.currentTime;master.gain.setValueAtTime(master.gain.value,T);master.gain.linearRampToValueAtTime(0,T+.15);master.gain.linearRampToValueAtTime(muted?0:vol,T+.9);newSong();nextT=T+.2}};
   R.toggle=()=>{if(on){homeSt=st;tune(-1)}else tune(homeSt>=0?homeSt:0)};
-  R.jump=i=>playAt(i);
-  R.playing=()=>on&&song?{title:song.title,artist:song.artist,fm:STATIONS[st].fm,station:STATIONS[st].name,style:song.style,progress:(song.bar+step/16)/song.bars}:null;
+  R.jump=i=>{if(typeof i==='string'&&i[0]==='s')return tune(+i.slice(1));if(!isLive(st))playAt(i)};
+  R.playing=()=>on&&isLive(st)?Object.assign(liveNow(),{fm:STATIONS[st].fm,station:STATIONS[st].name,style:'live',live:true,progress:liveOk?1:0}):on&&song?{title:song.title,artist:song.artist,fm:STATIONS[st].fm,station:STATIONS[st].name,style:song.style,progress:(song.bar+step/16)/song.bars}:null;
   // the list: up to 6 played before, the current one, and the queued ones (a peek at what is next is written, not played)
-  R.playlist=()=>{const out=[];for(let i=Math.max(0,hi-6);i<hist.length;i++){const sg=makeSong(hist[i].st,hist[i].seed);out.push({i,title:sg.title,artist:sg.artist,fm:STATIONS[hist[i].st].fm,current:i===hi})}
+  // live: the dial (tap one to tune), with what each live station is; studio: the song history
+  R.playlist=()=>{if(on&&isLive(st))return STATIONS.map((S,k)=>({i:'s'+k,title:S.name,artist:S.live?(k===st?liveNow().title+' · '+liveNow().artist:S.genre):'Studio · written in the browser',fm:S.fm,current:k===st}));
+    const out=[];for(let i=Math.max(0,hi-6);i<hist.length;i++){const sg=makeSong(hist[i].st,hist[i].seed);out.push({i,title:sg.title,artist:sg.artist,fm:STATIONS[hist[i].st].fm,current:i===hi})}
     if(on&&hi===hist.length-1){const seed=(rnd()*4294967296)>>>0;hist.push({st,seed});const sg=makeSong(st,seed);out.push({i:hist.length-1,title:sg.title,artist:sg.artist,fm:STATIONS[st].fm,current:false})}
     return out};
   R.setAuto=v=>{auto=!!v};
   // speed: over 120 km/h for 3 s fades over to Night Riff; under 70 km/h for 8 s goes back to the station you had
-  R.setSpeed=(kmh,dt)=>{if(!on||!auto)return;const IND=STATIONS.length-1;
-    if(st!==IND){if(kmh>120){fastT+=dt;if(fastT>3){fastT=0;homeSt=st;hist=hist.slice(0,hi+1);const seed=(rnd()*4294967296)>>>0;hist.push({st:IND,seed});playAt(hist.length-1);if(R.onAuto)R.onAuto(true)}}else fastT=0}
-    else if(homeSt>=0&&homeSt!==IND){if(kmh<70){slowT+=dt;if(slowT>8){slowT=0;const h=homeSt;homeSt=-1;hist=hist.slice(0,hi+1);const seed=(rnd()*4294967296)>>>0;hist.push({st:h,seed});playAt(hist.length-1);if(R.onAuto)R.onAuto(false)}}else slowT=0}};
-  R.setMuted=m=>{muted=!!m;if(!ac)return;const T=ac.currentTime;master.gain.setTargetAtTime(on&&!muted?vol:0,T,.1);
+  R.setSpeed=(kmh,dt)=>{if(!on||!auto)return;const F=fastIdx();
+    if(st!==F){if(kmh>120){fastT+=dt;if(fastT>3){fastT=0;homeSt=st;if(isLive(F))tune(F);else{hist=hist.slice(0,hi+1);hist.push({st:F,seed:(rnd()*4294967296)>>>0});if(isLive(st))liveStop();playAt(hist.length-1)}if(R.onAuto)R.onAuto(true)}}else fastT=0}
+    else if(homeSt>=0&&homeSt!==F){if(kmh<70){slowT+=dt;if(slowT>8){slowT=0;const h=homeSt;homeSt=-1;tune(h);if(R.onAuto)R.onAuto(false)}}else slowT=0}};
+  R.setMuted=m=>{muted=!!m;liveVol();if(!ac)return;const T=ac.currentTime;master.gain.setTargetAtTime(on&&!muted?vol:0,T,.1);
     crackleG.gain.setTargetAtTime(on&&!muted&&song&&song.style==='lofi'?.035:0,T,.1)};
   R.tune=i=>{if(i===st&&on)return;tune(i)};
   R.station=()=>on?st:-1;
-  R.setVolume=x=>{vol=Math.max(0,Math.min(1.2,x))*1;if(ac&&on&&!muted)master.gain.setTargetAtTime(vol,ac.currentTime,.08)};   // 0..1 from the settings
+  R.setVolume=x=>{vol=Math.max(0,Math.min(1.2,x))*1;liveVol();if(ac&&on&&!muted)master.gain.setTargetAtTime(vol,ac.currentTime,.08)};   // 0..1 from the settings
   R.label=()=>on?'Radio: '+STATIONS[st].fm:'Radio: off';
   R.stations=STATIONS;
+  R.fastName=()=>STATIONS[fastIdx()].name;
   window.Radio=R;
 })(window);
