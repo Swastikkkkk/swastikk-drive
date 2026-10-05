@@ -7533,11 +7533,12 @@ updCircBtn();
     function requestRace(){
       if(!room||status!=='up'){note('Not connected yet');return}
       if(!isHost()){note('The host starts the race. Press Ready so they know you are set.');return}
-      if(race.st===1||race.st===2){note('A race is already running');return}
+      // a race can always be restarted: someone missed the start, lagged out or never got the countdown
+      if(race.st===1||race.st===2||race.st===4)toast2('Restarting the race');
       const laps=getLaps(),pick=$('#dmpmap')?$('#dmpmap').value:'earth';
       // a sprint down a planet's road: everybody flies there first, so the countdown leaves time for the landing
       if(SPACE.PLANETS&&SPACE.PLANETS[pick]){const startAt=Date.now()+CD_LEAD+1500+6000,rid=me.id+'-'+startAt,v={planet:pick};
-        send({k:'race',startAt,rid,laps:1,v});beginCountdown('You',startAt,rid,1,v);return}
+        const m1={k:'race',startAt,rid,laps:1,v};send(m1);setTimeout(()=>send(Object.assign({},m1)),700);beginCountdown('You',startAt,rid,1,v);return}
       // get the host onto the chosen track first, then send it with the race so nobody races somewhere else
       if(pick==='circuit'){
         if(!circuit||circuit.daily){note('Draw a track first: Menu → Draw track, then GO & Publish');return}
@@ -7547,7 +7548,8 @@ updCircBtn();
       }else if(MODE==='circuit')leaveCircuit();
       let v={earth:1};
       if(MODE==='circuit'&&circuit){shareVenue({pts:circuit.pts,seed:circuit.seed,scenery:circuit.theme.id,weather:circuit.venue.weather,time:circuit.venue.time,width:circuit.venue.width,elev:circuit.venue.elev,obstacles:circuit.venue.obstacles});v=lastVenue}
-      const startAt=Date.now()+CD_LEAD+1500,rid=me.id+'-'+startAt;send({k:'race',startAt,rid,laps,v});beginCountdown('You',startAt,rid,laps,null)}
+      const startAt=Date.now()+CD_LEAD+1500,rid=me.id+'-'+startAt,m1={k:'race',startAt,rid,laps,v};send(m1);setTimeout(()=>send(Object.assign({},m1)),700);   // twice: a lost broadcast used to leave a friend out
+      beginCountdown('You',startAt,rid,laps,null)}
     function beginCountdown(who,startAt,rid,laps,v){
       rid=String(rid||('legacy-'+startAt));
       if(race.id===rid&&race.st>=1)return;
@@ -7701,8 +7703,15 @@ updCircBtn();
       if(el.out)el.out.style.display=room?'none':'block';
       if(el.inn)el.inn.style.display=room?'block':'none';
       if(el.codeOut)el.codeOut.textContent=room||'';
-      if(el.race){const hst=isHost();el.race.disabled=!room||status!=='up'||!hst||race.st===1||race.st===2||race.st===4;
-        el.race.textContent=!hst?'Host starts the race':race.st===3?'Rematch':'Start race'}
+      if(el.race){const hst=isHost(),live=race.st===1||race.st===2||race.st===4;el.race.disabled=!room||status!=='up'||!hst;
+        el.race.textContent=!hst?'Host starts the race':live?'Restart race':race.st===3?'Rematch':'Start race'}
+      // the host's restart, on screen for the whole race (two taps, so a stray click does not wipe everyone's lap)
+      {let rb=document.getElementById('dmprestart');const show=!!room&&status==='up'&&isHost()&&(race.st===1||race.st===2||race.st===4);
+       if(!rb&&show){rb=document.createElement('button');rb.id='dmprestart';rb.className='dbtn mono';rb.textContent='↻ Restart race';
+         rb.style.cssText='position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:7;padding:8px 14px;border-radius:999px;background:rgba(18,20,25,.82);color:#eef0f3;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);font-size:11px;letter-spacing:.06em;cursor:pointer;pointer-events:auto';
+         rb.onclick=e=>{e.stopPropagation();if(rb._arm&&performance.now()-rb._arm<3000){rb._arm=0;rb.textContent='↻ Restart race';requestRace()}else{rb._arm=performance.now();rb.textContent='Tap again to restart';setTimeout(()=>{if(rb._arm){rb._arm=0;rb.textContent='↻ Restart race'}},3000)}};
+         ['pointerdown','touchstart'].forEach(ev=>rb.addEventListener(ev,e=>e.stopPropagation(),{passive:true}));sec.appendChild(rb)}
+       if(rb)rb.style.display=show?'':'none'}
       if(el.raceStatus)el.raceStatus.textContent=!room?'Create or join a room to race.':status!=='up'?'Connecting to room…':race.st===1?'Race countdown in progress':race.st===2?'Race in progress · finish times appear here as drivers finish':race.st===4?'Race in progress · you joined as a spectator':race.st===3?'Race complete · final times are shown below':(isHost()?'Room ready · press Start race, or it starts by itself once everyone is Ready':'Room ready · press Ready, the host starts the race');
       if(el.list){const host=isHost(),racing=race.st>=2,rows=[{id:me.id,n:myName(),c:0x640c0e,me:1,watching:race.st===4,d:racing?race.d0+race.rp:0,fin:myFin,ping:null,off:false,rdy:myReady}];
         peers.forEach(P=>rows.push({id:P.id,n:P.n,c:colorOf(P.id),d:P.d,fin:P.fin,ping:P.ping,off:!P.got,rdy:!!P.ready}));
