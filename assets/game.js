@@ -2108,6 +2108,71 @@ t.bd.position.set(x,y+.86,z);
         wComp=[0,0,0,0],wLoad=[0,0,0,0];
   // visuals
   const vis={car:new THREE.Group()};car.add(vis.car);
+  /* ---------- the Cockpit camera ----------
+     A night-drive interior seen from the driver's seat: dashboard with purple ambient strips along it and the doors,
+     a digital cluster (round gauges, live speed), a centre screen with the song playing and the time, a wheel that
+     turns as you steer, the windscreen frame, mirror, console and vents. One interior for every car, sized to it;
+     the car's own body is hidden while this camera is on (it would sit across the view). */
+  const COCK=(function(){
+    const g=new THREE.Group();g.visible=false;
+    const dark=new THREE.MeshBasicMaterial({color:0x0a0b0e}),dark2=new THREE.MeshBasicMaterial({color:0x14151a}),trim=new THREE.MeshLambertMaterial({color:0x2a2c33}),
+      glow=new THREE.MeshBasicMaterial({color:0x8a4bff}),glowC=new THREE.MeshBasicMaterial({color:0x3fa9ff}),leather=new THREE.MeshLambertMaterial({color:0x15161b});
+    const mk=(geo,mat,x,y,z,rx,ry,rz)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx||0,ry||0,rz||0);g.add(m);return m};
+    const cv=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;const t=new THREE.CanvasTexture(c);t.anisotropy=4;return {c,x:c.getContext('2d'),t}};
+    const clus=cv(512,192),scr=cv(384,224);
+    let wheel=null,eye=new THREE.Object3D();g.add(eye);
+    function build(W,ex){   // W: cabin half width; ex: the driver's x (left of centre)
+      while(g.children.length)g.remove(g.children[0]);g.add(eye);
+      eye.position.set(ex,0,0);
+      // dashboard: a long dark slab ahead, its top edge just under the line of sight, with a padded lip
+      mk(new THREE.BoxGeometry(W*2,.34,.62),dark,0,-.5,.95,-.12);
+      mk(new THREE.BoxGeometry(W*2,.08,.2),dark2,0,-.34,.7,-.35);
+      mk(new THREE.BoxGeometry(W*2+.02,.014,.014),glow,0,-.39,.62);             // ambient strip along the dash
+      // door cards with their own strips, running back past the seat
+      for(const k of [-1,1]){mk(new THREE.BoxGeometry(.08,.5,1.6),dark2,k*W,-.42,-.1);mk(new THREE.BoxGeometry(.012,.014,1.4),glow,k*(W-.045),-.2,-.05);
+        mk(new THREE.BoxGeometry(.012,.012,.6),glowC,k*(W-.045),-.36,.3)}
+      // windscreen frame: A-pillars, the header and the roof edge, so the view reads as through a windscreen
+      for(const k of [-1,1])mk(new THREE.BoxGeometry(.05,.85,.05),dark,k*(W+.14),.02,1.05,-.6,0,k*.1);
+      mk(new THREE.BoxGeometry(W*2,.1,.5),dark,0,.45,.45);
+      mk(new THREE.BoxGeometry(W*2,.03,1.4),dark2,0,.5,-.4);
+      // rear-view mirror on the header
+      mk(new THREE.BoxGeometry(.24,.065,.03),trim,-.05,.3,.62,.15);mk(new THREE.BoxGeometry(.22,.05,.005),new THREE.MeshBasicMaterial({color:0x3a4252}),-.05,.3,.605,.15);
+      // instrument cluster in front of the driver, the centre screen in the middle of the dash
+      const cm=new THREE.MeshBasicMaterial({map:clus.t});mk(new THREE.PlaneGeometry(.42,.16),cm,ex,-.25,.66).rotation.set(-.2,Math.PI,0);mk(new THREE.BoxGeometry(.46,.03,.1),dark2,ex,-.165,.68);   // cluster under its hood
+      const sm=new THREE.MeshBasicMaterial({map:scr.t});const sp=mk(new THREE.PlaneGeometry(.3,.18),sm,-.08,-.28,.74);sp.rotation.set(-.2,Math.PI,0);
+      // round vents with glowing rims either side of the screen
+      for(const x of [-.32,.16]){const v=mk(new THREE.TorusGeometry(.04,.008,6,18),glow,x,-.42,.7);v.rotation.y=Math.PI;mk(new THREE.CircleGeometry(.039,16),dark2,x,-.42,.705).rotation.y=Math.PI}
+      // centre console and the gear selector
+      mk(new THREE.BoxGeometry(.24,.22,.9),dark2,-.08,-.72,.2);mk(new THREE.BoxGeometry(.25,.012,.86),glow,-.08,-.605,.2);
+      mk(new THREE.CylinderGeometry(.025,.03,.12,10),trim,-.08,-.55,.05);
+      // the steering wheel: rim, three spokes, a hub with a small glowing badge; turns with the front wheels
+      wheel=new THREE.Group();wheel.position.set(ex,-.45,.5);wheel.rotation.x=-.45;g.add(wheel);
+      const rim=new THREE.Mesh(new THREE.TorusGeometry(.17,.02,8,32),leather);wheel.add(rim);
+      for(const a of [Math.PI/2,Math.PI*1.2,Math.PI*1.8]){const sp2=new THREE.Mesh(new THREE.BoxGeometry(.15,.025,.02),trim);sp2.position.set(Math.cos(a)*.08,Math.sin(a)*-.08,0);sp2.rotation.z=-a;wheel.add(sp2)}
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(.055,.055,.04,16),trim);hub.rotation.x=Math.PI/2;wheel.add(hub);
+      const badge=new THREE.Mesh(new THREE.CircleGeometry(.018,12),glowC);badge.position.z=.022;badge.rotation.y=Math.PI;wheel.add(badge);
+      g.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;o.frustumCulled=false;o.material.fog=false;o.renderOrder=5}});   // the cabin is never in fog
+    }
+    let lastDraw=0;
+    function draw(kmh,now){if(now-lastDraw<120)return;lastDraw=now;
+      // cluster: two round gauges, the digital speed between them
+      {const x=clus.x,w=512,h=192;x.fillStyle='#05060a';x.fillRect(0,0,w,h);
+       const gauge=(cx,v,label)=>{x.lineWidth=10;x.strokeStyle='rgba(138,75,255,.22)';x.beginPath();x.arc(cx,96,70,Math.PI*.75,Math.PI*2.25);x.stroke();
+         x.strokeStyle='#8a4bff';x.shadowColor='#8a4bff';x.shadowBlur=16;x.beginPath();x.arc(cx,96,70,Math.PI*.75,Math.PI*(.75+1.5*Math.max(0,Math.min(1,v))));x.stroke();x.shadowBlur=0;
+         x.fillStyle='rgba(200,190,255,.7)';x.font='600 16px Arial';x.textAlign='center';x.fillText(label,cx,170)};
+       gauge(90,kmh/300,'KM/H');gauge(422,(SND&&SND.rpm?SND.rpm:0)/((SND&&SND.prof&&SND.prof.red)||8000)||Math.min(1,kmh/200),'RPM');
+       x.fillStyle='#e9e4ff';x.font='bold 64px Arial';x.textAlign='center';x.shadowColor='#3fa9ff';x.shadowBlur=12;x.fillText(String(Math.round(kmh)),256,108);x.shadowBlur=0;
+       x.fillStyle='#8a4bff';x.font='600 15px Arial';x.fillText('KM/H',256,134);clus.t.needsUpdate=true}
+      // centre screen: the song, the station and the time
+      {const x=scr.x,w=384,h=224;const gr=x.createLinearGradient(0,0,w,h);gr.addColorStop(0,'#101a2e');gr.addColorStop(1,'#1d0f33');x.fillStyle=gr;x.fillRect(0,0,w,h);
+       const d=new Date(),P=window.Radio&&Radio.playing?Radio.playing():null;
+       x.fillStyle='#bfe3ff';x.font='600 22px Arial';x.textAlign='left';x.fillText(String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),18,34);
+       x.fillStyle='rgba(191,227,255,.6)';x.font='600 14px Arial';x.textAlign='right';x.fillText(P?'FM '+P.fm+' · '+P.station:'RADIO OFF',w-16,32);
+       x.fillStyle='#ffffff';x.textAlign='left';x.font='bold 26px Arial';x.fillText(P?P.title:'—',18,110);x.fillStyle='rgba(255,255,255,.65)';x.font='18px Arial';x.fillText(P?P.artist:'Press T for the radio',18,138);
+       x.fillStyle='rgba(255,255,255,.15)';x.fillRect(18,170,w-36,5);x.fillStyle='#8a4bff';x.fillRect(18,170,(w-36)*(P?P.progress:0),5);
+       x.fillStyle='rgba(255,255,255,.75)';x.font='22px Arial';x.textAlign='center';x.fillText('⏮      ⏯      ⏭',w/2,208);scr.t.needsUpdate=true}}
+    return {g,eye,build,draw,setSteer(a){if(wheel)wheel.rotation.z=a}}})();
+  vis.car.add(COCK.g);
   /* ---------- nitro ----------
      Boost (Shift, the BOOST button, a boost pad) lights two flames out of the back of the car: a hot blue core
      inside a longer orange plume, additive so they glow, flickering in length and width every frame. They are
@@ -2244,6 +2309,8 @@ t.bd.position.set(x,y+.86,z);
     PCAR=makeBody(spec,o);FP=measureBody(PCAR.g,spec);
     PCAR.glass=[];PCAR.g.traverse(m=>{if(m.isMesh&&m.material&&m.material.transparent&&m.material.opacity<.8)PCAR.glass.push(m)});
     PCAR.g.position.y=.05-(V.rest-.07)-V.r;FP.off=PCAR.g.position.y;vis.bodyIn.add(PCAR.g);
+    {const W=Math.max(.62,Math.min(1.05,(spec.W||1.9)/2-.12)),eyeY=(FP.off||0)+Math.max(.88,Math.min(2.05,(FP.top||1.3)*.82)),eyeZ=Math.max(spec.B+1.3,Math.min(spec.F-1.3,FP.bonnet.z-.9));
+     COCK.build(W,W*.48);COCK.g.position.set(0,eyeY,eyeZ)}
     // measure the body in the car's own frame (car transform reset for a moment) and put the nitro on its tail
     {const p0=car.position.clone(),q0=car.quaternion.clone(),par=car.parent;car.position.set(0,0,0);car.quaternion.set(0,0,0,1);car.updateMatrixWorld(true);
      const bl=new THREE.Box3().setFromObject(PCAR.g),cw=new THREE.Vector3().setFromMatrixPosition(vis.car.matrixWorld);bl.min.sub(cw);bl.max.sub(cw);
@@ -2352,7 +2419,7 @@ t.bd.position.set(x,y+.86,z);
   mute.onclick=()=>{muted=!muted;mute.textContent=muted?'Sound off':'Sound on';if(window.Radio)Radio.setMuted(muted);applyMix()};
   // FM radio (assets/radio.js): the button and T cycle off -> each station -> off
   const radioBtn=$('#dradio');
-  function radioCycle(){if(!window.Radio)return;Radio.cycle();Radio.setMuted(muted);if(radioBtn)radioBtn.textContent=Radio.label();if(window.Settings)Settings.refreshRadio()}
+  function radioCycle(){if(!window.Radio)return;Radio.cycle();try{localStorage.setItem('sl_radio_off',Radio.station()<0?'1':'0')}catch(e){}Radio.setMuted(muted);if(radioBtn)radioBtn.textContent=Radio.label();if(window.Settings)Settings.refreshRadio()}
   /* ---------- settings (assets/settings.js): sound mix, graphics, display ---------- */
   const SET=window.Settings||{v:{master:80,engine:80,effects:70,music:60,quality:'auto',hints:true,units:'kmh'},on(){}};
   function VOL(k){const x=SET.v[k];return x==null?1:Math.max(0,Math.min(100,x))/100}
@@ -2369,7 +2436,55 @@ t.bd.position.set(x,y+.86,z);
   SET.onOpen=()=>{for(const k in key)key[k]=0};
   {const sb=$('#dsettings');if(sb)sb.onclick=()=>{if(window.Settings)Settings.open()}}
   applyDisplay();applyQuality();applyMix();
-  if(window.Radio){Radio.onInfo=t=>toastMsg(t);if(radioBtn)radioBtn.onclick=radioCycle}
+  if(window.Radio){Radio.onInfo=t=>{};if(radioBtn)radioBtn.onclick=radioCycle}
+  /* ---------- now playing ----------
+     A small player at the bottom left: the station, the song and its progress, back / play-pause / next, and a list
+     of what played, what is on and what is next (tap one to play it). The radio starts by itself on your first key
+     or tap (browsers only allow sound after one), unless you switched it off last time. Driving fast fades over to
+     Night Riff and slowing down brings your station back (Settings > Radio > Fast songs). */
+  const NP=(function(){if(!window.Radio)return null;
+    const css=document.createElement('style');css.textContent=`
+    #dnp{position:absolute;left:var(--gut,16px);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:6;width:min(300px,calc(100vw - 32px));display:none;
+      background:rgba(12,13,18,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(138,75,255,.35);border-radius:14px;padding:9px 11px;color:#eef0f3;font:500 12px var(--sans,Arial);pointer-events:auto}
+    #dnp.on{display:block}
+    #dnp .np-row{display:flex;align-items:center;gap:8px}
+    #dnp .np-art{width:34px;height:34px;border-radius:8px;flex:none;background:linear-gradient(135deg,#8a4bff,#3fa9ff);display:grid;place-items:center;font-size:16px}
+    #dnp .np-t{flex:1;min-width:0;cursor:pointer}
+    #dnp .np-t b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #dnp .np-t span{display:block;color:rgba(238,240,243,.6);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #dnp button{background:rgba(255,255,255,.08);border:0;color:#fff;border-radius:999px;width:30px;height:30px;font-size:13px;cursor:pointer;flex:none;pointer-events:auto}
+    #dnp button:hover{background:rgba(138,75,255,.45)}
+    #dnp .np-bar{height:3px;border-radius:2px;background:rgba(255,255,255,.12);margin-top:7px;overflow:hidden}#dnp .np-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8a4bff,#3fa9ff)}
+    #dnp ol{list-style:none;margin:8px 0 0;padding:0;max-height:180px;overflow-y:auto;display:none;border-top:1px solid rgba(255,255,255,.08)}
+    #dnp.list ol{display:block}
+    #dnp li{display:flex;gap:8px;padding:6px 2px;cursor:pointer;border-radius:6px}#dnp li:hover{background:rgba(255,255,255,.06)}
+    #dnp li.cur{color:#c9b4ff}#dnp li small{color:rgba(238,240,243,.45);margin-left:auto;flex:none}
+    #dnp li.cur::before{content:'▶';font-size:9px;margin-top:2px}
+    #drive.touch #dnp{bottom:auto;top:calc(110px + env(safe-area-inset-top,0px));width:min(250px,48vw);padding:7px 9px}
+    #drive.touch #dnp .np-art{display:none}
+    #drive.typing #dnp{display:none!important}`;document.head.appendChild(css);
+    const el=document.createElement('div');el.id='dnp';el.innerHTML='<div class="np-row"><div class="np-art">♪</div><div class="np-t" title="Show the playlist"><b>—</b><span></span></div>'+
+      '<button data-a="prev" title="Back">⏮</button><button data-a="toggle" title="Play / pause">⏸</button><button data-a="next" title="Next">⏭</button></div><div class="np-bar"><i></i></div><ol></ol>';
+    (document.getElementById('dhud')||sec).appendChild(el);
+    const tEl=el.querySelector('.np-t'),bar=el.querySelector('.np-bar i'),ol=el.querySelector('ol'),tg=el.querySelector('[data-a=toggle]');
+    let wasOn=true;try{wasOn=localStorage.getItem('sl_radio_off')!=='1'}catch(e){}
+    const after=()=>{Radio.setMuted(muted);if(radioBtn)radioBtn.textContent=Radio.label();if(window.Settings)Settings.refreshRadio();paint(true)};
+    el.querySelectorAll('button').forEach(b=>b.onclick=e=>{e.stopPropagation();audioInit();const a=b.dataset.a;Radio[a]();
+      if(a==='toggle')try{localStorage.setItem('sl_radio_off',Radio.station()<0?'1':'0')}catch(_){}after()});
+    tEl.onclick=e=>{e.stopPropagation();el.classList.toggle('list');paint(true)};
+    function paint(full){const P=Radio.playing();tg.textContent=P?'⏸':'▶';
+      el.querySelector('.np-t b').textContent=P?P.title:'Radio off';el.querySelector('.np-t span').textContent=P?P.artist+' · FM '+P.fm+' '+P.station:'Press ▶ to play';
+      bar.style.width=(P?P.progress*100:0)+'%';
+      if(full&&el.classList.contains('list')){const L=Radio.playlist();ol.innerHTML='';L.forEach(s=>{const li=document.createElement('li');if(s.current)li.className='cur';
+        li.innerHTML='<span></span><small>'+s.fm+'</small>';li.firstChild.textContent=s.title+' — '+s.artist;li.onclick=e=>{e.stopPropagation();Radio.jump(s.i);after()};ol.appendChild(li)})}}
+    Radio.onChange=()=>paint(true);
+    Radio.onAuto=fast=>toastMsg(fast?'♪ Fast lane · Night Riff':'♪ Back to your station');
+    // autoplay: on the first key or tap of the drive
+    const first=()=>{removeEventListener('keydown',first,true);removeEventListener('pointerdown',first,true);
+      if(wasOn&&Radio.station()<0){audioInit();Radio.tune(0);after()}};
+    addEventListener('keydown',first,true);addEventListener('pointerdown',first,true);
+    if(window.Settings&&Settings.v.fastSongs===false)Radio.setAuto(false);
+    return {el,paint,show(v){el.classList.toggle('on',v)}}})();
   {const nb=$('#dnight');if(nb)nb.onclick=()=>toggleNight()}
   /* ---------- weather picker ---------- */
   {const wb=$('#dweatherb'),wx=$('#dwx'),wl=$('#dwxl');
@@ -2704,9 +2819,11 @@ t.bd.position.set(x,y+.86,z);
   /* C cycles the camera, B or hold look-back glances behind */
   const CAMS=[{n:'Chase',d:9.5,h:4.8,k:1,lag:6.5,ahead:6,ly:1.05,fov:50},{n:'Far chase',d:15,h:7.5,k:1.2,lag:5,ahead:8,ly:1,fov:48},
     {n:'Low chase',d:6.2,h:2.1,k:.6,lag:9,ahead:10,ly:.9,fov:58},{n:'Rear View',d:-9.5,h:4.8,k:1,lag:8,ahead:-14,ly:1.05,fov:55},
-    {n:'Bonnet',fp:1,y:.5,z:1.1,fov:66},{n:'Bumper',fp:1,y:.02,z:2.5,fov:70}];
+    {n:'Bonnet',fp:1,y:.5,z:1.1,fov:66},{n:'Bumper',fp:1,y:.02,z:2.5,fov:70},{n:'Cockpit',fp:1,cock:1,fov:74}];
   let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}
-  function cycleCam(){camMode=(camMode+1)%CAMS.length;try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' · C to switch')}
+  function cycleCam(){camMode=(camMode+1)%CAMS.length;
+    // the bike and the open-wheeler have no cabin to sit in
+    if(CAMS[camMode].cock){const t=garageOf(curCarId).type;if(t==='bike'||t==='f1')camMode=0}try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' · C to switch')}
   {const nb=document.getElementById('dnight');if(nb){const cb=nb.cloneNode(true);cb.id='dcam';cb.textContent='Camera';cb.title='Camera (C)';nb.after(cb);cb.onclick=()=>cycleCam();
    const lb=nb.cloneNode(true);lb.id='dlights';lb.title='Headlights (F)';lb.removeAttribute('class');lb.className='dbtn mono';lb.textContent='Lights: on';cb.after(lb);
    lb.onclick=()=>toggleLights()}}
@@ -4754,6 +4871,7 @@ const PLANETS={
        sub=pd<pr*1.05?Math.max(0,Math.min(1,(WATER_Y-(chassisB.position.y-.52))/1.5)):0}
       inPond=sub>.06;
       ZN=MODE==='circuit'?{drag:0,fog:1,tint:[1,1,1]}:zoneAt(progU);const zd=ZN.drag;
+      if(NP&&frameN%10===0){NP.show(active&&driving);NP.paint(false);if(window.Radio&&Radio.setSpeed)Radio.setSpeed(chassisB.velocity.length()*3.6,dt*10)}
       padT=Math.max(0,padT-dt);const boost=(key.boost||padT>0)?1:0;NITRO.tick(dt,!!boost&&driving);
       const eMul=(1-sub*.66)*(1-zd*.52),vmax=V.max*(1+boost*.28)*(1-sub*.68)*(1-zd*.38);
       /* Tractive force used to be flat all the way to the cap, so the car pulled just as
@@ -5141,7 +5259,12 @@ const PLANETS={
       const CM=CAMS[effCamMode],pf=W<H?1.5:1;
       const camDir = lookBehind ? tmp.copy(fwd).negate() : fwd;
       if(PCAR&&PCAR.glass&&PCAR.glassOff!==!!CM.fp){PCAR.glassOff=!!CM.fp;PCAR.glass.forEach(m=>m.visible=!CM.fp)}   // no tinted screen in front of a cockpit view
-      if(CM.fp){/* bonnet and bumper cams ride on the car itself */
+      {const ck=!!CM.cock&&!lookBehind;COCK.g.visible=ck;if(PCAR&&PCAR.g.visible===ck)PCAR.g.visible=!ck}   // every frame: a car change mid-cockpit brings a fresh, visible body
+      if(CM.cock&&!lookBehind){/* the driver's seat: the eye, a touch of head movement with the road, looking down the road */
+        COCK.g.updateMatrixWorld(true);COCK.eye.getWorldPosition(camT);const bob=Math.min(1,sp/40)*.006*Math.sin(performance.now()/90);camT.y+=bob;C.position.copy(camT);
+        lookT.set(COCK.eye.position.x,-.06,30).applyMatrix4(COCK.g.matrixWorld);
+        const st0=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0;COCK.setSteer(st0*5.5);COCK.draw(sp*3.6,performance.now())}
+      else if(CM.fp){/* bonnet and bumper cams ride on the car itself */
         const fp=CM.n==='Bumper'?FP.bumper:FP.bonnet,fy=fp.y+FP.off;
         camT.set(0,fy,fp.z).applyQuaternion(car.quaternion).add(car.position);C.position.copy(camT);
         lookT.set(0,fy-.25,fp.z+18).applyQuaternion(car.quaternion).add(car.position)}
@@ -7499,7 +7622,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};

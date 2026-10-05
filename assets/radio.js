@@ -110,7 +110,7 @@
       hist=hist.slice(0,hi+1);hist.push({st:st0,seed});hi=hist.length-1;if(hist.length>40){hist.shift();hi--}}
     st=st0;song=makeSong(st0,seed);
     step=0;
-    if(crackleG)crackleG.gain.setTargetAtTime(S.style==='lofi'&&!muted?.035:0,ac.currentTime,.4);
+    if(crackleG)crackleG.gain.setTargetAtTime(STATIONS[st].style==='lofi'&&!muted?.035:0,ac.currentTime,.4);
     info()}
   function info(){if(R.onInfo&&song)R.onInfo('FM '+STATIONS[st].fm+' · '+STATIONS[st].name+' — “'+song.title+'” · '+song.artist);if(R.onChange)R.onChange()}
   function section(b,n){
