@@ -2125,13 +2125,35 @@ t.bd.position.set(x,y+.86,z);
     const cv=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;const t=new THREE.CanvasTexture(c);t.anisotropy=4;return {c,x:c.getContext('2d'),t}};
     const clus=cv(512,192),scr=cv(384,224);
     let wheel=null,eye=new THREE.Object3D();g.add(eye);
+    // grain for the soft-touch plastics and leather: fine noise, so the near-black surfaces read as material, not flat colour
+    const grain=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),d=x.createImageData(128,128);
+      for(let i=0;i<d.data.length;i+=4){const v=200+Math.random()*55;d.data[i]=d.data[i+1]=d.data[i+2]=v;d.data[i+3]=255}x.putImageData(d,0,0);
+      const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(6,6);return t})();
+    // the windscreen: clear glass with the tinted shade band along the top, the way most cars have one
+    const shade=(()=>{const c=document.createElement('canvas');c.width=4;c.height=128;const x=c.getContext('2d'),gr=x.createLinearGradient(0,0,0,128);
+      gr.addColorStop(0,'rgba(18,40,70,.78)');gr.addColorStop(.16,'rgba(18,40,70,.5)');gr.addColorStop(.24,'rgba(30,50,70,.05)');gr.addColorStop(1,'rgba(40,60,80,.03)');
+      x.fillStyle=gr;x.fillRect(0,0,4,128);return new THREE.CanvasTexture(c)})();
+    // the rear-view mirror shows the road behind (its own small camera, drawn every other frame)
+    const mirT=new THREE.WebGLRenderTarget(320,80),mirC=new THREE.PerspectiveCamera(16,4,.5,320);
+    mirT.texture.repeat.set(-1,1);mirT.texture.offset.set(1,0);
+    const _mp=new THREE.Vector3(),_ml2=new THREE.Vector3();
+    function mirror(scene,car,back,top,off){_mp.set(0,off+top+.15,back-.3).applyQuaternion(car.quaternion).add(car.position);
+      _ml2.set(0,off+top-.6,back-40).applyQuaternion(car.quaternion).add(car.position);
+      mirC.position.copy(_mp);mirC.up.set(0,1,0).applyQuaternion(car.quaternion);mirC.lookAt(_ml2);
+      const pt=R.getRenderTarget();R.setRenderTarget(mirT);R.clear();R.render(scene,mirC);R.setRenderTarget(pt)}
+    // the driver's arms: gloved hands on the rim at ten to two, forearms back to the shoulders; they follow the wheel
+    const arms=[];const _hp=new THREE.Vector3(),_ad=new THREE.Vector3(),_up=new THREE.Vector3(0,1,0);
+    function placeArms(){if(!wheel)return;wheel.updateMatrix();
+      for(const a of arms){_hp.copy(a.hand).applyMatrix4(wheel.matrix);_ad.copy(_hp).sub(a.sh);const L=_ad.length();_ad.multiplyScalar(1/L);
+        a.arm.position.copy(a.sh).addScaledVector(_ad,L/2);a.arm.scale.set(1,L,1);a.arm.quaternion.setFromUnitVectors(_up,_ad);
+        a.cuff.position.copy(_hp).addScaledVector(_ad,-.075);a.cuff.quaternion.copy(a.arm.quaternion)}}
     // a profile in the car's side view (z forward, y up) extruded across the cabin, so the dash has a rounded, lit top
     const across=(pts,w,mat,x0)=>{const sh=new THREE.Shape();sh.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++){const q=pts[i];q.length===4?sh.quadraticCurveTo(q[0],q[1],q[2],q[3]):sh.lineTo(q[0],q[1])}
       const geo=new THREE.ExtrudeGeometry(sh,{depth:w,bevelEnabled:false,curveSegments:10});const m=new THREE.Mesh(geo,mat);m.rotation.y=-Math.PI/2;m.position.x=x0;g.add(m);return m};
     function build(W,ex,paint,hoodLen){   // W: cabin half width; ex: the driver's x; paint: body colour; hoodLen: dash to nose
       while(g.children.length)g.remove(g.children[0]);g.add(eye);
       eye.position.set(ex,0,0);
-      const soft=new THREE.MeshLambertMaterial({color:0x0c0c0f}),soft2=new THREE.MeshLambertMaterial({color:0x141519}),head=new THREE.MeshLambertMaterial({color:0x1c1d21,side:THREE.DoubleSide}),
+      const soft=new THREE.MeshLambertMaterial({color:0x0d0d10,map:grain}),soft2=new THREE.MeshLambertMaterial({color:0x151619,map:grain}),head=new THREE.MeshLambertMaterial({color:0x1c1d21,side:THREE.DoubleSide}),
         body=new THREE.MeshPhongMaterial({color:paint,shininess:70,specular:0x777777,side:THREE.DoubleSide});
       // the bonnet, in the car's colour, running out past the dash with a slight crown and a drop to the nose
       {const L=Math.max(1.2,Math.min(2.6,hoodLen||2)),geo=new THREE.PlaneGeometry(W*2+.3,L,12,8),pa=geo.attributes.position;
@@ -2140,14 +2162,15 @@ t.bd.position.set(x,y+.86,z);
        // the two bulges over the front wheels, a little higher than the middle of the bonnet
        for(const k of [-1,1]){const b=new THREE.Mesh(new THREE.SphereGeometry(1,16,8,0,Math.PI*2,0,Math.PI/2),body);b.scale.set(.26,.06,L*.4);b.position.set(k*(W+.06),-.58,1.1+L*.55);g.add(b)}}
       // dashboard: a long rounded top under the windscreen, padded lip toward the driver
-      across([[.44,-.95],[.44,-.6],[.47,-.4,.66,-.38],[1.02,-.42],[1.2,-.44,1.22,-.55],[1.22,-.95]],W*2,soft,W);
-      mk(new THREE.BoxGeometry(W*2-.02,.012,.012),glow,0,-.52,.46);              // ambient strip along the dash face
+      across([[.7,-.95],[.7,-.62],[.73,-.44,.86,-.41],[1.04,-.43],[1.2,-.45,1.22,-.55],[1.22,-.95]],W*2,soft,W);
+      mk(new THREE.BoxGeometry(W*2-.02,.012,.012),glow,0,-.58,.705);
+      mk(new THREE.BoxGeometry(W*2-.04,.004,.004),new THREE.MeshBasicMaterial({color:0x22170f}),0,-.436,.745);   // the stitching along the padded lip              // ambient strip along the dash face
       // the cluster under a curved hood in front of the driver
-      across([[.52,-.19],[.54,-.16,.62,-.155],[.86,-.17],[.86,-.21],[.62,-.205]],.5,dark2,ex+.25);
-      const cm=new THREE.MeshBasicMaterial({map:clus.t});mk(new THREE.PlaneGeometry(.44,.15),cm,ex,-.3,.72).rotation.set(-.25,Math.PI,0);mk(new THREE.BoxGeometry(.5,.2,.02),dark,ex,-.3,.745,-.25);
-      const sm=new THREE.MeshBasicMaterial({map:scr.t});const sp=mk(new THREE.PlaneGeometry(.3,.18),sm,-.06,-.33,.5);sp.rotation.set(-.25,Math.PI,0);
-      mk(new THREE.BoxGeometry(.33,.21,.02),soft2,-.06,-.33,.515,-.25);   // its bezel
-      for(const x of [ex+.36,-.3]){const v=mk(new THREE.TorusGeometry(.04,.008,6,18),glow,x,-.45,.42);v.rotation.y=Math.PI;mk(new THREE.CircleGeometry(.039,16),dark2,x,-.45,.425).rotation.y=Math.PI}
+      across([[.64,-.14],[.66,-.11,.74,-.105],[.96,-.12],[.96,-.16],[.74,-.155]],.5,dark2,ex+.25);
+      const cm=new THREE.MeshBasicMaterial({map:clus.t});mk(new THREE.PlaneGeometry(.44,.15),cm,ex,-.3,.86).rotation.set(-.25,Math.PI,0);mk(new THREE.BoxGeometry(.5,.2,.02),dark,ex,-.3,.885,-.25);
+      const sm=new THREE.MeshBasicMaterial({map:scr.t});const sp=mk(new THREE.PlaneGeometry(.3,.18),sm,-.06,-.33,.8);sp.rotation.set(-.25,Math.PI,0);
+      mk(new THREE.BoxGeometry(.33,.21,.02),soft2,-.06,-.33,.815,-.25);   // its bezel
+      for(const x of [ex+.36,-.3]){const v=mk(new THREE.TorusGeometry(.04,.007,6,18),trim,x,-.5,.69);v.rotation.y=Math.PI;mk(new THREE.CircleGeometry(.039,16),dark2,x,-.5,.695).rotation.y=Math.PI}
       // doors: the window line, a padded top and a strip of light along each
       for(const k of [-1,1]){mk(new THREE.BoxGeometry(.12,.06,1.7),soft2,k*(W+.02),-.3,.15);mk(new THREE.BoxGeometry(.1,.6,1.7),soft,k*(W+.04),-.62,.15);
         mk(new THREE.BoxGeometry(.012,.014,1.5),glow,k*(W-.03),-.36,.15);mk(new THREE.BoxGeometry(.012,.012,.6),glowC,k*(W-.03),-.5,.4);
@@ -2157,23 +2180,38 @@ t.bd.position.set(x,y+.86,z);
       // A-pillars: from the dash corners up and back along the windscreen's edges to the header
       for(const k of [-1,1]){const a=new THREE.Vector3(k*(W+.03),-.4,1.14),b2=new THREE.Vector3(k*(W-.03),.37,.3),d=b2.clone().sub(a),pl=new THREE.Mesh(new THREE.BoxGeometry(.055,d.length()+.06,.05),soft);
         pl.position.copy(a).add(b2).multiplyScalar(.5);pl.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());g.add(pl)}
+      {const a=new THREE.Vector3(0,-.4,1.14),b2=new THREE.Vector3(0,.37,.3),d=b2.clone().sub(a),L=d.length();d.normalize();
+       const gl=new THREE.Mesh(new THREE.PlaneGeometry(W*2+.04,L),new THREE.MeshBasicMaterial({map:shade,transparent:true,depthWrite:false,side:THREE.DoubleSide}));
+       const xA=new THREE.Vector3(-1,0,0),zA=new THREE.Vector3().crossVectors(xA,d);gl.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xA,d,zA));
+       gl.position.copy(a).add(b2).multiplyScalar(.5);g.add(gl);gl.userData.glass=1}
       // header rail, headliner and sun visors
       mk(new THREE.BoxGeometry(W*2,.07,.12),soft,0,.39,.32);
       {const hl=new THREE.Mesh(new THREE.PlaneGeometry(W*2+.1,1.6),head);hl.rotation.x=Math.PI/2;hl.position.set(0,.43,-.5);g.add(hl)}
       for(const k of [-1,1])mk(new THREE.BoxGeometry(W*.8,.025,.22),head,k*W*.48,.4,.18,.12);
       // rear-view mirror on a short stalk from the header
-      mk(new THREE.BoxGeometry(.02,.07,.02),trim,-.04,.34,.4);mk(new THREE.BoxGeometry(.26,.07,.035),trim,-.04,.28,.42,.12);mk(new THREE.PlaneGeometry(.235,.055),new THREE.MeshBasicMaterial({color:0x4a5466}),-.04,.28,.4,.12,Math.PI);
+      mk(new THREE.BoxGeometry(.02,.07,.02),trim,-.04,.34,.4);mk(new THREE.BoxGeometry(.26,.07,.035),trim,-.04,.28,.42,.12);mk(new THREE.PlaneGeometry(.235,.058),new THREE.MeshBasicMaterial({map:mirT.texture}),-.04,.28,.4,.12,Math.PI);
       // centre console and the gear selector
       mk(new THREE.BoxGeometry(.26,.24,.9),soft,-.06,-.8,.05);mk(new THREE.BoxGeometry(.27,.012,.86),glow,-.06,-.675,.05);
       mk(new THREE.CylinderGeometry(.025,.03,.12,10),trim,-.06,-.62,-.05);
       // the steering wheel: a flat-bottom rim, three spokes and a hub with a small glowing badge; turns with the front wheels
-      wheel=new THREE.Group();wheel.position.set(ex,-.37,.32);wheel.rotation.x=-.3;g.add(wheel);
-      const rim=new THREE.Mesh(new THREE.TorusGeometry(.18,.028,10,40,Math.PI*1.62),leather);rim.rotation.z=-Math.PI*.31;wheel.add(rim);
-      const flat=new THREE.Mesh(new THREE.CylinderGeometry(.028,.028,.2,10),leather);flat.rotation.z=Math.PI/2;flat.position.y=-.153;wheel.add(flat);
+      wheel=new THREE.Group();wheel.position.set(ex,-.4,.58);wheel.rotation.x=-.38;g.add(wheel);
+      const lth=new THREE.MeshLambertMaterial({color:0x0b0b0d,map:grain});
+      const rim=new THREE.Mesh(new THREE.TorusGeometry(.19,.03,12,48,Math.PI*1.62),lth);rim.rotation.z=-Math.PI*.31;wheel.add(rim);
+      const flat=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.21,12),lth);flat.rotation.z=Math.PI/2;flat.position.y=-.162;wheel.add(flat);
+      {const tm=new THREE.Mesh(new THREE.TorusGeometry(.19,.031,8,6,.09),new THREE.MeshLambertMaterial({color:0xd8d2c4}));tm.rotation.z=Math.PI/2-.045;wheel.add(tm)}   // the centre marker at twelve o'clock
+      {const col=mk(new THREE.CylinderGeometry(.045,.06,.3,12),soft,ex,-.455,.72);col.rotation.x=Math.PI/2-.38}
+      arms.length=0;{const suit=new THREE.MeshLambertMaterial({color:0x17181d,map:grain}),glove=new THREE.MeshLambertMaterial({color:0x1d1e22,map:grain}),cuffM=new THREE.MeshLambertMaterial({color:0x8e1616});
+        for(const k of [-1,1]){const hx=k*.165,hy=.095,hand=new THREE.Vector3(hx,hy,-.02);
+          const palm=new THREE.Mesh(new THREE.SphereGeometry(1,12,10),glove);palm.scale.set(.034,.05,.04);palm.position.copy(hand);palm.rotation.z=k*-.5;wheel.add(palm);
+          const fing=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.07,8),glove);fing.position.set(hx-k*.01,hy+.004,.012);fing.rotation.z=k*-.5;wheel.add(fing);   // fingers round the front of the rim
+          const arm=new THREE.Mesh(new THREE.CylinderGeometry(.034,.048,1,12),suit);g.add(arm);
+          const cuff=new THREE.Mesh(new THREE.CylinderGeometry(.043,.043,.04,12),cuffM);g.add(cuff);
+          arms.push({hand,arm,cuff,sh:new THREE.Vector3(ex+k*.24,-.7,-.2)})}}
+      placeArms();
       for(const a of [0,Math.PI,-Math.PI/2]){const sp2=new THREE.Mesh(new THREE.BoxGeometry(.15,.035,.02),trim);sp2.position.set(Math.cos(a)*.09,Math.sin(a)*.08,0);sp2.rotation.z=a;wheel.add(sp2)}
       const hub=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.05,20),trim);hub.rotation.x=Math.PI/2;wheel.add(hub);
       const badge=new THREE.Mesh(new THREE.CircleGeometry(.02,12),glowC);badge.position.z=-.027;badge.rotation.y=Math.PI;wheel.add(badge);
-      g.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;o.frustumCulled=false;o.material.fog=false;o.renderOrder=5}});   // the cabin is never in fog
+      g.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;o.frustumCulled=false;o.material.fog=false;o.renderOrder=o.userData.glass?6:5}});   // the cabin is never in fog
     }
     let lastDraw=0;
     function draw(kmh,now){if(now-lastDraw<120)return;lastDraw=now;
@@ -2193,7 +2231,7 @@ t.bd.position.set(x,y+.86,z);
        x.fillStyle='#ffffff';x.textAlign='left';x.font='bold 26px Arial';x.fillText(P?P.title:'—',18,110);x.fillStyle='rgba(255,255,255,.65)';x.font='18px Arial';x.fillText(P?P.artist:'Press T for the radio',18,138);
        x.fillStyle='rgba(255,255,255,.15)';x.fillRect(18,170,w-36,5);x.fillStyle='#8a4bff';x.fillRect(18,170,(w-36)*(P?P.progress:0),5);
        x.fillStyle='rgba(255,255,255,.75)';x.font='22px Arial';x.textAlign='center';x.fillText('⏮      ⏯      ⏭',w/2,208);scr.t.needsUpdate=true}}
-    return {g,eye,build,draw,setSteer(a){if(wheel)wheel.rotation.z=a}}})();
+    return {g,eye,build,draw,mirror,setSteer(a){if(wheel){wheel.rotation.z=a;placeArms()}}}})();
   vis.car.add(COCK.g);
   /* ---------- nitro ----------
      Boost (Shift, the BOOST button, a boost pad) lights two flames out of the back of the car: a hot blue core
@@ -2928,9 +2966,10 @@ t.bd.position.set(x,y+.86,z);
   /* C cycles the camera, B or hold look-back glances behind */
   const CAMS=[{n:'Chase',d:9.5,h:4.8,k:1,lag:6.5,ahead:6,ly:1.05,fov:50},{n:'Far chase',d:15,h:7.5,k:1.2,lag:5,ahead:8,ly:1,fov:48},
     {n:'Low chase',d:6.2,h:2.1,k:.6,lag:9,ahead:10,ly:.9,fov:58},{n:'Rear View',d:-9.5,h:4.8,k:1,lag:8,ahead:-14,ly:1.05,fov:55},
-    {n:'Bonnet',fp:1,y:.5,z:1.1,fov:66},{n:'Bumper',fp:1,y:.02,z:2.5,fov:70},{n:'Cockpit',fp:1,cock:1,fov:74}];
-  let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}if(CAMS[camMode].n==='Rear View')camMode=0;
-  function cycleCam(){camMode=(camMode+1)%CAMS.length;if(CAMS[camMode].n==='Rear View')camMode=(camMode+1)%CAMS.length;   // rear view: hold V / Q instead
+    {n:'Bonnet',fp:1,y:.5,z:1.1,fov:66},{n:'Bumper',fp:1,y:.02,z:2.5,fov:70,skip:1},{n:'Cockpit',fp:1,cock:1,fov:72}];
+  const HEADV={x:0,z:0,lat:0,lon:0,ok:false,o:new THREE.Vector3(),a:new THREE.Vector3(),q:new THREE.Quaternion()};
+  let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}if(CAMS[camMode].n==='Rear View'||CAMS[camMode].skip)camMode=0;
+  function cycleCam(){do camMode=(camMode+1)%CAMS.length;while(CAMS[camMode].n==='Rear View'||CAMS[camMode].skip);   // rear view: hold V / Q instead; the bumper cam is retired
     // the bike and the open-wheeler have no cabin to sit in
     if(CAMS[camMode].cock){const t=garageOf(curCarId).type;if(t==='bike'||t==='f1')camMode=0}try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' · C to switch')}
   {const nb=document.getElementById('dnight');if(nb){const cb=nb.cloneNode(true);cb.id='dcam';cb.textContent='Camera';cb.title='Camera (C)';nb.after(cb);cb.onclick=()=>cycleCam();
@@ -5377,7 +5416,18 @@ const PLANETS={
       if(PCAR&&PCAR.glass&&PCAR.glassOff!==!!CM.fp){PCAR.glassOff=!!CM.fp;PCAR.glass.forEach(m=>m.visible=!CM.fp)}   // no tinted screen in front of a cockpit view
       {const ck=!!CM.cock&&!lookBehind;if(COCK.g.visible!==ck&&spd.parentNode)spd.parentNode.style.visibility=ck?'hidden':'';COCK.g.visible=ck;if(PCAR&&PCAR.g.visible===ck)PCAR.g.visible=!ck;if(wv&&wv.car[0]&&wv.car[0].w.visible===ck)wv.car.forEach(k=>k.w.visible=!ck)}   // body and wheels would sit across the view   // every frame: a car change mid-cockpit brings a fresh, visible body
       if(CM.cock&&!lookBehind){/* the driver's seat: the eye, a touch of head movement with the road, looking down the road */
-        COCK.g.updateMatrixWorld(true);COCK.eye.getWorldPosition(camT);const bob=Math.min(1,sp/40)*.006*Math.sin(performance.now()/90);camT.y+=bob;C.position.copy(camT);
+        COCK.g.updateMatrixWorld(true);COCK.eye.getWorldPosition(camT);
+        /* the driver's head: thrown to the outside in a corner, forward under braking, back when accelerating,
+           with a little road buzz that grows with speed. Taken from the car's own acceleration, smoothed like a neck would. */
+        {const v=chassisB.velocity,H=HEADV;if(!H.ok){H.x=v.x;H.z=v.z;H.ok=true}
+         const ax=(v.x-H.x)/Math.max(dt,1e-3),az=(v.z-H.z)/Math.max(dt,1e-3);H.x=v.x;H.z=v.z;
+         H.a.set(ax,0,az).applyQuaternion(H.q.copy(car.quaternion).invert());   // into the car's own frame: x across, z along
+         const lat=H.a.x,lon=H.a.z,e=1-Math.exp(-dt*5);
+         H.lat+=(Math.max(-12,Math.min(12,lat))-H.lat)*e;H.lon+=(Math.max(-12,Math.min(12,lon))-H.lon)*e;
+         const buzz=Math.min(1,sp/45)*.0022;
+         HEADV.o.set(-H.lat*.0035+(Math.random()-.5)*buzz,(Math.random()-.5)*buzz+Math.min(1,sp/40)*.004*Math.sin(performance.now()/90),-H.lon*.0028).applyQuaternion(car.quaternion);
+         camT.add(HEADV.o)}
+        C.position.copy(camT);
         lookT.set(COCK.eye.position.x,-.06,30).applyMatrix4(COCK.g.matrixWorld);
         const st0=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0;COCK.setSteer(st0*5.5);COCK.draw(sp*3.6,performance.now())}
       else if(CM.fp){/* bonnet and bumper cams ride on the car itself */
@@ -5480,6 +5530,7 @@ const PLANETS={
        want=Math.max(0,Math.min(.75,(TYPEF.vo||0)+(carY-target)/ch))}
      TYPEF.vo=(TYPEF.vo||0)+(want-(TYPEF.vo||0))*.08;
      if(TYPEF.vo>.002)C.setViewOffset(cw,ch,0,TYPEF.vo*ch,cw,ch);else if(C.view&&C.view.enabled){TYPEF.vo=0;C.clearViewOffset()}}
+    if(COCK.g.visible&&frameN%(LOW?3:2)===0){COCK.g.visible=false;COCK.mirror(S,car,FP.back,FP.top,FP.off);COCK.g.visible=true}   // the cabin mirror, without the cabin in it
     R.render(S,C);if(active&&frameN%6===0)drawMap(mx2,mm.width,false);
     /* ---------- rearview mirror PIP ---------- */
     if(rearMirrorOn&&active&&driving&&!cineOn)renderMirror(S,car.position,car.quaternion,FP.off);
