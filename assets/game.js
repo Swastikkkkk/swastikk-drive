@@ -3104,7 +3104,7 @@ t.bd.position.set(x,y+.86,z);
         if(!window.earthGPS){
           window.earthGPS=[
             {x:0,y:0,z:-38*2.1*1.75,label:'Start/Finish',type:'track'},
-            {x:PEAK.x,y:PEAK_H,z:PEAK.z,label:'Summit',type:'poi'},
+            {x:PEAK.x,y:PEAK_H,z:PEAK.z,label:'Summit',type:'poi'},{x:CABLE.D0.x,y:CABLE.D0.y,z:CABLE.D0.z,label:'Cable car',type:'poi'},{x:CABLE.D0.x,y:CABLE.D0.y,z:CABLE.D0.z,label:'Cable car',type:'poi'},
             {x:VZ.stunt.x,y:0.6,z:VZ.stunt.z,label:'Stunt Park',type:'poi'},
             {x:VZ.ufo.x,y:0.6,z:VZ.ufo.z,label:'UFO Field',type:'poi'},
             {x:VZ.volc.x,y:0.6,z:VZ.volc.z,label:'Volcano',type:'poi'},
@@ -3150,7 +3150,7 @@ t.bd.position.set(x,y+.86,z);
       if(!window.earthGPS){
         window.earthGPS=[
           {x:0,y:0,z:-38*2.1*1.75,label:'Start/Finish',type:'track'},
-          {x:PEAK.x,y:PEAK_H,z:PEAK.z,label:'Summit',type:'poi'},
+          {x:PEAK.x,y:PEAK_H,z:PEAK.z,label:'Summit',type:'poi'},{x:CABLE.D0.x,y:CABLE.D0.y,z:CABLE.D0.z,label:'Cable car',type:'poi'},{x:CABLE.D0.x,y:CABLE.D0.y,z:CABLE.D0.z,label:'Cable car',type:'poi'},
           {x:VZ.stunt.x,y:0.6,z:VZ.stunt.z,label:'Stunt Park',type:'poi'},
           {x:VZ.ufo.x,y:0.6,z:VZ.ufo.z,label:'UFO Field',type:'poi'},
           {x:VZ.volc.x,y:0.6,z:VZ.volc.z,label:'Volcano',type:'poi'},
