@@ -254,11 +254,13 @@
     pane.style.display='none';inner.appendChild(pane);
     pane.querySelector('.ty-go').onclick=()=>start();
     pane.querySelector('.ty-close').onclick=()=>{modal.style.display='none'};
-    const show=t=>{tabBtns.forEach(b=>b.classList.toggle('on',b.dataset.t===t));orig.forEach(e=>e.style.display=t==='type'?'none':'');pane.style.display=t==='type'?'':'none';if(t==='type')renderPane()};
+    // the Daily modal has its own addresses: /daily (track) and /daily/typer (typing race), so either can be shared
+    const setPath=p=>{try{if(location.pathname!==p)history.replaceState(null,'',p+location.search+location.hash)}catch(_){}};
+    const show=t=>{setPath(t==='type'?'/daily/typer':'/daily');tabBtns.forEach(b=>b.classList.toggle('on',b.dataset.t===t));orig.forEach(e=>e.style.display=t==='type'?'none':'');pane.style.display=t==='type'?'':'none';if(t==='type')renderPane()};
     tabBtns.forEach(b=>b.onclick=()=>show(b.dataset.t));
     window.__dailyTab=show;
     // every time the Daily modal opens it starts on the track tab
-    new MutationObserver(()=>{if(modal.style.display!=='none'&&!modal._ty){modal._ty=1;show(modal._want||'track');modal._want=null}if(modal.style.display==='none')modal._ty=0}).observe(modal,{attributes:true,attributeFilter:['style']})}
+    new MutationObserver(()=>{if(modal.style.display!=='none'&&!modal._ty){modal._ty=1;show(modal._want||'track');modal._want=null}if(modal.style.display==='none'){modal._ty=0;if(/^\/daily/.test(location.pathname))setPath('/')}}).observe(modal,{attributes:true,attributeFilter:['style']})}
   function openDaily(tab){const b=document.getElementById('dmdaily');if(modal)modal._want=tab;if(b)b.click();else if(modal)modal.style.display='grid'}
   async function renderPane(){if(!pane)return;
     const day=(G()&&G().day())||new Date().toISOString().slice(0,10),ol=pane.querySelector('ol');

@@ -7053,6 +7053,9 @@ updCircBtn();
       toastMsg('Free drive');window.__updModes();
     };
     if(modeDaily)modeDaily.onclick=()=>{ if(dailyBtn)dailyBtn.onclick() };
+    // sketchracer.com/daily and /daily/typer open the Daily modal on that tab
+    {const m=/^\/daily(\/typer)?\/?$/.exec(location.pathname);
+     if(m&&dailyBtn)addEventListener('load',()=>setTimeout(()=>{if(dailyModal)dailyModal._want=m[1]?'type':'track';dailyBtn.onclick()},50))}
     {const mt=document.getElementById('dmtype');if(mt)mt.onclick=()=>{try{audioInit()}catch(_){}if(window.TypingRace&&TypingRace.openFast)TypingRace.openFast()}}
 
     // build + enter today's daily track without starting a solo race (used when a room races on it)
