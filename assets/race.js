@@ -59,7 +59,7 @@
         if (curve.getPointAt) {
           var p0 = curve.getPointAt(0);
           var tg0 = curve.getTangentAt(0);
-          this.setupGridSpawns({ p: p0, tg: tg0, n: { x: -tg0.z, y: 0, z: tg0.x } }, 8, (opts && opts.roadWidth) || 12);
+          this.setupGridSpawns({ p: p0, tg: tg0, n: { x: -tg0.z, y: 0, z: tg0.x } }, 8, (opts && opts.roadWidth) || 12, curve);
         }
       }
       this.reset();
@@ -136,19 +136,18 @@
       this.minLapMs = Math.max(8000, (this.trackLength / 80) * 1000);
     },
 
-    setupGridSpawns: function(startP, count, roadWidth) {
+    /* grid boxes walk back ALONG the track from the line (not along a straight ray from the start point, which on a
+       bend put the back rows on the grass), each car facing the road's own direction at its box */
+    setupGridSpawns: function(startP, count, roadWidth, curve) {
       this.gridSlots = [];
       count = Math.max(8, count || 8);
-      var w = (roadWidth || 12) * 0.28;
-      var yaw = Math.atan2(startP.tg.x, startP.tg.z);
-
+      var w = (roadWidth || 12) * 0.28, L = curve && curve.getLength ? curve.getLength() : 0;
       for (var i = 0; i < count; i++) {
-        var backDist = 6 + i * 7.5;
-        var side = (i % 2 === 0 ? 1 : -1) * w;
-        var x = startP.p.x - startP.tg.x * backDist + startP.n.x * side;
-        var z = startP.p.z - startP.tg.z * backDist + startP.n.z * side;
-        var y = startP.p.y + 0.8;
-        this.gridSlots.push({ x: x, y: y, z: z, yaw: yaw });
+        var backDist = 6 + i * 7.5, side = (i % 2 === 0 ? 1 : -1) * w, p, tg;
+        if (L > 0) { var u = 1 - (backDist / L) % 1; p = curve.getPointAt(u); tg = curve.getTangentAt(u); }
+        else { p = { x: startP.p.x - startP.tg.x * backDist, y: startP.p.y, z: startP.p.z - startP.tg.z * backDist }; tg = startP.tg; }
+        var hl = Math.hypot(tg.x, tg.z) || 1, tx = tg.x / hl, tz = tg.z / hl;
+        this.gridSlots.push({ x: p.x - tz * side, y: p.y + 0.8, z: p.z + tx * side, yaw: Math.atan2(tx, tz), tangent: { x: tx, y: 0, z: tz } });
       }
     },
 

@@ -62,7 +62,8 @@
     const rs=r.querySelector('.rs');if(!rs)return;
     gsap.fromTo([...rs.children],{y:22,opacity:0},{y:0,opacity:1,duration:.6,ease:EXPO,stagger:.07,clearProps:'transform,opacity'});
     const t=rs.querySelector('.rs-time');if(t){const end=parseFloat(t.textContent)||0,o={v:0};
-      gsap.to(o,{v:end,duration:1.1,ease:'power2.out',delay:.15,onUpdate:()=>{t.textContent=o.v.toFixed(2)+'s'}})}
+      const wpm=t.dataset.unit==='wpm';   // Type Faster shows words per minute, the daily race a time
+      gsap.to(o,{v:end,duration:1.1,ease:'power2.out',delay:.15,onUpdate:()=>{if(wpm)t.innerHTML=Math.round(o.v)+' <span style="font-size:.4em">WPM</span>';else t.textContent=o.v.toFixed(2)+'s'}})}
     gsap.fromTo(rs.querySelectorAll('.rs-grid>div'),{scale:.9,opacity:0},{scale:1,opacity:1,duration:.55,ease:'back.out(1.6)',stagger:.06,delay:.25,clearProps:'transform,opacity'})});
 
   /* ---- buttons: a soft spring on press ---- */

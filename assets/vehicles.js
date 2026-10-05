@@ -529,6 +529,31 @@
     // mudguards
     var mg = new THREE.Mesh(new THREE.TorusGeometry(r + 0.05, 0.05, 6, 16, Math.PI * 0.7), paint);
     mg.rotation.set(0, Math.PI / 2, 0.3); mg.position.set(0, r, zf); mg.scale.set(1, 1, 1.6); body.add(mg);
+    /* the rider, tucked in: sat on the seat, chest low over the tank, hands on the clip-ons, boots on the pegs.
+       Dark leathers with stripes, sliders and a helmet in the bike's own paint, a dark visor. */
+    var suitM = phong(0x1c1d22, { shininess: 30, specular: 0x333333 }), bootM = phong(0x101013, { shininess: 50 }),
+        visorM = phong(0x0a0c11, { shininess: 160, specular: 0x8899aa });
+    var seatZ = (zb + 0.12 + swingPivot[2] + 0.18) / 2, seatY = r + 0.66, gripY = head[1] + 0.08, gripZ = head[2] - 0.08;
+    var hip = [0, seatY + 0.12, seatZ - 0.04], chest = [0, gripY + 0.2, lerp(seatZ, gripZ, 0.62)], hd = [0, gripY + 0.36, lerp(seatZ, gripZ, 0.8)];
+    blob(0.2, 0.15, 0.22, suitM, hip[0], hip[1], hip[2], body);                                    // seat of the leathers
+    tube(hip, chest, 0.17, suitM, body);                                                          // back, low over the tank
+    tube([0, hip[1] + 0.12, hip[2] + 0.05], [0, chest[1] + 0.13, chest[2] - 0.02], 0.045, paint, body);   // the stripe down the spine
+    blob(0.23, 0.17, 0.2, suitM, chest[0], chest[1], chest[2], body);                             // shoulders
+    tube([0, chest[1] + 0.05, chest[2] + 0.05], hd, 0.06, suitM, body);                           // neck
+    blob(0.155, 0.155, 0.175, paint, hd[0], hd[1], hd[2], body);                                  // helmet
+    blob(0.125, 0.07, 0.08, visorM, 0, hd[1] + 0.005, hd[2] + 0.11, body);                        // visor
+    blob(0.06, 0.035, 0.1, paint, 0, hd[1] + 0.12, hd[2] - 0.08, body);                           // helmet spoiler
+    [-1, 1].forEach(function (k) {
+      var sh = [k * 0.2, chest[1] + 0.03, chest[2]], hand = [k * 0.36, gripY + 0.02, gripZ], el = [k * 0.3, lerp(sh[1], hand[1], 0.5) - 0.07, lerp(sh[2], hand[2], 0.45)];
+      tube(sh, el, 0.065, suitM, body); tube(el, hand, 0.05, suitM, body);
+      blob(0.07, 0.07, 0.07, paint, el[0], el[1], el[2], body);                                    // elbow slider
+      blob(0.055, 0.045, 0.07, bootM, hand[0], hand[1], hand[2], body);                            // glove on the grip
+      var hp = [k * 0.13, hip[1] - 0.02, hip[2] + 0.02], kn = [k * 0.28, hip[1] - 0.08, lerp(hip[2], gripZ, 0.45)], ft = [k * 0.22, r + 0.2, swingPivot[2] + 0.1];
+      tube(hp, kn, 0.085, suitM, body); tube(kn, ft, 0.06, suitM, body);
+      blob(0.08, 0.08, 0.08, paint, kn[0], kn[1], kn[2], body);                                    // knee slider
+      box(0.09, 0.1, 0.24, bootM, ft[0], ft[1] - 0.03, ft[2] + 0.05, body);                         // boot on the peg
+      box(0.03, 0.02, 0.12, greyM, k * 0.22, r + 0.13, swingPivot[2] + 0.1, body);                   // the peg
+    });
   };
 
   function build(id, o) {
