@@ -2184,7 +2184,7 @@ t.bd.position.set(x,y+.86,z);
          x.fillStyle='rgba(200,190,255,.7)';x.font='600 16px Arial';x.textAlign='center';x.fillText(label,cx,170)};
        gauge(90,kmh/300,'KM/H');gauge(422,(SND&&SND.rpm?SND.rpm:0)/((SND&&SND.prof&&SND.prof.red)||8000)||Math.min(1,kmh/200),'RPM');
        x.fillStyle='#e9e4ff';x.font='bold 64px Arial';x.textAlign='center';x.shadowColor='#3fa9ff';x.shadowBlur=12;x.fillText(String(Math.round(kmh)),256,108);x.shadowBlur=0;
-       x.fillStyle='#8a4bff';x.font='600 15px Arial';x.fillText('KM/H',256,134);clus.t.needsUpdate=true}
+       x.fillStyle='#8a4bff';x.font='600 15px Arial';x.fillText('KM/H',256,134);x.font='bold 26px Arial';x.fillStyle=GEAR.now==='R'?'#ff3b3b':'#e9e4ff';x.fillText(GEAR.now||'D',256,176);clus.t.needsUpdate=true}
       // centre screen: the song, the station and the time
       {const x=scr.x,w=384,h=224;const gr=x.createLinearGradient(0,0,w,h);gr.addColorStop(0,'#101a2e');gr.addColorStop(1,'#1d0f33');x.fillStyle=gr;x.fillRect(0,0,w,h);
        const d=new Date(),P=(window.__musicLabel&&window.__musicLabel())||(window.Radio&&Radio.playing?Radio.playing():null);
@@ -2200,19 +2200,16 @@ t.bd.position.set(x,y+.86,z);
      inside a longer orange plume, additive so they glow, flickering in length and width every frame. They are
      re-placed on the car's tail whenever the car changes (one centred flame for a bike). */
   const NITRO=(function(){const g=new THREE.Group(),flames=[];
-    const mk=(r,col,op)=>{const geo=new THREE.ConeGeometry(r,1,14,1,true);geo.translate(0,.5,0);geo.rotateX(-Math.PI/2);   // wide end at the pipe, tip trailing back along -z
-      return new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}))};
-    for(let i=0;i<2;i++){const f=new THREE.Group(),outer=mk(.16,0xff1e0a,.75),core=mk(.075,0xff7a66,.95),glow=mk(.26,0xff0018,.22);f.add(glow,outer,core);f.userData={outer,core,glow};g.add(f);flames.push(f)}
+    const mk=(r,col,op,norm)=>{const geo=new THREE.ConeGeometry(r,1,14,1,true);geo.translate(0,.5,0);geo.rotateX(-Math.PI/2);   // wide end at the pipe, tip trailing back along -z
+      return new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,blending:norm?THREE.NormalBlending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}))};
+    for(let i=0;i<2;i++){const f=new THREE.Group(),outer=mk(.16,0xe00010,.85,true),core=mk(.075,0xff2a20,.95),glow=mk(.3,0xff0010,.3);f.add(glow,outer,core);f.userData={outer,core,glow};g.add(f);flames.push(f)}
     g.visible=false;vis.car.add(g);let amt=0;
-    // a red glow round the screen edges while the nitro burns
-    const fx=document.createElement('div');fx.id='dnitrofx';fx.style.cssText='position:absolute;inset:0;pointer-events:none;opacity:0;z-index:2;background:radial-gradient(ellipse at center,rgba(255,0,20,0) 55%,rgba(255,20,10,.38) 100%);mix-blend-mode:screen';
-    (document.getElementById('drive')||document.body).appendChild(fx);let fxO=0;
     return {place(box,bike){const y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05,w=(box.max.x-box.min.x)*.24;
         flames[0].position.set(bike?0:w,y,z);flames[1].position.set(-w,y,z);flames[1].visible=!bike},
-      tick(dt,on){amt+=((on?1:0)-amt)*Math.min(1,dt*(on?10:6));const o=amt>.02?+(amt*(.8+Math.random()*.2)).toFixed(2):0;if(o!==fxO){fxO=o;fx.style.opacity=o}g.visible=amt>.02;if(!g.visible)return amt;
+      tick(dt,on){amt+=((on?1:0)-amt)*Math.min(1,dt*(on?10:6));g.visible=amt>.02;if(!g.visible)return amt;
         for(const f of flames){const k=amt*(.85+Math.random()*.45),wd=.85+Math.random()*.3,u=f.userData;
           u.outer.scale.set(wd,wd,1.7*k);u.core.scale.set(wd,wd,.75*k);u.glow.scale.set(wd*1.1,wd*1.1,.9*k);
-          u.outer.material.opacity=.6*amt;u.core.material.opacity=.7*amt;u.glow.material.opacity=.22*amt}
+          u.outer.material.opacity=.8*amt;u.core.material.opacity=.7*amt;u.glow.material.opacity=.22*amt}
         return amt},get amt(){return amt}}})();vis.body=new THREE.Group();vis.body.position.y=.55;vis.car.add(vis.body);vis.bodyIn=new THREE.Group();vis.bodyIn.position.y=-.55;vis.body.add(vis.bodyIn);
   const SKN=420;let skI=0;const skLast=[null,null,null,null];
   const skid=new THREE.InstancedMesh(new THREE.PlaneGeometry(.32,.66).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x080808,transparent:true,opacity:.38,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),SKN);
@@ -2377,6 +2374,9 @@ t.bd.position.set(x,y+.86,z);
     S.lfo.frequency.setTargetAtTime(e.lfo[0],T,.05);S.lg.gain.setTargetAtTime(e.lfo[1],T,.05);
     S.mF.Q.setTargetAtTime(e.filt[2],T,.05);S.gear=0;S.rpm=0;
     return e}
+  const GEAR={now:'',beep:0,btn:'',el:document.getElementById('dgear'),brk:document.getElementById('dbrk')};
+  function revBeep(){if(!AC||muted||AC.state!=='running')return;const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=1150;
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.05,t+.01);g.gain.setValueAtTime(.05,t+.16);g.gain.linearRampToValueAtTime(0,t+.2);o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+.22)}
   function audioInit(){if(AC){try{if(AC.state==='suspended')AC.resume()}catch(e){}return}try{AC=new (window.AudioContext||window.webkitAudioContext)();AC.resume();
     const T=AC.currentTime,sr=AC.sampleRate,G=v=>{const g=AC.createGain();g.gain.value=v;return g},
       F=(t,f,q)=>{const x=AC.createBiquadFilter();x.type=t;x.frequency.value=f;if(q!=null)x.Q.value=q;return x},
@@ -4988,10 +4988,15 @@ const PLANETS={
       /* S/down: brakes first while you are still rolling forward, then a proper reverse gear
          (with its own hill help) instead of the engine limply fighting the car's momentum */
       const vfw=chassisB.velocity.x*fwd.x+chassisB.velocity.y*fwd.y+chassisB.velocity.z*fwd.z;
-      const braking=b&&!f&&vfw>1.2;
+      const braking=b&&!f&&vfw>1.2||f&&!b&&vfw<-1.2;   // either pedal brakes first when the car is rolling the other way
       const revF=(b&&!f&&!braking&&vfw>-12)?(V.engine*1.3+grade*chassisB.mass*Math.abs(world.gravity.y)/2)*(1-sub*.5):0;
       const force=f?(V.engine*tq+climbAid)*(1+boost*.4)*eMul*(sp>vmax?0:1):-revF;
       if(PCAR.rev)PCAR.rev.emissiveIntensity=(b&&!f&&vfw<.8)?1.5:0;
+      // the gear: R while reversing (or about to, with S held at a stop), N standing still, D otherwise; reverse beeps
+      {const gr=f?'D':(b&&!braking&&vfw<.8)||vfw<-.6?'R':sp<.4?'N':'D';
+       if(gr!==GEAR.now){GEAR.now=gr;if(GEAR.el){GEAR.el.textContent=gr;GEAR.el.classList.toggle('r',gr==='R')}}
+       if(gr==='R'&&vfw<-.3&&driving){GEAR.beep-=dt;if(GEAR.beep<=0){GEAR.beep=.85;revBeep()}}else GEAR.beep=0;
+       const bl=vfw<1.2&&!f?'Rev':'Brake';if(bl!==GEAR.btn&&GEAR.brk){GEAR.btn=bl;GEAR.brk.textContent=bl}}
       veh.applyEngineForce(-force,2);veh.applyEngineForce(-force,3);
       /* Downhill used to run away: engine force cuts out at V.max, but nothing opposed gravity
          on a descent, so the car kept accelerating with only the 2.2 coast brake resisting it.

@@ -1,6 +1,6 @@
 /* In-car FM radio. The dial is 28 live internet stations (SomaFM, Radio Paradise, Nightride FM: real music, free, ad-free; see LIVE below).
-   If none can be reached, four studio stations take over; they write every song on the fly with Web Audio, so there are no music files and
-   nothing to license: a station picks a key, a tempo and a chord progression, then plays an intro,
+   Each FM is one live station. The studio code below (songs written on the fly with Web Audio, no music files,
+   nothing to license) is kept but is not on the dial: a station picks a key, a tempo and a chord progression, then plays an intro,
    a groove, a melody section, a breakdown and an outro over about three minutes before the next song.
      88.6  Lo-fi Drive   dusty electric piano, swung beat, vinyl crackle
      94.2  Sunset Wave   synthwave pads, arpeggios, big snare
@@ -68,7 +68,7 @@
      progs:[[[0,'mi'],[0,'mi'],[8,'ma'],[10,'ma']],[[0,'mi'],[10,'ma'],[8,'ma'],[7,'mi']],[[0,'mi'],[3,'ma'],[10,'ma'],[8,'ma']],[[0,'mi'],[8,'ma'],[3,'ma'],[10,'ma']],[[0,'mi'],[0,'mi'],[5,'mi'],[7,'ma']]]}
   ]);
   const isLive=i=>i>=0&&!!(STATIONS[i]&&(STATIONS[i].live||STATIONS[i].url)),NR=STATIONS.length-1,FASTLIVE=LIVE.findIndex(s=>s.live==='indiepop');
-  let liveDown=false;const fastIdx=()=>liveDown?NR:FASTLIVE;
+  let liveDown=false;const fastIdx=()=>FASTLIVE;
   CH.mi=[0,3,7];CH.ma=[0,4,7];
   const TI=['Five Hundred Nights','Blue Exit','Tail Lights','Room 214','Last Train South','Neon Static','Slow Burn','Do You Still Drive','Glass Highway','After Hours','Velvet Overpass','Red Line Home','Midnight Return','Hotel Corridor'],
         AI=['The Late Arcades','Monday Static','Hollow Avenue','Velvet Signals','The Night Ferries','Arcade Moons'];
@@ -163,7 +163,7 @@
   function liveVol(){if(el){el.volume=Math.min(1,vol);el.muted=muted||!on||!isLive(st)}}
   function livePlay(){const a=liveEl();a.src=liveUrl(STATIONS[st]);liveVol();const p=a.play();
     if(p&&p.catch)p.catch(e=>{if(!e||e.name!=='NotAllowedError')liveFail()});   // NotAllowed: waits for a tap, not a failure
-    clearTimeout(liveTimer);liveTimer=setTimeout(()=>{if(!liveOk&&!a.paused)liveFail()},10000)}
+    clearTimeout(liveTimer);liveTimer=setTimeout(()=>{if(!liveOk&&!a.paused)liveFail()},15000)}
   function liveStart(){srvI=0;liveOk=false;meta=null;recent=[];livePlay();fetchMeta();clearInterval(metaT);metaT=setInterval(fetchMeta,20000);info()}
   function liveStop(){clearInterval(metaT);clearTimeout(liveTimer);if(el&&el.getAttribute('src')){el.pause();el.removeAttribute('src');try{el.load()}catch(e){}}}
   // a stream that won't start: SomaFM gets two more relay servers, others one more try; then the next station on the dial.
@@ -171,7 +171,7 @@
   let lastDir=1;
   function liveFail(){if(!on||!isLive(st))return;srvI++;if(srvI<(STATIONS[st].live?3:2)){livePlay();return}
     const n=STATIONS[st].name;failRun++;
-    if(failRun>=3){failRun=0;liveDown=true;tune(LIVE.length);if(R.onInfo)R.onInfo('Internet radio unreachable · playing a studio station');return}
+    if(failRun>=3){failRun=0;const why=el&&el.error?' (error '+el.error.code+')':'';tune(-1);if(R.onInfo)R.onInfo('No signal · internet radio can\'t be reached right now'+why);return}
     liveStep(lastDir);if(R.onInfo)R.onInfo(n+' is off air · tuning to '+STATIONS[st].name)}
   function fetchMeta(){const S=STATIONS[st];if(!S||!isLive(st))return;const key=S.name,ok=()=>STATIONS[st]&&STATIONS[st].name===key,
       set=list=>{if(!ok())return;recent=list;const t=recent[0],k=t?t.title+'|'+t.artist:null;if(k!==meta){meta=k;info()}};
