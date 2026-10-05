@@ -2119,45 +2119,60 @@ t.bd.position.set(x,y+.86,z);
      the car's own body is hidden while this camera is on (it would sit across the view). */
   const COCK=(function(){
     const g=new THREE.Group();g.visible=false;
-    const dark=new THREE.MeshBasicMaterial({color:0x0a0b0e}),dark2=new THREE.MeshBasicMaterial({color:0x14151a}),trim=new THREE.MeshLambertMaterial({color:0x2a2c33}),
-      glow=new THREE.MeshBasicMaterial({color:0x8a4bff}),glowC=new THREE.MeshBasicMaterial({color:0x3fa9ff}),leather=new THREE.MeshLambertMaterial({color:0x15161b});
+    const dark=new THREE.MeshBasicMaterial({color:0x030304}),dark2=new THREE.MeshBasicMaterial({color:0x060609}),trim=new THREE.MeshLambertMaterial({color:0x1a1b20}),
+      glow=new THREE.MeshBasicMaterial({color:0x8a4bff}),glowC=new THREE.MeshBasicMaterial({color:0x3fa9ff}),leather=new THREE.MeshLambertMaterial({color:0x0a0a0c});
     const mk=(geo,mat,x,y,z,rx,ry,rz)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx||0,ry||0,rz||0);g.add(m);return m};
     const cv=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;const t=new THREE.CanvasTexture(c);t.anisotropy=4;return {c,x:c.getContext('2d'),t}};
     const clus=cv(512,192),scr=cv(384,224);
     let wheel=null,eye=new THREE.Object3D();g.add(eye);
-    function build(W,ex){   // W: cabin half width; ex: the driver's x (left of centre)
+    // a profile in the car's side view (z forward, y up) extruded across the cabin, so the dash has a rounded, lit top
+    const across=(pts,w,mat,x0)=>{const sh=new THREE.Shape();sh.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++){const q=pts[i];q.length===4?sh.quadraticCurveTo(q[0],q[1],q[2],q[3]):sh.lineTo(q[0],q[1])}
+      const geo=new THREE.ExtrudeGeometry(sh,{depth:w,bevelEnabled:false,curveSegments:10});const m=new THREE.Mesh(geo,mat);m.rotation.y=-Math.PI/2;m.position.x=x0;g.add(m);return m};
+    function build(W,ex,paint,hoodLen){   // W: cabin half width; ex: the driver's x; paint: body colour; hoodLen: dash to nose
       while(g.children.length)g.remove(g.children[0]);g.add(eye);
       eye.position.set(ex,0,0);
-      // dashboard: a long dark slab ahead, its top edge just under the line of sight, with a padded lip
-      mk(new THREE.BoxGeometry(W*2,.34,.62),dark,0,-.5,.95,-.12);
-      mk(new THREE.BoxGeometry(W*2,.08,.2),dark2,0,-.34,.7,-.35);
-      mk(new THREE.BoxGeometry(W*2+.02,.014,.014),glow,0,-.39,.62);             // ambient strip along the dash
-      // door cards with their own strips, running back past the seat
-      for(const k of [-1,1]){mk(new THREE.BoxGeometry(.08,.5,1.6),dark2,k*W,-.42,-.1);mk(new THREE.BoxGeometry(.012,.014,1.4),glow,k*(W-.045),-.2,-.05);
-        mk(new THREE.BoxGeometry(.012,.012,.6),glowC,k*(W-.045),-.36,.3)}
-      // windscreen frame: A-pillars, the header and the roof edge, so the view reads as through a windscreen
-      // A-pillars: from the dash corners up and back to the roof header, along the windscreen's edges
-      for(const k of [-1,1]){const a=new THREE.Vector3(k*(W+.02),-.3,1.05),b2=new THREE.Vector3(k*(W-.04),.42,.5),d=b2.clone().sub(a),pl=new THREE.Mesh(new THREE.BoxGeometry(.07,d.length(),.06),dark);
+      const soft=new THREE.MeshLambertMaterial({color:0x0c0c0f}),soft2=new THREE.MeshLambertMaterial({color:0x141519}),head=new THREE.MeshLambertMaterial({color:0x1c1d21,side:THREE.DoubleSide}),
+        body=new THREE.MeshPhongMaterial({color:paint,shininess:70,specular:0x777777,side:THREE.DoubleSide});
+      // the bonnet, in the car's colour, running out past the dash with a slight crown and a drop to the nose
+      {const L=Math.max(1.2,Math.min(2.6,hoodLen||2)),geo=new THREE.PlaneGeometry(W*2+.3,L,12,8),pa=geo.attributes.position;
+       for(let i=0;i<pa.count;i++){const x=pa.getX(i),t=(pa.getY(i)+L/2)/L,cx=x/(W+.15);pa.setXYZ(i,x,-.47-.17*t*t-.06*cx*cx,1.1+t*L)}
+       geo.computeVertexNormals();const h=new THREE.Mesh(geo,body);g.add(h);
+       // the two bulges over the front wheels, a little higher than the middle of the bonnet
+       for(const k of [-1,1]){const b=new THREE.Mesh(new THREE.SphereGeometry(1,16,8,0,Math.PI*2,0,Math.PI/2),body);b.scale.set(.26,.06,L*.4);b.position.set(k*(W+.06),-.58,1.1+L*.55);g.add(b)}}
+      // dashboard: a long rounded top under the windscreen, padded lip toward the driver
+      across([[.44,-.95],[.44,-.6],[.47,-.4,.66,-.38],[1.02,-.42],[1.2,-.44,1.22,-.55],[1.22,-.95]],W*2,soft,W);
+      mk(new THREE.BoxGeometry(W*2-.02,.012,.012),glow,0,-.52,.46);              // ambient strip along the dash face
+      // the cluster under a curved hood in front of the driver
+      across([[.52,-.19],[.54,-.16,.62,-.155],[.86,-.17],[.86,-.21],[.62,-.205]],.5,dark2,ex+.25);
+      const cm=new THREE.MeshBasicMaterial({map:clus.t});mk(new THREE.PlaneGeometry(.44,.15),cm,ex,-.3,.72).rotation.set(-.25,Math.PI,0);mk(new THREE.BoxGeometry(.5,.2,.02),dark,ex,-.3,.745,-.25);
+      const sm=new THREE.MeshBasicMaterial({map:scr.t});const sp=mk(new THREE.PlaneGeometry(.3,.18),sm,-.06,-.33,.5);sp.rotation.set(-.25,Math.PI,0);
+      mk(new THREE.BoxGeometry(.33,.21,.02),soft2,-.06,-.33,.515,-.25);   // its bezel
+      for(const x of [ex+.36,-.3]){const v=mk(new THREE.TorusGeometry(.04,.008,6,18),glow,x,-.45,.42);v.rotation.y=Math.PI;mk(new THREE.CircleGeometry(.039,16),dark2,x,-.45,.425).rotation.y=Math.PI}
+      // doors: the window line, a padded top and a strip of light along each
+      for(const k of [-1,1]){mk(new THREE.BoxGeometry(.12,.06,1.7),soft2,k*(W+.02),-.3,.15);mk(new THREE.BoxGeometry(.1,.6,1.7),soft,k*(W+.04),-.62,.15);
+        mk(new THREE.BoxGeometry(.012,.014,1.5),glow,k*(W-.03),-.36,.15);mk(new THREE.BoxGeometry(.012,.012,.6),glowC,k*(W-.03),-.5,.4);
+        // side mirror out past the A-pillar foot, glass facing back
+        const sm2=mk(new THREE.BoxGeometry(.2,.13,.12),body,k*(W+.24),-.24,.95,0,k*.25);mk(new THREE.PlaneGeometry(.17,.1),new THREE.MeshBasicMaterial({color:0x0a0d12}),k*(W+.24),-.24,.885,0,Math.PI+k*.25);
+        mk(new THREE.BoxGeometry(.18,.04,.05),soft,k*(W+.1),-.27,.98)}
+      // A-pillars: from the dash corners up and back along the windscreen's edges to the header
+      for(const k of [-1,1]){const a=new THREE.Vector3(k*(W+.03),-.4,1.14),b2=new THREE.Vector3(k*(W-.03),.37,.3),d=b2.clone().sub(a),pl=new THREE.Mesh(new THREE.BoxGeometry(.055,d.length()+.06,.05),soft);
         pl.position.copy(a).add(b2).multiplyScalar(.5);pl.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());g.add(pl)}
-      mk(new THREE.BoxGeometry(W*2+.1,.1,.6),dark,0,-.36,1.0,-.1);   // dash top runs right out to the pillars
-      mk(new THREE.BoxGeometry(W*2,.1,.5),dark,0,.45,.45);
-      mk(new THREE.BoxGeometry(W*2,.03,1.4),dark2,0,.5,-.4);
-      // rear-view mirror on the header
-      mk(new THREE.BoxGeometry(.24,.065,.03),trim,-.05,.3,.62,.15);mk(new THREE.BoxGeometry(.22,.05,.005),new THREE.MeshBasicMaterial({color:0x3a4252}),-.05,.3,.605,.15);
-      // instrument cluster in front of the driver, the centre screen in the middle of the dash
-      const cm=new THREE.MeshBasicMaterial({map:clus.t});mk(new THREE.PlaneGeometry(.42,.16),cm,ex,-.25,.66).rotation.set(-.2,Math.PI,0);mk(new THREE.BoxGeometry(.46,.03,.1),dark2,ex,-.165,.68);   // cluster under its hood
-      const sm=new THREE.MeshBasicMaterial({map:scr.t});const sp=mk(new THREE.PlaneGeometry(.3,.18),sm,-.08,-.28,.74);sp.rotation.set(-.2,Math.PI,0);
-      // round vents with glowing rims either side of the screen
-      for(const x of [-.32,.16]){const v=mk(new THREE.TorusGeometry(.04,.008,6,18),glow,x,-.42,.7);v.rotation.y=Math.PI;mk(new THREE.CircleGeometry(.039,16),dark2,x,-.42,.705).rotation.y=Math.PI}
+      // header rail, headliner and sun visors
+      mk(new THREE.BoxGeometry(W*2,.07,.12),soft,0,.39,.32);
+      {const hl=new THREE.Mesh(new THREE.PlaneGeometry(W*2+.1,1.6),head);hl.rotation.x=Math.PI/2;hl.position.set(0,.43,-.5);g.add(hl)}
+      for(const k of [-1,1])mk(new THREE.BoxGeometry(W*.8,.025,.22),head,k*W*.48,.4,.18,.12);
+      // rear-view mirror on a short stalk from the header
+      mk(new THREE.BoxGeometry(.02,.07,.02),trim,-.04,.34,.4);mk(new THREE.BoxGeometry(.26,.07,.035),trim,-.04,.28,.42,.12);mk(new THREE.PlaneGeometry(.235,.055),new THREE.MeshBasicMaterial({color:0x4a5466}),-.04,.28,.4,.12,Math.PI);
       // centre console and the gear selector
-      mk(new THREE.BoxGeometry(.24,.22,.9),dark2,-.08,-.72,.2);mk(new THREE.BoxGeometry(.25,.012,.86),glow,-.08,-.605,.2);
-      mk(new THREE.CylinderGeometry(.025,.03,.12,10),trim,-.08,-.55,.05);
-      // the steering wheel: rim, three spokes, a hub with a small glowing badge; turns with the front wheels
-      wheel=new THREE.Group();wheel.position.set(ex,-.45,.5);wheel.rotation.x=-.45;g.add(wheel);
-      const rim=new THREE.Mesh(new THREE.TorusGeometry(.17,.02,8,32),leather);wheel.add(rim);
-      for(const a of [Math.PI/2,Math.PI*1.2,Math.PI*1.8]){const sp2=new THREE.Mesh(new THREE.BoxGeometry(.15,.025,.02),trim);sp2.position.set(Math.cos(a)*.08,Math.sin(a)*-.08,0);sp2.rotation.z=-a;wheel.add(sp2)}
-      const hub=new THREE.Mesh(new THREE.CylinderGeometry(.055,.055,.04,16),trim);hub.rotation.x=Math.PI/2;wheel.add(hub);
-      const badge=new THREE.Mesh(new THREE.CircleGeometry(.018,12),glowC);badge.position.z=.022;badge.rotation.y=Math.PI;wheel.add(badge);
+      mk(new THREE.BoxGeometry(.26,.24,.9),soft,-.06,-.8,.05);mk(new THREE.BoxGeometry(.27,.012,.86),glow,-.06,-.675,.05);
+      mk(new THREE.CylinderGeometry(.025,.03,.12,10),trim,-.06,-.62,-.05);
+      // the steering wheel: a flat-bottom rim, three spokes and a hub with a small glowing badge; turns with the front wheels
+      wheel=new THREE.Group();wheel.position.set(ex,-.37,.32);wheel.rotation.x=-.3;g.add(wheel);
+      const rim=new THREE.Mesh(new THREE.TorusGeometry(.18,.028,10,40,Math.PI*1.62),leather);rim.rotation.z=-Math.PI*.31;wheel.add(rim);
+      const flat=new THREE.Mesh(new THREE.CylinderGeometry(.028,.028,.2,10),leather);flat.rotation.z=Math.PI/2;flat.position.y=-.153;wheel.add(flat);
+      for(const a of [0,Math.PI,-Math.PI/2]){const sp2=new THREE.Mesh(new THREE.BoxGeometry(.15,.035,.02),trim);sp2.position.set(Math.cos(a)*.09,Math.sin(a)*.08,0);sp2.rotation.z=a;wheel.add(sp2)}
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.05,20),trim);hub.rotation.x=Math.PI/2;wheel.add(hub);
+      const badge=new THREE.Mesh(new THREE.CircleGeometry(.02,12),glowC);badge.position.z=-.027;badge.rotation.y=Math.PI;wheel.add(badge);
       g.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;o.frustumCulled=false;o.material.fog=false;o.renderOrder=5}});   // the cabin is never in fog
     }
     let lastDraw=0;
@@ -2317,7 +2332,7 @@ t.bd.position.set(x,y+.86,z);
     PCAR.glass=[];PCAR.g.traverse(m=>{if(m.isMesh&&m.material&&m.material.transparent&&m.material.opacity<.8)PCAR.glass.push(m)});
     PCAR.g.position.y=.05-(V.rest-.07)-V.r;FP.off=PCAR.g.position.y;vis.bodyIn.add(PCAR.g);
     {const W=Math.max(.62,Math.min(1.05,(spec.W||1.9)/2-.12)),eyeY=(FP.off||0)+Math.max(.88,Math.min(2.05,(FP.top||1.3)*.82)),eyeZ=Math.max(spec.B+1.3,Math.min(spec.F-1.3,FP.bonnet.z-.9));
-     COCK.build(W,W*.48);COCK.g.position.set(0,eyeY,eyeZ)}
+     COCK.build(W,W*.48,paintHex,spec.F-eyeZ-1.15);COCK.g.position.set(0,eyeY,eyeZ)}
     // measure the body in the car's own frame (car transform reset for a moment) and put the nitro on its tail
     {const p0=car.position.clone(),q0=car.quaternion.clone(),par=car.parent;car.position.set(0,0,0);car.quaternion.set(0,0,0,1);car.updateMatrixWorld(true);
      const bl=new THREE.Box3().setFromObject(PCAR.g),cw=new THREE.Vector3().setFromMatrixPosition(vis.car.matrixWorld);bl.min.sub(cw);bl.max.sub(cw);
@@ -5339,7 +5354,7 @@ const PLANETS={
       const CM=CAMS[effCamMode],pf=W<H?1.5:1;
       const camDir = lookBehind ? tmp.copy(fwd).negate() : fwd;
       if(PCAR&&PCAR.glass&&PCAR.glassOff!==!!CM.fp){PCAR.glassOff=!!CM.fp;PCAR.glass.forEach(m=>m.visible=!CM.fp)}   // no tinted screen in front of a cockpit view
-      {const ck=!!CM.cock&&!lookBehind;COCK.g.visible=ck;if(PCAR&&PCAR.g.visible===ck)PCAR.g.visible=!ck;if(wv&&wv.car[0]&&wv.car[0].w.visible===ck)wv.car.forEach(k=>k.w.visible=!ck)}   // body and wheels would sit across the view   // every frame: a car change mid-cockpit brings a fresh, visible body
+      {const ck=!!CM.cock&&!lookBehind;if(COCK.g.visible!==ck&&spd.parentNode)spd.parentNode.style.visibility=ck?'hidden':'';COCK.g.visible=ck;if(PCAR&&PCAR.g.visible===ck)PCAR.g.visible=!ck;if(wv&&wv.car[0]&&wv.car[0].w.visible===ck)wv.car.forEach(k=>k.w.visible=!ck)}   // body and wheels would sit across the view   // every frame: a car change mid-cockpit brings a fresh, visible body
       if(CM.cock&&!lookBehind){/* the driver's seat: the eye, a touch of head movement with the road, looking down the road */
         COCK.g.updateMatrixWorld(true);COCK.eye.getWorldPosition(camT);const bob=Math.min(1,sp/40)*.006*Math.sin(performance.now()/90);camT.y+=bob;C.position.copy(camT);
         lookT.set(COCK.eye.position.x,-.06,30).applyMatrix4(COCK.g.matrixWorld);
