@@ -2568,7 +2568,7 @@ t.bd.position.set(x,y+.86,z);
       if(full&&el.classList.contains('list')){const L=Radio.playlist();ol.innerHTML='';L.forEach(s=>{const li=document.createElement('li');if(s.current)li.className='cur';
         li.innerHTML='<span></span><small>'+s.fm+'</small>';li.firstChild.textContent=s.title+' — '+s.artist;li.onclick=e=>{e.stopPropagation();Radio.jump(s.i);after()};ol.appendChild(li)})}}
     Radio.onChange=()=>paint(true);
-    Radio.onAuto=fast=>toastMsg(fast?'♪ Fast lane · Night Riff':'♪ Back to your station');
+    Radio.onAuto=fast=>toastMsg(fast?'♪ Fast lane · '+(Radio.fastName?Radio.fastName():'Night Riff'):'♪ Back to your station');
     // autoplay: on the first key or tap of the drive
     const first=()=>{removeEventListener('keydown',first,true);removeEventListener('pointerdown',first,true);
       if(src!=='radio'){if(spCtl&&spPaused)try{spCtl.play()}catch(_){}return}

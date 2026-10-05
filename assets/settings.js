@@ -70,7 +70,7 @@
     const R=window.Radio,rs=R?R.stations:[];
     const radioSeg=seg([[-1,'Off']].concat(rs.map((s,i)=>[i,s.fm+' '+s.name])),R?R.station():-1,i=>{if(window.Radio)Radio.tune(+i)});
     radioSeg.id='st-radio';inn.appendChild(radioSeg);
-    {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Fast songs (Night Riff above 120 km/h)</span>';
+    {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Fast songs (Indie Pop Rocks above 120 km/h)</span>';
      l.appendChild(seg([[true,'On'],[false,'Off']],v.fastSongs,x=>{const on=x===true||x==='true';set('fastSongs',on);if(window.Radio&&Radio.setAuto)Radio.setAuto(on)}));inn.appendChild(l)}
     inn.appendChild(h4('Graphics'));
     inn.appendChild(seg([['auto','Auto'],[0,'High'],[1,'Medium'],[2,'Low']],v.quality,q=>set('quality',q==='auto'?'auto':+q)));
