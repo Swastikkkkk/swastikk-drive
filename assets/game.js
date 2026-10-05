@@ -2463,7 +2463,7 @@ t.bd.position.set(x,y+.86,z);
    window.__setMenu=setMenu;
    mb.onclick=e=>{e.stopPropagation();setMenu(!row.classList.contains('open'));if(row.classList.contains('open')&&window.__updModes)window.__updModes()};
    // anything that opens a panel or switches mode closes the menu; quick toggles leave it open
-   const KEEP_OPEN=['dweatherb','dnight','dmute','dtiltb','dgps','dlights'];
+   const KEEP_OPEN=['dweatherb','dnight','dmute','dtiltb','dgps','dlights','dfull'];
    row.addEventListener('click',e=>{const b=e.target.closest('button');if(b&&!KEEP_OPEN.includes(b.id))setMenu(false)});
    // tapping the road (anywhere outside the menu, its button and the weather list) closes it
    addEventListener('pointerdown',e=>{
@@ -2498,44 +2498,83 @@ t.bd.position.set(x,y+.86,z);
     }else if(MODE==='circuit'||SPACE.state!=='earth'){NAV.toggle()}else{toastMsg('GPS only available while driving')}
   };
 
-  /* ---------- tilt steering (phones only) ----------
-     Reads gamma (left/right roll) and maps it to an analog steering value, so
-     it is smoother than the binary arrow buttons. The first reading becomes
-     the neutral point, which means it works however you happen to be holding
-     the phone — lying flat or propped up — instead of assuming 0°. iOS 13+
-     requires a user gesture to grant permission, hence the button. */
-  let tiltOn=false,tiltZero=null,tiltSteer=0,steerActual=0;
-  const TILT_RANGE=26;    // degrees of roll for full lock
-  const TILT_DEAD=1.6;    // ignore small hand tremor
+  /* ---------- tilt / gyro steering (phones only) ----------
+     The phone's attitude (beta, gamma) is turned into the "up" vector in the
+     phone's own frame, and steering is how far that vector leans along the
+     screen's left-right axis. That works the same in portrait or landscape,
+     held flat or held up like a wheel, with no gimbal jumps near 90°. The
+     neutral point is wherever the phone is when tilt is switched on (or
+     re-centred). Sensitivity, dead zone, smoothing and invert come from
+     Settings > Phone controls; Settings > Steering picks Buttons or Gyro. */
+  let tiltOn=false,tiltZero=null,tiltSteer=0,tiltRaw=0,steerActual=0,tiltListening=false;
   const tiltBtn=$('#dtiltb');
-  function tiltLabel(){if(tiltBtn)tiltBtn.textContent='Tilt: '+(tiltOn?'on':'off')}
+  const tiltRange=()=>40-(Math.max(0,Math.min(100,SET.v.tiltSens??50))/100)*30;   // degrees for full lock: 40 (gentle) .. 10 (twitchy)
+  const tiltDead=()=>(Math.max(0,Math.min(100,SET.v.tiltDead??30))/100)*6;        // 0 .. 6 degrees
+  function tiltLabel(){if(tiltBtn)tiltBtn.textContent='Gyro: '+(tiltOn?'on':'off');mob.classList.toggle('gyro',tiltOn);
+    // gyro mode: the arrows go away and the brake moves under the left thumb
+    const st=$('.dsteer'),pd=$('.dped'),bk=$('#dbrk');if(st&&pd&&bk){if(tiltOn)st.appendChild(bk);else if(bk.parentNode!==pd)pd.insertBefore(bk,pd.firstChild)}}
+  function screenAngle(){const a=(screen.orientation&&typeof screen.orientation.angle==='number')?screen.orientation.angle:(window.orientation||0);return ((a%360)+360)%360}
   function onTilt(e){
-    if(!tiltOn||e.gamma==null)return;
-    // in landscape the roll axis is beta, in portrait it is gamma
-    const land=Math.abs(window.orientation||0)===90||innerWidth>innerHeight;
-    let v=land?(e.beta||0)*(((window.orientation||0)<0)?-1:1):(e.gamma||0);
+    if(!tiltOn||e.beta==null||e.gamma==null)return;
+    const R=Math.PI/180,be=e.beta*R,ga=e.gamma*R,an=screenAngle()*R;
+    const ux=-Math.cos(be)*Math.sin(ga),uy=Math.sin(be);          // gravity-up in the phone's frame
+    // component along the screen's right-hand axis; positive = left side lower = steer left
+    const v=Math.asin(Math.max(-1,Math.min(1,ux*Math.cos(an)-uy*Math.sin(an))))/R;
     if(tiltZero===null)tiltZero=v;
-    let d=v-tiltZero;
-    if(Math.abs(d)<TILT_DEAD)d=0;else d-=Math.sign(d)*TILT_DEAD;
-    tiltSteer=Math.max(-1,Math.min(1,d/TILT_RANGE));
+    let d=v-tiltZero;const dz=tiltDead();
+    if(Math.abs(d)<dz)d=0;else d-=Math.sign(d)*dz;
+    if(SET.v.tiltInvert)d=-d;
+    tiltRaw=Math.max(-1,Math.min(1,d/tiltRange()));
   }
-  async function toggleTilt(){
-    if(tiltOn){tiltOn=false;tiltZero=null;tiltSteer=0;tiltLabel();toastMsg('Tilt steering off');return}
+  // smoothing runs per frame so it is the same however often the sensor fires
+  function tiltTick(dt){if(!tiltOn){tiltSteer=0;return}const sm=Math.max(0,Math.min(100,SET.v.tiltSmooth??35))/100;tiltSteer+=(tiltRaw-tiltSteer)*Math.min(1,dt*(30-sm*24))}
+  async function setTilt(on,quiet){
+    if(!on){tiltOn=false;tiltZero=null;tiltSteer=tiltRaw=0;tiltLabel();if(!quiet)toastMsg('Gyro steering off');return false}
     try{
       const D=window.DeviceOrientationEvent;
-      if(!D){toastMsg('This phone has no tilt sensor');return}
+      if(!D){if(!quiet)toastMsg('This phone has no tilt sensor');tiltLabel();return false}
       if(typeof D.requestPermission==='function'){
         const r=await D.requestPermission();
-        if(r!=='granted'){toastMsg('Tilt permission denied');return}
+        if(r!=='granted'){if(!quiet)toastMsg('Motion permission denied');tiltLabel();return false}
       }
-      addEventListener('deviceorientation',onTilt);
+      if(!tiltListening){addEventListener('deviceorientation',onTilt);tiltListening=true}
       tiltOn=true;tiltZero=null;tiltLabel();
-      toastMsg('Tilt on · hold the phone how you like, that is centre');
-    }catch(_){toastMsg('Tilt not available here')}
+      if(!quiet)toastMsg('Gyro on · tilt like a wheel');
+      return true;
+    }catch(_){if(!quiet)toastMsg('Gyro not available here');tiltLabel();return false}
   }
+  function toggleTilt(){return setTilt(!tiltOn).then(on=>{if(SET.set)SET.set('steer',on?'gyro':'buttons');return on})}
+  window.Tilt={set:on=>setTilt(on).then(r=>{if(SET.set)SET.set('steer',r?'gyro':'buttons');return r}),recentre:()=>{tiltZero=null;toastMsg('Gyro centred')},get on(){return tiltOn},get value(){return tiltSteer}};
   if(tiltBtn){tiltBtn.onclick=toggleTilt;tiltLabel()}
+  // the saved "gyro" choice: iOS needs a tap before it will grant motion, so the first tap on the screen switches it on
+  if(TOUCH&&SET.v.steer==='gyro'){
+    setTilt(true,true).then(ok=>{if(ok)return;
+      const once=()=>{removeEventListener('pointerdown',once,true);setTilt(true,true)};addEventListener('pointerdown',once,true)})}
+  // touch-button size
+  function applyCtrlSize(){mob.classList.remove('sz-s','sz-m','sz-l');mob.classList.add('sz-'+(SET.v.ctrlSize||'m'))}
+  applyCtrlSize();SET.on(k=>{if(k==='ctrlSize')applyCtrlSize()});
   // re-centre when the phone is rotated, otherwise neutral is wrong
   addEventListener('orientationchange',()=>{tiltZero=null});
+  if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',()=>{tiltZero=null});
+  /* ---------- full screen ----------
+     Android / desktop: the Fullscreen API, entered on the first tap of the game (browsers only allow it
+     from a gesture). iPhone Safari has no full screen for pages, so there the button explains
+     Add to Home Screen, which launches the game without browser bars (see manifest.webmanifest). */
+  {const de=document.documentElement,fb=$('#dfull');
+   const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+   const canFS=!!(de.requestFullscreen||de.webkitRequestFullscreen);
+   const standalone=matchMedia('(display-mode: fullscreen),(display-mode: standalone)').matches||navigator.standalone===true;
+   const enter=()=>{try{const r=(de.requestFullscreen||de.webkitRequestFullscreen).call(de,{navigationUI:'hide'});if(r&&r.catch)r.catch(()=>{})}catch(_){}};
+   const exit=()=>{try{const r=(document.exitFullscreen||document.webkitExitFullscreen).call(document);if(r&&r.catch)r.catch(()=>{})}catch(_){}};
+   const label=()=>{if(fb)fb.textContent=fsEl()?'Exit full screen':'Full screen'};
+   window.toggleFullscreen=()=>{
+     if(canFS){fsEl()?exit():enter();return}
+     toastMsg(standalone?'Already full screen':'iPhone: Share → Add to Home Screen, then open Drive from there');
+   };
+   if(fb){if(standalone&&!canFS)fb.style.display='none';fb.onclick=()=>window.toggleFullscreen()}
+   ['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev,()=>{label();setTimeout(resize,150)}));
+   if(TOUCH&&canFS&&!standalone){const first=e=>{if(!active)return;removeEventListener('pointerdown',first,true);if(!fsEl())enter()};addEventListener('pointerdown',first,true)}
+  }
   const rot=$('#drot');let rotDismissed=false;
   function checkRot(){rot.classList.toggle('on',active&&TOUCH&&innerHeight>innerWidth&&!rotDismissed&&!cineOn)}
   $('#drotx').onclick=()=>{rotDismissed=true;checkRot()};addEventListener('resize',checkRot);addEventListener('orientationchange',()=>setTimeout(()=>{resize();checkRot()},250));
@@ -4609,6 +4648,7 @@ const PLANETS={
          rider is actually using wins, so you can tap an arrow mid-corner
          without turning tilt off. */
       let steerIn=l-rr;
+      tiltTick(dt);
       if(tiltOn&&steerIn===0)steerIn=tiltSteer;
       /* Steering: the direct, arcade response (full lock easing to a third of it by ~165 km/h). A grip-limited
          version was tried and felt too hard to turn on a keyboard, so it is back to this. The handbrake still
@@ -4747,7 +4787,7 @@ const PLANETS={
                V.max). Upshift near the limiter on throttle: the clutch goes in for E.shift seconds, the
                throttle closes and the revs fall to where the next gear puts them. Downshift when the revs
                sag, with a throttle blip to match. Standing starts slip the clutch; airborne it free-revs. */
-            const G=E.gears,red=E.red,idle=E.idle,top=g=>E.first*Math.pow(1.05/E.first,g/(G-1)),
+            const G=E.gears,red=E.red,idle=E.idle,top=g=>E.first*Math.pow(1.22/E.first,g/(G-1)),   // top gear is tall: cruising flat out sits near 80% of the redline, not screaming at it
               wheel=g=>Math.min(1,r)/top(g)*red;
             S.thr=(S.thr||0)+((f?1:0)-(S.thr||0))*Math.min(1,dt*12);
             if(S.shiftT>0)S.shiftT-=dt;
@@ -4760,9 +4800,9 @@ const PLANETS={
             if(air)tgt=f?red*1.02:idle;                                                   // wheels off the ground: free revs
             else if(S.gear===0&&!rev)tgt=Math.max(tgt,idle+thr*(red*.45-idle)*Math.max(0,1-tgt/(red*.6)));   // launch: clutch slip
             tgt=Math.max(idle*(shifting?.85:1),Math.min(red*1.02,tgt));
-            if(shifting)thr=S.blip&&S.shiftT>E.shift*.35?.3:0;                             // clutch in: throttle shut, or a short blip on the way down
-            if(S.cutT>0){S.cutT-=dt;thr=0}else if(f&&S.rpm>=red*.995){S.cutT=.06;if(air)S.rpm-=red*.04}   // rev limiter bounce
-            const rate=shifting?(b&&!f?2.5:1/Math.max(.04,E.shift)*2.2):air?(tgt>S.rpm?4:3):tgt>S.rpm?(b&&!f?3:10):14;   // under braking the revs glide up into the lower gear instead of jumping
+            if(shifting)thr=S.blip&&S.shiftT>E.shift*.35?.4:.3;                            // clutch in: throttle eased off (not shut, so no bark-and-pop on every shift), or a short blip on the way down
+            if(S.cutT>0){S.cutT-=dt;thr=0}else if(f&&S.rpm>=red*.995&&(air||S.gear<G-1)){S.cutT=.06;if(air)S.rpm-=red*.04}   // rev limiter bounce (never in top gear on the road)
+            const rate=shifting?(b&&!f?2.5:1/Math.max(.08,E.shift)*1.5):air?(tgt>S.rpm?4:3):tgt>S.rpm?(b&&!f?3:10):14;   // under braking the revs glide up into the lower gear instead of jumping
             S.rpm+=(tgt-S.rpm)*Math.min(1,dt*rate);
             if(sub>.3)thr*=.4;
             // a closed throttle still idles; coasting in gear the engine is pushed by the wheels (overrun)
