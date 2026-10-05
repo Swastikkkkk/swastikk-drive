@@ -438,6 +438,164 @@
     lightPair(W * 0.6, 0.52, o.zf + 0.3, 0.32, 0.05, o.head, body);
     box(W * 1.8, 0.04, 0.05, o.tail, 0, 0.84, B + 0.01, body);
     exhaust(0, 0.62, B + 0.02, 0.06, body);
+    hypercarDetail(o, paint, body, { B: B, F: F, W: W });
+  };
+
+  /* ---------- race-car detail kit (Valkyrie and the F1 car) ----------
+     carbon weave, a contrasting accent (the paint's complementary hue, so every paint gets a matching livery),
+     racing numbers and sponsor-style decals drawn once on canvases */
+  var carbonM = phong(0x1b1d22, { specular: 0x55606e, shininess: 90 });
+  var accentOf = function (paint) { var c = paint.color.clone(), h = {}; c.getHSL(h); return phong(new THREE.Color().setHSL((h.h + 0.5) % 1, Math.max(0.6, h.s), h.l < 0.35 ? 0.6 : 0.5), { shininess: 110, specular: 0x666666 }); };
+  var DECALS = {};
+  function decal(key, draw, w, h) {
+    if (DECALS[key]) return DECALS[key];
+    var c = document.createElement('canvas'); c.width = w || 256; c.height = h || 128; draw(c.getContext('2d'), c.width, c.height);
+    var t = new THREE.CanvasTexture(c); t.anisotropy = 4; t.__shared = true;
+    DECALS[key] = new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.DoubleSide });
+    return DECALS[key];
+  }
+  var roundel = function (num) {
+    return decal('n' + num, function (g, w, h) { g.clearRect(0, 0, w, h); g.fillStyle = '#ffffff'; g.beginPath(); g.arc(w / 2, h / 2, h * 0.46, 0, 6.283); g.fill();
+      g.lineWidth = 6; g.strokeStyle = '#111317'; g.stroke(); g.fillStyle = '#111317'; g.font = 'bold ' + Math.round(h * 0.56) + 'px Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(num, w / 2, h / 2 + 4); }, 128, 128);
+  };
+  var sponsor = function (word) {
+    return decal('s' + word, function (g, w, h) { g.clearRect(0, 0, w, h); g.fillStyle = '#ffffff'; g.font = 'bold italic ' + Math.round(h * 0.62) + 'px Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(word, w / 2, h / 2 + 3); }, 256, 64);
+  };
+  function plane(w, h, mat, x, y, z, ry, parent, rx) { var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.rotation.set(rx || 0, ry || 0, 0); parent.add(m); return m; }
+  // a helmet with a visor and a stripe in the accent colour, at (x, y, z), looking forward (+z)
+  function helmet(x, y, z, r, paint, acc, parent) {
+    blob(r, r * 0.95, r * 1.08, paint, x, y, z, parent);
+    blob(r * 0.86, r * 0.42, r * 0.5, glassM, x, y + r * 0.06, z + r * 0.62, parent);
+    box(r * 0.22, r * 0.12, r * 1.9, acc, x, y + r * 0.9, z - r * 0.05, parent);
+    blob(r * 0.55, r * 0.22, r * 0.4, acc, x, y + r * 0.82, z - r * 0.82, parent);     // small spoiler
+  }
+
+  function hypercarDetail(o, paint, body, d) {
+    var B = d.B, F = d.F, W = d.W, acc = accentOf(paint), cz = -0.05;
+    // driver in the canopy
+    helmet(0, 0.98, cz + 0.05, 0.15, paint, acc, body);
+    box(0.34, 0.16, 0.42, darkM, 0, 0.78, cz - 0.15, body);                                      // shoulders / seat back
+    // livery: an accent stripe over the nose, canopy edge and engine cover, number roundels on the pods
+    box(0.22, 0.012, F - 0.6, acc, 0, 0.52, (F + 0.6) / 2 - 0.15, body, -0.08);
+    box(0.16, 0.012, 1.6, acc, 0, 0.9, B + 1.0, body);
+    [-1, 1].forEach(function (k) {
+      plane(0.34, 0.34, roundel('27'), k * (W + 0.03), 0.5, o.zb + o.r + 0.22, -k * Math.PI / 2 + Math.PI, body);
+      plane(0.7, 0.18, sponsor('APEX'), k * (W * 0.86 + 0.01), 0.42, 0.25, -k * Math.PI / 2 + Math.PI, body);
+      // side intake scoop behind the cockpit, with a dark mouth
+      box(0.12, 0.26, 0.46, paint, k * (W * 0.72), 0.64, -0.95, body);
+      box(0.1, 0.2, 0.04, darkM, k * (W * 0.72), 0.64, -0.71, body);
+      // louvres on top of each front wheel pod (vents for the brakes)
+      for (var i = 0; i < 6; i++) box(0.3, 0.02, 0.05, darkM, k * (W - 0.2), 2 * o.r + 0.13 - Math.abs(i - 2.5) * 0.012, o.zf - 0.3 + i * 0.12, body, 0.35);
+      // headlight bar sweeping round each front pod, and a running-light strip
+      box(0.03, 0.05, 0.6, o.head, k * (W - 0.02), 0.5, o.zf + 0.1, body);
+      // dive planes and canards on the nose corners
+      box(0.32, 0.02, 0.18, carbonM, k * (W * 0.82), 0.3, F - 0.42, body, 0, 0, k * 0.18);
+      box(0.26, 0.02, 0.14, carbonM, k * (W * 0.8), 0.4, F - 0.6, body, 0, 0, k * 0.28);
+      // mirrors on stalks
+      tube([k * 0.32, 0.86, 0.42], [k * 0.5, 0.95, 0.5], 0.015, carbonM, body);
+      box(0.16, 0.08, 0.06, paint, k * 0.55, 0.96, 0.5, body);
+      box(0.13, 0.06, 0.01, glassM, k * 0.55, 0.96, 0.465, body);
+      // swan-neck wing mounts and big endplates with louvres
+      tube([k * 0.18, 0.86, B + 0.45], [k * 0.22, 1.24, B + 0.2], 0.022, carbonM, body);
+      for (var j = 0; j < 4; j++) box(0.035, 0.012, 0.32, darkM, k * (W * 0.975 + 0.01), 1.12 + j * 0.06, B + 0.18, body);
+      // diffuser strakes and rear wheel-pod vents
+      box(0.02, 0.22, 0.42, carbonM, k * (0.15 + 0.17), 0.26, B + 0.15, body);
+      box(0.02, 0.22, 0.42, carbonM, k * 0.08, 0.26, B + 0.15, body);
+      box(0.16, 0.14, 0.04, darkM, k * (W - 0.2), 0.62, o.zb - o.r - 0.33, body);
+      // front splitter end fences and a brake-cooling duct in each pod
+      box(0.02, 0.1, 0.4, carbonM, k * (W * 0.94), 0.17, F - 0.25, body);
+      blob(0.07, 0.07, 0.03, darkM, k * (W - 0.22), 0.38, o.zf + o.r + 0.34, body);
+    });
+    // roof scoop on the canopy, antenna, pitot, tow loop, rain light
+    box(0.24, 0.12, 0.34, paint, 0, 1.13, -0.55, body);
+    box(0.18, 0.08, 0.02, darkM, 0, 1.13, -0.37, body);
+    tube([0.12, 1.08, -0.7], [0.14, 1.32, -0.82], 0.008, darkM, body);
+    tube([0, 0.38, F - 0.05], [0, 0.38, F + 0.12], 0.01, chromeM, body);
+    cyl(0.04, 0.04, 0.02, accentOf(paint), 0, 0.42, B - 0.02, body, Math.PI / 2);
+    box(0.14, 0.14, 0.04, o.tail, 0, 0.5, B - 0.02, body);
+    // the wing gets a second element (gurney) in the accent colour
+    box(W * 1.9, 0.03, 0.14, acc, 0, 1.3, B + 0.08, body, -0.5);
+  }
+
+  // F1 Apex: an open-wheel single-seater, built with as much of the real thing as reads at game scale
+  MODELS.f1apex = function (o, paint, body) {
+    var r = o.r, zf = o.zf, zb = o.zb, F = o.F + 0.35, B = o.B - 0.12, xw = (o.xw || 1.1) * 0.9, acc = accentOf(paint);
+    // floor: a flat carbon plank wider than the tub between the wheels, with edge wings
+    box(1.5, 0.04, zf - zb - 2 * r - 0.1, carbonM, 0, 0.1, (zf + zb) / 2 - 0.1, body);
+    [-1, 1].forEach(function (k) { box(0.05, 0.08, zf - zb - 2 * r - 0.3, carbonM, k * 0.76, 0.14, (zf + zb) / 2 - 0.1, body); });
+    // the tub and nose: one lofted shell from the nose tip back to the gearbox
+    var tub = stations(B + 0.35, F - 0.05, 46, function (z) {
+      var t = prof([[B + 0.35, 0.5], [zb + 0.2, 0.62], [-0.55, 0.72], [0.2, 0.68], [zf - 0.6, 0.52], [zf, 0.42], [F - 0.3, 0.3], [F - 0.05, 0.24]])(z);
+      var w = prof([[B + 0.35, 0.16], [zb + 0.1, 0.24], [-0.6, 0.36], [0.25, 0.3], [zf - 0.5, 0.18], [zf + 0.1, 0.14], [F - 0.3, 0.1], [F - 0.05, 0.06]])(z);
+      var yb = prof([[B + 0.35, 0.18], [zf - 0.4, 0.16], [zf + 0.2, 0.2], [F - 0.05, 0.16]])(z);
+      return { z: z, yb: yb, yt: t, hw: w, n: 3.2, top: 0.85 };
+    });
+    body.add(loft(tub, paint, 22));
+    // sidepods with an undercut and a dark radiator inlet; the accent livery runs along their tops
+    [-1, 1].forEach(function (k) {
+      var pod = stations(zb + r + 0.25, 0.3, 26, function (z, u) {
+        var h = prof([[zb + r + 0.25, 0.34], [-0.3, 0.52], [0.3, 0.56]])(z);
+        return { z: z, yb: 0.15 + (1 - u) * 0.05, yt: h, hw: 0.2 + u * 0.12, n: 3, top: 0.7 };
+      });
+      var m = loft(pod, paint, 16); m.position.x = k * 0.46; body.add(m);
+      box(0.3, 0.2, 0.03, darkM, k * 0.46, 0.4, 0.31, body);
+      box(0.06, 0.012, 1.0, acc, k * 0.46, 0.56, -0.25, body);
+      plane(0.55, 0.14, sponsor('APEX'), k * 0.795, 0.36, -0.1, -k * Math.PI / 2 + Math.PI, body);
+      // bargeboards / sidepod deflectors
+      for (var i = 0; i < 3; i++) box(0.02, 0.24 - i * 0.04, 0.34, carbonM, k * (0.7 + i * 0.05), 0.24, 0.55 - i * 0.12, body, 0, k * 0.12);
+      // mirrors on stalks beside the cockpit
+      tube([k * 0.3, 0.66, 0.4], [k * 0.5, 0.74, 0.45], 0.012, carbonM, body);
+      box(0.14, 0.07, 0.05, paint, k * 0.53, 0.75, 0.45, body);
+      box(0.11, 0.05, 0.01, glassM, k * 0.53, 0.75, 0.42, body);
+    });
+    // cockpit: opening, halo, driver, steering wheel
+    box(0.4, 0.04, 0.7, darkM, 0, 0.71, -0.05, body);
+    var halo = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.03, 8, 22, Math.PI), carbonM); halo.rotation.set(-Math.PI / 2, 0, 0); halo.position.set(0, 0.92, -0.15); body.add(halo);
+    tube([0, 0.92, 0.11], [0, 0.72, 0.36], 0.03, carbonM, body);                                    // halo centre pillar
+    helmet(0, 0.86, -0.12, 0.15, paint, acc, body);
+    box(0.24, 0.04, 0.02, carbonM, 0, 0.78, 0.18, body);                                            // steering wheel
+    // airbox above the driver's head, engine cover with a shark fin, T-camera
+    var airbox = stations(-0.85, -0.3, 10, function (z, u) { return { z: z, yb: 0.7, yt: 0.72 + u * 0.36, hw: 0.08 + u * 0.06, n: 3, top: 0.7 }; });
+    body.add(loft(airbox, paint, 12)); box(0.14, 0.14, 0.02, darkM, 0, 0.95, -0.29, body);
+    box(0.02, 0.36, 1.3, paint, 0, 0.96, -1.35, body, 0.18);
+    box(0.24, 0.05, 0.06, acc, 0, 1.12, -0.6, body);                                                // T-cam
+    plane(0.34, 0.34, roundel('16'), 0, 0.7, zf - 0.15, 0, body, -Math.PI / 2 + 0.25);            // number on the nose
+    [-1, 1].forEach(function (k) { plane(0.3, 0.3, roundel('16'), k * 0.03 + k * 0.012, 1.05, -1.45, -k * Math.PI / 2 + Math.PI, body); });
+    // front wing: three elements, endplates, the nose pillars down to it
+    for (var e = 0; e < 3; e++) box(xw * 2 + 0.25 - e * 0.18, 0.025, 0.22 - e * 0.04, e === 2 ? acc : carbonM, 0, 0.12 + e * 0.05, F - 0.12 - e * 0.13, body, -0.12 - e * 0.18);
+    [-1, 1].forEach(function (k) {
+      box(0.02, 0.24, 0.5, paint, k * (xw + 0.13), 0.2, F - 0.25, body);
+      tube([k * 0.05, 0.28, F - 0.35], [k * 0.08, 0.15, F - 0.25], 0.012, carbonM, body);
+    });
+    // rear wing: main plane + DRS flap, endplates with louvres, a swan-neck pylon, a beam wing below
+    var rwZ = B + 0.12, rwY = 0.98;
+    box(xw * 1.5, 0.03, 0.3, carbonM, 0, rwY, rwZ, body, -0.1);
+    box(xw * 1.5, 0.025, 0.2, acc, 0, rwY + 0.12, rwZ - 0.12, body, -0.5);
+    box(xw * 1.2, 0.025, 0.16, carbonM, 0, 0.42, rwZ + 0.05, body, -0.2);
+    [-1, 1].forEach(function (k) {
+      box(0.02, 0.62, 0.52, paint, k * xw * 0.75, 0.74, rwZ - 0.02, body);
+      for (var j = 0; j < 4; j++) box(0.025, 0.01, 0.28, darkM, k * xw * 0.755, 0.86 + j * 0.05, rwZ - 0.06, body);
+      tube([k * 0.04, 0.6, B + 0.45], [k * 0.06, rwY + 0.02, rwZ + 0.05], 0.02, carbonM, body);
+      plane(0.38, 0.1, sponsor('APEX'), k * (xw * 0.75 + 0.012), 0.68, rwZ - 0.02, -k * Math.PI / 2 + Math.PI, body);
+    });
+    box(0.1, 0.06, 0.08, darkM, 0, rwY + 0.18, rwZ - 0.08, body);                                    // DRS actuator
+    // diffuser strakes, rain light, exhaust
+    for (var d2 = -2; d2 <= 2; d2++) box(0.015, 0.16, 0.36, carbonM, d2 * 0.14, 0.2, B + 0.32, body);
+    box(0.12, 0.08, 0.03, o.tail, 0, 0.36, B + 0.22, body);
+    exhaust(0, 0.5, B + 0.28, 0.05, body);
+    // suspension: upper and lower wishbones and a pushrod to every wheel; brake ducts
+    [[zf, 1], [zb, -1]].forEach(function (ax) {
+      var z = ax[0], fwd = ax[1];
+      [-1, 1].forEach(function (k) {
+        var hub = [k * (xw - 0.12), r, z];
+        tube([k * 0.18, 0.5, z + 0.18 * fwd], hub, 0.016, carbonM, body);
+        tube([k * 0.18, 0.5, z - 0.18 * fwd], hub, 0.016, carbonM, body);
+        tube([k * 0.15, 0.26, z + 0.16 * fwd], [hub[0], r - 0.12, z], 0.016, carbonM, body);
+        tube([k * 0.15, 0.26, z - 0.16 * fwd], [hub[0], r - 0.12, z], 0.016, carbonM, body);
+        tube([k * 0.2, 0.6, z - 0.08 * fwd], [hub[0] * 0.9, r - 0.08, z], 0.013, greyM, body);
+        box(0.08, 0.16, 0.2, carbonM, k * (xw - 0.2), r + 0.05, z, body);                              // brake duct
+      });
+    });
   };
 
   // Titan Hauler: a conventional tractor unit with sleeper cab and a box trailer body on the same chassis
