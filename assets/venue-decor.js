@@ -89,7 +89,7 @@
     function spot(d, sd, off, r) {
       var a = ctx.alongT(d), x = a.p.x + a.nx * sd * (EDGE + off), z = a.p.z + a.nz * sd * (EDGE + off);
       if (ctx.trackDist(x, z, EDGE + off + r + 4) < EDGE + r + 1.2) return null;
-      if (inStart(x, z, r) || !free(x, z, r)) return null;
+      if (inStart(x, z, r) || !free(x, z, r) || (ctx.blocked && ctx.blocked(x, z, r))) return null;   // blocked: the pit lane
       take(x, z, r); return { x: x, z: z, yaw: a.yaw, a: a, y: ctx.gy(x, z) };
     }
     // scattered across the open ground between `lo` and `hi` metres past the barrier, anywhere round the lap

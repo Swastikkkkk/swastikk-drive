@@ -2912,7 +2912,7 @@ t.bd.position.set(x,y+.86,z);
     // the one-line key hint at the top left stops short of the mirror instead of running under it
     {const h=document.getElementById('dhint'),m=fixed[0];if(h){if(vis(m)&&vis(h)){const hr=h.getBoundingClientRect(),mr=m.getBoundingClientRect();
       h.style.maxWidth=Math.max(0,mr.left-hr.left-14)+'px';h.style.overflow='hidden';h.style.textOverflow='ellipsis';h.style.whiteSpace='nowrap'}else h.style.maxWidth=''}}
-    ['dnav','dlap','dpos','dmpr'].forEach(id=>{const e=document.getElementById(id);if(!vis(e))return;
+    ['dnav','dlap','dpos','dtyre','dmpr'].forEach(id=>{const e=document.getElementById(id);if(!vis(e))return;
       if(id==='dmpr'){e.style.left='auto';e.style.right='var(--gut,16px)';e.style.transform='none';e.style.maxWidth='min(300px,calc(100vw - 32px))'}
       e.style.top='';let r=e.getBoundingClientRect(),dy=0;
       for(let k=0;k<6;k++){let moved=false;
@@ -3186,7 +3186,7 @@ let lateral=Math.min(1,Math.abs(lvScratch.x)/8),
          // load sensitivity: grip climbs with load, but slower than the load does
          const lr=STATIC>0?wLoad[i]/STATIC:1;
          const ls=wi[i].isInContact?Math.max(.4,Math.pow(Math.min(LOAD_CAP,lr),LOAD_EXP)):1;
-         wi[i].frictionSlip=grip*(i>1?rearGrip:1)*(isFinite(ls)?ls:1)}
+         wi[i].frictionSlip=grip*TYRE.grip*(i>1?rearGrip:1)*(isFinite(ls)?ls:1)}
        // nothing above is allowed to hand the solver a NaN — that is what used to launch the car
 const F=chassisB.force,T=chassisB.torque;
         if(!isFinite(F.x)||!isFinite(F.y)||!isFinite(F.z))F.set(0,0,0);
@@ -4869,15 +4869,17 @@ const PLANETS={
         /* containment: past the barrier line by more than a little means the car found a way through the wall
            (a seam, a bank it climbed). Put it back on the line and take away the outward speed. A safety net
            under the walls, not a replacement for them. */
+        const inPitNow=!!(circuit.inPit&&circuit.inPit(chassisB.position.x,chassisB.position.z));
+        pitTick(inPitNow,dt,now);
         {const lim=CIRC_W/2+BARRIER_OFF+.8,d=Math.sqrt(best);
-         if(d>lim&&d<lim+25){const c0=CSAMP[bi],c1=CSAMP[(bi+1)%CN],tx=c1.x-c0.x,tz=c1.z-c0.z,tl=Math.hypot(tx,tz)||1;
+         if(!inPitNow&&d>lim&&d<lim+25){const c0=CSAMP[bi],c1=CSAMP[(bi+1)%CN],tx=c1.x-c0.x,tz=c1.z-c0.z,tl=Math.hypot(tx,tz)||1;
            const ox=chassisB.position.x-c0.x,oz=chassisB.position.z-c0.z,along=(ox*tx+oz*tz)/tl,px=c0.x+tx/tl*along,pz=c0.z+tz/tl*along;
            const lx=chassisB.position.x-px,lz=chassisB.position.z-pz,ll=Math.hypot(lx,lz)||1,nx=lx/ll,nz=lz/ll;
            if(ll>lim){chassisB.position.x=px+nx*lim;chassisB.position.z=pz+nz*lim;const vo=chassisB.velocity.x*nx+chassisB.velocity.z*nz;
              if(vo>0){chassisB.velocity.x-=nx*vo*1.3;chassisB.velocity.z-=nz*vo*1.3}PREV.ok=false}}}
         const u=bi/CN;
         {const racing=window.RaceEngine&&window.RaceEngine.active;      // a race has its own respawn (RaceEngine.checkTrackBoundaries)
-         if(!racing&&Math.sqrt(best)>CIRC_W/2+BARRIER_OFF+8){circOffT+=dt;if(circOffT>1.2){circOffT=0;const q=circAt(u,circuit.curve);resetCarTo({pos:q.p,tangent:q.tg});toastMsg('Back on track')}}else circOffT=0}
+         if(!racing&&!inPitNow&&Math.sqrt(best)>CIRC_W/2+BARRIER_OFF+8){circOffT+=dt;if(circOffT>1.2){circOffT=0;const q=circAt(u,circuit.curve);resetCarTo({pos:q.p,tangent:q.tg});toastMsg('Back on track')}}else circOffT=0}
         if(circU0<0){circU0=u;circLapT0=now}
         else{if(circU0>.82&&u<.18&&!TYPEF.on&&!(window.RaceEngine&&window.RaceEngine.active)&&!(typeof MP!=='undefined'&&MP.on)){circLap++;const t=now-circLapT0;circLapT0=now;
             if(!circBest||t<circBest)circBest=t;
@@ -5260,6 +5262,32 @@ const PLANETS={
      no separate curb collision, just the one ground plate, so the car can never fall through.
      AI, checkpoints/anti-cheat, saved circuits, Short/Medium/Long length choice and multiplayer
      circuits are NOT in this pass. */
+  /* ---------- tyres and pit stops (drawn / custom venues) ----------
+     Tyres wear as you drive a venue: grip falls from 100% to 82% over about five laps of hard driving (more when
+     sliding). In the pit lane a 60 km/h limiter holds you; stop in a yellow box and the crew fits fresh tyres in
+     3 s. The gauge sits under the lap card while you are on a venue. Grip on the main map is untouched. */
+  const TYRE={wear:0,grip:1};let pitStop=null,pitLeft=true;
+  const tyreEl=(()=>{const e=document.createElement('div');e.id='dtyre';e.className='mono';
+    e.style.cssText='position:absolute;left:var(--gut,16px);top:calc(96px + env(safe-area-inset-top,0px));z-index:3;display:none;padding:7px 12px;border-radius:12px;background:rgba(14,15,18,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#eef0f3;font-size:11px;letter-spacing:.12em;pointer-events:none';
+    (document.getElementById('dhud')||document.body).appendChild(e);return e})();
+  function tyresReset(){TYRE.wear=0;TYRE.grip=1;pitStop=null;pitLeft=true}
+  function pitTick(inPit,dt,now){
+    const v=chassisB.velocity,sp=Math.hypot(v.x,v.z),racing=window.RaceEngine&&window.RaceEngine.active;
+    if(!pitStop){   // wear: distance driven, a bit more when the tyres are sliding
+      const slide=veh.wheelInfos.reduce((m,w)=>Math.max(m,w.skidInfo!=null?1-w.skidInfo:0),0);
+      TYRE.wear=Math.min(1,TYRE.wear+sp*dt/(circuit.curve.getLength()*5)*(1+slide*1.5))}
+    TYRE.grip=1-.18*TYRE.wear;
+    if(inPit&&sp>60/3.6){const k=(60/3.6)/sp;v.x*=k;v.z*=k}   // pit limiter
+    const box=inPit&&circuit.pit&&circuit.pit.boxes?circuit.pit.boxes.find(b=>Math.hypot(b.x-chassisB.position.x,b.z-chassisB.position.z)<3.6):null;
+    if(!box)pitLeft=true;
+    if(box&&!pitStop&&pitLeft&&sp<1.2){pitStop={t0:now,box};pitLeft=false;bigCount('PIT');blip(700,.12,.08)}
+    if(pitStop){const e=(now-pitStop.t0)/1000;v.x=v.z=0;chassisB.angularVelocity.set(0,0,0);
+      // the crew hops to it
+      if(circuit.pit.crew){const c=circuit.pit.crew;c.position.y=Math.abs(Math.sin(e*14))*.12}
+      if(e>=3){pitStop=null;TYRE.wear=0;TYRE.grip=1;bigCount('GO');toastMsg('Fresh tyres · '+(e).toFixed(1)+' s stop');if(circuit.pit.crew)circuit.pit.crew.position.y=0;blip(1040,.2,.12)}
+      else{const n=String(Math.ceil(3-e));if($('#dcount').textContent!==n)bigCount(n)}}
+    if(frameN%10===0){tyreEl.style.display='block';const pc=Math.round(TYRE.grip*100),c=pc>94?'#7cff6b':pc>88?'#ffd23f':'#ff6b5a';
+      tyreEl.innerHTML='TYRES <b style="color:'+c+'">'+pc+'%</b>'+(inPit?' · <span style="color:#ffd23f">PIT LANE 60</span>':'')}}
   const CIRC_X=0,CIRC_Y=40,CIRC_LEN=2400;
   let CIRC_Z=-(WS+500),circOffT=0;             // moved per build so even a 3.6 km venue stays clear of the main world
   let CIRC_W=16;
@@ -5379,7 +5407,7 @@ const PLANETS={
     return out}
   // hide venue cells beyond their draw distance (called every few frames from the circuit loop)
   function lodTick(cells,cx,cz){for(let i=0;i<cells.length;i++){const c=cells[i],v=Math.hypot(c.x-cx,c.z-cz)-c.r<c.d;if(c.m.visible!==v)c.m.visible=v}}
-  function buildCircuit(pts2D,theme,seed,venue){const BT0=performance.now(),BTL=[];let BTp=BT0;const BT=l=>{const t=performance.now();BTL.push(l+' '+(t-BTp).toFixed(0));BTp=t};window.__buildT=BTL; // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
+  function buildCircuit(pts2D,theme,seed,venue){let buildPits=null;const BT0=performance.now(),BTL=[];let BTp=BT0;const BT=l=>{const t=performance.now();BTL.push(l+' '+(t-BTp).toFixed(0));BTp=t};window.__buildT=BTL; // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
     clearCircuit();
     venue=Object.assign({weather:'day',time:'day'},venue||{});
     /* width/elevation/obstacles travel WITH the venue (so every driver in a room builds the identical
@@ -5600,6 +5628,62 @@ const PLANETS={
        body.position.set((a.x+b.x)/2,CIRC_Y+wh,(a.z+b.z)/2);body.quaternion.setFromAxisAngle(wup,Math.atan2(b.x-a.x,b.z-a.z));
        world.addBody(body);wallBodies.push(body)}}
     BT('curbs+wall');
+    /* ---------- pit lane ----------
+       On the side of the start straight away from the grandstand (-n, where the pit building stands), from 150 m
+       before the line to 70 m after it: a lane at the barrier line + 4.5 m, tapering in from the road at both ends,
+       behind a pit wall with an opening at each end. Left out if another part of the track or a flyover comes
+       close to it (a tight drawing), so it never cuts across the road. */
+    const EDGE=CIRC_W/2+BARRIER_OFF,arcD=u=>{u=((u%1)+1)%1;return (u<.5?u:u-1)*TL};
+    let PIT={side:-1,d0:-150,d1:70,w0:-118,w1:38,off:EDGE+4.5,half:3.6};
+    if(TL<700)PIT=null;
+    if(PIT){for(let d=PIT.d0;d<=PIT.d1;d+=4){const u=((d/TL)%1+1)%1,a=circAt(u,curve);if(liftAt(u)>.05){PIT=null;break}
+      const x=a.p.x+a.n.x*PIT.side*PIT.off,z=a.p.z+a.n.z*PIT.side*PIT.off;if(trackDist(x,z,PIT.off+6)<PIT.off-2.5){PIT=null;break}}}
+    const inPitSpan=(u,side)=>PIT&&side===PIT.side&&arcD(u)>PIT.d0-6&&arcD(u)<PIT.d1+6;
+    const pitPts=[];   // lane centre line, for 'am I in the pit lane' and for keeping scenery off it
+    const pitNear=(x,z,r)=>{if(!pitPts.length)return false;const R=PIT.half+3+(r||0);for(let i=0;i<pitPts.length;i++){const q=pitPts[i];if(Math.abs(q.x-x)<R&&Math.abs(q.z-z)<R&&Math.hypot(q.x-x,q.z-z)<R)return true}return false};
+    buildPits=()=>{
+      const sd=PIT.side,laneM=M(0x45474e,{roughness:.9,polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:4}),lineM=new THREE.MeshBasicMaterial({color:0xf2f2f0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),
+        wallM=M(0xe8e6df,{roughness:.8}),stripeM=M(kerbOf(theme),{roughness:.7}),boxM=new THREE.MeshBasicMaterial({color:0xffd23f,transparent:true,opacity:.9,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});
+      ownedMats.push(laneM,lineM,wallM,stripeM,boxM);
+      // lateral offset along the lane: tapers from the road edge in at the entry and back out at the exit
+      const offAt=d=>{const r=CIRC_W*.18;if(d<PIT.w0-10)return r+(PIT.off-r)*SM((d-PIT.d0)/(PIT.w0-10-PIT.d0));if(d>PIT.w1+10)return r+(PIT.off-r)*SM((PIT.d1-d)/(PIT.d1-PIT.w1-10));return PIT.off};
+      const pos=[],idx=[],STEP=2;let k=0;
+      for(let d=PIT.d0;d<=PIT.d1;d+=STEP){const u=((d/TL)%1+1)%1,a=circAt(u,curve),o=offAt(d),y=roadY(u,a.p.x,a.p.z)+.1;
+        const cxp=a.p.x+a.n.x*sd*o,czp=a.p.z+a.n.z*sd*o;pitPts.push({x:cxp,z:czp,d});
+        pos.push(cxp-a.n.x*PIT.half,y,czp-a.n.z*PIT.half,cxp+a.n.x*PIT.half,y,czp+a.n.z*PIT.half);if(k){const q=(k-1)*2;idx.push(q,q+1,q+2,q+1,q+3,q+2)}k++}
+      const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));lg.setIndex(idx);lg.computeVertexNormals();
+      const lane=new THREE.Mesh(lg,laneM);lane.receiveShadow=true;lane.userData.fixedY=lane.userData.onTrack=true;lane.material.side=THREE.DoubleSide;root.add(lane);
+      // walls: the pit wall between the track and the lane, and an outer wall behind it; visual boxes + bodies
+      const wallIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.6,1.1,1),wallM,400),strIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.64,.22,1),stripeM,400);let wn=0;
+      wallIM.userData.fixedY=strIM.userData.fixedY=wallIM.userData.onTrack=strIM.userData.onTrack=true;root.add(wallIM,strIM);
+      const tq=new THREE.Quaternion(),tp=new THREE.Vector3(),ts=new THREE.Vector3(),tm=new THREE.Matrix4(),UPv=new THREE.Vector3(0,1,0),cup=new CANNON.Vec3(0,1,0);
+      const wallRun=(from,to,offFn)=>{for(let d=from;d<to;d+=6){const d2=Math.min(to,d+6),ua=((d/TL)%1+1)%1,ub=((d2/TL)%1+1)%1,A=circAt(ua,curve),B=circAt(ub,curve),oa=offFn(d),ob=offFn(d2);
+          const ax=A.p.x+A.n.x*sd*oa,az=A.p.z+A.n.z*sd*oa,bx=B.p.x+B.n.x*sd*ob,bz=B.p.z+B.n.z*sd*ob,L=Math.hypot(bx-ax,bz-az);if(L<.5)continue;
+          const y=roadY((ua+ub)/2,(A.p.x+B.p.x)/2,(A.p.z+B.p.z)/2),yaw=Math.atan2(bx-ax,bz-az);tq.setFromAxisAngle(UPv,yaw);
+          tp.set((ax+bx)/2,y+.55,(az+bz)/2);ts.set(1,1,L+.1);tm.compose(tp,tq,ts);if(wn<400){wallIM.setMatrixAt(wn,tm);tp.y=y+1.1;tm.compose(tp,tq,ts);strIM.setMatrixAt(wn,tm);wn++}
+          const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(.4,2.2,L/2+.6)));b.position.set((ax+bx)/2,y-.6,(az+bz)/2);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);barrierBodies.push(b)}};
+      wallRun(PIT.w0,PIT.w1,()=>EDGE-.6);                                  // pit wall: openings at both ends
+      wallRun(PIT.d0-6,PIT.d1+6,d=>Math.max(EDGE,offAt(d)+PIT.half+1.2));    // outer wall, following the taper
+      wallIM.count=strIM.count=wn;wallIM.instanceMatrix.needsUpdate=strIM.instanceMatrix.needsUpdate=true;
+      // pit boxes (yellow outlines) in front of the building, and the lane's edge line
+      PIT.boxes=[];const bxIM=new THREE.InstancedMesh(new THREE.PlaneGeometry(5.2,.3).rotateX(-Math.PI/2),boxM,24);let bn=0;bxIM.userData.fixedY=bxIM.userData.onTrack=true;root.add(bxIM);
+      for(const d of [-46,-34,-22,-10]){const u=((d/TL)%1+1)%1,a=circAt(u,curve),x=a.p.x+a.n.x*sd*PIT.off,z=a.p.z+a.n.z*sd*PIT.off,y=roadY(u,a.p.x,a.p.z)+.13,yaw=Math.atan2(a.tg.x,a.tg.z);
+        PIT.boxes.push({x,z,y,yaw,tx:a.tg.x,tz:a.tg.z});tq.setFromAxisAngle(UPv,yaw+Math.PI/2);
+        for(const e of [-3,3]){tp.set(x+a.tg.x*e,y,z+a.tg.z*e);ts.set(1,1,1);tm.compose(tp,tq,ts);bxIM.setMatrixAt(bn++,tm)}}
+      bxIM.count=bn;bxIM.instanceMatrix.needsUpdate=true;
+      // the crew: a few figures in team colours by each box
+      {const crewM=M(0xffffff,{roughness:.8}),body=new THREE.InstancedMesh(new THREE.BoxGeometry(.5,1.2,.35),crewM,PIT.boxes.length*3),head=new THREE.InstancedMesh(new THREE.SphereGeometry(.2,8,6),crewM,PIT.boxes.length*3);ownedMats.push(crewM);
+        let cn=0;const cc=new THREE.Color();PIT.boxes.forEach((b,i)=>{for(let c=0;c<3;c++){const along=(c-1)*2.2,x=b.x+b.tx*along-(-b.tz)*0*0,o=PIT.half+.6,nx=-b.tz,nz=b.tx,px=b.x+b.tx*along+nx*sd*o,pz=b.z+b.tz*along+nz*sd*o;
+          tp.set(px,b.y+.6,pz);tq.setFromAxisAngle(UPv,b.yaw);ts.set(1,1,1);tm.compose(tp,tq,ts);body.setMatrixAt(cn,tm);tp.y=b.y+1.42;tm.compose(tp,tq,ts);head.setMatrixAt(cn,tm);
+          body.setColorAt(cn,cc.setHex(i%2?kerbOf(theme):0x2f6fde));head.setColorAt(cn,cc.setHex(0xf2f2f2));cn++}});
+        body.count=head.count=cn;body.userData.fixedY=head.userData.fixedY=body.userData.onTrack=head.userData.onTrack=true;body.instanceMatrix.needsUpdate=head.instanceMatrix.needsUpdate=true;root.add(body,head);PIT.crew=body}
+      // PIT IN board at the entry and a 60 limit board
+      {const mk=(txt,bg,fg,d)=>{const c=document.createElement('canvas');c.width=256;c.height=128;const g=c.getContext('2d');g.fillStyle=bg;g.fillRect(0,0,256,128);g.fillStyle=fg;g.font='bold 60px Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(txt,128,68);
+          const t=new THREE.CanvasTexture(c),m=new THREE.MeshBasicMaterial({map:t,side:THREE.DoubleSide});ownedMats.push(m);const u=((d/TL)%1+1)%1,a=circAt(u,curve),o=EDGE+1.5,x=a.p.x+a.n.x*sd*o,z=a.p.z+a.n.z*sd*o,y=roadY(u,a.p.x,a.p.z);
+          const b=new THREE.Mesh(new THREE.PlaneGeometry(3.2,1.6),m);b.position.set(x,y+3.2,z);b.rotation.y=Math.atan2(-a.tg.x,-a.tg.z);b.userData.fixedY=b.userData.onTrack=true;root.add(b);
+          const post=new THREE.Mesh(new THREE.BoxGeometry(.16,2.4,.16),wallM);post.position.set(x,y+1.2,z);post.userData.fixedY=post.userData.onTrack=true;root.add(post)};
+        mk('PIT IN','#111317','#ffd23f',PIT.d0+8);mk('60','#ffffff','#d8322f',PIT.w0-6)}
+    };
     const barrierBodies=[];
     /* ---------- track limits ----------
        The corridor, from the centre out: road (CIRC_W/2) -> curb (+1.6) -> runoff -> barrier (+BARRIER_OFF) -> props (+6 and beyond).
@@ -5617,6 +5701,7 @@ const PLANETS={
       for(const side of [-1,1]){let A=null,uA=0;
         const put=(P0,P1,u)=>{const dx=P1.x-P0.x,dz=P1.z-P0.z,L=Math.hypot(dx,dz);if(L<.5)return;const x=(P0.x+P1.x)/2,z=(P0.z+P1.z)/2,yaw=Math.atan2(dx,dz);
           const lf=liftAt(u);if(trackDistL(x,z,off+2,lf)<off-1.5)return;          // another part of the track at this level is closer than ours: no wall across it
+          if(inPitSpan(u,side))return;                                               // the pit lane has its own walls
           if(L>8&&(trackDistL(P0.x+dx*.25,P0.z+dz*.25,off+2,lf)<off-1.5||trackDistL(P0.x+dx*.75,P0.z+dz*.75,off+2,lf)<off-1.5))return;   // a long piece: check along it too
           q.setFromAxisAngle(up,yaw);
           /* the wall reaches from whichever is lower (the ground here or the road beside it) to above whichever
@@ -5830,6 +5915,7 @@ const PLANETS={
       for(let i=0;i<5;i++){lightMatrix.makeTranslation((i-2)*2.1,H-1.2,-.85);startLights.setMatrixAt(i,lightMatrix);if(startLights.setColorAt)startLights.setColorAt(i,new THREE.Color(0x3a0e0e))}
       startLights.instanceMatrix.needsUpdate=true;if(startLights.instanceColor)startLights.instanceColor.needsUpdate=true;gantry.add(startLights);startLightsIM=startLights;
       root.add(gantry);
+      if(PIT)buildPits();
     }
     /* ---------- professional venue dressing ----------
        Everything below turns the bare loop into a motorsport venue: starting grid, a main
@@ -6056,7 +6142,7 @@ const PLANETS={
       const sx=b.max.x-b.min.x,sz=b.max.z-b.min.z,size=Math.max(fpA.distanceTo(fpB),.1);
       const clear=HALFW+BARRIER_OFF+(size>7?1.4:.6),nx=Math.min(14,Math.max(2,Math.ceil(sx*Math.max(1,size/Math.max(sx,sz,.1))/3)+1)),nz=Math.min(14,Math.max(2,Math.ceil(sz*Math.max(1,size/Math.max(sx,sz,.1))/3)+1)),my=(b.min.y+b.max.y)/2;
       for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){fpPt.set(b.min.x+sx*i/(nx-1),my,b.min.z+sz*j/(nz-1)).applyMatrix4(mw);
-        if(trackDist(fpPt.x,fpPt.z,clear+2)<clear)return true}
+        if(trackDist(fpPt.x,fpPt.z,clear+2)<clear||pitNear(fpPt.x,fpPt.z,0))return true}
       return false};
     let removed=0;const solidBodies=[],sbQ=new THREE.Quaternion(),sbP=new THREE.Vector3(),sbS=new THREE.Vector3(),sbC=new THREE.Vector3();
     const addSolid=(mw,hx0,hy0,hz0,center)=>{mw.decompose(sbP,sbQ,sbS);const c=center?center.clone().applyMatrix4(mw):sbP;
@@ -6093,14 +6179,14 @@ const PLANETS={
     if(ELEV)wallBodies.forEach(b=>{b.position.y+=groundAt(b.position.x,b.position.z)-CIRC_Y});
     passes();
     BT('passes');
-    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
+    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,pit:PIT,pitPts,inPit:(x,z)=>{if(!PIT)return false;for(let i=0;i<pitPts.length;i+=2){const q=pitPts[i];if(Math.abs(q.x-x)<PIT.half+1.5&&Math.abs(q.z-z)<PIT.half+1.5&&Math.hypot(q.x-x,q.z-z)<PIT.half+1)return true}return false},lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
     if(window.RaceEngine){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
     /* the rest streams in: a few milliseconds of jobs per frame, each batch run through the passes as it lands;
        when the queue is empty every prop set is cut into culled, distance-limited cells. Leaving (or rebuilding)
        before it finishes simply stops it: the jobs check that this is still the live circuit. */
     const me=circuit,haze0=new THREE.Color(theme.fog);
     if(window.VenueDecor)JOBS.push(...window.VenueDecor.jobs({THREE,root,theme,seeded,M,addMat:m=>{ownedMats.push(m);return m},LOW,CIRC_W,BARRIER_OFF,CIRC_Y,TL,cx,cz,r0,
-      alongT,trackDist,gy:(x,z)=>CIRC_Y+visH(x,z),ground:(x,z)=>(ELEV?groundAt(x,z):CIRC_Y)+visH(x,z),noise2,startP}));
+      alongT,trackDist,blocked:pitNear,gy:(x,z)=>CIRC_Y+visH(x,z),ground:(x,z)=>(ELEV?groundAt(x,z):CIRC_Y)+visH(x,z),noise2,startP}));
     let ji=0;
     const pumpJobs=()=>{
       if(circuit!==me)return;                       // left or rebuilt: drop the rest
@@ -6135,7 +6221,8 @@ const PLANETS={
       c.traverse(o=>{if(o.layers.mask===1){o.layers.set(1);worldHidden.push(o)}})}}
   function enterCircuit(){if(!circuit)return;
     worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
-    MODE='circuit';circU0=-1;circLap=0;circBest=null;circLapT0=performance.now();hideWorld(true);
+    MODE='circuit';circU0=-1;circLap=0;circBest=null;circLapT0=performance.now();hideWorld(true);tyresReset();
+    if(window.RaceEngine)window.RaceEngine.inPit=p=>!!(circuit&&circuit.inPit&&circuit.inPit(p.x,p.z));
     if(window.RaceEngine&&circuit){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps,roadWidth:CIRC_W})}
     const {p,tg}=circuit.startP;
     PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
@@ -6167,7 +6254,7 @@ const PLANETS={
     C.far=1800;C.updateProjectionMatrix();                  // the venue's ground and mountains run out to the horizon
     if(circuit.hazeTo)circuit.hazeTo(S.fog.color);
     toastMsg('Venue · '+th.name+' · seed '+circuit.seed);updCircBtn()}
-  function leaveCircuit(){if(MODE!=='circuit')return;
+  function leaveCircuit(){if(MODE!=='circuit')return;tyreEl.style.display='none';TYRE.grip=1;pitStop=null;
     C.far=320;C.updateProjectionMatrix();
     MODE='world';
     if(window.RaceEngine)window.RaceEngine.stopRace();try{CAI.clear()}catch(e){}
@@ -6253,7 +6340,7 @@ const PLANETS={
     if(MODE!=='circuit'||!circuit||!window.RaceEngine)return;
     const RE=window.RaceEngine;RE.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps:circuit.daily?DAILY_LAPS:lapsCfg(),roadWidth:CIRC_W});RE.isDaily=!!circuit.daily;RE.dailyDate=circuit.dailyDate||null;
     RE.closeResultsModal();
-    circuit.lightsDone=false;circuit.lightsStart=performance.now();circuit.cdN=0;
+    circuit.lightsDone=false;circuit.lightsStart=performance.now();circuit.cdN=0;tyresReset();
     RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:sp.tangent||circuit.startP.tg})});CAI.start(3)}
   window.restartSoloRace=restartSoloRace;
   const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
@@ -6356,11 +6443,19 @@ const PLANETS={
     {let q=rs.slice(0,rs.length-1);for(let pass=0;pass<2;pass++){const n=q.length;q=q.map((p,i)=>{const a=q[(i-1+n)%n],b=q[(i+1)%n];return {x:p.x*.5+(a.x+b.x)*.25,y:p.y*.5+(a.y+b.y)*.25}})}
      q.push({x:q[0].x,y:q[0].y});let L2=0;for(let i=1;i<q.length;i++)L2+=Math.hypot(q[i].x-q[i-1].x,q[i].y-q[i-1].y);rs=resamplePath(q,Math.max(4,L2/110));if(rs.length<8){drawFail('Draw a larger loop.');return}}
 
-    // Check self-intersections (allow endpoints)
-    for(let i=0;i<rs.length-1;i++)for(let j=i+2;j<rs.length-1;j++){
+    /* crossings are allowed: buildCircuit lifts one pass of each onto a flyover (a deck with ramps either side,
+       pillars, rails, collision). Refused only where a bridge cannot work: a crossing at a very shallow angle (the
+       two roads run on top of each other), one right on the start straight, or more than four of them. */
+    let crossings=0;
+    {const n=rs.length-1,near0=Math.max(3,Math.round(n*.05));
+     for(let i=0;i<rs.length-1;i++)for(let j=i+2;j<rs.length-1;j++){
       if(i===0&&j>=rs.length-2)continue;
-      if(segInt(rs[i],rs[i+1],rs[j],rs[j+1])){drawFail('Track crosses itself. Try a simpler loop.');return}}
-
+      if(!segInt(rs[i],rs[i+1],rs[j],rs[j+1]))continue;
+      const ax=rs[i+1].x-rs[i].x,ay=rs[i+1].y-rs[i].y,bx=rs[j+1].x-rs[j].x,by=rs[j+1].y-rs[j].y,sin=Math.abs(ax*by-ay*bx)/(Math.hypot(ax,ay)*Math.hypot(bx,by)||1);
+      if(sin<.28){drawFail('The track crosses itself at too shallow an angle for a flyover. Cross more squarely.');return}
+      if(i<near0||j>n-near0){drawFail('A crossing right at the start line cannot be a flyover. Start the loop somewhere else.');return}
+      crossings++}
+     if(crossings>4){drawFail('Too many crossings ('+crossings+'). Up to 4 can become flyovers.');return}}
     drawRS=rs.slice(0,rs.length-1);
     pendingTrack=normalizeLoop(drawRS,CIRC_SIZES[selVal('#dcircsize','large')]);
     redrawPath();
@@ -6373,7 +6468,7 @@ const PLANETS={
     if(testB)testB.disabled=false;
     if(saveB)saveB.disabled=false;
     if(shareB)shareB.disabled=false;
-    if(circErrEl){circErrEl.style.color='#7cff6b';circErrEl.textContent='Loop ready · '}if(circErrEl)circErrEl.textContent='Loop ready · '+(selVal('#dcircsize','large')==='huge'?'3.6':selVal('#dcircsize','large')==='medium'?'1.6':'2.4')+' km lap. Add obstacles, or press Test drive / GO.';
+    if(circErrEl){circErrEl.style.color='#7cff6b';circErrEl.textContent='Loop ready · '}if(circErrEl)circErrEl.textContent=(crossings?crossings+' crossing'+(crossings>1?'s':'')+' → flyover'+(crossings>1?'s':'')+' · ':'')+'Loop ready · '+(selVal('#dcircsize','large')==='huge'?'3.6':selVal('#dcircsize','large')==='medium'?'1.6':'2.4')+' km lap. Add obstacles, or press Test drive / GO.';
   }
   function generateVenue(){
     if(!pendingTrack)return;
@@ -7401,7 +7496,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};

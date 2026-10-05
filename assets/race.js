@@ -382,6 +382,7 @@
     checkTrackBoundaries: function(carPos, dt, onRespawnTrigger) {
       if (this.checkpoints.length === 0) return;
       var minDist = this.nearestCenterDist(carPos.x, carPos.z, carPos.y);
+      if (this.inPit && this.inPit(carPos)) minDist = 0;   // the pit lane runs outside the barrier line: not off track
       var maxAllowedDist = (this.roadHalf || 8) + 4.6 + 8;   // past the barrier line (game.js BARRIER_OFF) means the car got out
       var oobEl = document.getElementById('doob');
 
