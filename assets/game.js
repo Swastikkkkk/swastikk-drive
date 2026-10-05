@@ -701,6 +701,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      hairpins can be taken with some commitment without dropping off the hillside. */
   /* the lookout gets a ring of the same rail, open only where the road comes in, so the car cannot roll off the
      summit; the road's rails run right up to meet it */
+  // the cableway's top: the highest ground near the western peak, well inside the valley wall (used by the summit ring
+  // to leave a gap for the cable car deck, and by CABLE below)
+  const CABLE_TOP=(()=>{let T={x:-660,z:144,h:-1e9};for(let x=-680;x<=-610;x+=3)for(let z=90;z<=200;z+=3){const h=HF.h(x,z);if(h>T.h&&Math.hypot(x,z)<BOUND-40)T={x,z,h}}return T})();
   const SUM_RR=12.5,SUM_GAP=Math.asin(Math.min(.95,((7+RWX*1.6)/2+.75)/SUM_RR));
   (function(){const off=(7+RWX*1.6)/2+.75,u0=Math.max(U_YARD,U_CLIMB-.02),u1=brUAt(PEAK.x,PEAK.z,SUM_RR*Math.cos(SUM_GAP)-.3,true),segL=4;
     const railM=M(0xc7cbd1,{roughness:.4}),postM=M(0x5d5a55,{roughness:.8});
@@ -723,7 +726,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     // the lookout ring: from one side of the road round the far side to the other
     {const inA=Math.atan2(-BR_F.z,-BR_F.x),a0=inA+SUM_GAP,a1=inA+2*Math.PI-SUM_GAP,NS2=Math.ceil((a1-a0)*SUM_RR/3);
      const at2=a=>{const x=PEAK.x+Math.cos(a)*SUM_RR,z=PEAK.z+Math.sin(a)*SUM_RR;return {x,z,y:HF.h(x,z)}};let A=at2(a0);
+     // a second opening where the cable car deck leaves the lookout (the deck is 10 m wide)
+     const deckA=Math.atan2(CABLE_TOP.z-PEAK.z,CABLE_TOP.x-PEAK.x),deckGap=Math.asin(Math.min(.95,5.6/SUM_RR));
      for(let i=1;i<=NS2;i++){const B=at2(a0+(a1-a0)*i/NS2),dx=B.x-A.x,dz=B.z-A.z,dy=B.y-A.y,L=Math.hypot(dx,dz);
+       {const am=a0+(a1-a0)*(i-.5)/NS2,d=Math.atan2(Math.sin(am-deckA),Math.cos(am-deckA));if(Math.abs(d)<deckGap){A=B;continue}}
        dir.set(dx,dy,dz).normalize();q.setFromUnitVectors(Z,dir);pp.set((A.x+B.x)/2,(A.y+B.y)/2+.62,(A.z+B.z)/2);sc.set(1,1,Math.hypot(L,dy)+.12);mx.compose(pp,q,sc);if(nr<railIM.instanceMatrix.count)railIM.setMatrixAt(nr++,mx);
        q.set(0,0,0,1);sc.set(1,1,1);pp.set(A.x,A.y+.42,A.z);mx.compose(pp,q,sc);if(np<postIM.instanceMatrix.count)postIM.setMatrixAt(np++,mx);
        const mxx=(A.x+B.x)/2,mzz=(A.z+B.z)/2,ox=mxx-PEAK.x,oz=mzz-PEAK.z,ol=Math.hypot(ox,oz)||1,bot=Math.min(A.y,B.y)-3,top=Math.max(A.y,B.y)+2.6;
@@ -978,7 +984,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      and a kinematic floor under it keeps the wheels sitting on something. */
   const CABLE=(function(){
     // the top: the highest ground near the western peak, kept well inside the valley wall
-    let TOP={x:-660,z:144,h:-1e9};for(let x=-680;x<=-610;x+=3)for(let z=90;z<=200;z+=3){const h=HF.h(x,z);if(h>TOP.h&&Math.hypot(x,z)<BOUND-40)TOP={x,z,h}}
+    const TOP=CABLE_TOP;
     const DIR=new THREE.Vector3(TOP.x-PEAK.x,0,TOP.z-PEAK.z).normalize(),SIDE=new THREE.Vector3(DIR.z,0,-DIR.x),YAW=Math.atan2(DIR.x,DIR.z);
     let topY=-1e9;for(let a=0;a<6.3;a+=.4)for(const r of [0,6,12,16])topY=Math.max(topY,HF.h(TOP.x+Math.cos(a)*r,TOP.z+Math.sin(a)*r));topY+=.4;
     const baseY=PEAK_H,HANG=7.5,DECK=30;
@@ -1061,10 +1067,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         return}
       // waiting at a station: is the car in the bay?
       const bay=atDock>=0?(atDock?D1:D0):null;
-      const inBay=(B,y)=>{const dx=c.x-B.x,dz=c.z-B.z,a=dx*DIR.x+dz*DIR.z,b=dx*SIDE.x+dz*SIDE.z;return Math.abs(a)<CL/2-.6&&Math.abs(b)<CW/2-.3&&Math.abs(c.y-y-1)<2.2};
+      const inBay=(B,y)=>{const dx=c.x-B.x,dz=c.z-B.z,a=dx*DIR.x+dz*DIR.z,b=dx*SIDE.x+dz*SIDE.z;return Math.abs(a)<CL/2+1.2&&Math.abs(b)<CW/2+.2&&Math.abs(c.y-y-1)<2.2};   // generous: stopped against the end barrier still counts
       if(bay&&!inBay(bay,bay.y))armed=true;
       if(armed&&bay&&inBay(bay,bay.y)&&sp<1.2){wait+=dt;if(wait>.8){const n=Math.ceil(3-(wait-.8));if(n!==count&&n>0){count=n;toastMsg('Cable car · leaving in '+n)}
-          if(wait>3.8){ride=Object.assign(local(c),{q:chassisB.quaternion.clone()});st=atDock?'down':'up';wait=0;count=0;if(window.AUTO)try{AUTO.set(false,true)}catch(_){}}}}
+          if(wait>3.8){ride=Object.assign(local(c),{q:chassisB.quaternion.clone()});ride.a=Math.max(-(CL/2-2.7),Math.min(CL/2-2.7,ride.a));ride.b=Math.max(-.5,Math.min(.5,ride.b));/* centred in the cage */st=atDock?'down':'up';wait=0;count=0;if(window.AUTO)try{AUTO.set(false,true)}catch(_){}}}}
       else{if(wait>.8&&bay)toastMsg('Cable car · cancelled');wait=0;count=0;
         // the other bay is empty: stop in it and the cabin comes for you
         const other=atDock===0?D1:atDock===1?D0:null;
@@ -1079,7 +1085,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const c0=()=>chassisB.position;
     // high up: the riding cabin, or anywhere on the top deck
     const high=()=>(ride&&s>.15)||(Math.hypot(chassisB.position.x-TOP.x,chassisB.position.z-TOP.z)<DECK&&chassisB.position.y>topY-4);
-    return {tick,cam,high,cp:new THREE.Vector3(),cine0:false,get cine(){return !!ride||panT>0},get riding(){return !!ride},TOP,topY,D0,D1,get s(){return s},get st(){return st}}})();
+    return {tick,cam,high,cp:new THREE.Vector3(),cine0:false,get cine(){return !!ride||panT>0},get dbg(){return {wait:+wait.toFixed(2),armed,st,count}},get riding(){return !!ride},TOP,topY,D0,D1,get s(){return s},get st(){return st}}})();
   /* --- stunt park ---
      One axis runs straight through the park, lined up with the dirt track in, so the mega
      jump finally has a run-up: boost pad, a 24 m kicker, a table top with the ring of fire
@@ -5429,8 +5435,9 @@ const PLANETS={
       if(f||b||l||rr||Math.abs(tiltSteer)>.12)idleT=0;else{idleT+=dt;if(idleT>10){idleT=-999;toastMsg(TOUCH?'Hold GAS on the right':'W to drive.')}}
       if(MODE==='world'&&frameN%4===0){let best=1e9,bi=0;for(let i=0;i<=N;i+=2){const d=(SAMP[i].x-chassisB.position.x)**2+(SAMP[i].z-chassisB.position.z)**2;if(d<best){best=d;bi=i}}const u=bi/N;if(best<60&&(u>progU||u<progU-.5))progU=u;prog.geometry.setDrawRange(0,Math.floor(progU*N)*6);if(frameN%16===0)lamps.forEach(L=>{L.bulb.material.color.setHex(L.u<=progU?0xf2eee6:0x3a3733)});
         const summitD=Math.hypot(car.position.x-PEAK.x,car.position.z-PEAK.z);
-        const wasSummit=atSummit;atSummit=summitD<12;recapCam=atSummit;
-        if(atSummit&&!wasSummit){summitMoodBack=CHMOOD[act]||'day';if(!nightOn&&!wxLock)mood('dusk',5);blip(600,.16,.08);toastMsg('The summit')}
+        const wasSummit=atSummit;{const C0=CABLE.D0,tx=CABLE.TOP.x-PEAK.x,tz=CABLE.TOP.z-PEAK.z,tl=Math.hypot(tx,tz),onDeck=((car.position.x-PEAK.x)*tx+(car.position.z-PEAK.z)*tz)/tl>3;   // heading onto the cable car deck: keep the normal camera so the station is in view
+          atSummit=summitD<12&&!onDeck}recapCam=atSummit;
+        if(atSummit&&!wasSummit){summitMoodBack=CHMOOD[act]||'day';if(!nightOn&&!wxLock)mood('dusk',5);blip(600,.16,.08);toastMsg('The summit · the cable car to the peak is on the far side of the lookout')}
         else if(!atSummit&&wasSummit){if(summitMoodBack){if(!nightOn&&!wxLock)mood(summitMoodBack,4);summitMoodBack=null}}
         /* the sky settles into each stretch of the road as you drive into it */
         {let a=0;for(let k=0;k<ACTS.length;k++)if(progU>=ACTS[k][0]-.028)a=k;
