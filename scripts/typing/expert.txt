@@ -1,0 +1,97 @@
+The function returned {"speed": 287.4, "gear": 7, "rpm": 11250} on lap #42.
+Use `git commit -m "Fix lap timer"` and then push to origin/main.
+Is it 50% faster, or merely 1.5x? (Spoiler: those are the same thing.)
+The URL was https://example.com/race?id=7&lap=3#sector-2, oddly enough.
+E-mail support@speedlab.io with "URGENT: brakes" in the subject line.
+Her code read: if (speed > 200 && gear === 6) { boost(); }
+"It's 'whose', not 'who's'," she sighed, red pen in hand.
+The equation v = u + at gives 27.5 m/s after 5.5 s at 5 m/s².
+Price: €1,299.99 (incl. VAT @ 21%); delivery: 3-5 working days.
+Set QUALITY=high, FPS_CAP=144, and VSYNC=off in config.ini.
+"Pneumonoultramicroscopicsilicovolcanoconiosis" is a real, if silly, word.
+The C-130's crew: 1 pilot, 1 co-pilot, 1 navigator & 2 loadmasters.
+Q3 revenue: $4.2M (+18% YoY); operating margin: 23.7%; EPS: $0.91.
+Rhythm, syzygy, and crwth are English words with no regular vowels.
+Press Ctrl+Shift+Esc to open Task Manager; Alt+F4 closes the window.
+The quick brown fox jumps over the lazy dog; it's a pangram, see?
+Sphinx of black quartz, judge my vow!
+Pack my box with five dozen liquor jugs.
+How vexingly quick daft zebras jump!
+The five boxing wizards jump quickly.
+Jackdaws love my big sphinx of quartz.
+Waltz, bad nymph, for quick jigs vex.
+Mr. O'Neill's 3rd-gen Toyota (2.0L, 4-cyl.) did 0-60 in 9.8s.
+The array [3, 1, 4, 1, 5, 9, 2, 6] sorts to [1, 1, 2, 3, 4, 5, 6, 9].
+Her Wi-Fi password was "C0ff33&Cr0iss@nt$!", which nobody could remember.
+#TeamRed won by 0.003s; @fastlap tweeted "UNREAL!!!" moments later.
+Chapter 11, §4(b)(ii) states: "No vehicle shall exceed 30 mph."
+Is "colonel" really pronounced "kernel"? Yes; English is weird.
+The pH of lemon juice is ~2.0; pure water is 7.0 at 25 °C.
+A Möbius strip has one side & one edge; a Klein bottle, no edges at all.
+The sign on the door said: "Back in 5 min. (Maybe 10.) [Probably 20.]"
+Run `npm install --save-dev @types/node` before building.
+The jazz quartet played Thelonious Monk's "'Round Midnight" flawlessly.
+Their GPS coordinates were 51.5074° N, 0.1278° W: central London.
+The Xylophone Quartet's 2nd album (Zigzag) sold 1.2M copies worldwide.
+SELECT name, best_lap FROM drivers WHERE team = 'Red' ORDER BY best_lap;
+The cafe's menu: espresso €2.40; flat white €3.10; matcha latte €4.25.
+"Don't—just don't," she said, as he reached for the big red button.
+Kafka, Dostoyevsky & Nietzsche walk into a bar; nobody laughs.
+The 1,000,000th visitor won a 7-day trip to Reykjavík, Iceland.
+In JavaScript, typeof null === "object" (a famous mistake from 1995).
+The archaeologist's notebook read: "Site #7 — pottery, c. 1200 BCE?"
+Use the formula =SUM(B2:B14)/COUNT(B2:B14) to get the average.
+Zoë's café served crème brûlée, jalapeño poppers & piña coladas.
+The quizmaster asked: "What's 17 × 23?" (It's 391, by the way.)
+The pilot radioed: "Mayday, mayday; engine 2 out; FL350; heading 270."
+"Antidisestablishmentarianism" has 28 letters, and nobody uses it.
+<div class="lap">Lap 3/10</div> was rendered 4,096 times per second.
+His résumé listed C++, Rust, Go, Python 3.12 & "a bit of COBOL".
+Set your clock: 23:59:59 + 1s = 00:00:00 (midnight, of course).
+The F-14's top speed was Mach 2.34, roughly 2,485 km/h at altitude.
+Error: expected ';' but found '}' at line 1,337, column 42.
+Dr. Jekyll & Mr. Hyde (1886) was written in just 6 weeks.
+The ratio 16:9 equals 1.777..., while 4:3 is exactly 1.333...
+"I'm not lost," Dad insisted; "I'm exploring alternative routes."
+Bjørn's fjord-side hütte cost 12.500 kr. per week (excl. cleaning).
+Hex #FF5733 is a reddish-orange; #4D8DFF is a calm, bright blue.
+She rated it ★★★★☆: "Great track, terrible coffee."
+The odds were 7:2 against; she bet £50 and walked away with £225.
+WARNING: Do NOT exceed 2.5 bar! (Seriously, the tyre will pop.)
+The function f(x) = x² − 4x + 4 has exactly one root: x = 2.
+Quixotic, zephyr, and jinx: three words that are fun to type quickly.
+Twelve twins twirled twelve twigs; try typing that twice, quickly.
+She sells seashells by the seashore, and the shells she sells are surely seashells.
+Peter Piper picked a peck of pickled peppers; how many did he pick?
+Red lorry, yellow lorry, red lorry, yellow lorry, red lorry, yellow lorry.
+Unique New York, unique New York, you know you need unique New York.
+The sixth sick sheik's sixth sheep's sick.
+Fuzzy Wuzzy was a bear; Fuzzy Wuzzy had no hair.
+A proper copper coffee pot, a proper copper coffee pot!
+Six slippery snails slid slowly seaward.
+Irish wristwatch, Swiss wristwatch; Irish wristwatch, Swiss wristwatch.
+Which witch switched the Swiss wristwatches?
+The pit wall radioed: "Box, box, box! Mediums on, 2.8s stop, P4 on exit."
+Her ID was XQ-7734-ZB; his was JK_0091/b (they were never matched).
+Exactly 3/4 of 1/2 of 2/3 of 120 is... 30.
+The bill read: 2× pizza @ $14.50; 3× soda @ $2.25; tip (18%): $6.44.
+DNA's 4 bases are A, T, C & G; RNA swaps T for U.
+The ISO date 2026-10-05T14:30:00Z is half past two, UTC.
+"Is this the real life? Is this just fantasy?" sang the whole bus.
+They named the boat "Boaty McBoatface"; the internet was delighted.
+Keyboard warriors know: QWERTY, AZERTY & Dvorak each have fans.
+The vending machine's sign: "Exact change only — no €2 coins!!"
+The hashtag #MondayMotivation trended at 09:00 GMT; #Coffee, at 09:01.
+Their apartment was No. 7½, between 7 & 8, up the narrow stairs.
+I said "affect", you heard "effect"; the effect was confusion.
+The temperature was −40°, where Celsius and Fahrenheit agree.
+Look—it's a bird... it's a plane... it's a 1964 Ford Mustang!
+"Ahoy!" yelled the captain; "all hands on deck, 'cause the fog's rolling in!"
+The receipt: 1× coffee (oat milk, extra shot) = $5.75; ouch.
+A haiku: "Engine hums at dawn / tyres whisper on wet asphalt / the road goes on, home."
+The snail's top speed: ~0.048 km/h; the sloth's: ~0.27 km/h.
+{ "name": "Volt GT", "hp": 520, "electric": true, "price": 450 }
+The tongue-twister "Toy boat" is nearly impossible to say 5× fast.
+Llanfairpwllgwyngyll is a real village in Wales (the short version).
+The word "strengths" has 9 letters but only 1 vowel.
+"Bookkeeper" & "bookkeeping": the only words with three double letters in a row.

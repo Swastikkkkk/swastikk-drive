@@ -691,13 +691,20 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   roadM.color.setHex(0xffffff);roadM.map=roadTex();edgeM.color.setHex(0x6d685e);
   edgeM.map=grainTex(64,.12,1,.6);edgeM.map.repeat.set(3,1);
   strip(7.6+RWX*2,.04,edgeM);strip(5.8+RWX*2,.09,roadM);
-  stripB(7+RWX*1.6,.04,edgeM);stripB(5.2+RWX*1.6,.09,roadM);
+  /* the branch starts on top of the main loop and crosses the ring road at the yard, at the same height as both:
+     drawn with the same materials the two surfaces fought for every pixel and the junction flickered black and
+     white. Its own copies are pushed back in depth, so wherever they overlap the other road simply wins. */
+  const roadMB=roadM.clone(),edgeMB=edgeM.clone();[roadMB,edgeMB].forEach(m=>{m.polygonOffset=true;m.polygonOffsetFactor=2;m.polygonOffsetUnits=4});
+  stripB(7+RWX*1.6,.04,edgeMB);stripB(5.2+RWX*1.6,.09,roadMB);
   /* Armco along both sides of the summit climb, posts every few metres, laid on the slope so the rail follows the
      road up instead of stepping. Each piece has a tall invisible wall behind it that the car glances off, so the
      hairpins can be taken with some commitment without dropping off the hillside. */
-  (function(){const off=(7+RWX*1.6)/2+.75,u0=Math.max(U_YARD,U_CLIMB-.02),u1=Math.min(1,U_TOP+.01),segL=4;
+  /* the lookout gets a ring of the same rail, open only where the road comes in, so the car cannot roll off the
+     summit; the road's rails run right up to meet it */
+  const SUM_RR=12.5,SUM_GAP=Math.asin(Math.min(.95,((7+RWX*1.6)/2+.75)/SUM_RR));
+  (function(){const off=(7+RWX*1.6)/2+.75,u0=Math.max(U_YARD,U_CLIMB-.02),u1=brUAt(PEAK.x,PEAK.z,SUM_RR*Math.cos(SUM_GAP)-.3,true),segL=4;
     const railM=M(0xc7cbd1,{roughness:.4}),postM=M(0x5d5a55,{roughness:.8});
-    const len=brCurve.getLength()*(u1-u0),NS=Math.ceil(len/segL),cap=(NS+4)*2*2;
+    const len=brCurve.getLength()*(u1-u0),NS=Math.ceil(len/segL),cap=(NS+4)*2*2+40;
     const railIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.12,.32,1),railM,cap),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.14,.85,.14),postM,cap);
     railIM.castShadow=postIM.castShadow=!LOW;railIM.receiveShadow=postIM.receiveShadow=true;
     const q=new THREE.Quaternion(),pp=new THREE.Vector3(),sc=new THREE.Vector3(),mx=new THREE.Matrix4(),dir=new THREE.Vector3(),Z=new THREE.Vector3(0,0,1),cup=new CANNON.Vec3(0,1,0);let nr=0,np=0;
@@ -713,6 +720,15 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         const bd=new CANNON.Body({mass:0,material:barM});bd.addShape(new CANNON.Box(new CANNON.Vec3(1.2,(top-bot)/2,L/2+.8)));
         bd.position.set((A.x+B.x)/2+nx*o,(top+bot)/2,(A.z+B.z)/2+nz*o);bd.quaternion.setFromAxisAngle(cup,Math.atan2(dx,dz));world.addBody(bd);
         A=B}}
+    // the lookout ring: from one side of the road round the far side to the other
+    {const inA=Math.atan2(-BR_F.z,-BR_F.x),a0=inA+SUM_GAP,a1=inA+2*Math.PI-SUM_GAP,NS2=Math.ceil((a1-a0)*SUM_RR/3);
+     const at2=a=>{const x=PEAK.x+Math.cos(a)*SUM_RR,z=PEAK.z+Math.sin(a)*SUM_RR;return {x,z,y:HF.h(x,z)}};let A=at2(a0);
+     for(let i=1;i<=NS2;i++){const B=at2(a0+(a1-a0)*i/NS2),dx=B.x-A.x,dz=B.z-A.z,dy=B.y-A.y,L=Math.hypot(dx,dz);
+       dir.set(dx,dy,dz).normalize();q.setFromUnitVectors(Z,dir);pp.set((A.x+B.x)/2,(A.y+B.y)/2+.62,(A.z+B.z)/2);sc.set(1,1,Math.hypot(L,dy)+.12);mx.compose(pp,q,sc);if(nr<railIM.instanceMatrix.count)railIM.setMatrixAt(nr++,mx);
+       q.set(0,0,0,1);sc.set(1,1,1);pp.set(A.x,A.y+.42,A.z);mx.compose(pp,q,sc);if(np<postIM.instanceMatrix.count)postIM.setMatrixAt(np++,mx);
+       const mxx=(A.x+B.x)/2,mzz=(A.z+B.z)/2,ox=mxx-PEAK.x,oz=mzz-PEAK.z,ol=Math.hypot(ox,oz)||1,bot=Math.min(A.y,B.y)-3,top=Math.max(A.y,B.y)+2.6;
+       const bd=new CANNON.Body({mass:0,material:barM});bd.addShape(new CANNON.Box(new CANNON.Vec3(1.2,(top-bot)/2,L/2+.8)));
+       bd.position.set(mxx+ox/ol*1.2,(top+bot)/2,mzz+oz/ol*1.2);bd.quaternion.setFromAxisAngle(cup,Math.atan2(dx,dz));world.addBody(bd);A=B}}
     railIM.count=nr;postIM.count=np;railIM.instanceMatrix.needsUpdate=postIM.instanceMatrix.needsUpdate=true;S.add(railIM,postIM)})();
   /* kerbs on the bends, so the tight corners read before you are in them */
   (function(){const R=[],mat=new THREE.MeshLambertMaterial({map:curbTex()});
@@ -2091,7 +2107,23 @@ t.bd.position.set(x,y+.86,z);
         lvScratch=new CANNON.Vec3(),qScratch=new CANNON.Quaternion(),fwdScratch=new CANNON.Vec3(),
         wComp=[0,0,0,0],wLoad=[0,0,0,0];
   // visuals
-  const vis={car:new THREE.Group()};car.add(vis.car);vis.body=new THREE.Group();vis.body.position.y=.55;vis.car.add(vis.body);vis.bodyIn=new THREE.Group();vis.bodyIn.position.y=-.55;vis.body.add(vis.bodyIn);
+  const vis={car:new THREE.Group()};car.add(vis.car);
+  /* ---------- nitro ----------
+     Boost (Shift, the BOOST button, a boost pad) lights two flames out of the back of the car: a hot blue core
+     inside a longer orange plume, additive so they glow, flickering in length and width every frame. They are
+     re-placed on the car's tail whenever the car changes (one centred flame for a bike). */
+  const NITRO=(function(){const g=new THREE.Group(),flames=[];
+    const mk=(r,col,op)=>{const geo=new THREE.ConeGeometry(r,1,14,1,true);geo.translate(0,.5,0);geo.rotateX(-Math.PI/2);   // wide end at the pipe, tip trailing back along -z
+      return new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}))};
+    for(let i=0;i<2;i++){const f=new THREE.Group(),outer=mk(.16,0xff6418,.75),core=mk(.075,0x5aa2ff,.95),glow=mk(.26,0xff3d10,.22);f.add(glow,outer,core);f.userData={outer,core,glow};g.add(f);flames.push(f)}
+    g.visible=false;vis.car.add(g);let amt=0;
+    return {place(box,bike){const y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05,w=(box.max.x-box.min.x)*.24;
+        flames[0].position.set(bike?0:w,y,z);flames[1].position.set(-w,y,z);flames[1].visible=!bike},
+      tick(dt,on){amt+=((on?1:0)-amt)*Math.min(1,dt*(on?10:6));g.visible=amt>.02;if(!g.visible)return amt;
+        for(const f of flames){const k=amt*(.85+Math.random()*.45),wd=.85+Math.random()*.3,u=f.userData;
+          u.outer.scale.set(wd,wd,1.3*k);u.core.scale.set(wd,wd,.75*k);u.glow.scale.set(wd*1.1,wd*1.1,.9*k);
+          u.outer.material.opacity=.6*amt;u.core.material.opacity=.7*amt;u.glow.material.opacity=.22*amt}
+        return amt},get amt(){return amt}}})();vis.body=new THREE.Group();vis.body.position.y=.55;vis.car.add(vis.body);vis.bodyIn=new THREE.Group();vis.bodyIn.position.y=-.55;vis.body.add(vis.bodyIn);
   const SKN=420;let skI=0;const skLast=[null,null,null,null];
   const skid=new THREE.InstancedMesh(new THREE.PlaneGeometry(.32,.66).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x080808,transparent:true,opacity:.38,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),SKN);
   skid.count=0;skid.frustumCulled=false;if(skid.instanceMatrix.setUsage)skid.instanceMatrix.setUsage(THREE.DynamicDrawUsage);S.add(skid);
@@ -2209,6 +2241,10 @@ t.bd.position.set(x,y+.86,z);
     PCAR=makeBody(spec,o);FP=measureBody(PCAR.g,spec);
     PCAR.glass=[];PCAR.g.traverse(m=>{if(m.isMesh&&m.material&&m.material.transparent&&m.material.opacity<.8)PCAR.glass.push(m)});
     PCAR.g.position.y=.05-(V.rest-.07)-V.r;FP.off=PCAR.g.position.y;vis.bodyIn.add(PCAR.g);
+    // measure the body in the car's own frame (car transform reset for a moment) and put the nitro on its tail
+    {const p0=car.position.clone(),q0=car.quaternion.clone(),par=car.parent;car.position.set(0,0,0);car.quaternion.set(0,0,0,1);car.updateMatrixWorld(true);
+     const bl=new THREE.Box3().setFromObject(PCAR.g),cw=new THREE.Vector3().setFromMatrixPosition(vis.car.matrixWorld);bl.min.sub(cw);bl.max.sub(cw);
+     car.position.copy(p0);car.quaternion.copy(q0);car.updateMatrixWorld(true);NITRO.place(bl,spec.type==='bike')}
     // some generated panels come out with their faces wound inside-out; single-sided they vanish from above
     // or behind and the car reads as a see-through shell, so the solid body draws both faces
     PCAR.g.traverse(m=>{if(m.isMesh&&m.material){const ms=Array.isArray(m.material)?m.material:[m.material];ms.forEach(x=>{if(!x.transparent&&x.side!==THREE.DoubleSide){x.side=THREE.DoubleSide;x.needsUpdate=true}})}});
@@ -4246,7 +4282,7 @@ const PLANETS={
       api.nearStation=false; let nd=1e9, nst=null;
       for(const st of S.stations){ const d=Math.hypot(p.x-st.x,p.z-st.z); if(d<nd){nd=d;nst=st;} }
       if(nst && nd<16){ api.nearStation=true; }
-      if(travelEl){ travelEl.hidden=!api.nearStation; travelEl.textContent='ENTER UFO - E'; }
+      if(travelEl){ travelEl.hidden=!api.nearStation; travelEl.textContent=(TOUCH?'TAP TO ENTER UFO':'ENTER UFO - E'); }
 
       // HUD odometer
       const km=(S.maxS/1000), nextUFO=(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery, toNext=(nextUFO-S.s)/1000;
@@ -4326,7 +4362,7 @@ const PLANETS={
     api.updateEarth=function(){
       if(!travelEl)return;
       const near=active&&driving&&MODE==='world'&&api.state==='earth'&&Math.hypot(car.position.x-UFO.x,car.position.z-UFO.z)<24;
-      travelEl.hidden=!near; if(near)travelEl.textContent='ENTER UFO - E';
+      travelEl.hidden=!near; if(near)travelEl.textContent=(TOUCH?'TAP TO ENTER UFO':'ENTER UFO - E');
     };
     api.interact=function(){
       if(api.state==='earth'){
@@ -4547,7 +4583,7 @@ const PLANETS={
     let after=sec2;[['dptravel','Travel','Fly to another world',()=>SPACE.openTravel()],['dsprint','Race to UFO','Time trial to the next UFO station',()=>SPACE.startSprint()],['dhome','Earth','Fly back home to Earth',()=>SPACE.goEarth()]].forEach(([id,t,ti,fn])=>{
       const b=document.createElement('button');b.id=id;b.className='dbtn mono spaceonly';b.textContent=t;b.title=ti;b.onclick=()=>{fn();const m=$('#dmenu');if(m&&m.getAttribute('aria-expanded')==='true')m.click()};after.after(b);after=b})}}
   const AUTO=(function(){
-    let on=false,ci=0,wi=0,lock=false,vCap=null,latOff=0,latT=0,lastT=0,lanePicked=false;   // lock: keys don't take over (typing race); vCap: a speed ceiling in m/s; latOff: how far off the centre line we are steering (overtaking)
+    let on=false,ci=0,wi=0,lock=false,vCap=null,latOff=0,latT=0,lastT=0,lanePicked=false,emerg=0,emergSteer=0;   // lock: keys don't take over (typing race); vCap: a speed ceiling in m/s; latOff: how far off the centre line we are steering (overtaking)
     const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),btn=document.createElement('button');
     {const gb=$('#dgps');if(gb){btn.className=gb.className;btn.id='dauto';btn.textContent='Autodrive';btn.title='Autodrive (P)';gb.after(btn);btn.onclick=()=>set(!on)}}
     const badge=document.createElement('div');badge.className='mono';badge.textContent='AUTODRIVE · any key to take over';
@@ -4562,7 +4598,7 @@ const PLANETS={
     function nearest(P,n,x,z,hint){let bi=hint,bd=1e18;const scan=(a,b)=>{for(let k=a;k<=b;k++){const i=((k%n)+n)%n,d=(P[i].x-x)**2+(P[i].z-z)**2;if(d<bd){bd=d;bi=i}}};
       scan(hint-40,hint+40);if(bd>900)scan(0,n-1);return bi}
     function tick(){
-      if(!on||!active||!driving)return;
+      if(!on||!active||!driving)return;emerg=0;emergSteer=0;
       let x,z,h,sp,ahead,curve,vmax,lat;
       const path=samplePath();
       if(path.planet){const S=SPACE.SURF;x=S.pos.x;z=S.pos.z;h=S.yaw;sp=Math.hypot(S.vel.x,S.vel.z);
@@ -4589,21 +4625,34 @@ const PLANETS={
         const look=Math.max(50,sp*3.2+20),LANE=MODE==='circuit'?CIRC_W/4:2.05+RWX*.62,DEC=6.5;
         if(!lanePicked){const q0=path.P[ci],q1=path.P[(ci+1)%path.n],th=Math.atan2(q1.x-q0.x,q1.z-q0.z),rs=(x-q0.x)*Math.cos(th)-(z-q0.z)*Math.sin(th);
           latOff=Math.max(-LANE,Math.min(LANE,rs));latT=0;lanePicked=true}
-        const list=[];for(const b of obs){const dx=b.position.x-x,dz=b.position.z-z,fwd=dx*hx+dz*hz;if(fwd<-12||fwd>look)continue;
-          list.push({fwd,side:dx*hz-dz*hx,bv:b.velocity.x*hx+b.velocity.z*hz})}
-        const blocked=(off,from,to)=>list.some(o=>o.fwd>from&&o.fwd<to&&Math.abs(o.side-(off-latOff))<2.5);
+        /* real sizes, not a guess: our half length / half width from the garage spec, theirs from their physics box,
+           so every gap below is bumper to bumper and side to side */
+        const me=garageOf(curCarId),myHL=Math.max(1.2,((me.F||2.2)-(me.B||-2.2))/2),myHW=Math.max(.5,(me.W||1.9)/2);
+        const sizeOf=b=>{const he=b.shapes&&b.shapes[0]&&b.shapes[0].halfExtents;return he?{hl:Math.max(he.z,he.x>he.z?he.x:0),hw:Math.min(he.x,he.z)}:{hl:2.3,hw:1}};
+        const list=[];for(const b of obs){const dx=b.position.x-x,dz=b.position.z-z,fwd=dx*hx+dz*hz;if(fwd<-14||fwd>look)continue;const sz=sizeOf(b);
+          list.push({fwd,side:dx*hz-dz*hx,bv:b.velocity.x*hx+b.velocity.z*hz,bs:b.velocity.x*hz-b.velocity.z*hx,hl:sz.hl,hw:sz.hw})}
+        const sideClear=o=>myHW+o.hw+1;                                     // centre-to-centre lateral distance that leaves 1 m between the bodies
+        const blocked=(off,from,to)=>list.some(o=>o.fwd>from&&o.fwd<to&&Math.abs(o.side-(off-latOff))<sideClear(o)+.4);
         // the lead is whoever is ahead in the lane we are heading for (not the one we happen to straddle mid-pass),
         // so a pass, once started, is carried through instead of swinging back into the car being passed
-        let lead=null;for(const o of list)if(o.fwd>0&&Math.abs(o.side-(latT-latOff))<2.5&&(!lead||o.fwd<lead.fwd))lead=o;
+        let lead=null;for(const o of list)if(o.fwd>0&&Math.abs(o.side-(latT-latOff))<sideClear(o)&&(!lead||o.fwd<lead.fwd))lead=o;
         if(lead&&lead.bv<sp-1.5&&lead.fwd<look){
           // step out to a side, nearer free one first, if it is clear from just behind us to well past them
           const opts=latT===0?[LANE,-LANE]:[0,-latT];for(const off of opts)if(!blocked(off,-10,lead.fwd+25)){latT=off;break}}
         else if(!lead&&latT!==0&&!blocked(0,-8,30))latT=0;                       // passed: back to the middle
         latOff+=Math.max(-2.6*dt,Math.min(2.6*dt,latT-latOff));
-        for(const o of list){if(o.fwd<=0||Math.abs(o.side-(latT-latOff))>=2.5)continue;   // still in the lane we are heading for
-          const gap=o.fwd-9,bv=Math.max(0,o.bv);vT=Math.min(vT,gap<=0?0:Math.sqrt(bv*bv+2*DEC*gap))}}
+        // following: stop with at least 1 m (plus a short time gap at speed) between our nose and their tail
+        for(const o of list){if(o.fwd<=0||Math.abs(o.side-(latT-latOff))>=sideClear(o))continue;   // still in the lane we are heading for
+          const gap=o.fwd-myHL-o.hl-1-sp*.35,bv=Math.max(0,o.bv);vT=Math.min(vT,gap<=0?0:Math.sqrt(bv*bv+2*DEC*gap))}
+        /* the safety net: project every nearby car 1.5 s ahead on our current and their current velocity. If the
+           gap between the bodies would drop under 1 m, brake now, and ease the steering away from them */
+        emerg=0;emergSteer=0;
+        for(const o of list){const rvF=o.bv-sp,rvS=o.bs;let minGap=1e9,tMin=0;
+          for(let t=0;t<=1.5;t+=.1){const f=o.fwd+rvF*t,sd=o.side+rvS*t,g=Math.max(Math.abs(f)-myHL-o.hl,Math.abs(sd)-myHW-o.hw);if(g<minGap){minGap=g;tMin=t}}
+          if(minGap<1&&(o.fwd+rvF*tMin)>-myHL){emerg=Math.max(emerg,1-Math.max(0,minGap)/1);const sd=o.side+rvS*tMin;emergSteer+=sd>0?-.6:.6}}}
       if(vCap!=null){vT=Math.min(vT,vCap);if(vCap<.5){key.l=key.r=0;key.f=0;key.b=1;key.h=0;return}}
-      key.l=st>0?st:0;key.r=st<0?-st:0;key.f=sp<vT-.5?1:0;key.b=sp>vT+(vCap!=null?2:1.5)?1:0;key.h=0;if(window.__dev)window.__autoDbg=[+latOff.toFixed(1),+vT.toFixed(1),+curve.toFixed(4),+sp.toFixed(1),ci,+err.toFixed(2)]}
+      let stF=st;if(emerg>0){vT=0;stF=Math.max(-1,Math.min(1,st+emergSteer*emerg))}
+      key.l=stF>0?stF:0;key.r=stF<0?-stF:0;key.f=sp<vT-.5&&!emerg?1:0;key.b=sp>vT+(vCap!=null?2:1.5)||emerg>0&&sp>.5?1:0;key.h=0;if(window.__dev)window.__autoDbg=[+latOff.toFixed(1),+vT.toFixed(1),+curve.toFixed(4),+sp.toFixed(1),ci,+err.toFixed(2)]}
     // taking over: a driving key pressed by hand ends autodrive before the game sees it
     addEventListener('keydown',e=>{if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;
       if(lock)return;
@@ -4613,18 +4662,21 @@ const PLANETS={
   /* ---------- bridge for self-contained modes (assets/typing-race.js) ----------
      A mode outside this file drives the car only through these: put it on today's daily track,
      hand autodrive a speed ceiling, read the speedometer. Nothing else in the game changes for it. */
-  const TYPEF={on:false,u:0,target:0,v:0,L:0,penTill:0,e:new THREE.Euler(),q:new THREE.Quaternion()};
+  const TYPEF={on:false,u:0,target:0,v:0,L:0,laps:1,penTill:0,e:new THREE.Euler(),q:new THREE.Quaternion()};
   /* the Typing Race lap: one fixed ~490 m circuit, the same every day; only the weather and time of day change */
   function typingLap(){const pts=[];for(let i=0;i<64;i++){const t=i/64*Math.PI*2,k=1+.13*Math.sin(3*t+.6)+.05*Math.cos(5*t);pts.push({x:96*k*Math.cos(t),y:60*k*Math.sin(t)})}return pts}   /* ~490 m: 60 WPM drives it at ~110 km/h, 100 WPM at ~190 */
   window.GameBridge={
     supa:SUPA,day:()=>dailyDay(),
     name:()=>{try{return (localStorage.getItem('sl_name')||'').trim()}catch(e){return ''}},
-    toTypingLap(day){if(!active)enterDrive();try{if(SPACE.state!=='earth')SPACE.forceEarth()}catch(e){}
+    /* meters (optional): how far the whole text should drive. Type Faster passes ~7 m per character, so a long
+       text is a long drive (several laps) and every key is worth the same distance whatever the length */
+    toTypingLap(day,meters){if(!active)enterDrive();try{if(SPACE.state!=='earth')SPACE.forceEarth()}catch(e){}
       try{if(window.RaceEngine&&window.RaceEngine.state!=='idle')window.RaceEngine.stopRace()}catch(e){}AUTO.set(false,true);
       const WX=['day','sunset','overcast','rain','dusk','fog','night','snow','autumn'],w=WX[((day%WX.length)+WX.length)%WX.length];
       const th=THEMES.find(t=>t.id===(w==='snow'?'snow':'meadow'))||THEME_DEFAULT;
       buildCircuit(typingLap(),th,90210,{width:16,elev:'rolling',weather:w,time:w,typing:true});enterCircuit();try{CAI.clear()}catch(e){}
-      Object.assign(TYPEF,{on:true,u:0,target:0,v:0,L:circuit.curve.getLength(),penTill:0});return w},
+      {const L=circuit.curve.getLength();Object.assign(TYPEF,{on:true,u:0,target:0,v:0,L,laps:meters?Math.max(1,Math.round(meters/L)):1,penTill:0})}return w},
+    typeLaps:()=>TYPEF.laps,
     typeTarget(f){TYPEF.target=Math.max(TYPEF.target,Math.min(1,f))},
     typePenalty(ms){TYPEF.penTill=performance.now()+ms},
     typeU:()=>TYPEF.u,typeSpeedKmh:()=>TYPEF.v*3.6,
@@ -4697,7 +4749,7 @@ const PLANETS={
        sub=pd<pr*1.05?Math.max(0,Math.min(1,(WATER_Y-(chassisB.position.y-.52))/1.5)):0}
       inPond=sub>.06;
       ZN=MODE==='circuit'?{drag:0,fog:1,tint:[1,1,1]}:zoneAt(progU);const zd=ZN.drag;
-      padT=Math.max(0,padT-dt);const boost=(key.boost||padT>0)?1:0;
+      padT=Math.max(0,padT-dt);const boost=(key.boost||padT>0)?1:0;NITRO.tick(dt,!!boost&&driving);
       const eMul=(1-sub*.66)*(1-zd*.52),vmax=V.max*(1+boost*.28)*(1-sub*.68)*(1-zd*.38);
       /* Tractive force used to be flat all the way to the cap, so the car pulled just as
          hard at 90 as it did from rest and then hit a wall. This is the shape a gearbox
@@ -4767,11 +4819,11 @@ const PLANETS={
       physAcc+=dt;{let n=0;while(physAcc>=PSTEP&&n<4){world.step(PSTEP);physAcc-=PSTEP;n++}if(n>=4)physAcc=0}
       /* typing race: the car rides the lap at the place your typing has reached, chasing it smoothly, so the
          lap ends exactly as the sentence does and the speed you see is the speed you are typing at */
-      if(TYPEF.on&&MODE==='circuit'&&circuit){const L=TYPEF.L||circuit.curve.getLength(),gap=TYPEF.target-TYPEF.u;
+      if(TYPEF.on&&MODE==='circuit'&&circuit){const L=(TYPEF.L||circuit.curve.getLength())*(TYPEF.laps||1),gap=TYPEF.target-TYPEF.u;   // L: the whole drive, every lap of it
         let want=TYPEF.target>=1&&TYPEF.u>=1?TYPEF.v*.97:Math.max(0,Math.min(95,gap*L*2.4));
         if(performance.now()<TYPEF.penTill)want*=.45;
         TYPEF.v+=(want-TYPEF.v)*Math.min(1,dt*5);TYPEF.u+=TYPEF.v*dt/L;if(TYPEF.target<1)TYPEF.u=Math.min(TYPEF.u,TYPEF.target);
-        const u=TYPEF.u,{p,tg}=circAt(u,circuit.curve),hl=Math.hypot(tg.x,tg.z)||1,y=(circuit.roadY?circuit.roadY(((u%1)+1)%1,p.x,p.z):p.y)+V.rest+V.r-.18;
+        const u=((TYPEF.u*(TYPEF.laps||1))%1+1)%1,{p,tg}=circAt(u,circuit.curve),hl=Math.hypot(tg.x,tg.z)||1,y=(circuit.roadY?circuit.roadY(((u%1)+1)%1,p.x,p.z):p.y)+V.rest+V.r-.18;
         TYPEF.e.set(-Math.atan2(tg.y,hl),Math.atan2(tg.x,tg.z),0,'YXZ');TYPEF.q.setFromEuler(TYPEF.e);
         chassisB.position.set(p.x,y,p.z);chassisB.quaternion.set(TYPEF.q.x,TYPEF.q.y,TYPEF.q.z,TYPEF.q.w);
         chassisB.velocity.set(tg.x/hl*TYPEF.v,0,tg.z/hl*TYPEF.v);chassisB.angularVelocity.set(0,0,0);PREV.ok=false;
@@ -5095,7 +5147,7 @@ const PLANETS={
       const st0=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0;
       camRoll+=(-st0*Math.min(1,sp/16)*.085-camRoll)*(1-Math.exp(-dt*5));
       if(Math.abs(camRoll)>.0005)C.rotateZ(camRoll);
-      const tf=CAMS[camMode].fov+Math.min(10,sp*.35)-ce*2.6;
+      const tf=CAMS[camMode].fov+Math.min(10,sp*.35)-ce*2.6+NITRO.amt*7;   // nitro: the view stretches a little
       if(Math.abs(C.fov-tf)>.02){C.fov+=(tf-C.fov)*(1-Math.exp(-dt*3.2));C.updateProjectionMatrix()}}
     else if(recapCam){
       // at the summit: stand behind the car on the cliff side and look out over the map, turned from
@@ -6464,10 +6516,12 @@ updCircBtn();
     if(modeFree)modeFree.onclick=()=>{ try{audioInit();}catch(_){}
       if(dailyModal)dailyModal.style.display='none';
       {const mp=document.getElementById('dmp');if(mp)mp.classList.remove('on')}
+      try{if(window.TypingRace&&TypingRace.state!=='idle')TypingRace.quit()}catch(_){}
       if(MODE==='circuit')leaveCircuit();
       toastMsg('Free drive');window.__updModes();
     };
     if(modeDaily)modeDaily.onclick=()=>{ if(dailyBtn)dailyBtn.onclick() };
+    {const mt=document.getElementById('dmtype');if(mt)mt.onclick=()=>{try{audioInit()}catch(_){}if(window.TypingRace&&TypingRace.openFast)TypingRace.openFast()}}
 
     // build + enter today's daily track without starting a solo race (used when a room races on it)
     window.__buildDaily=()=>{window.__dailyHold=true;try{dailyStart.onclick()}finally{window.__dailyHold=false}};
@@ -7123,7 +7177,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
