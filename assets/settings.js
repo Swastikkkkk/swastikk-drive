@@ -5,7 +5,7 @@
 (function(window,document){
   'use strict';
   const DEF={master:80,engine:80,effects:70,music:60,quality:'auto',hints:true,units:'kmh',
-    steer:'buttons',ctrlSize:'m',tiltSens:50,tiltDead:30,tiltSmooth:35,tiltInvert:false};
+    steer:'buttons',ctrlSize:'m',fastSongs:true,tiltSens:50,tiltDead:30,tiltSmooth:35,tiltInvert:false};
   const TOUCHDEV=matchMedia('(pointer:coarse)').matches||!matchMedia('(hover:hover)').matches;
   let v=Object.assign({},DEF);
   try{const s=JSON.parse(localStorage.getItem('sl_settings')||'null');if(s&&typeof s==='object')for(const k in DEF)if(k in s&&typeof s[k]===typeof DEF[k])v[k]=s[k]}catch(e){}
@@ -70,6 +70,8 @@
     const R=window.Radio,rs=R?R.stations:[];
     const radioSeg=seg([[-1,'Off']].concat(rs.map((s,i)=>[i,s.fm+' '+s.name])),R?R.station():-1,i=>{if(window.Radio)Radio.tune(+i)});
     radioSeg.id='st-radio';inn.appendChild(radioSeg);
+    {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Fast songs (Night Riff above 120 km/h)</span>';
+     l.appendChild(seg([[true,'On'],[false,'Off']],v.fastSongs,x=>{const on=x===true||x==='true';set('fastSongs',on);if(window.Radio&&Radio.setAuto)Radio.setAuto(on)}));inn.appendChild(l)}
     inn.appendChild(h4('Graphics'));
     inn.appendChild(seg([['auto','Auto'],[0,'High'],[1,'Medium'],[2,'Low']],v.quality,q=>set('quality',q==='auto'?'auto':+q)));
     inn.appendChild(h4('Display'));

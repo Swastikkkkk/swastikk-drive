@@ -559,7 +559,7 @@
     body.add(loft(airbox, paint, 12)); box(0.14, 0.14, 0.02, darkM, 0, 0.95, -0.29, body);
     box(0.02, 0.36, 1.3, paint, 0, 0.96, -1.35, body, 0.18);
     box(0.24, 0.05, 0.06, acc, 0, 1.12, -0.6, body);                                                // T-cam
-    plane(0.34, 0.34, roundel('16'), 0, 0.7, zf - 0.15, 0, body, -Math.PI / 2 + 0.25);            // number on the nose
+    plane(0.26, 0.26, roundel('16'), 0, 0.455, zf - 0.1, Math.PI, body, Math.PI / 2 - 0.22);       // number on top of the nose, readable from the cockpit
     [-1, 1].forEach(function (k) { plane(0.3, 0.3, roundel('16'), k * 0.03 + k * 0.012, 1.05, -1.45, -k * Math.PI / 2 + Math.PI, body); });
     // front wing: three elements, endplates, the nose pillars down to it
     for (var e = 0; e < 3; e++) box(xw * 2 + 0.25 - e * 0.18, 0.025, 0.22 - e * 0.04, e === 2 ? acc : carbonM, 0, 0.12 + e * 0.05, F - 0.12 - e * 0.13, body, -0.12 - e * 0.18);

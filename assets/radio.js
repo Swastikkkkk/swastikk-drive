@@ -4,10 +4,17 @@
      88.6  Lo-fi Drive   dusty electric piano, swung beat, vinyl crackle
      94.2  Sunset Wave   synthwave pads, arpeggios, big snare
      101.7 Night Jazz    seventh chords, walking bass, ride and brushes, vibes
+     107.5 Night Riff    brooding minor-key indie: a looping organ riff, a slow build, then a big distorted finale
+   Songs are seeded, so every one can be played again: .prev() replays the one before, .next() skips, .playlist()
+   lists what was played, what is on and what is next, .jump(i) plays one of them. With .setSpeed(kmh) and auto
+   on, driving fast (over 120 km/h) fades over to Night Riff, and slowing down returns to your station.
    window.Radio: .cycle() off -> each station -> off, .tune(i), .station(), .setVolume(0..1), .setMuted(m), .label(), .onInfo = fn(text). */
 (function(window){
   'use strict';
   const mtof=m=>440*Math.pow(2,(m-69)/12),rnd=Math.random,pick=a=>a[Math.floor(rnd()*a.length)];
+  // a song's choices come from its own seed, so replaying it from the history plays the same song
+  const mul=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+  let sr=rnd;const spick=a=>a[Math.floor(sr()*a.length)];
   const CH={maj7:[0,4,7,11],maj9:[0,4,7,11,14],m7:[0,3,7,10],m9:[0,3,7,10,14],d7:[0,4,7,10],d9:[0,4,10,14],m11:[0,3,7,10,17],sus:[0,5,7,10,14],add9:[0,4,7,14]};
   const STATIONS=[
     {fm:'88.6',name:'Lo-fi Drive',style:'lofi',bpm:[72,84],swing:.18,
@@ -15,14 +22,20 @@
     {fm:'94.2',name:'Sunset Wave',style:'wave',bpm:[96,110],swing:0,
      progs:[[[9,'m7'],[5,'maj7'],[0,'add9'],[7,'sus']],[[9,'m9'],[7,'add9'],[5,'maj7'],[7,'sus']],[[0,'add9'],[7,'add9'],[9,'m7'],[5,'maj7']]]},
     {fm:'101.7',name:'Night Jazz',style:'jazz',bpm:[84,100],swing:.3,
-     progs:[[[2,'m9'],[7,'d9'],[0,'maj9'],[0,'maj7']],[[0,'maj9'],[9,'d7'],[2,'m9'],[7,'d9']],[[4,'m7'],[9,'d7'],[2,'m9'],[7,'d9']],[[5,'maj9'],[5,'m7'],[0,'maj9'],[9,'d7']]]}
+     progs:[[[2,'m9'],[7,'d9'],[0,'maj9'],[0,'maj7']],[[0,'maj9'],[9,'d7'],[2,'m9'],[7,'d9']],[[4,'m7'],[9,'d7'],[2,'m9'],[7,'d9']],[[5,'maj9'],[5,'m7'],[0,'maj9'],[9,'d7']]]},
+    // minor-key progressions that loop under one riff; roots are semitones above a minor tonic
+    {fm:'107.5',name:'Night Riff',style:'indie',bpm:[132,146],swing:0,
+     progs:[[[0,'mi'],[0,'mi'],[8,'ma'],[10,'ma']],[[0,'mi'],[10,'ma'],[8,'ma'],[7,'mi']],[[0,'mi'],[3,'ma'],[10,'ma'],[8,'ma']],[[0,'mi'],[8,'ma'],[3,'ma'],[10,'ma']],[[0,'mi'],[0,'mi'],[5,'mi'],[7,'ma']]]}
   ];
+  CH.mi=[0,3,7];CH.ma=[0,4,7];
+  const TI=['Five Hundred Nights','Blue Exit','Tail Lights','Room 214','Last Train South','Neon Static','Slow Burn','Do You Still Drive','Glass Highway','After Hours','Velvet Overpass','Red Line Home','Midnight Return','Hotel Corridor'],
+        AI=['The Late Arcades','Monday Static','Hollow Avenue','Velvet Signals','The Night Ferries','Arcade Moons'];
   const TA=['Paper','Velvet','Neon','Slow','Golden','Quiet','Midnight','Coastal','Amber','Silver','Lazy','Hazy','Late','Soft'],
         TB=['Moons','Highway','Rain','Lights','Exit','Avenue','Drift','Summer','Window','Tide','Static','Signals','Hours','Bloom'],
         AR=['Koi Static','The Low Gears','Mira Vale','Cassette Park','North Lantern','Juno & the Tides','Slow Coast','Hotel Atlas'];
 
   let ac=null,master=null,dry=null,verb=null,noise=null,crackle=null,crackleG=null,timer=null;
-  let on=false,st=-1,muted=false,song=null,step=0,nextT=0,vol=.65;
+  let on=false,st=-1,muted=false,song=null,step=0,nextT=0,vol=.65,hist=[],hi=-1,auto=true,fastT=0,slowT=0,homeSt=-1;
   const R={onInfo:null};
 
   function init(){
@@ -84,26 +97,50 @@
   const brush=(t,v)=>nz(t,.18,'bandpass',3000,.6,v,.15);
 
   /* ---- writing a song ---- */
-  function newSong(){
-    const S=STATIONS[st],prog=pick(S.progs),key=48+Math.floor(rnd()*7)-2;   // root around C3
-    song={style:S.style,swing:S.swing,bpm:S.bpm[0]+Math.floor(rnd()*(S.bpm[1]-S.bpm[0]+1)),key,prog,bars:S.style==='jazz'?56:64,bar:0,motif:null,voicing:null,title:pick(TA)+' '+pick(TB),artist:pick(AR)};
+  // the history: every song is {st, seed}; hi is the one playing. Newer entries past hi are the 'next' queue
+  function makeSong(st0,seed){
+    const S=STATIONS[st0];sr=mul(seed);
+    const prog=spick(S.progs),key=S.style==='indie'?45+Math.floor(sr()*6):48+Math.floor(sr()*7)-2;   // root around C3 (indie: A2-D3, darker)
+    const indie=S.style==='indie';
+    return {st:st0,seed,style:S.style,swing:S.swing,bpm:S.bpm[0]+Math.floor(sr()*(S.bpm[1]-S.bpm[0]+1)),key,prog,bars:S.style==='jazz'?56:indie?72:64,bar:0,motif:null,voicing:null,
+      title:indie?spick(TI):spick(TA)+' '+spick(TB),artist:indie?spick(AI):spick(AR),riff:indie?makeRiff():null}}
+  function newSong(st0,seed){
+    if(seed==null){seed=(rnd()*4294967296)>>>0;st0=st;
+      // a fresh song goes after the one playing (dropping any queue)
+      hist=hist.slice(0,hi+1);hist.push({st:st0,seed});hi=hist.length-1;if(hist.length>40){hist.shift();hi--}}
+    st=st0;song=makeSong(st0,seed);
     step=0;
-    if(crackleG)crackleG.gain.setTargetAtTime(S.style==='lofi'&&!muted?.035:0,ac.currentTime,.4);
+    if(crackleG)crackleG.gain.setTargetAtTime(STATIONS[st].style==='lofi'&&!muted?.035:0,ac.currentTime,.4);
     info()}
-  function info(){if(R.onInfo&&song)R.onInfo('FM '+STATIONS[st].fm+' · '+STATIONS[st].name+' — “'+song.title+'” · '+song.artist)}
-  function section(b,n){if(b<4)return'intro';if(b>=n-4)return'outro';const k=(b-4)/(n-8);return k<.25?'groove':k<.55?'melody':k<.68?'break':'melody'}
+  function info(){if(R.onInfo&&song)R.onInfo('FM '+STATIONS[st].fm+' · '+STATIONS[st].name+' — “'+song.title+'” · '+song.artist);if(R.onChange)R.onChange()}
+  function section(b,n){
+    // the slow-build arc: a quiet riff, the verse, a bigger chorus, a near-silent break, then the loud finale
+    if(song.style==='indie'){if(b<8)return'intro';if(b>=n-4)return'outro';const k=(b-8)/(n-12);return k<.3?'verse':k<.5?'chorus':k<.58?'break':k<.75?'verse':'finale'}
+    if(b<4)return'intro';if(b>=n-4)return'outro';const k=(b-4)/(n-8);return k<.25?'groove':k<.55?'melody':k<.68?'break':'melody'}
   // chord tones placed close to the last voicing, kept between E3 and E5
   function voice(root,type){const iv=CH[type],prev=song.voicing,notes=iv.map(i=>{let m=song.key+root+i;while(m<52)m+=12;while(m>76)m-=12;return m}).sort((a,b)=>a-b);
     if(prev){const pc=prev.reduce((a,b)=>a+b,0)/prev.length,nc=notes.reduce((a,b)=>a+b,0)/notes.length;if(nc-pc>6)notes.forEach((m,i)=>notes[i]=m-12>=48?m-12:m);if(pc-nc>6)notes.forEach((m,i)=>notes[i]=m+12<=79?m+12:m)}
     song.voicing=notes;return notes}
   const PENTA=[0,2,4,7,9];
   function scaleNote(deg){const o=Math.floor(deg/5),d=((deg%5)+5)%5;return song.key+24+o*12+PENTA[d]}
+  // the riff: eight eighth-notes over the chord, mostly root/third/fifth/octave, a step above or below now and then
+  function makeRiff(){const pat=[];const tones=[0,1,2,3,2,1,3,2];for(let i=0;i<8;i++){const r=sr();pat.push(r<.15?-1:r<.75?tones[(i+Math.floor(sr()*3))%8]:Math.floor(sr()*4))}return pat}
+  function organ(t,m,dur,v){const f=mtof(m),g=ac.createGain(),lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2600;const e=t+dur+.2;
+    osc('square',f,t,e,-6).connect(lp);osc('square',f*2,t,e,5).connect(lp);const g2=ac.createGain();g2.gain.value=.4;osc('sine',f/2,t,e).connect(g2);g2.connect(lp);
+    const tr=osc('sine',6.2,t,e),tg=ac.createGain();tg.gain.value=v*.18;tr.connect(tg);tg.connect(g.gain);   // leslie-ish wobble
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.01);g.gain.setValueAtTime(v*.8,t+dur*.8);g.gain.setTargetAtTime(0,t+dur*.85,.04);lp.connect(g);out(g,.35)}
+  let dist=null;function distCurve(){if(dist)return dist;const n=1024,c=new Float32Array(n);for(let i=0;i<n;i++){const x=i/n*2-1;c[i]=Math.tanh(x*6)}dist=c;return c}
+  function guitar(t,notes,dur,v){const ws=ac.createWaveShaper();ws.curve=distCurve();ws.oversample='2x';const pre=ac.createGain();pre.gain.value=.6;
+    const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2400;const g=ac.createGain(),e=t+dur+.3;
+    notes.forEach((m,i)=>{const f=mtof(m);osc('sawtooth',f,t+i*.006,e,-7).connect(pre);osc('sawtooth',f,t+i*.006,e,7).connect(pre)});
+    pre.connect(ws);ws.connect(lp);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.01);g.gain.setValueAtTime(v*.85,t+dur*.85);g.gain.setTargetAtTime(0,t+dur*.9,.06);lp.connect(g);out(g,.25)}
   function makeMotif(){const rh=pick([[0,6,8,12],[0,3,8],[2,6,10,14],[0,8,10],[4,6,12],[0,6,10,12,14]]);let d=Math.floor(rnd()*5)+3;
     return rh.map((s,i)=>{d+=pick([-2,-1,-1,1,1,2,0]);d=Math.max(0,Math.min(10,d));return{s,d,len:i===rh.length-1?pick([4,6,8]):2}})}
 
   function playStep(t){
     const n=song.bars,b=song.bar,s=step,sec=section(b,n),stepDur=60/song.bpm/4,beat=stepDur*4;
     const [root,type]=song.prog[b%song.prog.length],style=song.style;
+    if(style==='indie')return playIndie(t,s,b,n,sec,stepDur,root,type);
     if(s%2===1&&song.swing)t+=song.swing*stepDur;                   // swung off-beat 16ths
     const fade=sec==='outro'?Math.max(.15,1-(b-(n-4)+s/16)/4):sec==='intro'?.6+.1*b:1;
     const drums=sec==='groove'||sec==='melody',hum=v=>v*(.85+rnd()*.3)*fade;
@@ -131,13 +168,38 @@
       if(mo&&b%4!==3||mo&&s<8)for(const nt of mo)if(nt.s===s){const m=scaleNote(nt.d+shift);
         if(style==='wave')lead(t,m,stepDur*nt.len,hum(.03));else if(style==='jazz')vibes(t,m,stepDur*nt.len,hum(.07));else epiano(t,m+12,stepDur*nt.len*1.5,hum(.045),.45)}}
   }
+  /* Night Riff: the riff runs on eighth notes all the way through; the band joins in stages. Intro: riff alone, soft.
+     Verse: bass and a light beat, a sung-like lead. Chorus: full kit, held chords. Break: riff almost alone again.
+     Finale: everything, with distorted guitar chords, louder, the lead an octave up. Outro: the riff fading out. */
+  function playIndie(t,s,b,n,sec,stepDur,root,type){
+    const lvl={intro:.55,verse:.8,chorus:1,break:.5,finale:1.15,outro:Math.max(.15,1-(b-(n-4)+s/16)/4)}[sec]||1,hum=v=>v*(.88+rnd()*.24)*lvl;
+    const chord=CH[type].map(i=>song.key+12+root+i),rt=song.key+root;
+    // organ riff on eighths
+    if(s%2===0){const ri=song.riff[(s/2)%8];if(ri>=0){const m=ri===3?rt+24:chord[ri]+12;organ(t,m,stepDur*1.8,hum(sec==='finale'?.03:.04))}}
+    if(sec==='intro'&&b<4)return;
+    // bass: long root notes, pushing eighths in the chorus and finale
+    if(sec!=='break'){if(sec==='chorus'||sec==='finale'){if(s%2===0)bass(t,rt-12,stepDur*1.7,hum(.2))}else if(s===0||s===8)bass(t,rt-12,stepDur*7,hum(.2))}
+    // drums
+    if(sec==='verse'){if(s===0||s===10)kick(t,hum(.45));if(s===8)snare(t,hum(.14));if(s%4===2)hat(t,hum(.03))}
+    if(sec==='chorus'||sec==='finale'){if(s%8===0||s===6||s===14&&sec==='finale')kick(t,hum(.55));if(s===4||s===12)snare(t,hum(.24));if(s%2===0)hat(t,hum(sec==='finale'?.05:.035),s%8===6);
+      if(s===0&&b%8===0)nz(t,1.4,'highpass',4500,0,hum(.08),.4)}   // crash
+    if(sec==='intro'&&s===0&&b>=6)kick(t,hum(.3));
+    // held chords: soft pads in the chorus, distorted guitar in the finale
+    if(s===0&&sec==='chorus')chord.forEach(m=>pad(t,m,stepDur*15,hum(.02)));
+    if(sec==='finale'&&(s===0||s===8))guitar(t,[rt,rt+7,rt+12],stepDur*7.5,hum(.05));
+    // a sung-like lead: long notes from the chord, answered at the end of each 4 bars
+    if((sec==='verse'||sec==='chorus'||sec==='finale')&&(s===0||s===6||s===12&&b%2===1)){if(s===0&&b%4===0)song.motif=makeMotif();
+      const pos=(b%4)*3+(s===0?0:s===6?1:2),deg=[4,5,4,3,4,6,7,6,5,3,2,1][pos%12],m=song.key+12+[0,2,3,5,7,8,10][deg%7]+12*Math.floor(deg/7)+(sec==='finale'?12:0);
+      lead(t,m,stepDur*(s===0?5:3),hum(sec==='finale'?.026:.022))}}
   function tick(){
     if(!on||!song)return;
     const T=ac.currentTime;if(nextT<T)nextT=T+.05;
     while(nextT<T+.3){
       playStep(nextT);
       nextT+=60/song.bpm/4;step++;
-      if(step>=16){step=0;song.bar++;if(song.bar>=song.bars){newSong();nextT+=1.2}}}}
+      if(step>=16){step=0;song.bar++;if(song.bar>=song.bars){
+        // the song ended: play the queued next one if there is one, otherwise write a new one
+        if(hi<hist.length-1){hi++;newSong(hist[hi].st,hist[hi].seed)}else newSong();nextT+=1.2}}}}
 
   function tune(i){
     init();st=i;on=i>=0;
@@ -146,8 +208,26 @@
     try{ac.resume()}catch(e){}
     master.gain.cancelScheduledValues(T);master.gain.setValueAtTime(0,T);master.gain.linearRampToValueAtTime(muted?0:vol,T+.8);
     song=null;newSong();nextT=T+.1;if(!timer)timer=setInterval(tick,60)}
+  // jump to song i of the history with a short fade
+  function playAt(i){if(i<0||i>=hist.length)return;init();const T=ac.currentTime;if(!on){on=true;try{ac.resume()}catch(e){};if(!timer)timer=setInterval(tick,60)}
+    master.gain.cancelScheduledValues(T);master.gain.setValueAtTime(master.gain.value,T);master.gain.linearRampToValueAtTime(0,T+.15);master.gain.linearRampToValueAtTime(muted?0:vol,T+.9);
+    hi=i;newSong(hist[i].st,hist[i].seed);nextT=T+.2}
 
   R.cycle=()=>tune(st+1>=STATIONS.length?-1:st+1);
+  R.prev=()=>{if(!on)return;if(song&&song.bar>=3||hi<=0){playAt(hi)}else playAt(hi-1)};   // like a car stereo: back restarts the song, twice goes to the one before
+  R.next=()=>{if(!on){tune(Math.max(0,homeSt));return}if(hi<hist.length-1)playAt(hi+1);else{const T=ac.currentTime;master.gain.setValueAtTime(master.gain.value,T);master.gain.linearRampToValueAtTime(0,T+.15);master.gain.linearRampToValueAtTime(muted?0:vol,T+.9);newSong();nextT=T+.2}};
+  R.toggle=()=>{if(on){homeSt=st;tune(-1)}else tune(homeSt>=0?homeSt:0)};
+  R.jump=i=>playAt(i);
+  R.playing=()=>on&&song?{title:song.title,artist:song.artist,fm:STATIONS[st].fm,station:STATIONS[st].name,style:song.style,progress:(song.bar+step/16)/song.bars}:null;
+  // the list: up to 6 played before, the current one, and the queued ones (a peek at what is next is written, not played)
+  R.playlist=()=>{const out=[];for(let i=Math.max(0,hi-6);i<hist.length;i++){const sg=makeSong(hist[i].st,hist[i].seed);out.push({i,title:sg.title,artist:sg.artist,fm:STATIONS[hist[i].st].fm,current:i===hi})}
+    if(on&&hi===hist.length-1){const seed=(rnd()*4294967296)>>>0;hist.push({st,seed});const sg=makeSong(st,seed);out.push({i:hist.length-1,title:sg.title,artist:sg.artist,fm:STATIONS[st].fm,current:false})}
+    return out};
+  R.setAuto=v=>{auto=!!v};
+  // speed: over 120 km/h for 3 s fades over to Night Riff; under 70 km/h for 8 s goes back to the station you had
+  R.setSpeed=(kmh,dt)=>{if(!on||!auto)return;const IND=STATIONS.length-1;
+    if(st!==IND){if(kmh>120){fastT+=dt;if(fastT>3){fastT=0;homeSt=st;hist=hist.slice(0,hi+1);const seed=(rnd()*4294967296)>>>0;hist.push({st:IND,seed});playAt(hist.length-1);if(R.onAuto)R.onAuto(true)}}else fastT=0}
+    else if(homeSt>=0&&homeSt!==IND){if(kmh<70){slowT+=dt;if(slowT>8){slowT=0;const h=homeSt;homeSt=-1;hist=hist.slice(0,hi+1);const seed=(rnd()*4294967296)>>>0;hist.push({st:h,seed});playAt(hist.length-1);if(R.onAuto)R.onAuto(false)}}else slowT=0}};
   R.setMuted=m=>{muted=!!m;if(!ac)return;const T=ac.currentTime;master.gain.setTargetAtTime(on&&!muted?vol:0,T,.1);
     crackleG.gain.setTargetAtTime(on&&!muted&&song&&song.style==='lofi'?.035:0,T,.1)};
   R.tune=i=>{if(i===st&&on)return;tune(i)};
