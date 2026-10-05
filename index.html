@@ -379,6 +379,8 @@ body{font-family:var(--sans);letter-spacing:0;background:#0a0b0e}
 /* HUD: speed, lap card, minimap, toasts */
 #dspeed{font-family:var(--serif);font-weight:700;font-stretch:112%;font-style:italic;font-size:58px;letter-spacing:-.02em;text-shadow:0 4px 30px rgba(0,0,0,.45)}
 .dbr .mono{color:rgba(243,239,231,.6)}
+#dgear{align-self:center;color:#f3efe7!important;font-size:15px;font-weight:700;padding:3px 8px;border-radius:7px;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+#dgear.r{background:#e8202a;box-shadow:0 0 14px rgba(232,32,42,.6)}
 #dlap,#dmpr,#dmiss{background:var(--glass)!important;border:1px solid var(--hair)!important;border-left:3px solid var(--acc)!important;border-radius:14px;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 12px 32px rgba(0,0,0,.35)}
 #dlap b{font-family:var(--serif);font-weight:700;font-stretch:112%;letter-spacing:-.01em}
 #dmap{box-shadow:0 0 0 1px var(--hair2),0 16px 40px rgba(0,0,0,.45)!important}
@@ -480,7 +482,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
     <div id="doob" class="mono">TRACK LIMIT EXCEEDED</div>
     <div id="dmiss"><div class="mono mt">Mission <span id="dmissc">0/9</span></div><div class="mh" id="dmissh">-</div><div class="mono ms" id="dmisss">-</div></div>
     <div id="dmpr" class="mono"></div>
-    <div class="dbr"><span id="dspeed">000</span><span class="mono">km/h</span></div>
+    <div class="dbr"><span id="dgear" class="mono">N</span><span id="dspeed">000</span><span class="mono">km/h</span></div>
   </div>
   <!-- Rearview Mirror PIP border -->
   <div id="drear" style="position:absolute;top:12px;left:50%;transform:translateX(-50%);width:282px;height:92px;border:2px solid rgba(238,240,243,.35);border-radius:8px;pointer-events:none;z-index:3;display:none;overflow:hidden;">
