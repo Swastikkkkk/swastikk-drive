@@ -6872,7 +6872,7 @@ updCircBtn();
         if(idxOf(me.id)>=MAXP){leave('Room is full · '+MAXP+' drivers max');return null}
         toast2(P.n+' joined');ui()}
       return P}
-    function dropPeer(id,msg){const P=peers.get(id);if(!P)return;lg('drop',P.n,'idle',Math.round(performance.now()-P.last));killGhost(P);peers.delete(id);if(msg)toast2(P.n+' left');ui()}
+    function dropPeer(id,msg){const P=peers.get(id);if(!P)return;peerHorn(P,false);lg('drop',P.n,'idle',Math.round(performance.now()-P.last));killGhost(P);peers.delete(id);if(msg)toast2(P.n+' left');ui()}
     function toast2(s){try{toastMsg(s)}catch(e){}}
     /* ----- messages ----- */
     function send(m){if(net&&status==='up'){m.id=me.id;net.send(m)}}
@@ -6912,6 +6912,7 @@ updCircBtn();
           if(m.gravity){const el=$('#dmpgravity');if(el)el.value=m.gravity}
         }break;
         case 'rdy':P.ready=!!m.val;paintReady();ui();break;
+        case 'hn':peerHorn(P,!!m.on);break;
         case 'spec':P.watching=!!m.val;ui();break;
         case 'chat':{if(!m.t||!m.n)return;const log=document.getElementById('dmpchatlog');if(log){const msg=String(m.t).slice(0,120);const name=String(m.n).slice(0,14);const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:11px;line-height:1.4;';line.innerHTML='<span style="color:#4d8dff;font-weight:600;">'+esc(name)+':</span> <span style="color:var(--paper);">'+esc(msg)+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}}break;
         case 's':{
@@ -6923,6 +6924,7 @@ updCircBtn();
           else{const dt=Math.max(.04,Math.min(.5,(now-P.pt)/1000)),a=.6;
             P.vx+=((x-P.tp.x)/dt-P.vx)*a;P.vy+=((y-P.tp.y)/dt-P.vy)*a;P.vz+=((z-P.tp.z)/dt-P.vz)*a;
             P.tp.set(x,y,z);P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize()}
+          if(m.h===1)peerHorn(P,true);else if(m.h===0&&P.horn)peerHorn(P,false);
           P.pt=now;P.st=num(m.st,-1,1,0);P.vf=num(m.vf,-80,120,0);P.d=num(m.d,-5,50,0);P.pl=typeof m.pl==='string'&&/^[a-z]{3,8}$/.test(m.pl)?m.pl:'earth';break}
         case 'race':beginCountdown(P.n,num(m.startAt,0,1e15,Date.now()+CD_LEAD),String(m.rid||''),num(m.laps,1,20,3),m.v&&typeof m.v==='object'?m.v:null);break;
         case 'fin':
@@ -7061,18 +7063,47 @@ updCircBtn();
     /* ----- per frame ----- */
     const tmpV=new THREE.Vector3(),fwdV=new THREE.Vector3(),qq=new THREE.Quaternion(),UPQ=new CANNON.Vec3(0,0,1),fw=new CANNON.Vec3(),plP=new THREE.Vector3(),plQ=new THREE.Quaternion();
     let spinMe=0;
+    /* ----- horns: you hear everyone else's, from where their car is -----
+       Pressing the horn sends 'hn' on/off at once, and every pose carries h:1 while it is held, so a lost message
+       can neither leave a horn silent nor stuck on (it stops 1.2 s after the last refresh). Each peer's horn is two
+       sawtooth tones (their own pitch, from their id) through a PannerNode sitting on their ghost car: louder close by,
+       panned left / right, through the effects bus so the volume and mute settings apply. The listener follows the
+       camera. */
+    let myHorn=false;
+    const hornPitch=id=>{let h=0;for(let i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))|0;return .9+((h>>>0)%1000)/1000*.22};
+    function peerHorn(P,on){
+      if(on){P.hornT=performance.now();if(P.horn||!AC||!SND||muted)return;
+        if(!P.gh||!P.gh.g.visible)return;                      // on another planet / in flight: not in earshot
+        try{const T=AC.currentTime,pan=AC.createPanner();pan.panningModel='equalpower';pan.distanceModel='inverse';pan.refDistance=14;pan.maxDistance=900;pan.rolloffFactor=1.1;
+          const g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2300;lp.Q.value=.9;
+          g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.09,T+.025);lp.connect(g);g.connect(pan);pan.connect(SND.fx);
+          const k=hornPitch(P.id),oscs=[405*k,508*k].map(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start(T);return o});
+          P.horn={g,pan,oscs};placeHorn(P)}catch(e){P.horn=null}}
+      else if(P.horn){const {g,oscs,pan}=P.horn;P.horn=null;try{g.gain.setTargetAtTime(0,AC.currentTime,.03);setTimeout(()=>{try{oscs.forEach(o=>o.stop());pan.disconnect();g.disconnect()}catch(e){}},220)}catch(e){}}}
+    function placeHorn(P){if(!P.horn||!P.gh)return;const p=P.gh.g.position,pn=P.horn.pan;
+      if(pn.positionX){const t=AC.currentTime;pn.positionX.setTargetAtTime(p.x,t,.05);pn.positionY.setTargetAtTime(p.y+1,t,.05);pn.positionZ.setTargetAtTime(p.z,t,.05)}else pn.setPosition(p.x,p.y+1,p.z)}
+    const LF=new THREE.Vector3();
+    function placeListener(){if(!AC)return;const L=AC.listener,p=C.position;C.getWorldDirection(LF);
+      try{if(L.positionX){const t=AC.currentTime;L.positionX.setTargetAtTime(p.x,t,.05);L.positionY.setTargetAtTime(p.y,t,.05);L.positionZ.setTargetAtTime(p.z,t,.05);
+          L.forwardX.setTargetAtTime(LF.x,t,.05);L.forwardY.setTargetAtTime(LF.y,t,.05);L.forwardZ.setTargetAtTime(LF.z,t,.05);L.upX.value=0;L.upY.value=1;L.upZ.value=0}
+        else{L.setPosition(p.x,p.y,p.z);L.setOrientation(LF.x,LF.y,LF.z,0,1,0)}}catch(e){}}
+    function hornsTick(now){
+      const h=!!key.horn&&active&&driving;if(h!==myHorn){myHorn=h;send({k:'hn',on:h?1:0})}
+      let any=false;peers.forEach(P=>{if(P.horn){any=true;if(now-(P.hornT||0)>1200||muted)peerHorn(P,false);else placeHorn(P)}});
+      if(any)placeListener()}
     function tick(now,dt){
       if(!room)return;
       // people who stopped talking are gone
       peers.forEach(P=>{if(P.last&&now-P.last>STALE)dropPeer(P.id,true)});
       if(status==='up'){
+        hornsTick(now);
         if(now-lastSend>=1000/HZ){lastSend=now;
           chassisB.quaternion.vmult(UPQ,fw);const v=chassisB.velocity;let vf=v.x*fw.x+v.y*fw.y+v.z*fw.z;
           let q=car.quaternion,p=car.position,st=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0,pl='earth';
           if(SPACE.state!=='earth'){if(!SPACE.poseOut(plP,plQ))pl='transit';else{p=plP;q=plQ;pl=SPACE.planet;const S=SPACE.SURF;vf=S?Math.hypot(S.vel.x,S.vel.z):0;st=0}}   // in flight: hidden for everyone else
           const d=race.st===2||race.st===3?race.d0+race.rp:0;
           send({k:'s',n:myName(),j:me.j,p:[+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2)],q:[+q.x.toFixed(3),+q.y.toFixed(3),+q.z.toFixed(3),+q.w.toFixed(3)],
-            st:+st.toFixed(3),vf:+vf.toFixed(1),d:+d.toFixed(4),pl})}
+            st:+st.toFixed(3),vf:+vf.toFixed(1),d:+d.toFixed(4),pl,h:myHorn?1:0})}
         if(now-lastHi>3000){lastHi=now;sendHi(true)}
         if(now-lastPing>1500&&peers.size){lastPing=now;
           peers.forEach(P=>{const seq=++pingSeq,key=P.id+':'+seq;pendingPings.set(key,performance.now());send({k:'pg',target:P.id,seq})});
