@@ -2128,7 +2128,7 @@ t.bd.position.set(x,y+.86,z);
     const mk=(geo,mat,x,y,z,rx,ry,rz)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx||0,ry||0,rz||0);g.add(m);return m};
     const cv=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;const t=new THREE.CanvasTexture(c);t.anisotropy=4;return {c,x:c.getContext('2d'),t}};
     const clus=cv(512,192),scr=cv(384,224);
-    let wheel=null,eye=new THREE.Object3D();g.add(eye);
+    let wheel=null,eye=new THREE.Object3D();g.add(eye);const revLeds=[];
     // grain for the soft-touch plastics and leather: fine noise, so the near-black surfaces read as material, not flat colour
     const grain=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),d=x.createImageData(128,128);
       for(let i=0;i<d.data.length;i+=4){const v=200+Math.random()*55;d.data[i]=d.data[i+1]=d.data[i+2]=v;d.data[i+3]=255}x.putImageData(d,0,0);
@@ -2148,9 +2148,8 @@ t.bd.position.set(x,y+.86,z);
     // the driver's arms: gloved hands on the rim at ten to two, forearms back to the shoulders; they follow the wheel
     const arms=[];const _hp=new THREE.Vector3(),_ad=new THREE.Vector3(),_up=new THREE.Vector3(0,1,0);
     function placeArms(){if(!wheel)return;wheel.updateMatrix();
-      for(const a of arms){_hp.copy(a.hand).applyMatrix4(wheel.matrix);_ad.copy(_hp).sub(a.sh);const L=_ad.length();_ad.multiplyScalar(1/L);
-        a.arm.position.copy(a.sh).addScaledVector(_ad,L/2);a.arm.scale.set(1,L,1);a.arm.quaternion.setFromUnitVectors(_up,_ad);
-        a.cuff.position.copy(_hp).addScaledVector(_ad,-.075);a.cuff.quaternion.copy(a.arm.quaternion)}}
+      const seg=(m,p0,p1)=>{_ad.copy(p1).sub(p0);const L=_ad.length();_ad.multiplyScalar(1/L);m.position.copy(p0).addScaledVector(_ad,L/2);m.scale.set(1,L,1);m.quaternion.setFromUnitVectors(_up,_ad)};
+      for(const a of arms){_hp.copy(a.hand).applyMatrix4(wheel.matrix);seg(a.arm,a.el,_hp);seg(a.up,a.sh,a.el)}}
     // a profile in the car's side view (z forward, y up) extruded across the cabin, so the dash has a rounded, lit top
     const across=(pts,w,mat,x0)=>{const sh=new THREE.Shape();sh.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++){const q=pts[i];q.length===4?sh.quadraticCurveTo(q[0],q[1],q[2],q[3]):sh.lineTo(q[0],q[1])}
       const geo=new THREE.ExtrudeGeometry(sh,{depth:w,bevelEnabled:false,curveSegments:10});const m=new THREE.Mesh(geo,mat);m.rotation.y=-Math.PI/2;m.position.x=x0;g.add(m);return m};
@@ -2198,23 +2197,48 @@ t.bd.position.set(x,y+.86,z);
       mk(new THREE.BoxGeometry(.26,.24,.9),soft,-.06,-.8,.05);mk(new THREE.BoxGeometry(.27,.012,.86),glow,-.06,-.675,.05);
       mk(new THREE.CylinderGeometry(.025,.03,.12,10),trim,-.06,-.62,-.05);
       // the steering wheel: a flat-bottom rim, three spokes and a hub with a small glowing badge; turns with the front wheels
-      wheel=new THREE.Group();wheel.position.set(ex,-.4,.58);wheel.rotation.x=-.38;g.add(wheel);
+      wheel=new THREE.Group();wheel.position.set(ex,-.39,.58);wheel.rotation.x=-.38;g.add(wheel);
       const lth=new THREE.MeshLambertMaterial({color:0x0b0b0d,map:grain});
       const rim=new THREE.Mesh(new THREE.TorusGeometry(.19,.03,12,48,Math.PI*1.62),lth);rim.rotation.z=-Math.PI*.31;wheel.add(rim);
       const flat=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.21,12),lth);flat.rotation.z=Math.PI/2;flat.position.y=-.162;wheel.add(flat);
       {const tm=new THREE.Mesh(new THREE.TorusGeometry(.19,.031,8,6,.09),new THREE.MeshLambertMaterial({color:0xd8d2c4}));tm.rotation.z=Math.PI/2-.045;wheel.add(tm)}   // the centre marker at twelve o'clock
       {const col=mk(new THREE.CylinderGeometry(.045,.06,.3,12),soft,ex,-.455,.72);col.rotation.x=Math.PI/2-.38}
-      arms.length=0;{const suit=new THREE.MeshLambertMaterial({color:0x17181d,map:grain}),glove=new THREE.MeshLambertMaterial({color:0x1d1e22,map:grain}),cuffM=new THREE.MeshLambertMaterial({color:0x8e1616});
-        for(const k of [-1,1]){const hx=k*.165,hy=.095,hand=new THREE.Vector3(hx,hy,-.02);
-          const palm=new THREE.Mesh(new THREE.SphereGeometry(1,12,10),glove);palm.scale.set(.034,.05,.04);palm.position.copy(hand);palm.rotation.z=k*-.5;wheel.add(palm);
-          const fing=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.07,8),glove);fing.position.set(hx-k*.01,hy+.004,.012);fing.rotation.z=k*-.5;wheel.add(fing);   // fingers round the front of the rim
-          const arm=new THREE.Mesh(new THREE.CylinderGeometry(.034,.048,1,12),suit);g.add(arm);
-          const cuff=new THREE.Mesh(new THREE.CylinderGeometry(.043,.043,.04,12),cuffM);g.add(cuff);
-          arms.push({hand,arm,cuff,sh:new THREE.Vector3(ex+k*.24,-.7,-.2)})}}
+      /* the driver's hands, gloved: the back of the hand and the knuckles toward you, four fingers wrapped right round the
+         rim, the thumb along it toward the spoke, a red stripe and cuff. Each hand is built in its own frame on the rim
+         (x along the rim, y out from the centre, -z toward the driver) and turns with the wheel. */
+      arms.length=0;{const suit=new THREE.MeshLambertMaterial({color:0x16171c,map:grain}),glove=new THREE.MeshLambertMaterial({color:0x1b1c20,map:grain}),
+        pad=new THREE.MeshLambertMaterial({color:0x2b2c31,map:grain}),red=new THREE.MeshLambertMaterial({color:0x9a1616}),R0=.19;
+        for(const k of [-1,1]){const a=.82,H=new THREE.Group();H.position.set(k*R0*Math.sin(a),R0*Math.cos(a),0);H.rotation.z=-k*a;wheel.add(H);
+          // fingers: arcs round the rim tube, from the outside edge over the front and curling in underneath
+          [[-.031,.039,3.5],[-.011,.041,3.9],[.009,.04,3.8],[.028,.037,3.4]].forEach(([x,r,arc])=>{const f=new THREE.Mesh(new THREE.TorusGeometry(r,.0115,6,14,arc).rotateY(Math.PI/2),glove);f.position.x=x;f.rotation.x=.35;H.add(f)});
+          // knuckle ridge and the back of the hand, toward the driver and out from the rim
+          {const kn=new THREE.Mesh(new THREE.CylinderGeometry(.014,.014,.082,10).rotateZ(Math.PI/2),pad);kn.position.set(0,.044,-.018);H.add(kn)}
+          {const bk=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),glove);bk.scale.set(.048,.036,.022);bk.position.set(0,.05,-.05);bk.rotation.x=-.7;H.add(bk);
+           const st=new THREE.Mesh(new THREE.BoxGeometry(.012,.05,.004),red);st.position.set(k*.012,.052,-.071);st.rotation.x=-.7;H.add(st)}   // the glove's stripe
+          // thumb along the rim toward the spoke
+          {const th=new THREE.Mesh(new THREE.CylinderGeometry(.0115,.013,.058,8).rotateZ(Math.PI/2),glove);th.position.set(k*.042,-.012,-.03);th.rotation.y=k*.25;H.add(th)}
+          // the cuff at the wrist; the forearm runs from here to the elbow
+          {const cf=new THREE.Mesh(new THREE.CylinderGeometry(.036,.038,.035,12),red);cf.position.set(0,.062,-.1);cf.rotation.x=-1.1;H.add(cf)}
+          H.updateMatrix();const hand=new THREE.Vector3(0,.07,-.12).applyMatrix4(H.matrix);
+          const arm=new THREE.Mesh(new THREE.CylinderGeometry(.033,.045,1,12),suit),up=new THREE.Mesh(new THREE.CylinderGeometry(.047,.055,1,12),suit);g.add(arm,up);
+          arms.push({hand,arm,up,el:new THREE.Vector3(ex+k*.3,-.62,.02),sh:new THREE.Vector3(ex+k*.24,-.5,-.4)})}}
       placeArms();
       for(const a of [0,Math.PI,-Math.PI/2]){const sp2=new THREE.Mesh(new THREE.BoxGeometry(.15,.035,.02),trim);sp2.position.set(Math.cos(a)*.09,Math.sin(a)*.08,0);sp2.rotation.z=a;wheel.add(sp2)}
       const hub=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.05,20),trim);hub.rotation.x=Math.PI/2;wheel.add(hub);
       const badge=new THREE.Mesh(new THREE.CircleGeometry(.02,12),glowC);badge.position.z=-.027;badge.rotation.y=Math.PI;wheel.add(badge);
+      // buttons on the side spokes, and carbon shift paddles behind the rim
+      {const bm=[new THREE.MeshBasicMaterial({color:0x9aa3ad}),new THREE.MeshBasicMaterial({color:0x3fa9ff}),new THREE.MeshBasicMaterial({color:0xc94040})];
+       for(const k of [-1,1])for(let i=0;i<3;i++){const b=new THREE.Mesh(new THREE.CircleGeometry(.0085,10),bm[(i+(k>0?0:1))%3]);b.position.set(k*(.075+i*.024),.004,-.022);b.rotation.y=Math.PI;wheel.add(b)}
+       const carbon=new THREE.MeshLambertMaterial({color:0x1d1f24,map:grain});
+       for(const k of [-1,1]){const pd=new THREE.Mesh(new THREE.BoxGeometry(.03,.11,.008),carbon);pd.position.set(k*.215,.02,.05);pd.rotation.z=k*.25;wheel.add(pd)}}
+      // wiper blades parked along the foot of the windscreen
+      for(const k of [-1,1]){const wp=mk(new THREE.BoxGeometry(W*.55,.016,.022),dark,k*W*.32-.12,-.418,1.1,0,0,k*.06);wp.rotation.y=-.04*k}
+      // shift lights across the top of the cluster, green to red with the revs
+      revLeds.length=0;for(let i=0;i<10;i++){const c=i<4?0x2bd84a:i<7?0xffc21a:0xff2a2a,on=new THREE.MeshBasicMaterial({color:c}),off=new THREE.MeshBasicMaterial({color:0x14100c});
+        const l=mk(new THREE.PlaneGeometry(.026,.011),off,ex-.135+i*.03,-.218,.84,-.25,Math.PI);l.userData={on,off};revLeds.push(l)}
+      // a red start button and the hazard switch on the centre stack
+      {const sb=mk(new THREE.TorusGeometry(.026,.006,8,20),new THREE.MeshBasicMaterial({color:0xff2a2a}),-.06,-.5,.69,-.25,Math.PI);mk(new THREE.CircleGeometry(.024,16),dark2,-.06,-.5,.695,-.25,Math.PI);
+       const hz=mk(new THREE.CircleGeometry(.016,3),new THREE.MeshBasicMaterial({color:0xd8342c}),-.06,-.465,.735,-.25,Math.PI);hz.rotation.z=Math.PI/2}
       g.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;o.frustumCulled=false;o.material.fog=false;o.renderOrder=o.userData.glass?6:5}});   // the cabin is never in fog
     }
     let lastDraw=0;
@@ -2224,6 +2248,7 @@ t.bd.position.set(x,y+.86,z);
        const gauge=(cx,v,label)=>{x.lineWidth=10;x.strokeStyle='rgba(138,75,255,.22)';x.beginPath();x.arc(cx,96,70,Math.PI*.75,Math.PI*2.25);x.stroke();
          x.strokeStyle='#8a4bff';x.shadowColor='#8a4bff';x.shadowBlur=16;x.beginPath();x.arc(cx,96,70,Math.PI*.75,Math.PI*(.75+1.5*Math.max(0,Math.min(1,v))));x.stroke();x.shadowBlur=0;
          x.fillStyle='rgba(200,190,255,.7)';x.font='600 16px Arial';x.textAlign='center';x.fillText(label,cx,170)};
+       {const rf=Math.min(1,(SND&&SND.rpm?SND.rpm:0)/((SND&&SND.prof&&SND.prof.red)||8000)||kmh/220),lit=Math.round(Math.max(0,(rf-.55)/.4)*10);revLeds.forEach((l,i)=>{l.material=i<lit?l.userData.on:l.userData.off})}
        gauge(90,kmh/300,'KM/H');gauge(422,(SND&&SND.rpm?SND.rpm:0)/((SND&&SND.prof&&SND.prof.red)||8000)||Math.min(1,kmh/200),'RPM');
        x.fillStyle='#e9e4ff';x.font='bold 64px Arial';x.textAlign='center';x.shadowColor='#3fa9ff';x.shadowBlur=12;x.fillText(String(Math.round(kmh)),256,108);x.shadowBlur=0;
        x.fillStyle='#8a4bff';x.font='600 15px Arial';x.fillText('KM/H',256,134);x.font='bold 26px Arial';x.fillStyle=GEAR.now==='R'?'#ff3b3b':'#e9e4ff';x.fillText(GEAR.now||'D',256,176);clus.t.needsUpdate=true}
@@ -2410,6 +2435,7 @@ t.bd.position.set(x,y+.86,z);
   function setCar(id,paint,quiet){
     const spec=garageOf(id);curCarId=spec.id;
     const paintHex=paint!=null?paint:spec.paints[0];
+    try{if(CAMS[camMode].cock&&(spec.type==='bike'||spec.type==='f1'))camMode=0}catch(_){}   // no cabin on the bike or the open-wheeler (the camera list is not made yet when the saved car loads at start)
     Object.assign(V,spec.V);V.label=spec.label;
     applyVehicle();
     chassisB.mass=spec.mass;chassisB.updateMassProperties();
@@ -2633,7 +2659,7 @@ t.bd.position.set(x,y+.86,z);
     fullBox().querySelector('.sp-app').addEventListener('click',e=>{e.stopPropagation();if(spCtl&&!spPaused)try{spCtl.togglePlay()}catch(_){}});   // the app takes over the music
     addEventListener('focus',()=>{if(spLoginOpened&&src==='spotify'&&spUriNow){spLoginOpened=false;playSpotify(spUriNow,extLabel,true)}});
     function playSpotify(uri,label,autoplay){frame.innerHTML='';spCtl=null;spUriNow=uri;spPreview(false);const host=document.createElement('div');frame.appendChild(host);extLabel=label||'Spotify';
-      spotifyApi(api=>api.createController(host,{uri,width:'100%',height:152},c=>{spCtl=c;c.addListener('playback_update',e=>{const d=e.data||{};spPaused=!!d.isPaused;spPos=d.position||0;spDur=d.duration||0;spPreview(spDur>0&&spDur<=31000&&/:track:/.test(spUriNow||''));paint(false)});
+      spotifyApi(api=>api.createController(host,{uri,width:'100%',height:152},c=>{spCtl=c;c.addListener('playback_update',e=>{const d=e.data||{};spPaused=!!d.isPaused;if(!spPaused&&src==='spotify'&&Radio.station()>=0){Radio.tune(-1);after()}spPos=d.position||0;spDur=d.duration||0;spPreview(spDur>0&&spDur<=31000&&/:track:/.test(spUriNow||''));paint(false)});
         if(autoplay)try{c.play()}catch(_){}}))}
     function playApple(url,label){spCtl=null;extLabel=label||'Apple Music';const f=document.createElement('iframe');f.src=url;f.height=/\/song\/|\?i=/.test(url)?'175':'300';
       f.setAttribute('allow','autoplay *; encrypted-media *; fullscreen *; clipboard-write');
@@ -2671,7 +2697,8 @@ t.bd.position.set(x,y+.86,z);
       bar.style.width=(P?P.progress*100:0)+'%';
       if(full&&el.classList.contains('list')){const L=Radio.playlist();ol.innerHTML='';L.forEach(s=>{const li=document.createElement('li');if(s.current)li.className='cur';
         li.innerHTML='<span></span><small>'+s.fm+'</small>';li.firstChild.textContent=s.title+' — '+s.artist;li.onclick=e=>{e.stopPropagation();Radio.jump(s.i);after()};ol.appendChild(li)})}}
-    Radio.onChange=()=>paint(true);
+    // one thing playing at a time, whichever way it starts: the radio coming on (T, the menu, Settings) takes over from Spotify / Apple Music
+    Radio.onChange=()=>{if(src!=='radio'&&Radio.station()>=0)setSource('radio',false);paint(true)};
     Radio.onAuto=fast=>toastMsg(fast?'♪ Fast lane · '+(Radio.fastName?Radio.fastName():'Night Riff'):'♪ Back to your station');
     // autoplay: on the first key or tap of the drive
     const first=()=>{removeEventListener('keydown',first,true);removeEventListener('pointerdown',first,true);
@@ -3019,7 +3046,7 @@ t.bd.position.set(x,y+.86,z);
     {n:'Bonnet',fp:1,y:.5,z:1.1,fov:66},{n:'Bumper',fp:1,y:.02,z:2.5,fov:70,skip:1},{n:'Cockpit',fp:1,cock:1,fov:72}];
   let PHOTO=null;
   const HEADV={x:0,z:0,lat:0,lon:0,ok:false,o:new THREE.Vector3(),a:new THREE.Vector3(),q:new THREE.Quaternion()};
-  let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}if(CAMS[camMode].n==='Rear View'||CAMS[camMode].skip)camMode=0;
+  let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}if(CAMS[camMode].n==='Rear View'||CAMS[camMode].skip)camMode=0;try{const t=garageOf(curCarId).type;if(CAMS[camMode].cock&&(t==='bike'||t==='f1'))camMode=0}catch(_){}
   function cycleCam(){do camMode=(camMode+1)%CAMS.length;while(CAMS[camMode].n==='Rear View'||CAMS[camMode].skip);   // rear view: hold V / Q instead; the bumper cam is retired
     // the bike and the open-wheeler have no cabin to sit in
     if(CAMS[camMode].cock){const t=garageOf(curCarId).type;if(t==='bike'||t==='f1')camMode=0}try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' · C to switch')}
@@ -3047,7 +3074,8 @@ t.bd.position.set(x,y+.86,z);
   function toastMsg(s){toast.textContent=s;clearTimeout(toast._t);
     if(window.gsap){gsap.killTweensOf(toast);
       gsap.fromTo(toast,{opacity:0,y:-10,scale:.94},{opacity:1,y:0,scale:1,duration:.45,ease:'back.out(1.7)'});
-      toast._t=setTimeout(()=>gsap.to(toast,{opacity:0,y:-8,duration:.35,ease:'power2.in'}),1700)}
+      // the fade, and a hard hide after it: on a stalled frame the animation can lag, but the message never sticks
+      toast._t=setTimeout(()=>{gsap.to(toast,{opacity:0,y:-8,duration:.35,ease:'power2.in'});toast._t=setTimeout(()=>{gsap.killTweensOf(toast);gsap.set(toast,{opacity:0})},600)},1700)}
     else{toast.classList.add('show');toast._t=setTimeout(()=>toast.classList.remove('show'),1700)}}
   window.toastMsg=toastMsg;
   /* ---------- the summit ---------- */
@@ -4927,12 +4955,19 @@ const PLANETS={
         ci=nearest(P,n,x,z,ci);
         // always run the way the traffic (and the race) goes; pointed the wrong way, it turns round first
         const dir=1;
-        const seg=Math.max(.5,Math.hypot(P[(ci+1)%n].x-P[ci].x,P[(ci+1)%n].z-P[ci].z)),L=7+sp*.75,k=Math.round(L/seg);
+        const seg=Math.max(.5,Math.hypot(P[(ci+1)%n].x-P[ci].x,P[(ci+1)%n].z-P[ci].z));
+        // look less far ahead in a bend: chasing a point 20+ m round a curve cuts the corner by a couple of metres
+        let L=7+sp*.75;{const a0=P[ci],a1=P[(ci+1)%n],b0=P[(ci+Math.round(30/seg))%n],b1=P[(ci+Math.round(30/seg)+1)%n],bend=Math.abs(wrap(Math.atan2(b1.x-b0.x,b1.z-b0.z)-Math.atan2(a1.x-a0.x,a1.z-a0.z)))/30;
+          if(bend>.008&&!window.__xtOff)L=6+sp*Math.max(.42,.75-(bend-.008)*25)}
+        const k=Math.round(L/seg);
         const at=j=>P[(((ci+dir*j)%n)+n)%n];ahead=at(k);
         const hA=Math.atan2(at(k+1).x-ahead.x,at(k+1).z-ahead.z),far=at(k+Math.round(35/seg)),hB=Math.atan2(at(k+Math.round(35/seg)+1).x-far.x,at(k+Math.round(35/seg)+1).z-far.z);
         curve=Math.abs(wrap(hB-hA))/35;vmax=V.max;lat=latG(curCarId)*9.81*.8;
-        // the steering point slides sideways when we are passing someone
-        ahead={x:ahead.x+Math.cos(hA)*latOff,z:ahead.z-Math.sin(hA)*latOff}}
+        /* the steering point slides sideways when we are passing someone, and past our line by however far we have
+           drifted off it, so the car holds its line through a bend instead of cutting into the next lane */
+        const q0=P[ci],q1=P[(ci+1)%n],th0=Math.atan2(q1.x-q0.x,q1.z-q0.z),rs=(x-q0.x)*Math.cos(th0)-(z-q0.z)*Math.sin(th0);
+        const aim=latOff+(window.__xtOff?0:Math.max(-2.5,Math.min(2.5,(latOff-rs)*1.3)));
+        ahead={x:ahead.x+Math.cos(hA)*aim,z:ahead.z-Math.sin(hA)*aim};if(window.__dev)window.__autoXT=+(rs-latOff).toFixed(2)}
       // steer at the point ahead; slow to the speed this bend allows
       const err=wrap(Math.atan2(ahead.x-x,ahead.z-z)-h),st=Math.max(-1,Math.min(1,err*2.4));
       let vT=Math.max(7,Math.min(vmax*.97,Math.sqrt(lat/Math.max(1e-4,curve))));
@@ -5499,8 +5534,8 @@ const PLANETS={
          HEADV.o.set(-H.lat*.0035+(Math.random()-.5)*buzz,(Math.random()-.5)*buzz+Math.min(1,sp/40)*.004*Math.sin(performance.now()/90),-H.lon*.0028).applyQuaternion(car.quaternion);
          camT.add(HEADV.o)}
         C.position.copy(camT);
-        lookT.set(COCK.eye.position.x,-.06,30).applyMatrix4(COCK.g.matrixWorld);
-        const st0=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0;COCK.setSteer(st0*5.5);COCK.draw(sp*3.6,performance.now())}
+        lookT.set(COCK.eye.position.x,-1.1,30).applyMatrix4(COCK.g.matrixWorld);
+        const st0=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0;COCK.setSteer(Math.max(-1.6,Math.min(1.6,st0*3.4)));COCK.draw(sp*3.6,performance.now())}
       else if(CM.fp){/* bonnet and bumper cams ride on the car itself */
         const fp=CM.n==='Bumper'?FP.bumper:FP.bonnet,fy=fp.y+FP.off;
         camT.set(0,fy,fp.z).applyQuaternion(car.quaternion).add(car.position);C.position.copy(camT);
