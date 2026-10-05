@@ -2202,13 +2202,16 @@ t.bd.position.set(x,y+.86,z);
   const NITRO=(function(){const g=new THREE.Group(),flames=[];
     const mk=(r,col,op)=>{const geo=new THREE.ConeGeometry(r,1,14,1,true);geo.translate(0,.5,0);geo.rotateX(-Math.PI/2);   // wide end at the pipe, tip trailing back along -z
       return new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}))};
-    for(let i=0;i<2;i++){const f=new THREE.Group(),outer=mk(.16,0xff6418,.75),core=mk(.075,0x5aa2ff,.95),glow=mk(.26,0xff3d10,.22);f.add(glow,outer,core);f.userData={outer,core,glow};g.add(f);flames.push(f)}
+    for(let i=0;i<2;i++){const f=new THREE.Group(),outer=mk(.16,0xff1e0a,.75),core=mk(.075,0xff7a66,.95),glow=mk(.26,0xff0018,.22);f.add(glow,outer,core);f.userData={outer,core,glow};g.add(f);flames.push(f)}
     g.visible=false;vis.car.add(g);let amt=0;
+    // a red glow round the screen edges while the nitro burns
+    const fx=document.createElement('div');fx.id='dnitrofx';fx.style.cssText='position:absolute;inset:0;pointer-events:none;opacity:0;z-index:2;background:radial-gradient(ellipse at center,rgba(255,0,20,0) 55%,rgba(255,20,10,.38) 100%);mix-blend-mode:screen';
+    (document.getElementById('drive')||document.body).appendChild(fx);let fxO=0;
     return {place(box,bike){const y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05,w=(box.max.x-box.min.x)*.24;
         flames[0].position.set(bike?0:w,y,z);flames[1].position.set(-w,y,z);flames[1].visible=!bike},
-      tick(dt,on){amt+=((on?1:0)-amt)*Math.min(1,dt*(on?10:6));g.visible=amt>.02;if(!g.visible)return amt;
+      tick(dt,on){amt+=((on?1:0)-amt)*Math.min(1,dt*(on?10:6));const o=amt>.02?+(amt*(.8+Math.random()*.2)).toFixed(2):0;if(o!==fxO){fxO=o;fx.style.opacity=o}g.visible=amt>.02;if(!g.visible)return amt;
         for(const f of flames){const k=amt*(.85+Math.random()*.45),wd=.85+Math.random()*.3,u=f.userData;
-          u.outer.scale.set(wd,wd,1.3*k);u.core.scale.set(wd,wd,.75*k);u.glow.scale.set(wd*1.1,wd*1.1,.9*k);
+          u.outer.scale.set(wd,wd,1.7*k);u.core.scale.set(wd,wd,.75*k);u.glow.scale.set(wd*1.1,wd*1.1,.9*k);
           u.outer.material.opacity=.6*amt;u.core.material.opacity=.7*amt;u.glow.material.opacity=.22*amt}
         return amt},get amt(){return amt}}})();vis.body=new THREE.Group();vis.body.position.y=.55;vis.car.add(vis.body);vis.bodyIn=new THREE.Group();vis.bodyIn.position.y=-.55;vis.body.add(vis.bodyIn);
   const SKN=420;let skI=0;const skLast=[null,null,null,null];
@@ -7133,7 +7136,8 @@ updCircBtn();
         ws.onopen=()=>{out({topic,event:'phx_join',ref:String(++ref),join_ref:'1',
           payload:{config:{broadcast:{ack:false,self:false},presence:{key:''},postgres_changes:[],private:false},access_token:CFG.key}});
           clearInterval(hb);hb=setInterval(()=>out({topic:'phoenix',event:'heartbeat',payload:{},ref:String(++ref)}),20000)};
-        ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}
+        ws.onmessage=e=>{if(typeof e.data!=='string'||e.data.length>600000)return;   // nothing a real player sends is this big
+          let m;try{m=JSON.parse(e.data)}catch(_){return}
           if(!m||m.topic!==topic)return;
           if(m.event==='phx_reply'&&m.payload&&!joined){if(m.payload.status==='ok'){joined=true;tries=0;onSt('up')}else{onSt('down')}}
           else if(m.event==='broadcast'&&m.payload&&m.payload.event==='m'){onMsg(m.payload.payload)}
@@ -7222,6 +7226,13 @@ updCircBtn();
       // only a hello or a pose can introduce someone, and only with a join time to place them in the room
       let P=peers.get(m.id);
       if(!P){if((m.k!=='hi'&&m.k!=='s')||!(+m.j>0))return;P=addPeer(m);if(!P)return}
+      /* flood guard: a player sends ~10 poses a second plus the odd event. Anyone pushing far past that (a broken
+         client or someone trying to lag the room) is ignored for a while, and the expensive messages (a whole
+         venue to rebuild, a horn) have their own minimum gap. */
+      {const rb=P.rb||(P.rb={t:now,n:0,mute:0});if(now<rb.mute)return;
+       if(now-rb.t>1000){rb.t=now;rb.n=0}if(++rb.n>60){rb.mute=now+10000;return}
+       if(m.k==='trk'){if(now-(P.trkT||-1e9)<5000)return;P.trkT=now}
+       else if(m.k==='hn'){if(now-(P.hnT||-1e9)<150)return;P.hnT=now}}
       P.last=now;
       if(m.n){const nn=clean(m.n);if(nn&&nn!==P.n){P.n=nn;if(P.gh){P.gh.tg.material.map.dispose();P.gh.tg.material.map=tagTex(nn,P.gh.col);P.gh.name=nn}ui()}}
       if(m.car){const cid=garageOf(String(m.car)).id;if(cid!==P.car){P.car=cid;
