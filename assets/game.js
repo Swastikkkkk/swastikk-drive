@@ -4882,7 +4882,8 @@ const PLANETS={
             earnCoins(10);
             toastMsg('Lap '+circLap+' · '+fmtT(t)+' · +10 coins')}
           circU0=u}
-        if(frameN%45===0&&circuit.hazeTo)circuit.hazeTo(S.fog.color);   // follow weather/time-of-day fog changes
+        if(frameN%45===0&&circuit.hazeTo)circuit.hazeTo(S.fog.color);
+        if(frameN%8===0&&circuit.LODCELLS)lodTick(circuit.LODCELLS,C.position.x,C.position.z);   // follow weather/time-of-day fog changes
         if(frameN%20===0)hint.textContent='Circuit · lap '+(circLap+1)+(circBest?' · best '+fmtT(circBest):'')+' · Track button to leave'}
       CAI.update(dt,now);
       if(window.RaceEngine && window.RaceEngine.active){
@@ -5204,7 +5205,7 @@ const PLANETS={
     {const z=ZN,e=.08;
      // a custom venue is open ground out to the mountains, so clear weather there gets a much longer view than the tight valley map
      // and the summit lookout pulls the haze back so the whole valley shows below
-     const fk=MODE==='circuit'&&fogFar0>=200?3.6:recapCam?3.8:1,fn=fk>1?2.4:1;
+     const fk=MODE==='circuit'?(fogFar0>=200?3.6:Math.max(1,420/Math.max(1,fogFar0))):recapCam?3.8:1,fn=fk>1?2.4:1;   // on a venue even snow / fog keeps ~400 m of view, or the scenery is a white-out
      S.fog.far+=(fogFar0*z.fog*fk-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,z.fog)*fn-S.fog.near)*e;
      const lt=(z.tint[0]+z.tint[1]+z.tint[2])/3;
      if(wxB.id==='storm'){ltT-=dt;if(ltT<=0){ltT=2.5+Math.random()*7;flashV=1;thunderAt=now+300+Math.random()*1800}}
@@ -5277,7 +5278,7 @@ const PLANETS={
     circuit.root.traverse(o=>{if(o.geometry)o.geometry.dispose()});
     // venue dressing creates a few CanvasTextures (advertising, screens) hung on owned
     // materials; dispose those alongside the material so a leave/redraw leaks nothing
-    (circuit.ownedMats||[]).forEach(m=>{if(m.map&&m.map.dispose)m.map.dispose();m.dispose()});
+    (circuit.ownedMats||[]).forEach(m=>{if(m.map&&m.map.dispose&&!m.map.__shared)m.map.dispose();m.dispose()});
     // remove the ground plate AND every perimeter-wall body, so a redraw never leaves stray colliders
     (circuit.bodies||(circuit.groundBody?[circuit.groundBody]:[])).forEach(b=>{try{world.removeBody(b)}catch(e){}});
     circuit=null}
@@ -5325,8 +5326,51 @@ const PLANETS={
       stand:0x514138,standTrim:0xd89a43,fog:0x94734f,sky:0xb68c5c},
     {id:'sunset',name:'Sunset',ground:0x72553c,field:0x90704d,trunk:0x463529,leaf:0x6e5c35,tree:'pine',
       stand:0x463c37,standTrim:0xf0a36e,fog:0x956c58,sky:0xb98669},
+    {id:'city',name:'City',ground:0x7a7e86,field:0x868a92,trunk:0x5a4128,leaf:0x3f8a3a,tree:'none',
+      stand:0x3a3d44,standTrim:0xff006e,fog:0xa9b6c6,sky:0x9db7d4,kerb:0xff006e,rail:0x3a86ff},
+    {id:'moon',name:'Moon',gravity:-11,ground:0x6b6d74,field:0x7a7c83,trunk:0x555555,leaf:0x777777,tree:'none',
+      stand:0x2a2d36,standTrim:0x4cc9f0,fog:0x0b0d16,sky:0x05060c,kerb:0x4cc9f0,rail:0xf72585},
   ];
-  function buildCircuit(pts2D,theme,seed,venue){ // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
+  /* racing accents per theme: kerb colour (paired with white) and the colour every other guardrail panel takes */
+  const KERB={meadow:0xd8322f,forest:0xd8322f,autumn:0x2f6fde,tropical:0xff006e,coastal:0x2f6fde,sunset:0x7b2cbf,snow:0x1d6fe0,alpine:0xe63946,desert:0xe63946,
+    canyon:0x2f6fde,volcanic:0xff5a1f,night:0x5cf2ff,rocky:0xe63946,mountain:0xe63946};
+  const kerbOf=t=>t.kerb||KERB[t.id]||t.standTrim,railOf=t=>t.rail||kerbOf(t);
+  /* ---------- venue rendering: spatial chunks + distance detail ----------
+     three r128 cannot cull an InstancedMesh (it has no bounds for its instances, so it switches culling off), so
+     every tree, spectator and tyre round a 2-4 km venue was drawn - and drawn again into the shadow map - every
+     frame, wherever the camera looked. After the build each instanced prop set is cut into 160 m cells. A cell is
+     its own InstancedMesh with the SAME geometry buffers (no copy on the GPU) and a bounding sphere that really
+     encloses its instances, so the renderer culls it, and the shadow pass culls it against the light too. Each
+     cell also gets a draw distance by prop size (small props ~300 m, trees ~650 m, buildings always): the circuit
+     loop hides cells past it (lodTick). Only props bigger than ~1.5 m cast shadows. */
+  // sign/banner textures are drawn once per word and colour and kept across venue rebuilds (never disposed)
+  const SIGN_CACHE=new Map();
+  function chunkInstances(root){
+    const CELL=160,out=[],m=new THREE.Matrix4(),p=new THREE.Vector3(),q=new THREE.Quaternion(),sc=new THREE.Vector3(),col=new THREE.Color();
+    root.children.slice().forEach(im=>{
+      if(!im.isInstancedMesh)return;if(!im.count){if(im.userData.cap!=null)root.remove(im);return}   // a decor set that found no room
+      const geo=im.geometry;if(!geo.boundingSphere)geo.computeBoundingSphere();const gr=geo.boundingSphere.radius,gc=geo.boundingSphere.center;
+      const cells=new Map();
+      for(let i=0;i<im.count;i++){im.getMatrixAt(i,m);const e=m.elements;if(e[0]===0&&e[5]===0&&e[10]===0&&e[1]===0)continue;   // cleared by the clearance pass
+        const k=Math.floor(e[12]/CELL)*100003+Math.floor(e[14]/CELL);let c=cells.get(k);if(!c)cells.set(k,c=[]);c.push(i)}
+      cells.forEach(list=>{
+        const g2=new THREE.BufferGeometry();if(geo.index)g2.setIndex(geo.index);for(const a in geo.attributes)g2.setAttribute(a,geo.attributes[a]);g2.groups=geo.groups;
+        const cm=new THREE.InstancedMesh(g2,im.material,list.length),box=new THREE.Box3();let ms=0;
+        list.forEach((i,j)=>{im.getMatrixAt(i,m);cm.setMatrixAt(j,m);m.decompose(p,q,sc);ms=Math.max(ms,Math.abs(sc.x),Math.abs(sc.y),Math.abs(sc.z));box.expandByPoint(p.add(gc));
+          // every cell carries instance colours (white when the set had none): materials are shared between coloured and
+          // plain sets, and three r128 compiles one program per material, so a plain cell drew with a missing buffer
+          if(cm.setColorAt){if(im.instanceColor)im.getColorAt(i,col);else col.setRGB(1,1,1);cm.setColorAt(j,col)}});
+        if(cm.instanceColor)cm.instanceColor.needsUpdate=true;
+        const sph=new THREE.Sphere();box.getBoundingSphere(sph);sph.radius+=gr*ms+.5;g2.boundingSphere=sph;
+        const size=gr*ms;
+        cm.frustumCulled=true;cm.castShadow=im.castShadow&&size>1.5;cm.receiveShadow=im.receiveShadow;cm.renderOrder=im.renderOrder;
+        cm.userData=Object.assign({},im.userData,{lodCell:true});
+        root.add(cm);out.push({m:cm,x:sph.center.x,z:sph.center.z,r:sph.radius,d:size<2.2?300:size<9?650:1e9})});
+      root.remove(im)});
+    return out}
+  // hide venue cells beyond their draw distance (called every few frames from the circuit loop)
+  function lodTick(cells,cx,cz){for(let i=0;i<cells.length;i++){const c=cells[i],v=Math.hypot(c.x-cx,c.z-cz)-c.r<c.d;if(c.m.visible!==v)c.m.visible=v}}
+  function buildCircuit(pts2D,theme,seed,venue){const BT0=performance.now(),BTL=[];let BTp=BT0;const BT=l=>{const t=performance.now();BTL.push(l+' '+(t-BTp).toFixed(0));BTp=t};window.__buildT=BTL; // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
     clearCircuit();
     venue=Object.assign({weather:'day',time:'day'},venue||{});
     /* width/elevation/obstacles travel WITH the venue (so every driver in a room builds the identical
@@ -5335,6 +5379,9 @@ const PLANETS={
     const ELEV=CIRC_ELEV[venue.elev]||0;venue.elev=CIRC_ELEV[venue.elev]!=null?venue.elev:'flat';
     theme=theme||THEME_DEFAULT;
     let startLightsIM=null,circuit_hazeFn=null;const wallBodies=[];
+    /* decoration that is not needed to drive is queued and built over the next frames (see pumpJobs), so pressing
+       GO puts the road, ground, barriers and the start area up at once without a long freeze */
+    const JOBS=[],JOB=fn=>JOBS.push(fn);
     const ownedMats=[];
     seed=Math.max(1,Math.floor(+seed)||271828);let rngState=seed>>>0;
     const seeded=()=>{rngState=(Math.imul(rngState,1664525)+1013904223)>>>0;return rngState/4294967296};
@@ -5404,12 +5451,19 @@ const PLANETS={
     // ground height: inverse-distance blend of nearby track heights, easing back to the base level
     // away from the road. On the road the nearest samples dominate, so asphalt and terrain agree.
     const H0W=1/((60*60+1)*(60*60+1));
-    const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;let ws=H0W,hs=H0W*CIRC_Y;
+    /* NEAR: grid cells with any track sample within 60 m. groundAt is called for every one of the physics
+       heightfield's ~360k cells; most of them are open country where the answer is simply the base level, and
+       they used to search 49 empty cells each to find that out */
+    const NEAR=new Uint8Array(GNX*GNZ);
+    for(let a=0;a<GNX;a++)for(let b=0;b<GNZ;b++){if(!GRID[a*GNZ+b])continue;for(let da=-3;da<=3;da++)for(let db=-3;db<=3;db++){const aa=a+da,bb=b+db;if(aa>=0&&aa<GNX&&bb>=0&&bb<GNZ)NEAR[aa*GNZ+bb]=1}}
+    const nearTrack=(x,z)=>{const gx=Math.floor(x/CELL)-GX0,gz=Math.floor(z/CELL)-GZ0;return gx>=0&&gx<GNX&&gz>=0&&gz<GNZ&&NEAR[gx*GNZ+gz]===1};
+    const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;if(!nearTrack(x,z))return CIRC_Y;let ws=H0W,hs=H0W*CIRC_Y;
       nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,w=1/(q*q)*(1-SM(DL[i]/1.5));ws+=w;hs+=w*DY[i]});return hs/ws};   // a bridge in the air shapes no ground
     /* the road's surface: the ground on hills, except where a bridge lifts it, which follows its own planned line */
     const roadY=(u,x,z)=>{const lf=liftAt(u);if(!ELEV)return CIRC_Y+lf;const g=groundAt(x,z)+lf;if(lf<.01)return g;const k=SM(lf/1.5);return g*(1-k)+curve.getPointAt(((u%1)+1)%1).y*k};
     const hFn=ELEV?groundAt:null,hRoad=ELEV?(x,z,u)=>roadY(u,x,z):null,liftEff=(u,x,z)=>roadY(u,x,z)-(ELEV?groundAt(x,z):CIRC_Y);
     let minY=CIRC_Y;for(let i=0;i<DN;i++)minY=Math.min(minY,DY[i]);
+    BT('path+index');
     const root=new THREE.Group();S.add(root);
     let stadiumBodies=[];
     const rep=curve.getLength()/12;
@@ -5423,7 +5477,7 @@ const PLANETS={
     const hx=r0+14,hz=r0+14;
     const groundMat=M(theme.ground,{roughness:.95});
     const fieldMat=M(theme.field,{roughness:.98});ownedMats.push(groundMat,fieldMat);
-    let groundBody,groundMesh,field;
+    let groundBody,groundMesh,field,hfGround=null;
     if(!ELEV){
       groundMesh=new THREE.Mesh(new THREE.BoxGeometry(hx*2,1,hz*2),groundMat);groundMesh.position.set(cx,CIRC_Y-.5,cz);groundMesh.receiveShadow=true;root.add(groundMesh);
       groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Box(new CANNON.Vec3(hx,.5,hz)));groundBody.position.set(cx,CIRC_Y-.5,cz);world.addBody(groundBody);
@@ -5433,18 +5487,29 @@ const PLANETS={
       /* hills: one physics heightfield + matching render mesh over the whole arena (same build as the
          main map's terrain: rotated -90deg about X, pillars offset so minValue can sit at 0) */
       const half=Math.max(hx,hz)+60,ES=Math.max(1.6,half*2/600),   /* finer: the car rides this, and a coarse grid sagged under the road on every crest */nx=Math.ceil(half*2/ES)+1,nz=nx,x0=cx-half,z1=cz+half;
-      const data=[];let lo=1e9;for(let i=0;i<nx;i++){const col=new Array(nz);for(let j=0;j<nz;j++){const h=groundAt(x0+i*ES,z1-j*ES);col[j]=h;if(h<lo)lo=h}data.push(col)}
+      /* exact heights on every other grid point, the ones between interpolated: the ground is smooth at this scale
+         (the road's own grade, eased into the base level over 60 m), so the result matches to millimetres for a
+         quarter of the searches */
+      const data=[];let lo=1e9;for(let i=0;i<nx;i++)data.push(new Array(nz));
+      for(let i=0;i<nx;i+=2)for(let j=0;j<nz;j+=2)data[i][j]=groundAt(x0+i*ES,z1-j*ES);
+      const ev=(i,j)=>data[Math.min(nx-1-((nx-1)%2),i)][Math.min(nz-1-((nz-1)%2),j)];
+      for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){if(i%2===0&&j%2===0)continue;
+        const i0=i-(i%2),j0=j-(j%2),i1=i%2?i0+2:i0,j1=j%2?j0+2:j0;
+        let h=(i%2&&j%2)?(ev(i0,j0)+ev(i1,j0)+ev(i0,j1)+ev(i1,j1))/4:(ev(i0,j0)+ev(i1,j1))/2;
+        if(i1>=nx||j1>=nz)h=groundAt(x0+i*ES,z1-j*ES);data[i][j]=h}
+      for(let i=0;i<nx;i++)for(let j=0;j<nz;j++)if(data[i][j]<lo)lo=data[i][j];
+      // the visual terrain reads its heights back off this grid rather than searching again
+      hfGround=(x,z)=>{const fi=(x-x0)/ES,fj=(z1-z)/ES;if(fi<0||fj<0||fi>=nx-1||fj>=nz-1)return groundAt(x,z);const i=fi|0,j=fj|0,tx=fi-i,tz=fj-j;
+        return (data[i][j]*(1-tx)+data[i+1][j]*tx)*(1-tz)+(data[i][j+1]*(1-tx)+data[i+1][j+1]*tx)*tz-OFF};   // OFF: the lift added for cannon below
       const OFF=2-lo;for(let i=0;i<nx;i++)for(let j=0;j<nz;j++)data[i][j]+=OFF;
       groundBody=new CANNON.Body({mass:0,material:gM});groundBody.addShape(new CANNON.Heightfield(data,{elementSize:ES,minValue:0}));
       groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0),-Math.PI/2);groundBody.position.set(x0,-OFF,z1);world.addBody(groundBody);
-      const st=nx>200?2:1,mx=Math.floor((nx-1)/st)+1,pos=new Float32Array(mx*mx*3),idx=[];
-      for(let a=0;a<mx;a++)for(let b=0;b<mx;b++){const i=Math.min(nx-1,a*st),j=Math.min(nz-1,b*st),k=(a*mx+b)*3;pos[k]=x0+i*ES;pos[k+1]=data[i][j]-OFF-.03;pos[k+2]=z1-j*ES}
-      for(let a=0;a<mx-1;a++)for(let b=0;b<mx-1;b++){const k=a*mx+b;idx.push(k,k+1,k+mx,k+1,k+mx+1,k+mx)}
-      const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(idx);tg.computeVertexNormals();
-      groundMesh=new THREE.Mesh(tg,groundMat);groundMesh.receiveShadow=true;root.add(groundMesh);
+      // no render mesh for the physics ground: the visual terrain below draws the ground (this one was built and hidden)
+      groundMesh=new THREE.Mesh(new THREE.BufferGeometry(),groundMat);root.add(groundMesh);
       field=new THREE.Mesh(new THREE.PlaneGeometry((half+2600)*2,(half+2600)*2).rotateX(-Math.PI/2),fieldMat);
       field.position.set(cx,lo-.6,cz);field.receiveShadow=true;root.add(field);
     }
+    BT('ground+physics');
     groundMesh.userData.fixedY=field.userData.fixedY=true;groundMesh.userData.onTrack=field.userData.onTrack=true;
     /* ---------- natural terrain look ----------
        Physics keeps its flat slab (or the road-following heightfield on hilly venues). What you SEE is a smooth,
@@ -5454,15 +5519,25 @@ const PLANETS={
     const nOff=(seed%997)*.37,ctr=new THREE.Color(theme.ground),cfl=new THREE.Color(theme.field),cdirt=new THREE.Color(theme.trunk).lerp(new THREE.Color(0x8a7656),.55),crock=new THREE.Color(0x77736c);
     const paleTheme=theme.id==='snow'||theme.id==='alpine';
     const visH=(x,z)=>{
-      const d=Math.min(trackDist(x,z,110),110),ramp=SM((d-70)/60),rr=Math.hypot(x-cx,z-cz);
+      const d=Math.min(DF(x,z),110),ramp=SM((d-70)/60),rr=Math.hypot(x-cx,z-cz);
       const bowl=SM((rr-r0)/60)*(1-SM((rr-r0-80)/60))*16;       // hills around the arena that settle back to the plain
       return ramp*((fbm2(x*.011+nOff,z*.011-nOff)-.86)*13+(fbm2(x*.04-nOff,z*.04+nOff)-.86)*3)+bowl*(.55+.9*noise2(x*.02+nOff,z*.02))};
     const terrainMat=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(128,.08,1,.56)});ownedMats.push(terrainMat);
+    /* a distance-to-road field on a 6 m grid (exact near the road, chamfer-propagated outward) for the visual
+       terrain's hills and colours: one lookup per vertex instead of two exact searches over 13x13 cells */
+    const DF=(function(){const C6=6,half=r0+200,x0=cx-half,z0=cz-half,n=Math.ceil(half*2/C6)+1,F=new Float32Array(n*n).fill(1e9);
+      for(let i=0;i<DN;i++){const gx=Math.round((DX[i]-x0)/C6),gz=Math.round((DZ[i]-z0)/C6);
+        for(let a=gx-2;a<=gx+2;a++)for(let b=gz-2;b<=gz+2;b++){if(a<0||b<0||a>=n||b>=n)continue;const d=Math.hypot(x0+a*C6-DX[i],z0+b*C6-DZ[i]);if(d<F[a*n+b])F[a*n+b]=d}}
+      const D1=C6,D2=C6*1.4142;
+      for(let a=0;a<n;a++)for(let b=0;b<n;b++){let v=F[a*n+b];if(a>0){v=Math.min(v,F[(a-1)*n+b]+D1);if(b>0)v=Math.min(v,F[(a-1)*n+b-1]+D2);if(b<n-1)v=Math.min(v,F[(a-1)*n+b+1]+D2)}if(b>0)v=Math.min(v,F[a*n+b-1]+D1);F[a*n+b]=v}
+      for(let a=n-1;a>=0;a--)for(let b=n-1;b>=0;b--){let v=F[a*n+b];if(a<n-1){v=Math.min(v,F[(a+1)*n+b]+D1);if(b<n-1)v=Math.min(v,F[(a+1)*n+b+1]+D2);if(b>0)v=Math.min(v,F[(a+1)*n+b-1]+D2)}if(b<n-1)v=Math.min(v,F[a*n+b+1]+D1);F[a*n+b]=v}
+      return (x,z)=>{const fx=Math.max(0,Math.min(n-1.001,(x-x0)/C6)),fz=Math.max(0,Math.min(n-1.001,(z-z0)/C6)),a=fx|0,b=fz|0,tx=fx-a,tz=fz-b;
+        return (F[a*n+b]*(1-tx)+F[(a+1)*n+b]*tx)*(1-tz)+(F[a*n+b+1]*(1-tx)+F[(a+1)*n+b+1]*tx)*tz}})();
     function decorate(geo){
       geo.computeVertexNormals();
       const P=geo.attributes.position,N=geo.attributes.normal,n=P.count,col=new Float32Array(n*3),uv=new Float32Array(n*2);
       for(let k=0;k<n;k++){
-        const x=P.getX(k),z=P.getZ(k),sl=1-N.getY(k),d=Math.min(trackDist(x,z,60),60);
+        const x=P.getX(k),z=P.getZ(k),sl=1-N.getY(k),d=Math.min(DF(x,z),60);
         const patch=SM((noise2(x*.02+nOff,z*.02-nOff)-.5)/.35),fine=noise2(x*.31,z*.31)-.5,mid=noise2(x*.09-nOff,z*.09)-.5;
         let r=LRP(ctr.r,cfl.r,patch),g=LRP(ctr.g,cfl.g,patch),b=LRP(ctr.b,cfl.b,patch);
         const m=(1+fine*.2+mid*.42)*.86;r*=m;g*=m*(1+mid*.12);b*=m*(1-mid*.1);   // lighter and darker grass, a touch yellower where dry
@@ -5475,16 +5550,17 @@ const PLANETS={
        the outer hills. (The old hilly-venue ground mesh was wound upside-down and culled, so what you actually saw
        was the flat plane below it.) The physics slab / heightfield stays the collision body. */
     {
-      const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=[];
-      for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;pos[k+1]=(ELEV?groundAt(x,z):CIRC_Y)-.03+visH(x,z);pos[k+2]=z}
-      for(let i=0;i<n2-1;i++)for(let j=0;j<n2-1;j++){const a=i*n2+j,b=(i+1)*n2+j;idx.push(a,a+1,b,b,a+1,b+1)}
-      const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(idx);decorate(tg);
+      const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=new Uint32Array((n2-1)*(n2-1)*6);let ii=0;
+      for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;pos[k+1]=(ELEV?(hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03+visH(x,z);pos[k+2]=z}
+      for(let i=0;i<n2-1;i++)for(let j=0;j<n2-1;j++){const a=i*n2+j,b=(i+1)*n2+j;idx[ii++]=a;idx[ii++]=a+1;idx[ii++]=b;idx[ii++]=b;idx[ii++]=a+1;idx[ii++]=b+1}
+      const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(new THREE.BufferAttribute(idx,1));decorate(tg);
       const terrainMesh=new THREE.Mesh(tg,terrainMat);terrainMesh.name='terrain';terrainMesh.receiveShadow=true;terrainMesh.userData.fixedY=terrainMesh.userData.onTrack=true;root.add(terrainMesh);
       groundMesh.visible=false}
+    BT('terrain');
     const gy=(x,z)=>CIRC_Y+visH(x,z);                 // where props sit: the visual ground (ELEV venues are lifted by the settle pass later)
     roadStrip.userData.onTrack=edgeStrip.userData.onTrack=true;
     const runoff=circStrip(curve,CN,CIRC_W+4,.035,groundMat,rep,hRoad);runoff.receiveShadow=true;runoff.name='runoff';root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
-    const curbRed=M(theme.standTrim,{roughness:.75}),curbWhite=M(0xdad8d0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
+    const curbRed=M(kerbOf(theme),{roughness:.75}),curbWhite=M(0xf2f2f0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
     const curbGeo=new THREE.BoxGeometry(1.7,.18,Math.max(1.8,Math.min(4,curve.getLength()/CN)));
     const curbRedIM=new THREE.InstancedMesh(curbGeo,curbRed,CN*2),curbWhiteIM=new THREE.InstancedMesh(curbGeo,curbWhite,CN*2);
     curbRedIM.receiveShadow=true;curbWhiteIM.receiveShadow=true;root.add(curbRedIM,curbWhiteIM);curbRedIM.userData.onTrack=curbWhiteIM.userData.onTrack=true;
@@ -5514,13 +5590,14 @@ const PLANETS={
        const body=new CANNON.Body({mass:0,material:gM});body.addShape(new CANNON.Box(new CANNON.Vec3(1,wh,len/2+.4)));
        body.position.set((a.x+b.x)/2,CIRC_Y+wh,(a.z+b.z)/2);body.quaternion.setFromAxisAngle(wup,Math.atan2(b.x-a.x,b.z-a.z));
        world.addBody(body);wallBodies.push(body)}}
+    BT('curbs+wall');
     const barrierBodies=[];
     /* ---------- track limits ----------
        The corridor, from the centre out: road (CIRC_W/2) -> curb (+1.6) -> runoff -> barrier (+BARRIER_OFF) -> props (+6 and beyond).
        Each side gets a chain of invisible static boxes that the car glances off (low friction, a little bounce),
        with a low Armco rail on the same line so the limit reads. Where two parts of the lap run close together, a
        segment that would stand on the other road is left out. Same code for Daily, Custom and Draw tracks. */
-    {const railMat=M(0xc7cbd1,{roughness:.4}),postMat=M(0x5d5a55,{roughness:.8});ownedMats.push(railMat,postMat);
+    {const railMat=M(0xffffff,{roughness:.4}),postMat=M(0x5d5a55,{roughness:.8});ownedMats.push(railMat,postMat);
       const segL=7,NB=Math.max(60,Math.round(TL/segL)),off=CIRC_W/2+BARRIER_OFF;
       const railIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.14,.34,segL+.15),railMat,NB*6),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,.8,.16),postMat,NB*6);
       railIM.castShadow=!LOW;railIM.receiveShadow=true;postIM.castShadow=!LOW;root.add(railIM,postIM);railIM.userData.onTrack=postIM.userData.onTrack=true;
@@ -5531,6 +5608,7 @@ const PLANETS={
       for(const side of [-1,1]){let A=null,uA=0;
         const put=(P0,P1,u)=>{const dx=P1.x-P0.x,dz=P1.z-P0.z,L=Math.hypot(dx,dz);if(L<.5)return;const x=(P0.x+P1.x)/2,z=(P0.z+P1.z)/2,yaw=Math.atan2(dx,dz);
           const lf=liftAt(u);if(trackDistL(x,z,off+2,lf)<off-1.5)return;          // another part of the track at this level is closer than ours: no wall across it
+          if(L>8&&(trackDistL(P0.x+dx*.25,P0.z+dz*.25,off+2,lf)<off-1.5||trackDistL(P0.x+dx*.75,P0.z+dz*.75,off+2,lf)<off-1.5))return;   // a long piece: check along it too
           q.setFromAxisAngle(up,yaw);
           /* the wall reaches from whichever is lower (the ground here or the road beside it) to above whichever
              is higher (3.5 m, so a car nosing in at an angle cannot climb onto it on its wheels): on a hillside the ground under the barrier can sit below the road, and a wall at ground
@@ -5543,10 +5621,20 @@ const PLANETS={
           b.position.set(x+nX*o2,(top+bot)/2,z+nZ*o2);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);barrierBodies.push(b);
           const vis=Math.max(gb,ry)-gb;   // the rail is drawn at road level (the settle pass adds the ground height on hills)
           if(nr<railIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,CIRC_Y+.66+vis,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);sc.set(1,1,1);pp.set(x,CIRC_Y+.4+vis,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}};
+        /* a piece runs on until it is 24 m long or the barrier line bends away from it by more than ~0.35 m: one box
+           per 24 m on the straights instead of one per 6 m (1,100 static bodies on a 2.4 km lap slowed every
+           physics step), still one per 6 m through the bends so the wall follows them */
+        let mid=[],prev=null,uPrev=0;
+        const fits=(A0,P1)=>{const dx=P1.x-A0.x,dz=P1.z-A0.z,L=Math.hypot(dx,dz)||1;for(const q of mid)if(Math.abs((q.x-A0.x)*dz-(q.z-A0.z)*dx)/L>.35)return false;return true};
         for(let i=0;i<=DSN;i++){const u=i/DSN,{p,n}=circAt(u,curve),P={x:p.x+n.x*side*off,z:p.z+n.z*side*off};
           if(!A){A=P;uA=u;continue}
-          if(Math.hypot(P.x-A.x,P.z-A.z)>=6||i===DSN){put(A,P,(uA+u)/2);A=P;uA=u}}}
-      railIM.count=postIM.count=nr;railIM.instanceMatrix.needsUpdate=postIM.instanceMatrix.needsUpdate=true}
+          const L=Math.hypot(P.x-A.x,P.z-A.z),onBridge=liftAt(u)>.05||liftAt(uA)>.05;
+          if(L>=6&&(onBridge||L>24||!fits(A,P))&&prev){put(A,prev,(uA+uPrev)/2);A=prev;uA=uPrev;mid=[]}
+          if(i===DSN){put(A,P,(uA+u)/2);break}
+          if(prev)mid.push(prev);prev=P;uPrev=u}}
+      railIM.count=postIM.count=nr;railIM.instanceMatrix.needsUpdate=postIM.instanceMatrix.needsUpdate=true;
+      if(railIM.setColorAt){const ca=new THREE.Color(0xd9dde3),cb=new THREE.Color(railOf(theme));for(let i=0;i<nr;i++)railIM.setColorAt(i,i%2?cb:ca);railIM.instanceColor.needsUpdate=true}}
+    BT('barriers');
     /* ---------- the flyover decks: concrete slab out to the rails, pillars, and collision that follows the ramp ---------- */
     const bridgeBodies=[];
     bridgeBodies.push(...barrierBodies);   // the track-limit walls, placed at absolute heights (not settled)
@@ -5572,6 +5660,7 @@ const PLANETS={
       pils.forEach(q=>{const h=q.top-q.bot;if(h<1)return;tp.set(q.x,q.bot+h/2,q.z);ts.set(1,h,1);tq.identity();tm.compose(tp,tq,ts);pilIM.setMatrixAt(pn++,tm);
         const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Cylinder(.85,.85,h,10));b.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0),Math.PI/2);b.position.set(q.x,q.bot+h/2,q.z);world.addBody(b);   /* cannon's cylinder lies along Z: stood up */bridgeBodies.push(b)});
       pilIM.count=pn;pilIM.instanceMatrix.needsUpdate=true;pilIM.userData.fixedY=pilIM.userData.onTrack=true;root.add(pilIM)}
+    JOB(()=>{
     // Keep the grandstands close enough to read from the track, placed from its actual tangent.
     {const standN=Math.max(8,Math.min(16,Math.round(curve.getLength()/38)));
      const standMat=M(theme.stand,{roughness:.85}),trimMat=M(theme.standTrim,{roughness:.6});ownedMats.push(standMat,trimMat);
@@ -5604,6 +5693,9 @@ const PLANETS={
      [trimIM,roofIM,seatIM,frameIM,crowdIM].forEach(m=>m.userData.linkedChild=true);
      standIM.instanceMatrix.needsUpdate=true;trimIM.instanceMatrix.needsUpdate=true;seatIM.instanceMatrix.needsUpdate=true;roofIM.instanceMatrix.needsUpdate=true;frameIM.instanceMatrix.needsUpdate=true;crowdIM.instanceMatrix.needsUpdate=true;
      if(crowdIM.instanceColor)crowdIM.instanceColor.needsUpdate=true;if(seatIM.instanceColor)seatIM.instanceColor.needsUpdate=true}
+    BT('stands');
+    });
+    JOB(()=>{
     // floodlight pylons, fewer than grandstands, interspersed around the same ring
     {const lampMat=M(0x2a2a2a,{roughness:.6}),lensMat=new THREE.MeshBasicMaterial({color:0xfff3d6});ownedMats.push(lampMat,lensMat);
     const lampN=Math.max(6,Math.round(curve.getLength()/70));
@@ -5616,6 +5708,8 @@ const PLANETS={
        lP.set(x,CIRC_Y-.5+4.5,z);lM.compose(lP,lQ,lS);poleIM.setMatrixAt(i,lM);
        lP.set(x,CIRC_Y-.5+9.2,z);lM.compose(lP,lQ,lS);lensIM.setMatrixAt(i,lM)}
      poleIM.instanceMatrix.needsUpdate=true;lensIM.instanceMatrix.needsUpdate=true}
+    });
+    JOB(()=>{
     /* ---------- trees, bushes and rocks ----------
        Placed in groves (noise-driven density) in the fields beside the track and in a belt outside the wall, never
        on the pavement. Sizes, tilt, colour and species mix vary per instance; everything is instanced, so the whole
@@ -5665,6 +5759,9 @@ const PLANETS={
           const rr=seeded(),r2=seeded();if(Math.hypot(x-cx,z-cz)<r0+8&&(d<CIRC_W/2+18||d>105)){continue}
           const sc=.5+rr*rr*2.6;col.setHex(0x77736c).multiplyScalar(.75+r2*.45);put(rIM,x,gy(x,z)+sc*.2,z,sc*1.2,sc*.65,sc,seeded()*6.28,.15,col);i++}
         fin(rIM)}}
+    BT('trees');
+    });
+    JOB(()=>{
     /* ---------- distant mountain ranges ----------
        Two layered rings of ridged peaks well beyond the arena, shaded rock to snow and hazed toward the fog colour
        with distance; the nearer one is darker and sharper. Unlit and fog-free (pre-hazed), because they sit past the
@@ -5682,28 +5779,48 @@ const PLANETS={
         const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,fog:false,side:THREE.DoubleSide}));m.frustumCulled=false;m.renderOrder=-1;m.userData.fixedY=m.userData.onTrack=true;root.add(m);ownedMats.push(m.material);mtn.push({g,bc})});
       circuit_hazeFn=(fc)=>{mtn.forEach(({g,bc})=>{const a=g.attributes.color.array;for(let v=0;v<a.length/3;v++){const k=v*4,h=bc[k+3];a[v*3]=bc[k]+(fc.r-bc[k])*h;a[v*3+1]=bc[k+1]+(fc.g-bc[k+1])*h;a[v*3+2]=bc[k+2]+(fc.b-bc[k+2])*h}g.attributes.color.needsUpdate=true})};
       circuit_hazeFn(new THREE.Color(theme.fog))}
+    BT('mountains');
+    });
     const startP=circAt(0,curve);
-    const flagMat=new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.85,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});ownedMats.push(flagMat);
-    const flag=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,1.6).rotateX(-Math.PI/2),flagMat);
-    flag.position.set(startP.p.x,CIRC_Y+.14,startP.p.z);flag.rotation.y=Math.atan2(startP.tg.x,startP.tg.z);root.add(flag);flag.userData.onTrack=true;
+    /* ---------- start / finish ----------
+       Everything here is laid out from the track itself, never from world axes or a straight ray: alongT(d) is the
+       road d metres from the line (negative = behind it), with its own tangent and normal, so on a bend the grid
+       boxes follow the bend and the gantry stands square across the road where it actually is. */
+    const alongT=d=>{const u=((d/TL)%1+1)%1,a=circAt(u,curve),hl=Math.hypot(a.tg.x,a.tg.z)||1;
+      return {u,p:a.p,tx:a.tg.x/hl,tz:a.tg.z/hl,nx:a.n.x,nz:a.n.z,yaw:Math.atan2(a.tg.x,a.tg.z),y:roadY(u,a.p.x,a.p.z)-(ELEV?groundAt(a.p.x,a.p.z):CIRC_Y)}};
     {
-      const yaw=Math.atan2(startP.tg.x,startP.tg.z),pitRoot=new THREE.Group(),pitMat=M(theme.stand,{roughness:.82}),roofMat=M(theme.standTrim,{roughness:.68}),glassMat=M(0x9db9c1,{roughness:.32,metalness:.22}),lampMat=new THREE.MeshBasicMaterial({color:0xfff1c8});
-      ownedMats.push(pitMat,roofMat,glassMat,lampMat);pitRoot.position.set(startP.p.x,startP.p.y,startP.p.z);pitRoot.rotation.y=yaw;
-      const pitSide=CIRC_W/2+13,pit=new THREE.Mesh(new THREE.BoxGeometry(14,4.8,25),pitMat);pit.position.set(pitSide,2.4,-12);pit.castShadow=true;pit.receiveShadow=true;pitRoot.add(pit);pit.userData.solid=true;
-      const roof=new THREE.Mesh(new THREE.BoxGeometry(15,.55,26),roofMat);roof.position.set(pitSide,5.05,-12);roof.castShadow=true;pitRoot.add(roof);
+      const S0=alongT(0),pitBase=alongT(-12),pitRoot=new THREE.Group(),pitMat=M(theme.stand,{roughness:.82}),roofMat=M(theme.standTrim,{roughness:.68}),glassMat=M(0x9db9c1,{roughness:.32,metalness:.22}),lampMat=new THREE.MeshBasicMaterial({color:0xffffff});
+      ownedMats.push(pitMat,roofMat,glassMat,lampMat);pitRoot.position.set(pitBase.p.x,CIRC_Y,pitBase.p.z);pitRoot.rotation.y=pitBase.yaw;
+      // pit building + control tower on one side of the start straight
+      const pitSide=CIRC_W/2+BARRIER_OFF+11,pit=new THREE.Mesh(new THREE.BoxGeometry(14,4.8,25),pitMat);pit.position.set(pitSide,2.4,0);pit.castShadow=true;pit.receiveShadow=true;pitRoot.add(pit);pit.userData.solid=true;
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(15,.55,26),roofMat);roof.position.set(pitSide,5.05,0);roof.castShadow=true;pitRoot.add(roof);
       const doors=new THREE.InstancedMesh(new THREE.BoxGeometry(.18,2.4,3.2),glassMat,5),doorMatrix=new THREE.Matrix4();
-      for(let i=0;i<5;i++){doorMatrix.makeTranslation(pitSide-7.1,1.65,-22+i*5);doors.setMatrixAt(i,doorMatrix)}doors.instanceMatrix.needsUpdate=true;pitRoot.add(doors);
-      const tower=new THREE.Mesh(new THREE.BoxGeometry(5.5,10,7),pitMat);tower.position.set(pitSide+9.5,5,-8);tower.castShadow=true;pitRoot.add(tower);tower.userData.solid=true;
-      const towerGlass=new THREE.Mesh(new THREE.BoxGeometry(5.7,1.8,7.2),glassMat);towerGlass.position.set(pitSide+9.5,8.5,-8);pitRoot.add(towerGlass);
-      const gantry=new THREE.Group();gantry.position.z=18;gantry.userData.onTrack=true;[-1,1].forEach(side=>{const post=new THREE.Mesh(new THREE.BoxGeometry(.28,6,.28),pitMat);post.position.set(side*(CIRC_W/2+BARRIER_OFF+1),3,0);gantry.add(post)});
-      const bar=new THREE.Mesh(new THREE.BoxGeometry(CIRC_W+2*BARRIER_OFF+3,.42,.5),pitMat);bar.position.y=6;gantry.add(bar);
-      // F1-style start gantry: five lights, bigger now, driven by instanceColor so they can run a
-      // real red-build-up -> lights-out sequence each time you enter (see the circuit loop block).
-      lampMat.color.setHex(0xffffff);
-      const startLights=new THREE.InstancedMesh(new THREE.SphereGeometry(.42,10,8),lampMat,5),lightMatrix=new THREE.Matrix4();
-      for(let i=0;i<5;i++){lightMatrix.makeTranslation((i-2)*1.9,6.7,0);startLights.setMatrixAt(i,lightMatrix);if(startLights.setColorAt)startLights.setColorAt(i,new THREE.Color(0x3a0e0e))}
+      for(let i=0;i<5;i++){doorMatrix.makeTranslation(pitSide-7.1,1.65,-10+i*5);doors.setMatrixAt(i,doorMatrix)}doors.instanceMatrix.needsUpdate=true;pitRoot.add(doors);
+      const tower=new THREE.Mesh(new THREE.BoxGeometry(5.5,10,7),pitMat);tower.position.set(pitSide+9.5,5,4);tower.castShadow=true;pitRoot.add(tower);tower.userData.solid=true;
+      const towerGlass=new THREE.Mesh(new THREE.BoxGeometry(5.7,1.8,7.2),glassMat);towerGlass.position.set(pitSide+9.5,8.5,4);pitRoot.add(towerGlass);
+      root.add(pitRoot);
+      // the gantry: square across the road AT the line, legs outside the barriers, a truss over the full width
+      const gantry=new THREE.Group();gantry.position.set(S0.p.x,CIRC_Y+S0.y,S0.p.z);gantry.rotation.y=S0.yaw;gantry.userData.onTrack=true;
+      const span=CIRC_W/2+BARRIER_OFF+1.8,H=7.2,steel=M(0x2a2d33,{roughness:.5}),accent=M(theme.standTrim,{roughness:.55});ownedMats.push(steel,accent);
+      [-1,1].forEach(sd=>{const leg=new THREE.Mesh(new THREE.BoxGeometry(1.1,H+1.6,1.1),steel);leg.position.set(sd*span,(H+1.6)/2,0);leg.castShadow=!LOW;leg.userData.solid=true;gantry.add(leg);
+        const foot=new THREE.Mesh(new THREE.BoxGeometry(1.8,.5,1.8),accent);foot.position.set(sd*span,.25,0);gantry.add(foot);
+        // a flag on top of each leg
+        const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,2.6,6),steel);pole.position.set(sd*span,H+2.9,0);gantry.add(pole);
+        const fl=new THREE.Mesh(new THREE.PlaneGeometry(1.8,1.1),new THREE.MeshBasicMaterial({map:checkerTex(4,3),side:THREE.DoubleSide}));ownedMats.push(fl.material);fl.position.set(sd*span+sd*.95,H+3.6,0);fl.rotation.y=Math.PI/2;gantry.add(fl)});
+      const truss=new THREE.Mesh(new THREE.BoxGeometry(span*2+1.1,1.5,1.3),steel);truss.position.y=H+.4;truss.castShadow=!LOW;gantry.add(truss);
+      const stripe=new THREE.Mesh(new THREE.BoxGeometry(span*2+1.2,.28,1.36),accent);stripe.position.y=H-.25;gantry.add(stripe);
+      // START · FINISH board on both faces
+      {const c=document.createElement('canvas');c.width=1024;c.height=128;const g=c.getContext('2d');g.fillStyle='#111317';g.fillRect(0,0,1024,128);
+       for(let i=0;i<16;i++){g.fillStyle=i%2?'#f2f2f2':'#111317';g.fillRect(i*16,0,16,64);g.fillRect(1008-i*16,0,16,64);g.fillStyle=i%2?'#111317':'#f2f2f2';g.fillRect(i*16,64,16,64);g.fillRect(1008-i*16,64,16,64)}
+       g.fillStyle='#ffffff';g.font='bold 76px Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('START  ·  FINISH',512,68);
+       const tx=new THREE.CanvasTexture(c);tx.anisotropy=4;const bm=new THREE.MeshBasicMaterial({map:tx});ownedMats.push(bm);
+       for(const f of [1,-1]){const b=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(span*2-1,CIRC_W+2),Math.min(span*2-1,CIRC_W+2)/8),bm);b.position.set(0,H+.4,f*.67);b.rotation.y=f>0?0:Math.PI;gantry.add(b)}}
+      // five start lights hanging under the truss, facing the grid (behind the line)
+      const startLights=new THREE.InstancedMesh(new THREE.SphereGeometry(.42,12,10),lampMat,5),lightMatrix=new THREE.Matrix4();
+      const pod=new THREE.Mesh(new THREE.BoxGeometry(11,1.3,.9),steel);pod.position.set(0,H-1.2,-.3);gantry.add(pod);
+      for(let i=0;i<5;i++){lightMatrix.makeTranslation((i-2)*2.1,H-1.2,-.85);startLights.setMatrixAt(i,lightMatrix);if(startLights.setColorAt)startLights.setColorAt(i,new THREE.Color(0x3a0e0e))}
       startLights.instanceMatrix.needsUpdate=true;if(startLights.instanceColor)startLights.instanceColor.needsUpdate=true;gantry.add(startLights);startLightsIM=startLights;
-      pitRoot.add(gantry);root.add(pitRoot);
+      root.add(gantry);
     }
     /* ---------- professional venue dressing ----------
        Everything below turns the bare loop into a motorsport venue: starting grid, a main
@@ -5739,30 +5856,31 @@ const PLANETS={
       for(let i=0;i<SN*2;i++){const j=i%SN;if(turn[j]<.02){if(cLen===0)cStart=j;cLen++;if(cLen>bLen){bLen=cLen;bStart=cStart}}else cLen=0}
       const straightMid=(bStart+Math.floor(Math.min(bLen,SN)/2))%SN;
       // a bright sign/banner texture drawn procedurally (no external assets, no real brands)
-      const signTex=(word,bg,fg)=>{const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');
+      const signTex=(word,bg,fg)=>{const key=word+bg+fg;if(SIGN_CACHE.has(key))return SIGN_CACHE.get(key);const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');
         g.fillStyle=bg;g.fillRect(0,0,256,64);g.fillStyle=fg;g.font='bold 42px Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';
         g.fillText(word,128,36);g.strokeStyle=fg;g.lineWidth=4;g.strokeRect(6,6,244,52);
-        const t=new THREE.CanvasTexture(c);if(R&&R.capabilities&&R.capabilities.getMaxAnisotropy)t.anisotropy=Math.min(4,R.capabilities.getMaxAnisotropy());return t};
+        const t=new THREE.CanvasTexture(c);if(R&&R.capabilities&&R.capabilities.getMaxAnisotropy)t.anisotropy=Math.min(4,R.capabilities.getMaxAnisotropy());t.__shared=true;SIGN_CACHE.set(key,t);return t};
       const WORDS=['SPEED','TURBO','RACING','DRIVE','MOTORSPORT','GRAND PRIX','CIRCUIT','APEX','V12','NITRO','PODIUM','CHAMPIONSHIP'];
       const ADCOL=[[0xb8322f,0xffffff],[0x2f6f9e,0xffffff],[0xd4a83a,0x15140f],[0x3f8a56,0xffffff],[0x1a1a1e,0xf3a712],[0x5c4b8a,0xffffff]];
 
-      // --- starting grid + finish line: painted on the start straight, just above the road ---
+      // --- starting grid + finish line, painted on the road along the real track ---
       safe(()=>{
-        const yaw=Math.atan2(startP.tg.x,startP.tg.z),gridMat=addMat(new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.9,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3}));
-        const slots=8,slotGeo=new THREE.PlaneGeometry(1.1,3.4).rotateX(-Math.PI/2),gridIM=new THREE.InstancedMesh(slotGeo,gridMat,slots*2);root.add(gridIM);gridIM.userData.onTrack=true;
-        Q.setFromAxisAngle(up,yaw);let gi=0;
-        for(let r=0;r<slots;r++)for(const s of [-1,1]){
-          const back=-6-r*8,lane=s*(HALF*.5);
-          const off=new THREE.Vector3(lane,0,back).applyQuaternion(Q);
-          P.set(startP.p.x+off.x,GY+.12,startP.p.z+off.z);MX.compose(P,Q,SC);gridIM.setMatrixAt(gi++,MX)}
-        gridIM.instanceMatrix.needsUpdate=true;
-        // chequered finish band across the road
-        {const ct=checkerTex(Math.round(CIRC_W/.55),3),cm=addMat(new THREE.MeshLambertMaterial({map:ct,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
-         const band=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,3*.55+.2).rotateX(-Math.PI/2),cm);band.quaternion.copy(Q);
-         const off=new THREE.Vector3(0,0,.75).applyQuaternion(Q);band.position.set(startP.p.x+off.x,GY+.13,startP.p.z+off.z);band.receiveShadow=true;band.userData.onTrack=true;root.add(band)}});
+        const gridMat=addMat(new THREE.MeshBasicMaterial({color:0xf2eee6,transparent:true,opacity:.92,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3}));
+        // one box per car, staggered like a real grid; the same spots RaceEngine spawns at (6 m + 7.5 m per slot, alternate sides)
+        const slots=8,frontGeo=new THREE.PlaneGeometry(2.8,.32).rotateX(-Math.PI/2),sideGeo=new THREE.PlaneGeometry(.26,2.2).rotateX(-Math.PI/2);
+        const fIM=new THREE.InstancedMesh(frontGeo,gridMat,slots),sIM=new THREE.InstancedMesh(sideGeo,gridMat,slots*2);fIM.userData.onTrack=sIM.userData.onTrack=true;root.add(fIM,sIM);
+        let si=0;
+        for(let i=0;i<slots;i++){const back=6+i*7.5-2.4,a=alongT(-back),side=(i%2===0?1:-1)*CIRC_W*.28,x=a.p.x+a.nx*side,z=a.p.z+a.nz*side;
+          Q.setFromAxisAngle(up,a.yaw);P.set(x,GY+.13+a.y,z);MX.compose(P,Q,SC);fIM.setMatrixAt(i,MX);
+          for(const sx of [-1,1]){P.set(x+a.nx*sx*1.27-a.tx*1.1,GY+.13+a.y,z+a.nz*sx*1.27-a.tz*1.1);MX.compose(P,Q,SC);sIM.setMatrixAt(si++,MX)}}
+        fIM.instanceMatrix.needsUpdate=sIM.instanceMatrix.needsUpdate=true;
+        // the line itself: a chequered band across the full width, square to the road at u = 0 (under the gantry)
+        {const S0=alongT(0),ct=checkerTex(Math.round(CIRC_W/.55),3),cm=addMat(new THREE.MeshLambertMaterial({map:ct,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+         const band=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,3*.55+.2).rotateX(-Math.PI/2),cm);band.rotation.y=S0.yaw;
+         band.position.set(S0.p.x,GY+.13+S0.y,S0.p.z);band.receiveShadow=true;band.userData.onTrack=true;root.add(band)}});
 
       // --- main grandstand: larger, multi-tier, opposite the pits on the start straight, + a big screen ---
-      safe(()=>{
+      JOB(()=>safe(()=>{
         const n=startP.n,sgn=1,base=HALF+20;                 // pit box sits on the other side (-n), so put the main stand on +n
         const mx0=startP.p.x+n.x*sgn*base,mz0=startP.p.z+n.z*sgn*base,yaw=Math.atan2(startP.p.x-mx0,startP.p.z-mz0);
         const g=new THREE.Group();g.position.set(mx0,GY,mz0);g.rotation.y=yaw;root.add(g);
@@ -5788,10 +5906,10 @@ const PLANETS={
         // sponsor band along the stand front
         safe(()=>{const w=ADCOL[(seeded()*ADCOL.length)|0];const band=addMat(new THREE.MeshBasicMaterial({map:signTex(WORDS[(seeded()*WORDS.length)|0],'#'+w[0].toString(16).padStart(6,'0'),'#'+w[1].toString(16).padStart(6,'0')),side:THREE.DoubleSide}));
           const b=new THREE.Mesh(new THREE.PlaneGeometry(44,2.2),band);b.position.set(0,1.4,4.6);g.add(b)});
-      });
+      }));
 
       // --- race-control / timing tower near the start, set back on the pit side ---
-      safe(()=>{
+      JOB(()=>safe(()=>{
         const n=startP.n,base=HALF+26,tx=startP.p.x-n.x*base,tz=startP.p.z-n.z*base;
         const g=new THREE.Group();g.position.set(tx,GY,tz);g.rotation.y=Math.atan2(startP.p.x-tx,startP.p.z-tz);root.add(g);
         const bodyMat=addMat(M(theme.stand)),glassMat=addMat(M(0x9db9c1)),winMat=addMat(new THREE.MeshBasicMaterial({color:0x2a3138}));
@@ -5802,20 +5920,20 @@ const PLANETS={
         // timing board facing the straight
         safe(()=>{const scr=addMat(new THREE.MeshBasicMaterial({map:signTex('P1  1:23.4','#0a0a0a','#f3a712'),side:THREE.DoubleSide}));
           const b=new THREE.Mesh(new THREE.PlaneGeometry(6,1.6),scr);b.position.set(0,24,4.6);g.add(b)});
-      });
+      }));
 
       // --- tyre barriers: stacked tyres on the OUTSIDE of every corner ---
-      safe(()=>{
+      JOB(()=>safe(()=>{
         const rubber=addMat(M(0x1b1a18)),cap=corners.length*22;if(!cap)return;
         const tyreGeo=new THREE.CylinderGeometry(.75,.75,.55,10).rotateX(Math.PI/2);  // lay the tyre flat-faced toward the track
         const im=new THREE.InstancedMesh(tyreGeo,rubber,cap);im.castShadow=!LOW;root.add(im);let k=0;
         corners.forEach(ci=>{for(let d=-4;d<=4;d+=2){const i=(ci+d+SN)%SN,a=SA[i],s=outSide(i),off=HALF+BARRIER_OFF+1.6;
           const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.tg.x,a.tg.z);Q.setFromAxisAngle(up,yaw);
           for(let row=0;row<2&&k<cap;row++){P.set(bx,GY+.4+row*.58,bz);MX.compose(P,Q,SC);im.setMatrixAt(k++,MX)}}});
-        im.count=k;im.instanceMatrix.needsUpdate=true});
+        im.count=k;im.instanceMatrix.needsUpdate=true}));
 
       // --- debris fencing: posts + a faint mesh panel on the spectator side, all the way round ---
-      safe(()=>{
+      JOB(()=>safe(()=>{
         const postMat=addMat(M(0x3a3a3a)),meshMat=addMat(new THREE.MeshBasicMaterial({color:0xb9bcc2,transparent:true,opacity:.14,side:THREE.DoubleSide}));
         const fenceN=Math.max(24,Math.round(L/16)),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,4,.16),postMat,fenceN);postIM.castShadow=!LOW;root.add(postIM);
         const panelGeo=new THREE.PlaneGeometry(1,3.4),panelIM=new THREE.InstancedMesh(panelGeo,meshMat,fenceN);root.add(panelIM);let fn=0;
@@ -5826,10 +5944,10 @@ const PLANETS={
           // tangent (fence parallel to the track) and its normal faces the track, not across it
           const seg=L/fenceN,Qp=new THREE.Quaternion().setFromAxisAngle(up,yaw+Math.PI/2);
           P.set(bx,GY+2.2,bz);SC.set(seg,1,1);MX.compose(P,Qp,SC);panelIM.setMatrixAt(fn,MX);SC.set(1,1,1);fn++}
-        postIM.count=fn;panelIM.count=fn;postIM.instanceMatrix.needsUpdate=true;panelIM.instanceMatrix.needsUpdate=true});
+        postIM.count=fn;panelIM.count=fn;postIM.instanceMatrix.needsUpdate=true;panelIM.instanceMatrix.needsUpdate=true}));
 
       // --- marshal posts at corners: a little booth with a bright flag ---
-      safe(()=>{
+      JOB(()=>safe(()=>{
         const booth=addMat(M(0xd9d4c6)),roofMat=addMat(M(0xb8322f)),flagMat=addMat(new THREE.MeshBasicMaterial({color:0xf3a712,side:THREE.DoubleSide}));
         const picks=corners.slice(0,LOW?5:10);
         picks.forEach(ci=>{const a=SA[ci],s=outSide(ci),off=HALF+10;const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.p.x-bx+a.tg.x,a.p.z-bz+a.tg.z);
@@ -5837,38 +5955,38 @@ const PLANETS={
           const b=new THREE.Mesh(new THREE.BoxGeometry(2.4,2.2,1.6),booth);b.position.y=1.1;b.castShadow=!LOW;g.add(b);
           const rf=new THREE.Mesh(new THREE.BoxGeometry(2.7,.3,1.9),roofMat);rf.position.y=2.35;g.add(rf);
           const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,3,6),booth);pole.position.set(1.4,1.5,0);g.add(pole);
-          const fl=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.7),flagMat);fl.position.set(1.95,2.6,0);g.add(fl)})});
+          const fl=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.7),flagMat);fl.position.set(1.95,2.6,0);g.add(fl)})}));
 
       // --- camera towers at the hardest corners and the main straight ---
-      safe(()=>{
+      JOB(()=>safe(()=>{
         const poleMat=addMat(M(0x2a2a2a)),camMat=addMat(M(0x15140f)),lens=addMat(new THREE.MeshBasicMaterial({color:0x5cf2ff}));
         const picks=corners.slice(0,LOW?3:6).concat([straightMid]);
         picks.forEach(ci=>{const a=SA[ci],s=outSide(ci),off=HALF+11;const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off;
           const g=new THREE.Group();g.position.set(bx,GY,bz);g.rotation.y=Math.atan2(a.p.x-bx,a.p.z-bz);root.add(g);
           const pole=new THREE.Mesh(new THREE.CylinderGeometry(.14,.2,9,8),poleMat);pole.position.y=4.5;pole.castShadow=!LOW;g.add(pole);
           const cam=new THREE.Mesh(new THREE.BoxGeometry(.9,.7,1.4),camMat);cam.position.set(0,9.2,.4);g.add(cam);
-          const l=new THREE.Mesh(new THREE.CircleGeometry(.22,10),lens);l.position.set(0,9.2,1.12);g.add(l)})});
+          const l=new THREE.Mesh(new THREE.CircleGeometry(.22,10),lens);l.position.set(0,9.2,1.12);g.add(l)})}));
 
       // --- advertising hoardings around the barrier ring + on the main straight edge ---
-      safe(()=>{
+      JOB(()=>safe(()=>{
         const adN=LOW?8:14;
         for(let i=0;i<adN;i++){safe(()=>{const w=ADCOL[(seeded()*ADCOL.length)|0],word=WORDS[(seeded()*WORDS.length)|0];
           const mat=addMat(new THREE.MeshBasicMaterial({map:signTex(word,'#'+w[0].toString(16).padStart(6,'0'),'#'+w[1].toString(16).padStart(6,'0')),side:THREE.DoubleSide}));
           const ang=i/adN*Math.PI*2,rr=r0-2,bx=cx+Math.cos(ang)*rr,bz=cz+Math.sin(ang)*rr;
           const b=new THREE.Mesh(new THREE.PlaneGeometry(10,2.4),mat);b.position.set(bx,GY+1.4,bz);b.rotation.y=Math.atan2(cx-bx,cz-bz);root.add(b);
-          const legMat=addMat(M(0x3a3a3a));const leg=new THREE.Mesh(new THREE.BoxGeometry(10,.3,.3),legMat);leg.position.set(bx,GY+.25,bz);leg.rotation.y=b.rotation.y;root.add(leg)})}});
+          const legMat=addMat(M(0x3a3a3a));const leg=new THREE.Mesh(new THREE.BoxGeometry(10,.3,.3),legMat);leg.position.set(bx,GY+.25,bz);leg.rotation.y=b.rotation.y;root.add(leg)})}}));
 
       // --- sponsor bridge spanning the main straight ---
-      safe(()=>{
+      JOB(()=>safe(()=>{
         const a=SA[straightMid],s=HALF+BARRIER_OFF+2,legMat=addMat(M(theme.stand)),w=ADCOL[(seeded()*ADCOL.length)|0];
         const g=new THREE.Group();g.position.copy(a.p);g.position.y=GY;g.rotation.y=Math.atan2(a.tg.x,a.tg.z);root.add(g);g.userData.onTrack=true;
         [-1,1].forEach(sd=>{const leg=new THREE.Mesh(new THREE.BoxGeometry(1.4,9,1.4),legMat);leg.position.set(sd*s,4.5,0);leg.castShadow=!LOW;g.add(leg);leg.userData.solid=true});
         const beam=new THREE.Mesh(new THREE.BoxGeometry(2*s+3,2.2,2.6),legMat);beam.position.y=9.5;beam.castShadow=!LOW;g.add(beam);
         safe(()=>{const mat=addMat(new THREE.MeshBasicMaterial({map:signTex(WORDS[(seeded()*WORDS.length)|0],'#'+w[0].toString(16).padStart(6,'0'),'#'+w[1].toString(16).padStart(6,'0')),side:THREE.DoubleSide}));
-          const b=new THREE.Mesh(new THREE.PlaneGeometry(2*s+2,1.8),mat);b.position.set(0,9.5,1.35);g.add(b)})});
+          const b=new THREE.Mesh(new THREE.PlaneGeometry(2*s+2,1.8),mat);b.position.set(0,9.5,1.35);g.add(b)})}));
 
       // --- outer car park: an asphalt apron dotted with parked cars, out past the stands ---
-      safe(()=>{
+      JOB(()=>safe(()=>{
         const n=startP.n,base=r0+34,px=cx+n.x*base,pz=cz+n.z*base;
         const lotMat=addMat(M(0x2b2a27)),lot=new THREE.Mesh(new THREE.PlaneGeometry(70,46).rotateX(-Math.PI/2),lotMat);lot.position.set(px,GY+.02,pz);lot.receiveShadow=true;root.add(lot);
         const CARS=LOW?28:54,carMat=addMat(M(0xffffff)),carIM=new THREE.InstancedMesh(new THREE.BoxGeometry(2,1.3,4.3),carMat,CARS);carIM.castShadow=!LOW;root.add(carIM);
@@ -5880,8 +5998,9 @@ const PLANETS={
         carIM.instanceMatrix.needsUpdate=true;if(carIM.instanceColor)carIM.instanceColor.needsUpdate=true;
         // a short service road linking the lot back toward the venue
         const srMat=addMat(M(0x44423c)),sr=new THREE.Mesh(new THREE.PlaneGeometry(7,40).rotateX(-Math.PI/2),srMat);
-        sr.position.set(cx+n.x*(r0+6),GY+.03,cz+n.z*(r0+6));sr.lookAt(px,GY,pz);sr.rotateX(-Math.PI/2);root.add(sr)});
+        sr.position.set(cx+n.x*(r0+6),GY+.03,cz+n.z*(r0+6));sr.lookAt(px,GY,pz);sr.rotateX(-Math.PI/2);root.add(sr)}));
     }
+    BT('venue dressing');
     /* ---------- obstacles placed in the editor: speed breakers, roadblocks, ramps ----------
        Built along the real road (heading + slope), tagged as on-track so the clearance pass keeps
        them, and given solid boxes below. u is position round the lap, s is -1 left / 0 middle / 1 right. */
@@ -5909,11 +6028,17 @@ const PLANETS={
          for(const sx of [-1,1]){const side=new THREE.Mesh(new THREE.BoxGeometry(.25,Math.sin(ang)*len,len*.98),stripe);side.position.set(sx*(w/2+.12),.12+Math.sin(ang)*len/2,0);g.add(side)}
        }});
     }
-    /* ---------- keep the racing surface clear ----------
-       Every prop was placed relative to ONE point of the track, so on a twisty loop another part of
-       the track could run straight through it. Sample each prop's real footprint against the whole
-       lap and remove anything that touches the road (trackside items need .6 m, buildings 5 m). */
-    root.updateMatrixWorld(true);
+    BT('obstacles');
+    /* ---------- placement passes ----------
+       Run once over the road-and-start build below, then again after every batch of streamed decoration; each pass
+       only looks at objects it has not handled yet (userData.ck / .st / .sb), so nothing is cleared, lifted or given
+       a body twice.
+       clear: every prop was placed relative to ONE point of the track, so on a twisty loop another part of the track
+         could run straight through it. Each prop's real footprint is sampled against the whole lap and anything that
+         touches the road goes (trackside items need .6 m, buildings 1.4 m past the barrier line).
+       settle: props are laid out at the flat base height; on hilly venues each is lifted onto the ground under it.
+       solids: grandstands, pits, towers, bridge legs and obstacles get a matching static box, so nothing can be
+         driven through. */
     const HALFW=CIRC_W/2,isTagged=(o,key)=>{for(let q=o;q&&q!==root;q=q.parent)if(q.userData&&q.userData[key])return true;return false};
     const fpPt=new THREE.Vector3(),fpA=new THREE.Vector3(),fpB=new THREE.Vector3(),fpM=new THREE.Matrix4(),fpI=new THREE.Matrix4(),ZERO=new THREE.Matrix4().makeScale(0,0,0);
     const footprintHits=(geo,mw)=>{
@@ -5924,42 +6049,60 @@ const PLANETS={
       for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){fpPt.set(b.min.x+sx*i/(nx-1),my,b.min.z+sz*j/(nz-1)).applyMatrix4(mw);
         if(trackDist(fpPt.x,fpPt.z,clear+2)<clear)return true}
       return false};
-    let removed=0;
-    root.traverse(o=>{
-      if(!(o.isMesh)||!o.visible||isTagged(o,'onTrack')||o.userData.linkedChild)return;
-      if(o.isInstancedMesh){
-        for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);fpM.multiplyMatrices(o.matrixWorld,fpI);
-          let hit=footprintHits(o.geometry,fpM);
-          const links=o.userData.links||[];
-          if(!hit)for(const L of links){for(let k=0;k<L.per&&!hit;k++){const ii=i*L.per+k;if(ii>=L.im.count)break;L.im.getMatrixAt(ii,fpI);fpM.multiplyMatrices(L.im.matrixWorld,fpI);hit=footprintHits(L.im.geometry,fpM)}if(hit)break}
-          if(hit){o.setMatrixAt(i,ZERO);removed++;for(const L of links)for(let k=0;k<L.per;k++){const ii=i*L.per+k;if(ii<L.im.count)L.im.setMatrixAt(ii,ZERO)}}}
-        o.instanceMatrix.needsUpdate=true;(o.userData.links||[]).forEach(L=>L.im.instanceMatrix.needsUpdate=true);
-      }else if(footprintHits(o.geometry,o.matrixWorld)){o.visible=false;o.userData.cleared=true;removed++}});
-    /* ---------- settle everything onto the hills ----------
-       Props were laid out at the flat base height; lift or lower each one by the ground height under it. */
-    if(ELEV){
-      root.children.forEach(o=>{if(o.userData.fixedY)return;
-        if(o.isInstancedMesh){for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);const e=fpI.elements;if(e[0]===0&&e[5]===0&&e[10]===0)continue;e[13]+=groundAt(e[12],e[14])-CIRC_Y;o.setMatrixAt(i,fpI)}o.instanceMatrix.needsUpdate=true}
-        else o.position.y+=groundAt(o.position.x,o.position.z)-CIRC_Y});
-      wallBodies.forEach(b=>{b.position.y+=groundAt(b.position.x,b.position.z)-CIRC_Y});
-      root.updateMatrixWorld(true);
-    }
-    /* ---------- collision for the big structures and the obstacles ----------
-       Grandstands, pits, towers, bridge legs, barriers and ramps get a matching static box (same
-       position, rotation and size as what you see), so nothing can be driven through. */
-    const solidBodies=[],sbQ=new THREE.Quaternion(),sbP=new THREE.Vector3(),sbS=new THREE.Vector3(),sbC=new THREE.Vector3();
+    let removed=0;const solidBodies=[],sbQ=new THREE.Quaternion(),sbP=new THREE.Vector3(),sbS=new THREE.Vector3(),sbC=new THREE.Vector3();
     const addSolid=(mw,hx0,hy0,hz0,center)=>{mw.decompose(sbP,sbQ,sbS);const c=center?center.clone().applyMatrix4(mw):sbP;
-      const hxs=hx0*Math.abs(sbS.x),hys=hy0*Math.abs(sbS.y),hzs=hz0*Math.abs(sbS.z);if(!(hxs>0&&hys>0&&hzs>0))return;
-      const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(hxs,hys,hzs)));b.position.set(c.x,c.y,c.z);b.quaternion.set(sbQ.x,sbQ.y,sbQ.z,sbQ.w);world.addBody(b);solidBodies.push(b)};
-    root.traverse(o=>{
-      if(!o.isMesh||!o.visible)return;let hidden=false;for(let q=o;q&&q!==root;q=q.parent)if(!q.visible){hidden=true;break}if(hidden)return;
-      if(o.userData.solid){if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const bb=o.geometry.boundingBox;bb.getCenter(sbC);addSolid(o.matrixWorld,(bb.max.x-bb.min.x)/2,(bb.max.y-bb.min.y)/2,(bb.max.z-bb.min.z)/2,sbC)}
-      if(o.userData.solidSpan){const sp=o.userData.solidSpan,m=o.matrixWorld.clone().multiply(new THREE.Matrix4().makeTranslation(sp.ox,0,0));addSolid(m,sp.hx,sp.hy,sp.hz)}
-      if(o.isInstancedMesh&&o.userData.solidInst){const si=o.userData.solidInst;for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);const e=fpI.elements;if(e[0]===0&&e[5]===0&&e[10]===0)continue;
-        fpM.multiplyMatrices(o.matrixWorld,fpI).multiply(new THREE.Matrix4().makeTranslation(0,si.yo,0));addSolid(fpM,si.hx,si.hy,si.hz)}}});
-    stadiumBodies=stadiumBodies.concat(solidBodies);
-    circuit={hazeTo:circuit_hazeFn,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies),liftAt,roadY,bridges:BRIDGES.length,lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,cleared:removed};
+      const hxs=hx0*Math.abs(sbS.x),hys=hy0*Math.abs(sbS.y),hzs=hz0*Math.abs(sbS.z);if(!(hxs>0&&hys>0&&hzs>0))return null;
+      const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(hxs,hys,hzs)));b.position.set(c.x,c.y,c.z);b.quaternion.set(sbQ.x,sbQ.y,sbQ.z,sbQ.w);world.addBody(b);solidBodies.push(b);return b};
+    function passes(){
+      const fresh=[];
+      root.updateMatrixWorld(true);
+      root.traverse(o=>{
+        if(!o.isMesh||o.userData.ck)return;o.userData.ck=true;
+        if(!o.visible||isTagged(o,'onTrack')||o.userData.linkedChild)return;
+        if(o.isInstancedMesh){
+          for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);fpM.multiplyMatrices(o.matrixWorld,fpI);
+            let hit=footprintHits(o.geometry,fpM);
+            const links=o.userData.links||[];
+            if(!hit)for(const L of links){for(let k=0;k<L.per&&!hit;k++){const ii=i*L.per+k;if(ii>=L.im.count)break;L.im.getMatrixAt(ii,fpI);fpM.multiplyMatrices(L.im.matrixWorld,fpI);hit=footprintHits(L.im.geometry,fpM)}if(hit)break}
+            if(hit){o.setMatrixAt(i,ZERO);removed++;for(const L of links)for(let k=0;k<L.per;k++){const ii=i*L.per+k;if(ii<L.im.count)L.im.setMatrixAt(ii,ZERO)}}}
+          o.instanceMatrix.needsUpdate=true;(o.userData.links||[]).forEach(L=>L.im.instanceMatrix.needsUpdate=true);
+        }else if(footprintHits(o.geometry,o.matrixWorld)){o.visible=false;o.userData.cleared=true;removed++}});
+      if(ELEV){
+        root.children.forEach(o=>{if(o.userData.fixedY||o.userData.st)return;o.userData.st=true;
+          if(o.isInstancedMesh){for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);const e=fpI.elements;if(e[0]===0&&e[5]===0&&e[10]===0)continue;e[13]+=groundAt(e[12],e[14])-CIRC_Y;o.setMatrixAt(i,fpI)}o.instanceMatrix.needsUpdate=true}
+          else o.position.y+=groundAt(o.position.x,o.position.z)-CIRC_Y});
+        root.updateMatrixWorld(true)}
+      root.traverse(o=>{
+        if(!o.isMesh||o.userData.sb)return;o.userData.sb=true;if(!o.visible)return;for(let q=o;q&&q!==root;q=q.parent)if(!q.visible)return;
+        const add=b=>{if(b)fresh.push(b)};
+        if(o.userData.solid){if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const bb=o.geometry.boundingBox;bb.getCenter(sbC);add(addSolid(o.matrixWorld,(bb.max.x-bb.min.x)/2,(bb.max.y-bb.min.y)/2,(bb.max.z-bb.min.z)/2,sbC))}
+        if(o.userData.solidSpan){const sp=o.userData.solidSpan,m=o.matrixWorld.clone().multiply(new THREE.Matrix4().makeTranslation(sp.ox,0,0));add(addSolid(m,sp.hx,sp.hy,sp.hz))}
+        if(o.isInstancedMesh&&o.userData.solidInst){const si=o.userData.solidInst;for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);const e=fpI.elements;if(e[0]===0&&e[5]===0&&e[10]===0)continue;
+          fpM.multiplyMatrices(o.matrixWorld,fpI).multiply(new THREE.Matrix4().makeTranslation(0,si.yo,0));add(addSolid(fpM,si.hx,si.hy,si.hz))}}});
+      return fresh}
+    // the walls were laid at the base height too
+    if(ELEV)wallBodies.forEach(b=>{b.position.y+=groundAt(b.position.x,b.position.z)-CIRC_Y});
+    passes();
+    BT('passes');
+    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
     if(window.RaceEngine){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
+    /* the rest streams in: a few milliseconds of jobs per frame, each batch run through the passes as it lands;
+       when the queue is empty every prop set is cut into culled, distance-limited cells. Leaving (or rebuilding)
+       before it finishes simply stops it: the jobs check that this is still the live circuit. */
+    const me=circuit,haze0=new THREE.Color(theme.fog);
+    if(window.VenueDecor)JOBS.push(...window.VenueDecor.jobs({THREE,root,theme,seeded,M,addMat:m=>{ownedMats.push(m);return m},LOW,CIRC_W,BARRIER_OFF,CIRC_Y,TL,cx,cz,r0,
+      alongT,trackDist,gy:(x,z)=>CIRC_Y+visH(x,z),ground:(x,z)=>(ELEV?groundAt(x,z):CIRC_Y)+visH(x,z),noise2,startP}));
+    let ji=0;
+    const pumpJobs=()=>{
+      if(circuit!==me)return;                       // left or rebuilt: drop the rest
+      const t0=performance.now();
+      while(ji<JOBS.length&&performance.now()-t0<7){try{JOBS[ji++]()}catch(e){console.warn('venue job skipped:',e&&e.message)}}
+      const fresh=passes();if(fresh.length)me.bodies.push(...fresh);
+      if(ji<JOBS.length){requestAnimationFrame(pumpJobs);return}
+      if(circuit_hazeFn)circuit_hazeFn(S.fog?S.fog.color:haze0);
+      me.LODCELLS=chunkInstances(root);me.built=true;
+      if(window.__dev)window.__buildDone=performance.now()};
+    requestAnimationFrame(pumpJobs);
     return circuit}
   /* On a venue the camera sees 1.8 km and the venue sits ~1.5 km from the valley, so the whole Earth map
      (traffic, herds, buildings) was still being drawn behind every lap: hundreds of draw calls of
@@ -5970,6 +6113,13 @@ const PLANETS={
     if(worldHidden||!circuit)return;worldHidden=[];
     const cx=circuit.startP?circuit.startP.p.x:0,cz=circuit.startP?circuit.startP.p.z:CIRC_Z,box=new THREE.Box3(),ctr=new THREE.Vector3();
     // things that follow the car or camera (particles, dust, smoke, skid marks, sky) are never hidden
+    /* always-drawn instanced props (the valley's forest, rocks, herds) were skipped here, so ~150k triangles of
+       trees 1.5 km away were drawn - and shadowed - on every frame of a lap. They go too, unless an instance sits
+       near the venue or the mesh is empty (skid marks and other pools that fill in around the car) */
+    const im4=new THREE.Matrix4();
+    for(const c of S.children){if(!c.isInstancedMesh||c.frustumCulled!==false||c===circuit.root||c.layers.mask!==1)continue;
+      if(!c.count)continue;let near=false;for(let i=0;i<c.count&&!near;i++){c.getMatrixAt(i,im4);const e=im4.elements;if(Math.hypot(e[12]-cx,e[14]-cz)<900)near=true}
+      if(!near){c.layers.set(1);worldHidden.push(c)}}
     for(const c of S.children){if(c===circuit.root||c===car||c.isLight||c.isPoints||c.isSprite||c.isInstancedMesh&&c.frustumCulled===false||c.frustumCulled===false||c===sky)continue;
       box.setFromObject(c);if(box.isEmpty())continue;box.getCenter(ctr);
       if(Math.hypot(ctr.x-cx,ctr.z-cz)<900)continue;
@@ -5996,7 +6146,10 @@ const PLANETS={
     worldGSave=world.gravity.y;
     world.gravity.y=(th.gravity!=null)?th.gravity:worldGSave;
     if(!worldWeatherSave)worldWeatherSave={lock:wxLock,id:wx.id};
-    const venue=circuit.venue||{},weather=WEATHERS.some(w=>w.id===venue.weather)?venue.weather:'day',time=WEATHERS.some(w=>w.id===venue.time)?venue.time:'day';
+    const venue=circuit.venue||{};let weather=WEATHERS.some(w=>w.id===venue.weather)?venue.weather:'day',time=WEATHERS.some(w=>w.id===venue.time)?venue.time:'day';
+    // the theme sets the scene where weather would contradict it: no rain on the Moon, and a snow venue snows
+    if(th.id==='moon'){weather='day';time='night'}
+
     setWeather(weather,true);
     if(time!==weather){mood(time,.8);const weatherTarget=wxOf(weather);wxB.part=weatherTarget.part;wxB.slip=weatherTarget.slip;wxB.dust=weatherTarget.dust}
     // kick off the start-light sequence, and hide the (Earth-only) mission card while racing here
@@ -6028,7 +6181,8 @@ const PLANETS={
     function curvature(){const Cc=circuit,N=Cc.CN,ds=Cc.curve.getLength()/N;curv=new Float32Array(N);
       for(let i=0;i<N;i++){const a=Cc.curve.getTangentAt(((i-1+N)%N)/N),b=Cc.curve.getTangentAt(((i+1)%N)/N),la=Math.hypot(a.x,a.z)||1,lb=Math.hypot(b.x,b.z)||1;
         curv[i]=Math.acos(Math.max(-1,Math.min(1,(a.x*b.x+a.z*b.z)/(la*lb))))/(2*ds)}}
-    function clear(){cars.forEach(c=>{if(c.car.g.parent)c.car.g.parent.remove(c.car.g);try{world.removeBody(c.bd)}catch(e){}});cars=[];on=false;boardSet=false}
+    // the rivals' bodies are built fresh every race: free their geometry too, or every rebuild leaked ~70 buffers
+    function clear(){cars.forEach(c=>{if(c.car.g.parent)c.car.g.parent.remove(c.car.g);c.car.g.traverse(o=>{if(o.geometry)o.geometry.dispose()});try{world.removeBody(c.bd)}catch(e){}});cars=[];on=false;boardSet=false}
     function start(n){
       clear();if(!circuit||!window.RaceEngine)return;curvature();laps=window.RaceEngine.totalLaps||3;
       const Cc=circuit,L=Cc.curve.getLength(),W=CIRC_W;
@@ -6091,7 +6245,7 @@ const PLANETS={
     const RE=window.RaceEngine;RE.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps:circuit.daily?DAILY_LAPS:lapsCfg(),roadWidth:CIRC_W});RE.isDaily=!!circuit.daily;RE.dailyDate=circuit.dailyDate||null;
     RE.closeResultsModal();
     circuit.lightsDone=false;circuit.lightsStart=performance.now();circuit.cdN=0;
-    RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:circuit.startP.tg})});CAI.start(3)}
+    RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:sp.tangent||circuit.startP.tg})});CAI.start(3)}
   window.restartSoloRace=restartSoloRace;
   const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
   const circCx=circCv?circCv.getContext('2d'):null;
@@ -7177,7 +7331,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
