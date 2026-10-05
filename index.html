@@ -6,6 +6,12 @@
 <title>Drive</title>
 <meta name="description" content="A small driving game that runs in your browser. One loop, a stunt park, a volcano, a UFO and a bowling lane.">
 <meta name="theme-color" content="#06070b">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Drive">
+<link rel="apple-touch-icon" href="assets/icon.svg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2306070b'/%3E%3Cpath d='M6 20l3-7h14l3 7v4H6z' fill='%23f2eee6'/%3E%3Ccircle cx='11' cy='24' r='3' fill='%2306070b' stroke='%23f2eee6' stroke-width='2'/%3E%3Ccircle cx='21' cy='24' r='3' fill='%2306070b' stroke='%23f2eee6' stroke-width='2'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -412,6 +418,51 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23b9bec8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 12px center!important}
 #dcircopts input{padding-right:12px!important;background-image:none!important}
 @media (prefers-reduced-motion:reduce){.dbtn,.gg-arr{transition:none}}
+
+/* ===== phones & tablets: big driving controls, compact everything else ===== */
+#dboost{width:58px;height:44px;border-radius:22px;color:var(--paper);font-size:9px;letter-spacing:.08em;background:rgba(17,18,22,.5);box-shadow:inset 0 0 0 1px var(--hair3),0 10px 24px rgba(0,0,0,.3);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+#dboost.dn{background:#4d8dff;color:#06070b}
+#dmob{--tcb:1;--tcu:1}
+#dmob.sz-s{--tcu:.8}#dmob.sz-l{--tcu:1.2}
+@media (max-height:420px){#dmob{--tcb:.88}}
+@media (orientation:portrait) and (max-width:440px){#dmob{--tcb:.8}}
+@media (orientation:portrait) and (max-width:365px){#dmob{--tcb:.72}}
+#drive.touch .dsteer{left:max(14px,env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));gap:14px;align-items:flex-end;transform-origin:left bottom;transform:scale(calc(var(--tcb)*var(--tcu)))}
+#drive.touch .dped{right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:auto auto;grid-template-areas:"bst gas" "brk gas";gap:12px;align-items:end;justify-items:center;transform-origin:right bottom;transform:scale(calc(var(--tcb)*var(--tcu)))}
+#drive.touch .dsteer button{width:86px;height:86px}
+#drive.touch .dsteer svg{width:38px;height:38px}
+#drive.touch #dbrk{grid-area:brk;width:78px;height:78px;font-size:11px}
+#drive.touch #dboost{grid-area:bst;width:78px;height:46px}
+#drive.touch #dgas{grid-area:gas;width:96px;height:136px;border-radius:48px;font-size:13px}
+#drive.touch #dmob.gyro .dsteer button:not(#dbrk){display:none}
+#drive.touch #dmob.gyro #dbrk{width:96px;height:136px;border-radius:48px;font-size:12px}
+/* top-right: smaller map and menu button */
+#drive.touch .dright{right:max(12px,env(safe-area-inset-right,0px));top:calc(10px + env(safe-area-inset-top,0px));gap:8px}
+#drive.touch #dmap{width:84px;height:84px}
+#drive.touch #dmenu{padding:8px 14px;font-size:10px}
+#drive.touch .dbr{bottom:calc(174px + env(safe-area-inset-bottom,0px))}
+#drive.touch #dspeed{font-size:24px}
+/* the menu: a compact sheet, three across, labels never cut off; controls hide while it is open */
+#drive.touch .drow{position:fixed;margin:0;z-index:40;max-width:none;overflow-y:auto;overscroll-behavior:contain;grid-template-columns:repeat(3,minmax(0,1fr));padding:10px!important;gap:6px!important}
+#drive.touch .drow .dbtn,#drive.touch .drow .dmode{grid-column:auto;font-size:9.5px;letter-spacing:.03em;padding:8px 4px;min-height:38px;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.15;text-align:center}
+#drive.touch .drow .dmsec{font-size:8.5px!important;padding-top:4px}
+#drive.touch:has(#drow.open) #dmob,#drive.touch:has(#dwx.on) #dmob{visibility:hidden}
+#drive.touch #dwx{position:fixed;margin:0;z-index:41;max-width:none;padding:10px}
+#drive.touch .dright:has(#dwx.on) .drow{display:none}
+#drive.touch #dwxl{justify-content:center}
+#drive.touch #dwxl button{padding:9px 12px;font-size:10px}
+@media (orientation:portrait){
+  #drive.touch .drow,#drive.touch #dwx{left:12px;right:12px;width:auto;top:calc(150px + env(safe-area-inset-top,0px));max-height:calc(100dvh - 164px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+  #drive.touch #dwx{overflow-y:auto}
+}
+@media (orientation:landscape){
+  #drive.touch #dmap{width:76px;height:76px}
+  #drive.touch .drow,#drive.touch #dwx{top:calc(8px + env(safe-area-inset-top,0px));right:calc(max(12px,env(safe-area-inset-right,0px)) + 90px);left:auto;width:min(440px,calc(100vw - 120px - env(safe-area-inset-left,0px)));max-height:calc(100dvh - 16px)}
+  #drive.touch #dwx{overflow-y:auto}
+  #drive.touch .dbr{display:block;top:auto;left:50%;right:auto;transform:translateX(-50%);bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+}
+/* garage on a sideways phone: scrolls instead of cutting off the Drive button */
+@media (max-height:540px){#dgarage{place-items:start center}#dgarage .gg-in{padding:14px 18px!important;border-radius:18px}#dgarage .gg-in #dgview{height:calc(100dvh - 96px)}}
 </style>
 </head>
 <body class="locked">
@@ -420,7 +471,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
   <canvas id="dc"></canvas>
   <div id="dhud">
     <div class="dtl"><div class="mono" id="dhint"></div></div>
-    <div class="dright"><canvas id="dmap" width="180" height="180" title="Open map (M)"></canvas><button id="dmenu" class="dbtn mono" aria-expanded="false" aria-controls="drow">Menu <span class="mchev">&#9662;</span></button><div class="drow" id="drow" role="menu"><div class="dmsec mono">Mode</div><button id="dmfree" class="dbtn mono dmode on" title="Open-world Earth drive, the default">Free drive</button><button id="droom" class="dbtn mono dmode" title="Race up to 4 friends with a room code">Multiplayer</button><button id="dmdaily" class="dbtn mono dmode" title="Today's track and its leaderboard">Daily track</button><div class="dmsec mono">Drive</div><button id="drace" class="dbtn mono" title="Start a timed lap (L)">Time a lap</button><button id="dboardb" class="dbtn mono" title="Fastest laps (B)">Leaderboard</button><button id="dgarageb" class="dbtn mono" title="Choose your car">Garage</button><button id="dcircb" class="dbtn mono" title="Enter venue or draw new track">Track</button><button id="dgps" class="dbtn mono" title="GPS Navigation (G)">GPS</button><div class="dmsec mono">World</div><button id="dweatherb" class="dbtn mono" aria-expanded="false" aria-controls="dwx" title="Weather">Weather</button><button id="dnight" class="dbtn mono" title="Night (N)">Night</button><button id="dmute" class="dbtn mono">Sound on</button><button id="dradio" class="dbtn mono" title="FM radio: cycle stations (T)">Radio: off</button><button id="dsettings" class="dbtn mono" title="Sound, graphics, controls (O)">Settings</button><button id="dtiltb" class="dbtn mono dtouch">Tilt: off</button><button id="dresetb" class="dbtn mono dtouch">Reset</button></div><div id="dwx"><div id="dwxl"></div></div></div>
+    <div class="dright"><canvas id="dmap" width="180" height="180" title="Open map (M)"></canvas><button id="dmenu" class="dbtn mono" aria-expanded="false" aria-controls="drow">Menu <span class="mchev">&#9662;</span></button><div class="drow" id="drow" role="menu"><div class="dmsec mono">Mode</div><button id="dmfree" class="dbtn mono dmode on" title="Open-world Earth drive, the default">Free drive</button><button id="droom" class="dbtn mono dmode" title="Race up to 4 friends with a room code">Multiplayer</button><button id="dmdaily" class="dbtn mono dmode" title="Today's track and its leaderboard">Daily track</button><div class="dmsec mono">Drive</div><button id="drace" class="dbtn mono" title="Start a timed lap (L)">Time a lap</button><button id="dboardb" class="dbtn mono" title="Fastest laps (B)">Leaderboard</button><button id="dgarageb" class="dbtn mono" title="Choose your car">Garage</button><button id="dcircb" class="dbtn mono" title="Enter venue or draw new track">Track</button><button id="dgps" class="dbtn mono" title="GPS Navigation (G)">GPS</button><div class="dmsec mono">World</div><button id="dweatherb" class="dbtn mono" aria-expanded="false" aria-controls="dwx" title="Weather">Weather</button><button id="dnight" class="dbtn mono" title="Night (N)">Night</button><button id="dmute" class="dbtn mono">Sound on</button><button id="dradio" class="dbtn mono" title="FM radio: cycle stations (T)">Radio: off</button><button id="dsettings" class="dbtn mono" title="Sound, graphics, controls (O)">Settings</button><button id="dtiltb" class="dbtn mono dtouch">Gyro: off</button><button id="dfull" class="dbtn mono dtouch">Full screen</button><button id="dresetb" class="dbtn mono dtouch">Reset</button></div><div id="dwx"><div id="dwxl"></div></div></div>
     <div id="dlap"><div class="lrow"><span class="mono">Lap</span><b id="dlapt">--:--.--</b></div><div class="lsub mono"><span id="dlapn">Lap 1</span><span id="dlapb">Best --:--.--</span></div><div class="lsec"><i></i><i></i><i></i><i></i></div></div>
     <div id="dpos" class="mono">P1 / 1</div>
     <div id="doob" class="mono">TRACK LIMIT EXCEEDED</div>

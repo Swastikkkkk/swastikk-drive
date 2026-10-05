@@ -352,7 +352,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      ramp yard, then keeps climbing out to a lookout at the map's edge for the sunset.
      peakR is hard-clamped to stay inside the heightfield/physics walls no matter where
      BR_U actually lands on the spline, so a bad guess here can't put anything out of bounds. */
-  const BR_U=.775,BR_LEN=34*MK,PEAK_DIST=62*MK,PEAK_RISE=24;
+  const BR_U=.775,BR_LEN=34*MK,PEAK_DIST=62*MK,PEAK_RISE=21;
   const PTS_CTR=PTS.reduce((a,p)=>a.add(p),new THREE.Vector3()).divideScalar(PTS.length);
   const BR_START=curve.getPointAt(BR_U).clone();BR_START.y=0;
   const BR_OUT=BR_START.clone().sub(PTS_CTR);BR_OUT.y=0;BR_OUT.normalize();
@@ -370,13 +370,27 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   SUN_OFF_LOW.set(-BR_OUT.x*34+PEAK_SIDE.x*16,8,-BR_OUT.z*34+PEAK_SIDE.z*16);SUN_DIR_LOW.copy(SUN_OFF_LOW).normalize();
   const BR_MID=new THREE.Vector3(BR_START.x+BR_OUT.x*BR_LEN*.55+BR_OUT.z*6,0,BR_START.z+BR_OUT.z*BR_LEN*.55-BR_OUT.x*6);
   const BR_END=new THREE.Vector3(RAMPYARD.x,0,RAMPYARD.z);
-  const BR_MID2=new THREE.Vector3((RAMPYARD.x+PEAK.x)/2+BR_OUT.z*7,0,(RAMPYARD.z+PEAK.z)/2-BR_OUT.x*7);
+  /* The climb from the ramp yard to the summit is laid out the way a real mountain road is: straights joined
+     by circular arcs of a fixed radius, never a kink. It leaves the yard heading for the peak, swings 90° out
+     across the hillside, comes back through a 180° hairpin, swings back and runs straight into the lookout.
+     Going straight up it was a 24% ramp. Now the bends stay nearly level (a climbing hairpin tips its inside
+     edge metres below its outside) and the straights do the climbing, at about 12%. */
+  const BR_D=Math.hypot(PEAK.x-RAMPYARD.x,PEAK.z-RAMPYARD.z),BR_F={x:(PEAK.x-RAMPYARD.x)/BR_D,z:(PEAK.z-RAMPYARD.z)/BR_D};
+  const BR_R=18.5,BR_LEG=64,BR_L0=Math.max(20,Math.min(36,BR_D-4*BR_R-18));
+  const BR_PATH=(function(){const out=[];let f=0,sd=0,hd=0;   // forward, sideways, heading (0 = towards the peak, + = to the left)
+    const put=()=>out.push(new THREE.Vector3(RAMPYARD.x+BR_F.x*f-BR_F.z*sd,0,RAMPYARD.z+BR_F.z*f+BR_F.x*sd));
+    const straight=L=>{const n=Math.max(1,Math.round(L/2));for(let k=0;k<n;k++){f+=Math.cos(hd)*L/n;sd+=Math.sin(hd)*L/n;put()}};
+    const arc=th=>{const n=Math.max(2,Math.round(Math.abs(th)*BR_R/2));for(let k=0;k<n;k++){const h0=hd,h1=hd+th/n;
+      f+=BR_R*(Math.sin(Math.abs(th)/n))*Math.cos((h0+h1)/2);sd+=BR_R*Math.sin(Math.abs(th)/n)*Math.sin((h0+h1)/2);hd=h1;put()}};
+    // it swings out to the right of the peak line: the UFO field's level ground lies off to the left
+    put();straight(BR_L0);arc(-Math.PI/2);straight(BR_LEG);arc(Math.PI);straight(BR_LEG);arc(-Math.PI/2);
+    straight(Math.max(2,BR_D-f));return out})();
   const BR_PEAKV=new THREE.Vector3(PEAK.x,0,PEAK.z);
-  const brCurveToYard=new THREE.CatmullRomCurve3([BR_START,BR_MID,BR_END],false,'catmullrom',.5);
-  const BR_YARD_LEN=brCurveToYard.getLength();
-  const brCurve=new THREE.CatmullRomCurve3([BR_START,BR_MID,BR_END,BR_MID2,BR_PEAKV],false,'catmullrom',.5);
-  const U_YARD=Math.min(.92,BR_YARD_LEN/brCurve.getLength());
-  const BN=90,BSAMP=[];for(let i=0;i<=BN;i++)BSAMP.push(brCurve.getPointAt(i/BN));
+  
+  const brCurve=new THREE.CatmullRomCurve3([BR_START,BR_MID,...BR_PATH],false,'centripetal');
+  const U_YARD=(function(){let bu=0,bd=1e9;for(let i=0;i<=400;i++){const q=brCurve.getPointAt(i/400),d=Math.hypot(q.x-RAMPYARD.x,q.z-RAMPYARD.z);if(d<bd){bd=d;bu=i/400}}return bu})();   // where the road passes the yard's centre
+  const BN=180,BSAMP=[];for(let i=0;i<=BN;i++)BSAMP.push(brCurve.getPointAt(i/BN));
+  const BR_BB=BSAMP.reduce((b,p)=>({a:Math.min(b.a,p.x-60),b:Math.max(b.b,p.x+60),c:Math.min(b.c,p.z-60),d:Math.max(b.d,p.z+60)}),{a:1e9,b:-1e9,c:1e9,d:-1e9});
   // match the branch's road texture density to the main loop's (34 repeats over its full length)
   const BR_REP=brCurve.getLength()/12;
   const brSmooth=t=>t<=0?0:t>=1?1:t*t*(3-2*t);
@@ -388,11 +402,25 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      The branch arrives, and instead of a dead end there is something to lap — the three
      ramps sit inside it, so you can cut across the middle or stay on the tarmac. */
   const RING={x:RAMPYARD.x,z:RAMPYARD.z,r:19};
-  const U_TOP=.93;
+  /* The climb starts only once the road is clear of the yard's level pad (RING.r+15 from its centre) and is
+     finished before it reaches the summit pad (16 m), so neither pad ever flattens a piece of road that is
+     meant to be sloping. Starting it at the yard's centre is what used to leave a 4 m wall just past the yard. */
+  const brUAt=(cx,cz,rad,fromEnd)=>{if(!fromEnd){for(let i=Math.round(U_YARD*BN);i<=BN;i++)if(Math.hypot(BSAMP[i].x-cx,BSAMP[i].z-cz)>rad)return i/BN;return U_YARD}
+    for(let i=BN;i>=0;i--)if(Math.hypot(BSAMP[i].x-cx,BSAMP[i].z-cz)>rad)return i/BN;return 1};
+  const U_CLIMB=brUAt(RAMPYARD.x,RAMPYARD.z,RING.r+17,false),U_TOP=brUAt(PEAK.x,PEAK.z,18,true);
   // an even grade with eased ends, not an S-curve: the summit is high, and a smoothstep would bunch the climb into one steep wall
-  const brClimb=t=>{const a=.22,k=2*a*(1-a);return t<=0?0:t>=1?1:t<a?t*t/k:t>1-a?1-(1-t)*(1-t)/k:(t-a/2)/(1-a)};
-  function brHAt(u){if(u<=U_YARD)return BR_H;
-    return BR_H+(PEAK_H-BR_H)*brClimb(Math.min(1,(u-U_YARD)/Math.max(.001,U_TOP-U_YARD)))}
+  const brClimb=t=>{const a=.16,k=2*a*(1-a);return t<=0?0:t>=1?1:t<a?t*t/k:t>1-a?1-(1-t)*(1-t)/k:(t-a/2)/(1-a)};
+  /* how much of the climb each stretch takes: full on the straights, little in the bends. Curvature is read off
+     the samples, and the weight is smoothed so the grade eases in and out of each bend instead of stepping. */
+  const BR_CUM=(function(){const w=[];for(let i=0;i<=BN;i++){const a=BSAMP[Math.max(0,i-1)],b=BSAMP[i],c=BSAMP[Math.min(BN,i+1)];
+      const t1=Math.atan2(b.z-a.z,b.x-a.x),t2=Math.atan2(c.z-b.z,c.x-b.x);let da=Math.abs(t2-t1);if(da>Math.PI)da=2*Math.PI-da;
+      const k=da/Math.max(.01,Math.hypot(c.x-a.x,c.z-a.z)/2);w.push(1-.5*Math.min(1,k*BR_R))}
+    const ws=w.map((_,i)=>{let s=0,n=0;for(let q=-5;q<=5;q++){const j=i+q;if(j<0||j>BN)continue;s+=w[j];n++}return s/n});
+    const i0=U_CLIMB*BN,i1=U_TOP*BN,C=[0];for(let i=1;i<=BN;i++){const m=(i-.5);C.push(C[i-1]+(m>i0&&m<i1?ws[i]:0))}
+    const T=C[BN]||1;return C.map(v=>v/T)})();
+  function brHAt(u){if(u<=U_CLIMB)return BR_H;if(u>=U_TOP)return PEAK_H;
+    const f=Math.max(0,Math.min(BN,u*BN)),i=Math.min(BN-1,f|0),t=BR_CUM[i]+(BR_CUM[i+1]-BR_CUM[i])*(f-i);
+    return BR_H+(PEAK_H-BR_H)*brClimb(t)}
   const bAt=u=>{const uc=Math.max(0,Math.min(1,u));const p=brCurve.getPointAt(uc),tg=brCurve.getTangentAt(Math.max(.001,Math.min(.999,uc)));p.y=brHAt(uc);return {p,tg,n:new THREE.Vector3(-tg.z,0,tg.x)}};
   const SM=t=>t<=0?0:t>=1?1:t*t*(3-2*t);
   const LRP=(a,b,t)=>a+(b-a)*t;
@@ -474,7 +502,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     for(let i=bi-6;i<=bi+6;i++){const k=(i+N)%N,dx=SAMP[k].x-x,dz=SAMP[k].z-z,d=dx*dx+dz*dz;if(d<bd){bd=d;bi=k}}
     let bestD=bd,bestU=bi/N,branch=false,ring=false;
     // the branch spur is short, so a full linear scan of it is cheap
-    for(let i=0;i<=BN;i++){const dx=BSAMP[i].x-x,dz=BSAMP[i].z-z,d=dx*dx+dz*dz;if(d<bestD){bestD=d;bestU=i/BN;branch=true}}
+    // projected onto each segment, so u (and the road height taken from it) is continuous instead of a staircase
+    if(x>BR_BB.a&&x<BR_BB.b&&z>BR_BB.c&&z<BR_BB.d)for(let i=0;i<BN;i++){const A=BSAMP[i],B=BSAMP[i+1],ex=B.x-A.x,ez=B.z-A.z,
+      t=Math.max(0,Math.min(1,((x-A.x)*ex+(z-A.z)*ez)/(ex*ex+ez*ez||1))),dx=A.x+ex*t-x,dz=A.z+ez*t-z,d=dx*dx+dz*dz;
+      if(d<bestD){bestD=d;bestU=(i+t)/BN;branch=true}}
     /* The ring road is a circle, so it needs no samples at all: how far you are from the
        tarmac is just how far your radius is from the circle's. One subtraction beats
        walking a polyline, which matters because this runs for every cell of the heightfield. */
@@ -620,16 +651,38 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      height left the tarmac and the surface you actually drive on disagreeing by up to
      half a metre on the climb, which is what put the car underneath the road. Sampling
      HF.h per vertex means the road cannot disagree with the ground by construction. */
-  function stripB(w,yo,mat){const pos=[],idx=[],uv=[];for(let i=0;i<=BN;i++){const {p,n}=bAt(i/BN);n.multiplyScalar(w/2);
+  function stripB(w,yo,mat){const pos=[],idx=[],uv=[],BM=BN*3;for(let i=0;i<=BM;i++){const {p,n}=bAt(i/BM);n.multiplyScalar(w/2);
       const lx=p.x-n.x,lz=p.z-n.z,rx=p.x+n.x,rz=p.z+n.z;
-      pos.push(lx,HF.h(lx,lz)+yo,lz,rx,HF.h(rx,rz)+yo,rz);uv.push(0,i/BN*BR_REP,1,i/BN*BR_REP);
-      if(i<BN){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2)}}
+      pos.push(lx,HF.h(lx,lz)+yo,lz,rx,HF.h(rx,rz)+yo,rz);uv.push(0,i/BM*BR_REP,1,i/BM*BR_REP);
+      if(i<BM){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2)}}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
     const m=new THREE.Mesh(g,mat);m.receiveShadow=true;S.add(m);return m}
   roadM.color.setHex(0xffffff);roadM.map=roadTex();edgeM.color.setHex(0x6d685e);
   edgeM.map=grainTex(64,.12,1,.6);edgeM.map.repeat.set(3,1);
   strip(7.6+RWX*2,.04,edgeM);strip(5.8+RWX*2,.09,roadM);
   stripB(7+RWX*1.6,.04,edgeM);stripB(5.2+RWX*1.6,.09,roadM);
+  /* Armco along both sides of the summit climb, posts every few metres, laid on the slope so the rail follows the
+     road up instead of stepping. Each piece has a tall invisible wall behind it that the car glances off, so the
+     hairpins can be taken with some commitment without dropping off the hillside. */
+  (function(){const off=(7+RWX*1.6)/2+.75,u0=Math.max(U_YARD,U_CLIMB-.02),u1=Math.min(1,U_TOP+.01),segL=4;
+    const railM=M(0xc7cbd1,{roughness:.4}),postM=M(0x5d5a55,{roughness:.8});
+    const len=brCurve.getLength()*(u1-u0),NS=Math.ceil(len/segL),cap=(NS+4)*2*2;
+    const railIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.12,.32,1),railM,cap),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.14,.85,.14),postM,cap);
+    railIM.castShadow=postIM.castShadow=!LOW;railIM.receiveShadow=postIM.receiveShadow=true;
+    const q=new THREE.Quaternion(),pp=new THREE.Vector3(),sc=new THREE.Vector3(),mx=new THREE.Matrix4(),dir=new THREE.Vector3(),Z=new THREE.Vector3(0,0,1),cup=new CANNON.Vec3(0,1,0);let nr=0,np=0;
+    const edge=(u,side)=>{const {p,n}=bAt(u),x=p.x+n.x*side*off,z=p.z+n.z*side*off;return {x,z,y:HF.h(x,z)}};
+    for(const side of [-1,1]){let A=edge(u0,side);
+      for(let i=1;i<=NS;i++){const B=edge(u0+(u1-u0)*i/NS,side),dx=B.x-A.x,dz=B.z-A.z,dy=B.y-A.y,L=Math.hypot(dx,dz);if(L<.3){A=B;continue}
+        dir.set(dx,dy,dz).normalize();q.setFromUnitVectors(Z,dir);
+        pp.set((A.x+B.x)/2,(A.y+B.y)/2+.62,(A.z+B.z)/2);sc.set(1,1,Math.hypot(L,dy)+.12);mx.compose(pp,q,sc);if(nr<cap)railIM.setMatrixAt(nr++,mx);
+        q.set(0,0,0,1);sc.set(1,1,1);pp.set(A.x,A.y+.42,A.z);mx.compose(pp,q,sc);if(np<cap)postIM.setMatrixAt(np++,mx);
+        // the wall: 2.4 m thick, grown outward from the rail line, reaching well below and above the road
+        const nx=dz/L,nz=-dx/L,{p:cp}=bAt(u0+(u1-u0)*(i-.5)/NS),o=((nx*(pp.x-cp.x)+nz*(pp.z-cp.z))>0?1:-1)*1.2,
+          bot=Math.min(A.y,B.y)-3,top=Math.max(A.y,B.y)+2.6;
+        const bd=new CANNON.Body({mass:0,material:barM});bd.addShape(new CANNON.Box(new CANNON.Vec3(1.2,(top-bot)/2,L/2+.8)));
+        bd.position.set((A.x+B.x)/2+nx*o,(top+bot)/2,(A.z+B.z)/2+nz*o);bd.quaternion.setFromAxisAngle(cup,Math.atan2(dx,dz));world.addBody(bd);
+        A=B}}
+    railIM.count=nr;postIM.count=np;railIM.instanceMatrix.needsUpdate=postIM.instanceMatrix.needsUpdate=true;S.add(railIM,postIM)})();
   /* kerbs on the bends, so the tight corners read before you are in them */
   (function(){const R=[],mat=new THREE.MeshLambertMaterial({map:curbTex()});
     for(let i=0;i<N;i++){const a=at(i/N).tg,b=at((i+2)/N).tg;R.push(Math.acos(Math.max(-1,Math.min(1,a.x*b.x+a.z*b.z))))}
@@ -2463,7 +2516,7 @@ t.bd.position.set(x,y+.86,z);
    window.__setMenu=setMenu;
    mb.onclick=e=>{e.stopPropagation();setMenu(!row.classList.contains('open'));if(row.classList.contains('open')&&window.__updModes)window.__updModes()};
    // anything that opens a panel or switches mode closes the menu; quick toggles leave it open
-   const KEEP_OPEN=['dweatherb','dnight','dmute','dtiltb','dgps','dlights'];
+   const KEEP_OPEN=['dweatherb','dnight','dmute','dtiltb','dgps','dlights','dfull'];
    row.addEventListener('click',e=>{const b=e.target.closest('button');if(b&&!KEEP_OPEN.includes(b.id))setMenu(false)});
    // tapping the road (anywhere outside the menu, its button and the weather list) closes it
    addEventListener('pointerdown',e=>{
@@ -2498,44 +2551,83 @@ t.bd.position.set(x,y+.86,z);
     }else if(MODE==='circuit'||SPACE.state!=='earth'){NAV.toggle()}else{toastMsg('GPS only available while driving')}
   };
 
-  /* ---------- tilt steering (phones only) ----------
-     Reads gamma (left/right roll) and maps it to an analog steering value, so
-     it is smoother than the binary arrow buttons. The first reading becomes
-     the neutral point, which means it works however you happen to be holding
-     the phone — lying flat or propped up — instead of assuming 0°. iOS 13+
-     requires a user gesture to grant permission, hence the button. */
-  let tiltOn=false,tiltZero=null,tiltSteer=0,steerActual=0;
-  const TILT_RANGE=26;    // degrees of roll for full lock
-  const TILT_DEAD=1.6;    // ignore small hand tremor
+  /* ---------- tilt / gyro steering (phones only) ----------
+     The phone's attitude (beta, gamma) is turned into the "up" vector in the
+     phone's own frame, and steering is how far that vector leans along the
+     screen's left-right axis. That works the same in portrait or landscape,
+     held flat or held up like a wheel, with no gimbal jumps near 90°. The
+     neutral point is wherever the phone is when tilt is switched on (or
+     re-centred). Sensitivity, dead zone, smoothing and invert come from
+     Settings > Phone controls; Settings > Steering picks Buttons or Gyro. */
+  let tiltOn=false,tiltZero=null,tiltSteer=0,tiltRaw=0,steerActual=0,tiltListening=false;
   const tiltBtn=$('#dtiltb');
-  function tiltLabel(){if(tiltBtn)tiltBtn.textContent='Tilt: '+(tiltOn?'on':'off')}
+  const tiltRange=()=>40-(Math.max(0,Math.min(100,SET.v.tiltSens??50))/100)*30;   // degrees for full lock: 40 (gentle) .. 10 (twitchy)
+  const tiltDead=()=>(Math.max(0,Math.min(100,SET.v.tiltDead??30))/100)*6;        // 0 .. 6 degrees
+  function tiltLabel(){if(tiltBtn)tiltBtn.textContent='Gyro: '+(tiltOn?'on':'off');mob.classList.toggle('gyro',tiltOn);
+    // gyro mode: the arrows go away and the brake moves under the left thumb
+    const st=$('.dsteer'),pd=$('.dped'),bk=$('#dbrk');if(st&&pd&&bk){if(tiltOn)st.appendChild(bk);else if(bk.parentNode!==pd)pd.insertBefore(bk,pd.firstChild)}}
+  function screenAngle(){const a=(screen.orientation&&typeof screen.orientation.angle==='number')?screen.orientation.angle:(window.orientation||0);return ((a%360)+360)%360}
   function onTilt(e){
-    if(!tiltOn||e.gamma==null)return;
-    // in landscape the roll axis is beta, in portrait it is gamma
-    const land=Math.abs(window.orientation||0)===90||innerWidth>innerHeight;
-    let v=land?(e.beta||0)*(((window.orientation||0)<0)?-1:1):(e.gamma||0);
+    if(!tiltOn||e.beta==null||e.gamma==null)return;
+    const R=Math.PI/180,be=e.beta*R,ga=e.gamma*R,an=screenAngle()*R;
+    const ux=-Math.cos(be)*Math.sin(ga),uy=Math.sin(be);          // gravity-up in the phone's frame
+    // component along the screen's right-hand axis; positive = left side lower = steer left
+    const v=Math.asin(Math.max(-1,Math.min(1,ux*Math.cos(an)-uy*Math.sin(an))))/R;
     if(tiltZero===null)tiltZero=v;
-    let d=v-tiltZero;
-    if(Math.abs(d)<TILT_DEAD)d=0;else d-=Math.sign(d)*TILT_DEAD;
-    tiltSteer=Math.max(-1,Math.min(1,d/TILT_RANGE));
+    let d=v-tiltZero;const dz=tiltDead();
+    if(Math.abs(d)<dz)d=0;else d-=Math.sign(d)*dz;
+    if(SET.v.tiltInvert)d=-d;
+    tiltRaw=Math.max(-1,Math.min(1,d/tiltRange()));
   }
-  async function toggleTilt(){
-    if(tiltOn){tiltOn=false;tiltZero=null;tiltSteer=0;tiltLabel();toastMsg('Tilt steering off');return}
+  // smoothing runs per frame so it is the same however often the sensor fires
+  function tiltTick(dt){if(!tiltOn){tiltSteer=0;return}const sm=Math.max(0,Math.min(100,SET.v.tiltSmooth??35))/100;tiltSteer+=(tiltRaw-tiltSteer)*Math.min(1,dt*(30-sm*24))}
+  async function setTilt(on,quiet){
+    if(!on){tiltOn=false;tiltZero=null;tiltSteer=tiltRaw=0;tiltLabel();if(!quiet)toastMsg('Gyro steering off');return false}
     try{
       const D=window.DeviceOrientationEvent;
-      if(!D){toastMsg('This phone has no tilt sensor');return}
+      if(!D){if(!quiet)toastMsg('This phone has no tilt sensor');tiltLabel();return false}
       if(typeof D.requestPermission==='function'){
         const r=await D.requestPermission();
-        if(r!=='granted'){toastMsg('Tilt permission denied');return}
+        if(r!=='granted'){if(!quiet)toastMsg('Motion permission denied');tiltLabel();return false}
       }
-      addEventListener('deviceorientation',onTilt);
+      if(!tiltListening){addEventListener('deviceorientation',onTilt);tiltListening=true}
       tiltOn=true;tiltZero=null;tiltLabel();
-      toastMsg('Tilt on · hold the phone how you like, that is centre');
-    }catch(_){toastMsg('Tilt not available here')}
+      if(!quiet)toastMsg('Gyro on · tilt like a wheel');
+      return true;
+    }catch(_){if(!quiet)toastMsg('Gyro not available here');tiltLabel();return false}
   }
+  function toggleTilt(){return setTilt(!tiltOn).then(on=>{if(SET.set)SET.set('steer',on?'gyro':'buttons');return on})}
+  window.Tilt={set:on=>setTilt(on).then(r=>{if(SET.set)SET.set('steer',r?'gyro':'buttons');return r}),recentre:()=>{tiltZero=null;toastMsg('Gyro centred')},get on(){return tiltOn},get value(){return tiltSteer}};
   if(tiltBtn){tiltBtn.onclick=toggleTilt;tiltLabel()}
+  // the saved "gyro" choice: iOS needs a tap before it will grant motion, so the first tap on the screen switches it on
+  if(TOUCH&&SET.v.steer==='gyro'){
+    setTilt(true,true).then(ok=>{if(ok)return;
+      const once=()=>{removeEventListener('pointerdown',once,true);setTilt(true,true)};addEventListener('pointerdown',once,true)})}
+  // touch-button size
+  function applyCtrlSize(){mob.classList.remove('sz-s','sz-m','sz-l');mob.classList.add('sz-'+(SET.v.ctrlSize||'m'))}
+  applyCtrlSize();SET.on(k=>{if(k==='ctrlSize')applyCtrlSize()});
   // re-centre when the phone is rotated, otherwise neutral is wrong
   addEventListener('orientationchange',()=>{tiltZero=null});
+  if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',()=>{tiltZero=null});
+  /* ---------- full screen ----------
+     Android / desktop: the Fullscreen API, entered on the first tap of the game (browsers only allow it
+     from a gesture). iPhone Safari has no full screen for pages, so there the button explains
+     Add to Home Screen, which launches the game without browser bars (see manifest.webmanifest). */
+  {const de=document.documentElement,fb=$('#dfull');
+   const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+   const canFS=!!(de.requestFullscreen||de.webkitRequestFullscreen);
+   const standalone=matchMedia('(display-mode: fullscreen),(display-mode: standalone)').matches||navigator.standalone===true;
+   const enter=()=>{try{const r=(de.requestFullscreen||de.webkitRequestFullscreen).call(de,{navigationUI:'hide'});if(r&&r.catch)r.catch(()=>{})}catch(_){}};
+   const exit=()=>{try{const r=(document.exitFullscreen||document.webkitExitFullscreen).call(document);if(r&&r.catch)r.catch(()=>{})}catch(_){}};
+   const label=()=>{if(fb)fb.textContent=fsEl()?'Exit full screen':'Full screen'};
+   window.toggleFullscreen=()=>{
+     if(canFS){fsEl()?exit():enter();return}
+     toastMsg(standalone?'Already full screen':'iPhone: Share → Add to Home Screen, then open Drive from there');
+   };
+   if(fb){if(standalone&&!canFS)fb.style.display='none';fb.onclick=()=>window.toggleFullscreen()}
+   ['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev,()=>{label();setTimeout(resize,150)}));
+   if(TOUCH&&canFS&&!standalone){const first=e=>{if(!active)return;removeEventListener('pointerdown',first,true);if(!fsEl())enter()};addEventListener('pointerdown',first,true)}
+  }
   const rot=$('#drot');let rotDismissed=false;
   function checkRot(){rot.classList.toggle('on',active&&TOUCH&&innerHeight>innerWidth&&!rotDismissed&&!cineOn)}
   $('#drotx').onclick=()=>{rotDismissed=true;checkRot()};addEventListener('resize',checkRot);addEventListener('orientationchange',()=>setTimeout(()=>{resize();checkRot()},250));
@@ -4609,6 +4701,7 @@ const PLANETS={
          rider is actually using wins, so you can tap an arrow mid-corner
          without turning tilt off. */
       let steerIn=l-rr;
+      tiltTick(dt);
       if(tiltOn&&steerIn===0)steerIn=tiltSteer;
       /* Steering: the direct, arcade response (full lock easing to a third of it by ~165 km/h). A grip-limited
          version was tried and felt too hard to turn on a keyboard, so it is back to this. The handbrake still
@@ -4747,7 +4840,7 @@ const PLANETS={
                V.max). Upshift near the limiter on throttle: the clutch goes in for E.shift seconds, the
                throttle closes and the revs fall to where the next gear puts them. Downshift when the revs
                sag, with a throttle blip to match. Standing starts slip the clutch; airborne it free-revs. */
-            const G=E.gears,red=E.red,idle=E.idle,top=g=>E.first*Math.pow(1.05/E.first,g/(G-1)),
+            const G=E.gears,red=E.red,idle=E.idle,top=g=>E.first*Math.pow(1.22/E.first,g/(G-1)),   // top gear is tall: cruising flat out sits near 80% of the redline, not screaming at it
               wheel=g=>Math.min(1,r)/top(g)*red;
             S.thr=(S.thr||0)+((f?1:0)-(S.thr||0))*Math.min(1,dt*12);
             if(S.shiftT>0)S.shiftT-=dt;
@@ -4760,9 +4853,9 @@ const PLANETS={
             if(air)tgt=f?red*1.02:idle;                                                   // wheels off the ground: free revs
             else if(S.gear===0&&!rev)tgt=Math.max(tgt,idle+thr*(red*.45-idle)*Math.max(0,1-tgt/(red*.6)));   // launch: clutch slip
             tgt=Math.max(idle*(shifting?.85:1),Math.min(red*1.02,tgt));
-            if(shifting)thr=S.blip&&S.shiftT>E.shift*.35?.3:0;                             // clutch in: throttle shut, or a short blip on the way down
-            if(S.cutT>0){S.cutT-=dt;thr=0}else if(f&&S.rpm>=red*.995){S.cutT=.06;if(air)S.rpm-=red*.04}   // rev limiter bounce
-            const rate=shifting?(b&&!f?2.5:1/Math.max(.04,E.shift)*2.2):air?(tgt>S.rpm?4:3):tgt>S.rpm?(b&&!f?3:10):14;   // under braking the revs glide up into the lower gear instead of jumping
+            if(shifting)thr=S.blip&&S.shiftT>E.shift*.35?.4:.3;                            // clutch in: throttle eased off (not shut, so no bark-and-pop on every shift), or a short blip on the way down
+            if(S.cutT>0){S.cutT-=dt;thr=0}else if(f&&S.rpm>=red*.995&&(air||S.gear<G-1)){S.cutT=.06;if(air)S.rpm-=red*.04}   // rev limiter bounce (never in top gear on the road)
+            const rate=shifting?(b&&!f?2.5:1/Math.max(.08,E.shift)*1.5):air?(tgt>S.rpm?4:3):tgt>S.rpm?(b&&!f?3:10):14;   // under braking the revs glide up into the lower gear instead of jumping
             S.rpm+=(tgt-S.rpm)*Math.min(1,dt*rate);
             if(sub>.3)thr*=.4;
             // a closed throttle still idles; coasting in gear the engine is pushed by the wheels (overrun)
@@ -6978,7 +7071,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};

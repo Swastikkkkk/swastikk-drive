@@ -54,7 +54,7 @@ Open Menu, then "Draw track". Freehand-draw a closed loop on the screen; it gets
 | N | day or night |
 | R | reset the car |
 
-On a phone it shows on-screen steering, gas, brake and boost. Landscape works best.
+On a phone it shows big on-screen steering, gas, brake and boost. Landscape works best. Settings → Phone controls picks **Steering: Buttons or Gyro (tilt)** (gyro puts brake under the left thumb and gas under the right), the button size (small / medium / large), and gyro sensitivity, dead zone, smoothing, invert and a Centre button with a live steering meter. Menu → Full screen (or the first tap on Android) goes full screen; on iPhone, Share → Add to Home Screen opens it without browser bars.
 
 ### Phone as a controller
 

@@ -4,7 +4,9 @@
    keys go to the panel, not the car. */
 (function(window,document){
   'use strict';
-  const DEF={master:80,engine:80,effects:70,music:60,quality:'auto',hints:true,units:'kmh'};
+  const DEF={master:80,engine:80,effects:70,music:60,quality:'auto',hints:true,units:'kmh',
+    steer:'buttons',ctrlSize:'m',tiltSens:50,tiltDead:30,tiltSmooth:35,tiltInvert:false};
+  const TOUCHDEV=matchMedia('(pointer:coarse)').matches||!matchMedia('(hover:hover)').matches;
   let v=Object.assign({},DEF);
   try{const s=JSON.parse(localStorage.getItem('sl_settings')||'null');if(s&&typeof s==='object')for(const k in DEF)if(k in s&&typeof s[k]===typeof DEF[k])v[k]=s[k]}catch(e){}
   const subs=[];
@@ -37,6 +39,13 @@
 #dset .st-keys div{display:flex;gap:10px;align-items:baseline;font-size:13px;padding:3px 0;border-bottom:1px solid rgba(238,240,243,.06)}
 #dset kbd{font:600 11px var(--mono,monospace);background:rgba(238,240,243,.12);border-radius:6px;padding:2px 7px;white-space:nowrap;color:#eef0f3}
 #dset .st-keys span{color:var(--bone,#c5c8cf)}
+#dset .st-act{background:rgba(238,240,243,.1);color:inherit;border:1px solid rgba(238,240,243,.16);border-radius:999px;padding:9px 14px;font:600 12px var(--mono,monospace);cursor:pointer}
+#dset .st-meter{position:relative;height:10px;border-radius:5px;background:rgba(238,240,243,.1);margin:4px 0 2px;overflow:hidden}
+#dset .st-meter i{position:absolute;top:0;bottom:0;left:50%;width:4px;margin-left:-2px;border-radius:2px;background:#4d8dff}
+#dset .st-meter:after{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(238,240,243,.35)}
+#dset .st-note{font-size:12px;color:var(--mute,#828a98);margin:2px 0 4px}
+#dset .st-gyro.off{opacity:.45;pointer-events:none}
+@media (max-height:520px){#dset{padding:8px}#dset .st-in{max-height:calc(100dvh - 16px);padding:14px 18px 12px}#dset h3{font-size:20px}#dset h4{margin:12px 0 6px}#dset .st-row{padding:3px 0}}
 @media (max-width:520px){#dset .st-keys{grid-template-columns:1fr}#dset .st-row{grid-template-columns:80px 1fr 36px}}`;
 
   let el=null,isOpen=false;
@@ -53,6 +62,7 @@
     const inn=document.createElement('div');inn.className='st-in';el.appendChild(inn);
     inn.innerHTML='<div class="st-hd"><h3>Settings</h3><button class="st-x" type="button">Close · Esc</button></div>';
     inn.querySelector('.st-x').onclick=close;
+    if(TOUCHDEV)buildPhone(inn);
     inn.appendChild(h4('Sound'));
     inn.appendChild(slider('master','Master'));inn.appendChild(slider('engine','Engine'));
     inn.appendChild(slider('effects','Effects'));inn.appendChild(slider('music','Music'));
@@ -65,13 +75,40 @@
     inn.appendChild(h4('Display'));
     {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Controls bar at the top</span>';l.appendChild(seg([[true,'On'],[false,'Off']],v.hints,x=>set('hints',x==='true'||x===true)));inn.appendChild(l)}
     {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Speed</span>';l.appendChild(seg([['kmh','km/h'],['mph','mph']],v.units,x=>set('units',x)));inn.appendChild(l)}
-    inn.appendChild(h4('Controls'));
-    const kd=document.createElement('div');kd.className='st-keys';
+    if(TOUCHDEV){inn.appendChild(h4('Screen'));
+      const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Full screen</span>';
+      const b=document.createElement('button');b.type='button';b.className='st-act';b.textContent='Toggle';b.onclick=()=>{if(window.toggleFullscreen)toggleFullscreen()};l.appendChild(b);inn.appendChild(l)}
+    if(!TOUCHDEV)inn.appendChild(h4('Controls'));
+    const kd=document.createElement('div');kd.className='st-keys';if(TOUCHDEV)kd.style.display='none';
     KEYS.forEach(([k,d])=>{const r=document.createElement('div');r.innerHTML=`<kbd>${k}</kbd><span>${d}</span>`;kd.appendChild(r)});inn.appendChild(kd);
     el.addEventListener('pointerdown',e=>{if(e.target===el)close()});
     (document.getElementById('drive')||document.body).appendChild(el)}
+  let meterRAF=0;
+  function buildPhone(inn){
+    inn.appendChild(h4('Phone controls'));
+    const T=()=>window.Tilt;
+    const line=(label,node)=>{const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>'+label+'</span>';l.appendChild(node);inn.appendChild(l);return l};
+    const gy=document.createElement('div');gy.className='st-gyro';
+    const steerSeg=seg([['buttons','Buttons'],['gyro','Gyro (tilt)']],v.steer,async m=>{
+      if(m==='gyro'){const ok=T()?await T().set(true):false;if(!ok){set('steer','buttons');sync()}}else{if(T())T().set(false);set('steer','buttons')}
+      sync()});
+    steerSeg.id='st-steer';line('Steering',steerSeg);
+    line('Button size',seg([['s','Small'],['m','Medium'],['l','Large']],v.ctrlSize,x=>set('ctrlSize',x)));
+    gy.appendChild(h4('Gyro'));
+    const note=document.createElement('div');note.className='st-note';note.textContent='Hold the phone the way you like to drive, then press Centre. Gas and brake stay on screen.';gy.appendChild(note);
+    gy.appendChild(slider('tiltSens','Sensitivity'));gy.appendChild(slider('tiltDead','Dead zone'));gy.appendChild(slider('tiltSmooth','Smoothing'));
+    {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Invert</span>';l.appendChild(seg([[false,'Off'],[true,'On']],v.tiltInvert,x=>set('tiltInvert',x==='true'||x===true)));gy.appendChild(l)}
+    {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Steering now</span>';
+      const c=document.createElement('button');c.type='button';c.className='st-act';c.textContent='Centre';c.onclick=()=>{if(T())T().recentre()};l.appendChild(c);gy.appendChild(l)}
+    const m=document.createElement('div');m.className='st-meter';m.innerHTML='<i></i>';gy.appendChild(m);
+    inn.appendChild(gy);
+    function sync(){const on=!!(T()&&T().on);gy.classList.toggle('off',!on);steerSeg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===(on?'gyro':'buttons')))}
+    S.syncPhone=sync;
+    S.meterTick=()=>{const t=T(),val=t&&t.on?t.value:0;m.firstChild.style.left=(50-val*48)+'%'};
+  }
   function refreshRadio(){if(!el||!window.Radio)return;const cur=String(Radio.station());el.querySelectorAll('#st-radio button').forEach(b=>b.classList.toggle('on',b.dataset.v===cur))}
-  function open(){if(!el)build();refreshRadio();el.classList.add('on');isOpen=true;if(S.onOpen)S.onOpen()}
+  function open(){if(!el)build();refreshRadio();if(S.syncPhone)S.syncPhone();el.classList.add('on');isOpen=true;if(S.onOpen)S.onOpen();
+    if(S.meterTick){cancelAnimationFrame(meterRAF);const loop=()=>{if(!isOpen)return;S.meterTick();meterRAF=requestAnimationFrame(loop)};loop()}}
   function close(){if(!el)return;el.classList.remove('on');isOpen=false}
   // while open, the panel owns the keyboard (sliders take arrow keys) and Esc / O close it
   window.addEventListener('keydown',e=>{if(!isOpen)return;if(e.code==='Escape'||e.code==='KeyO'){close();e.preventDefault()}e.stopImmediatePropagation()},true);
