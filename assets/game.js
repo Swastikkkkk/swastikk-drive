@@ -4879,7 +4879,7 @@ const PLANETS={
         {const racing=window.RaceEngine&&window.RaceEngine.active;      // a race has its own respawn (RaceEngine.checkTrackBoundaries)
          if(!racing&&Math.sqrt(best)>CIRC_W/2+BARRIER_OFF+8){circOffT+=dt;if(circOffT>1.2){circOffT=0;const q=circAt(u,circuit.curve);resetCarTo({pos:q.p,tangent:q.tg});toastMsg('Back on track')}}else circOffT=0}
         if(circU0<0){circU0=u;circLapT0=now}
-        else{if(circU0>.82&&u<.18&&!(window.RaceEngine&&window.RaceEngine.active)&&!(typeof MP!=='undefined'&&MP.on)){circLap++;const t=now-circLapT0;circLapT0=now;
+        else{if(circU0>.82&&u<.18&&!TYPEF.on&&!(window.RaceEngine&&window.RaceEngine.active)&&!(typeof MP!=='undefined'&&MP.on)){circLap++;const t=now-circLapT0;circLapT0=now;
             if(!circBest||t<circBest)circBest=t;
             earnCoins(10);
             toastMsg('Lap '+circLap+' · '+fmtT(t)+' · +10 coins')}
@@ -5225,7 +5225,14 @@ const PLANETS={
       cubeInit=true;cubeSun=sun.intensity;cubeX=car.position.x;cubeZ=car.position.z}
     if(active){ANOMALY.update(dt,now);SPACE.updateEarth()}
     /* typing race: the panel fills the bottom of the screen, so the picture slides up to keep the car above it */
-    {const want=TYPEF.on?.34:0;TYPEF.vo=(TYPEF.vo||0)+(want-(TYPEF.vo||0))*.08;const cw=R.domElement.clientWidth||innerWidth,ch=R.domElement.clientHeight||innerHeight;
+    /* The shift is measured, not fixed: the car is projected to the screen every frame and the picture is slid until
+       it sits in the middle of the clear space above the typing panel, however tall the panel is (one line or four,
+       keyboard shown or not) and whatever the screen size. */
+    {const cw=R.domElement.clientWidth||innerWidth,ch=R.domElement.clientHeight||innerHeight;let want=0;
+     if(TYPEF.on){const card=document.querySelector('#dtype .ty-card'),top=card&&card.offsetParent?card.getBoundingClientRect().top-sec.getBoundingClientRect().top:ch*.66;
+       tmp.copy(car.position).project(C);const carY=(1-tmp.y)/2*ch,target=Math.max(ch*.18,top*.56);
+       want=Math.max(0,Math.min(.75,(TYPEF.vo||0)+(carY-target)/ch))}
+     TYPEF.vo=(TYPEF.vo||0)+(want-(TYPEF.vo||0))*.08;
      if(TYPEF.vo>.002)C.setViewOffset(cw,ch,0,TYPEF.vo*ch,cw,ch);else if(C.view&&C.view.enabled){TYPEF.vo=0;C.clearViewOffset()}}
     R.render(S,C);if(active&&frameN%6===0)drawMap(mx2,mm.width,false);
     /* ---------- rearview mirror PIP ---------- */

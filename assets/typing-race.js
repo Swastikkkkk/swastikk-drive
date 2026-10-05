@@ -48,6 +48,10 @@
   #dtype input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;left:0;top:0}
   #dtype .ty-kbwrap{display:flex;justify-content:center;margin-top:10px}
   #dtype.nokb .ty-kbwrap{display:none}
+  /* Type Faster: a smaller panel so the car stays in view; three lines show, the text scrolls with the cursor */
+  #dtype.fast .ty-text{font-size:clamp(15px,1.45vw,21px);max-height:calc(1.45em * 3);overflow:hidden;scroll-behavior:smooth}
+  #dtype.fast .ty-card{padding:10px 14px}
+  #dtype.fast .ty-stats{margin-top:6px;padding-top:6px}
   #dtype .tkb{--k:clamp(15px,1.65vw,23px);background:rgba(17,18,21,.55)}
   @media (max-width:760px),(pointer:coarse){#dtype .ty-kbwrap{display:none}}
   #dtypecd{position:absolute;inset:0;z-index:31;display:none;place-items:start center;padding-top:9vh;pointer-events:none}
@@ -129,6 +133,8 @@
   function paintText(errAt){
     for(let i=0;i<spans.length;i++){const cls=i<pos?'d':i===pos?'c':'t';const sp=spans[i];if(sp.className!==cls)sp.className=cls}
     if(KBR())KBR().hint(text[pos]);
+    // keep the line being typed in view (Type Faster shows three lines of a longer text)
+    if(mode==='fast'&&spans[pos]){const lh=spans[pos].offsetHeight||24,y=spans[pos].offsetTop-textEl.offsetTop;if(y-textEl.scrollTop>lh*1.2||y<textEl.scrollTop)textEl.scrollTop=Math.max(0,y-lh)}
     if(errAt!=null&&spans[pos]){spans[pos].classList.add('err');hud.classList.add('err');clearTimeout(paintText._t);paintText._t=setTimeout(()=>{hud.classList.remove('err');if(spans[pos])spans[pos].classList.remove('err')},220)}}
   function buildText(){textEl.innerHTML='';spans=[...text].map(ch=>{const s=document.createElement('span');s.textContent=ch;textEl.appendChild(s);return s});paintText()}
 
@@ -175,7 +181,7 @@
     closeResults();text=opts?opts.text:todaysText();pos=keys=correct=errors=0;stamps=[];maxKmh=0;penaltyTill=0;rejected='';
     PENALTY_MS=opts?opts.penalty:700;
     hud.querySelector('.ty-tag').textContent=opts?'Type Faster · '+opts.label:'Daily Typing Race';
-    hud.classList.toggle('nokb',!!(opts&&!opts.keyboard));
+    hud.classList.toggle('nokb',!!(opts&&!opts.keyboard));hud.classList.toggle('fast',!!opts);
     b.toTypingLap(dayNum(),opts?text.length*7:0);buildText();sec.classList.add('typing');hud.classList.add('on');
     const dm=document.getElementById('ddaily-modal');if(dm)dm.style.display='none';
     stat.kmh.textContent='0';stat.wpm.textContent='0';stat.acc.textContent='100%';stat.prog.textContent='0%';stat.time.textContent='0.00s';bar.style.width='0';
@@ -268,7 +274,7 @@
      key slows you down. The car drives ~7 m for every character, so a longer text is a longer drive and the
      speed you see is the speed you type. Bests are kept on this device, per difficulty. */
   const BANK=window.TYPING_BANK||{medium:POOL};
-  const TF_DEF={diff:'medium',count:3,caps:true,punct:true,nums:true,penalty:'normal',keyboard:true};
+  const TF_DEF={diff:'medium',count:3,caps:true,punct:true,nums:true,penalty:'normal',keyboard:false};
   let TF=Object.assign({},TF_DEF);try{const o=JSON.parse(localStorage.getItem('sl_typefast')||'null');if(o)for(const k in TF_DEF)if(k in o&&typeof o[k]===typeof TF_DEF[k])TF[k]=o[k]}catch(e){}
   const saveTF=()=>{try{localStorage.setItem('sl_typefast',JSON.stringify(TF))}catch(e){}};
   const DIFFS=[['easy','Easy'],['medium','Medium'],['hard','Hard'],['expert','Expert'],['mixed','Mixed']],PEN={light:350,normal:700,harsh:1500};
