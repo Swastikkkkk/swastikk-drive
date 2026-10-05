@@ -2500,13 +2500,17 @@ t.bd.position.set(x,y+.86,z);
     #dnp .np-note{margin-top:6px;color:rgba(238,240,243,.5);font-size:10px;line-height:1.35}
     #dnp .np-frame{display:none;margin-top:8px;border-radius:12px;overflow:hidden}#dnp.ext .np-frame{display:block}
     #dnp .np-frame iframe{display:block;width:100%;border:0;border-radius:12px}
+    #dnp .np-full{display:none;margin-top:8px;padding:9px 10px;border-radius:10px;background:rgba(30,215,96,.12);box-shadow:inset 0 0 0 1px rgba(30,215,96,.35);font-size:11px;line-height:1.4;color:rgba(238,240,243,.85)}
+    #dnp.ext.preview .np-full{display:block}
+    #dnp .np-full a{display:inline-block;margin:6px 6px 0 0;padding:6px 10px;border-radius:999px;background:#1ed760;color:#06070b;font-weight:700;text-decoration:none;pointer-events:auto}
+    #dnp .np-full a.alt{background:rgba(255,255,255,.12);color:#fff}
     #dnp.ext.apple [data-a]{display:none}
     #drive.touch #dnp{bottom:auto;top:calc(110px + env(safe-area-inset-top,0px));width:min(250px,48vw);padding:7px 9px}
     #drive.touch #dnp .np-art{display:none}
     #drive.typing #dnp{display:none!important}`;document.head.appendChild(css);
     const el=document.createElement('div');el.id='dnp';el.innerHTML='<div class="np-row"><div class="np-art">♪</div><div class="np-t" title="Show the playlist"><b>—</b><span></span></div>'+
       '<button data-a="prev" title="Back">⏮</button><button data-a="toggle" title="Play / pause">⏸</button><button data-a="next" title="Next">⏭</button></div><div class="np-bar"><i></i></div>'+
-      '<div class="np-frame"></div>'+
+      '<div class="np-frame"></div><div class="np-full"><b>Only a 30 s preview?</b> Spotify plays the whole song when it knows you are logged in.<br><a class="sp-app" target="_blank" rel="noopener">Play full song in Spotify</a><a class="alt sp-login" target="_blank" rel="noopener" href="https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F">Log in to Spotify</a></div>'+
       '<div class="np-x"><div class="np-src"><button data-s="radio">Game radio</button><button data-s="spotify">Spotify</button><button data-s="apple">Apple Music</button></div>'+
       '<div class="np-link"><div class="np-in"><input type="text" spellcheck="false" autocomplete="off"><button data-go title="Play this link">▶</button></div><div class="np-picks"></div><div class="np-note"></div></div><ol></ol></div>';
     (document.getElementById('dhud')||sec).appendChild(el);
@@ -2531,8 +2535,17 @@ t.bd.position.set(x,y+.86,z);
     function spotifyApi(cb){if(spApi)return cb(spApi);if(!spLoading){spLoading=true;window.onSpotifyIframeApiReady=api=>{spApi=api;const q=spWant;spWant=null;if(q)q(api)};
         const sc=document.createElement('script');sc.src='https://open.spotify.com/embed/iframe-api/v1';sc.async=true;sc.onerror=()=>{note.textContent='Could not reach Spotify. Check your connection.'};document.head.appendChild(sc)}
       spWant=cb}
-    function playSpotify(uri,label,autoplay){frame.innerHTML='';spCtl=null;const host=document.createElement('div');frame.appendChild(host);extLabel=label||'Spotify';
-      spotifyApi(api=>api.createController(host,{uri,width:'100%',height:80},c=>{spCtl=c;c.addListener('playback_update',e=>{const d=e.data||{};spPaused=!!d.isPaused;spPos=d.position||0;spDur=d.duration||0;paint(false)});
+    /* a 30 s track length from the player means Spotify is only giving the preview: you are not logged in, or the browser
+       (Safari blocks third-party cookies) hides the login from the player. Offer the app, which always plays the whole
+       song, and a login; coming back to the game reloads the player so a fresh login is picked up. */
+    let spUriNow=null,spLoginOpened=false;
+    const fullBox=()=>el.querySelector('.np-full');
+    function spPreview(v){el.classList.toggle('preview',!!v);if(v&&spUriNow){const [,t,id]=spUriNow.split(':');fullBox().querySelector('.sp-app').href='https://open.spotify.com/'+t+'/'+id}}
+    fullBox().querySelector('.sp-login').addEventListener('click',e=>{e.stopPropagation();spLoginOpened=true});
+    fullBox().querySelector('.sp-app').addEventListener('click',e=>{e.stopPropagation();if(spCtl&&!spPaused)try{spCtl.togglePlay()}catch(_){}});   // the app takes over the music
+    addEventListener('focus',()=>{if(spLoginOpened&&src==='spotify'&&spUriNow){spLoginOpened=false;playSpotify(spUriNow,extLabel,true)}});
+    function playSpotify(uri,label,autoplay){frame.innerHTML='';spCtl=null;spUriNow=uri;spPreview(false);const host=document.createElement('div');frame.appendChild(host);extLabel=label||'Spotify';
+      spotifyApi(api=>api.createController(host,{uri,width:'100%',height:152},c=>{spCtl=c;c.addListener('playback_update',e=>{const d=e.data||{};spPaused=!!d.isPaused;spPos=d.position||0;spDur=d.duration||0;spPreview(spDur>0&&spDur<=31000&&/:track:/.test(spUriNow||''));paint(false)});
         if(autoplay)try{c.play()}catch(_){}}))}
     function playApple(url,label){spCtl=null;extLabel=label||'Apple Music';const f=document.createElement('iframe');f.src=url;f.height=/\/song\/|\?i=/.test(url)?'175':'300';
       f.setAttribute('allow','autoplay *; encrypted-media *; fullscreen *; clipboard-write');
