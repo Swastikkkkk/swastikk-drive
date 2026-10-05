@@ -4693,7 +4693,9 @@ const PLANETS={
     toast:m=>toastMsg(m)};
   const phoneSt={on:false,cam:false,reset:false};let rcSince=0;
   const garageEl=$('#dgarage');
+  let drawerOpen=false;   // the draw-track screen covers the view: the world holds still underneath (no render, no physics) so drawing stays responsive
   function loop(now){requestAnimationFrame(loop);
+    if(drawerOpen){last=now;return}
     /* the garage covers the screen and runs its own preview, so solo play holds still underneath it
        (physics and all, so nothing happens to the car while you choose); a room keeps running */
     if(garageEl.classList.contains('on')){let inRoom=false;try{inRoom=!!MP.on}catch(_){}if(!inRoom){last=now;return}}
@@ -6254,21 +6256,46 @@ const PLANETS={
   const selVal=(id,d)=>{const e=$(id);return e&&e.value?e.value:d};
   function resizeDrawCv(){if(!circCv)return;circCv.width=innerWidth;circCv.height=innerHeight}
   addEventListener('resize',resizeDrawCv);
-  function redrawPath(){if(!circCx)return;circCx.clearRect(0,0,circCv.width,circCv.height);
-    const line=drawingNow||!drawRS.length?drawPts:drawRS.concat([drawRS[0]]);
+  /* the drawing preview: the line is shown as a road (asphalt ribbon, white edges, dashed centre), with the start
+     marker and direction, a "release to close" ring when the end comes back to the start, the drawing's bounds with
+     the lap length it will be built at, and the chosen scenery as a coloured tag. Drawn on a 2D canvas only: the 3D
+     world is paused while this screen is open. */
+  const THEME_TAG={meadow:'#4f8a2e',forest:'#203a1c',desert:'#d8bd82',snow:'#e8f0fa',alpine:'#c7c8c4',coastal:'#e3d8b0',tropical:'#55a084',rocky:'#77716a',autumn:'#b45a2c',volcanic:'#ff5a1f',night:'#5cf2ff',mountain:'#707873',city:'#ff006e',moon:'#4cc9f0',canyon:'#9a5838',sunset:'#f0a36e'};
+  function redrawPath(){if(!circCx)return;const g=circCx,W=circCv.width,H=circCv.height;g.clearRect(0,0,W,H);
+    const scen=selVal('#dcircscenery','meadow'),tag=THEME_TAG[scen]||'#4f8a2e',sizeKm=(CIRC_SIZES[selVal('#dcircsize','large')]||CIRC_LEN)/1000;
+    // scenery tag, bottom left
+    {const label='Scenery · '+((THEMES.find(t=>t.id===scen)||{}).name||scen);g.font='600 12px ui-monospace,Menlo,monospace';const w=g.measureText(label).width+38;
+     g.fillStyle='rgba(12,13,16,.82)';g.beginPath();if(g.roundRect)g.roundRect(14,H-50,w,30,15);else g.rect(14,H-50,w,30);g.fill();
+     g.fillStyle=tag;g.beginPath();g.arc(31,H-35,7,0,6.283);g.fill();g.fillStyle='#eef0f3';g.textBaseline='middle';g.fillText(label,44,H-34.5);g.textBaseline='alphabetic'}
+    const closedNow=!drawingNow&&drawRS.length>0,line=closedNow?drawRS.concat([drawRS[0]]):drawPts;
     if(line.length<2)return;
-    circCx.strokeStyle='#eef0f3';circCx.lineWidth=4;circCx.lineJoin='round';circCx.lineCap='round';
-    circCx.beginPath();circCx.moveTo(line[0].x,line[0].y);
-    for(let i=1;i<line.length;i++)circCx.lineTo(line[i].x,line[i].y);
-    circCx.stroke();
-    if(!drawRS.length)return;
-    // start/finish + direction of travel
-    {const a=drawRS[0],b=drawRS[1];circCx.fillStyle='#3f8a56';circCx.beginPath();circCx.arc(a.x,a.y,8,0,6.283);circCx.fill();
-     const ang=Math.atan2(b.y-a.y,b.x-a.x);circCx.save();circCx.translate(a.x,a.y);circCx.rotate(ang);circCx.fillStyle='#eef0f3';circCx.beginPath();circCx.moveTo(22,0);circCx.lineTo(12,-6);circCx.lineTo(12,6);circCx.closePath();circCx.fill();circCx.restore()}
+    // bounds + lap length
+    {let a=1e9,b=-1e9,c=1e9,d=-1e9;line.forEach(p=>{a=Math.min(a,p.x);b=Math.max(b,p.x);c=Math.min(c,p.y);d=Math.max(d,p.y)});
+     g.save();g.setLineDash([6,6]);g.strokeStyle='rgba(238,240,243,.22)';g.lineWidth=1;g.strokeRect(a-22,c-22,b-a+44,d-c+44);g.restore();
+     if(closedNow){g.fillStyle='rgba(238,240,243,.55)';g.font='600 11px ui-monospace,Menlo,monospace';g.fillText(sizeKm.toFixed(1)+' km lap',a-22,c-30)}}
+    // the road: edge, asphalt, dashed centre line
+    const path=()=>{g.beginPath();g.moveTo(line[0].x,line[0].y);for(let i=1;i<line.length;i++)g.lineTo(line[i].x,line[i].y)};
+    g.lineJoin='round';g.lineCap='round';
+    path();g.strokeStyle=tag;g.globalAlpha=.35;g.lineWidth=26;g.stroke();g.globalAlpha=1;   // a halo in the scenery colour
+    path();g.strokeStyle='#f2f2f0';g.lineWidth=17;g.stroke();
+    path();g.strokeStyle='#3a3d44';g.lineWidth=13;g.stroke();
+    path();g.save();g.setLineDash([7,9]);g.strokeStyle='rgba(242,242,240,.85)';g.lineWidth=1.6;g.stroke();g.restore();
+    const a0=line[0];
+    if(!closedNow){
+      // start marker, and a ring that lights up when the end is close enough to close the loop
+      const last=line[line.length-1],dc=Math.hypot(last.x-a0.x,last.y-a0.y),near=line.length>12&&dc<44;
+      g.fillStyle='#3f8a56';g.beginPath();g.arc(a0.x,a0.y,9,0,6.283);g.fill();
+      g.strokeStyle=near?'#7cff6b':'rgba(238,240,243,.35)';g.lineWidth=near?3:1.5;g.beginPath();g.arc(a0.x,a0.y,near?20:16,0,6.283);g.stroke();
+      if(near){g.fillStyle='#7cff6b';g.font='600 12px ui-monospace,Menlo,monospace';g.fillText('release to close the loop',a0.x+26,a0.y-14)}
+      g.fillStyle='#eef0f3';g.beginPath();g.arc(last.x,last.y,5,0,6.283);g.fill();return}
+    // start / finish: a chequered mark across the road and the direction of travel
+    {const b0=drawRS[1],ang=Math.atan2(b0.y-a0.y,b0.x-a0.x);g.save();g.translate(a0.x,a0.y);g.rotate(ang);
+     for(let k=0;k<4;k++)for(let r=0;r<2;r++){g.fillStyle=(k+r)%2?'#111317':'#f2f2f0';g.fillRect(-3+r*3,-8+k*4,3,4)}
+     g.fillStyle='#7cff6b';g.beginPath();g.moveTo(30,0);g.lineTo(18,-7);g.lineTo(18,7);g.closePath();g.fill();g.restore()}
     // obstacle markers, offset to the side of the line they block
     drawObs.forEach(o=>{const q=obsCanvasPos(o),L=OBS_LOOK[o.t]||OBS_LOOK.speed_breaker;
-      circCx.fillStyle=L.c;circCx.beginPath();circCx.arc(q.x,q.y,10,0,6.283);circCx.fill();
-      circCx.fillStyle='#06070b';circCx.font='bold 11px monospace';circCx.textAlign='center';circCx.textBaseline='middle';circCx.fillText(L.l,q.x,q.y+.5)})}
+      g.fillStyle=L.c;g.beginPath();g.arc(q.x,q.y,10,0,6.283);g.fill();
+      g.fillStyle='#06070b';g.font='bold 11px monospace';g.textAlign='center';g.textBaseline='middle';g.fillText(L.l,q.x,q.y+.5);g.textAlign='left';g.textBaseline='alphabetic'})}
   function rsNormal(i){const n=drawRS.length,a=drawRS[(i-1+n)%n],b=drawRS[(i+1)%n];let tx=b.x-a.x,ty=b.y-a.y;const l=Math.hypot(tx,ty)||1;return {x:-ty/l,y:tx/l}}
   function obsCanvasPos(o){const i=Math.round(o.u*drawRS.length)%drawRS.length,p=drawRS[i],n=rsNormal(i);return {x:p.x+n.x*o.s*9,y:p.y+n.y*o.s*9}}
   function placeObstacle(pt){
@@ -6282,11 +6309,11 @@ const PLANETS={
     const n=rsNormal(bi),off=(pt.x-drawRS[bi].x)*n.x+(pt.y-drawRS[bi].y)*n.y,side=Math.abs(off)<6?0:(off>0?1:-1);
     drawObs.push({t:selVal('#dcircobstype','speed_breaker'),u:bi/drawRS.length,s:side});
     redrawPath();if(circErrEl)circErrEl.textContent=drawObs.length+' obstacle'+(drawObs.length===1?'':'s')+' on the track · tap one again to remove it'}
-  function openDrawer(){if(!circDrawEl)return;if(MODE==='circuit'){toastMsg('Return to Earth before generating a new venue');return}resizeDrawCv();drawPts=[];drawingNow=false;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;if(circErrEl)circErrEl.textContent='';redrawPath();circDrawEl.classList.add('on')}
-  function closeDrawer(){if(circDrawEl)circDrawEl.classList.remove('on')}
+  function openDrawer(){if(!circDrawEl)return;if(MODE==='circuit'){toastMsg('Return to Earth before generating a new venue');return}resizeDrawCv();drawPts=[];drawingNow=false;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;if(circErrEl)circErrEl.textContent='';redrawPath();circDrawEl.classList.add('on');drawerOpen=true}
+  function closeDrawer(){if(circDrawEl)circDrawEl.classList.remove('on');drawerOpen=false}
   if(circCv){
     const posOf=e=>{const r=circCv.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}};
-    circCv.addEventListener('pointerdown',e=>{if(drawTool==='obstacles'){placeObstacle(posOf(e));return}drawRS=[];drawObs=[];drawingNow=true;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;drawPts=[posOf(e)];if(circErrEl)circErrEl.textContent='';try{circCv.setPointerCapture(e.pointerId)}catch(_){}});
+    circCv.addEventListener('pointerdown',e=>{if(drawTool==='obstacles'){placeObstacle(posOf(e));return}if(circErrEl)circErrEl.style.color='';drawRS=[];drawObs=[];drawingNow=true;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;drawPts=[posOf(e)];if(circErrEl)circErrEl.textContent='';try{circCv.setPointerCapture(e.pointerId)}catch(_){}});
     circCv.addEventListener('pointermove',e=>{if(!drawingNow)return;const p=posOf(e);const last=drawPts[drawPts.length-1];
       if(Math.hypot(p.x-last.x,p.y-last.y)>3){drawPts.push(p);redrawPath()}});
     ['pointerup','pointercancel'].forEach(ev=>circCv.addEventListener(ev,()=>{if(!drawingNow)return;drawingNow=false;finishDraw()}))}
@@ -6299,7 +6326,7 @@ const PLANETS={
       while(acc+segLen>=step){const t=(step-acc)/segLen,nx=a.x+(b.x-a.x)*t,ny=a.y+(b.y-a.y)*t;out.push({x:nx,y:ny});a={x:nx,y:ny};segLen=Math.hypot(b.x-a.x,b.y-a.y);acc=0}
       acc+=segLen}
     return out}
-  function drawFail(msg){pendingTrack=null;if(circGoEl)circGoEl.disabled=true;if(circErrEl)circErrEl.textContent=msg;drawPts=[];redrawPath()}
+  function drawFail(msg){pendingTrack=null;if(circGoEl)circGoEl.disabled=true;if(circErrEl){circErrEl.style.color='';circErrEl.textContent=msg}drawPts=[];redrawPath()}
   function finishDraw(){
     if(drawPts.length<6){drawFail('Draw a larger loop.');return}
     const first=drawPts[0],last=drawPts[drawPts.length-1];
@@ -6315,8 +6342,12 @@ const PLANETS={
 
     let rawLen=0;for(let i=1;i<closed.length;i++)rawLen+=Math.hypot(closed[i].x-closed[i-1].x,closed[i].y-closed[i-1].y);
     const step=Math.max(4,rawLen/110);
-    const rs=resamplePath(closed,step);
+    let rs=resamplePath(closed,step);
     if(rs.length<8){drawFail('Draw a larger loop.');return}
+    /* hand jitter out: two relax passes round the closed loop (each point pulled a quarter of the way to its neighbours'
+       average), then even spacing again. Corners stay where they were drawn, the wobble between them goes. */
+    {let q=rs.slice(0,rs.length-1);for(let pass=0;pass<2;pass++){const n=q.length;q=q.map((p,i)=>{const a=q[(i-1+n)%n],b=q[(i+1)%n];return {x:p.x*.5+(a.x+b.x)*.25,y:p.y*.5+(a.y+b.y)*.25}})}
+     q.push({x:q[0].x,y:q[0].y});let L2=0;for(let i=1;i<q.length;i++)L2+=Math.hypot(q[i].x-q[i-1].x,q[i].y-q[i-1].y);rs=resamplePath(q,Math.max(4,L2/110));if(rs.length<8){drawFail('Draw a larger loop.');return}}
 
     // Check self-intersections (allow endpoints)
     for(let i=0;i<rs.length-1;i++)for(let j=i+2;j<rs.length-1;j++){
@@ -6335,7 +6366,7 @@ const PLANETS={
     if(testB)testB.disabled=false;
     if(saveB)saveB.disabled=false;
     if(shareB)shareB.disabled=false;
-    if(circErrEl)circErrEl.textContent='Loop ready · '+(selVal('#dcircsize','large')==='huge'?'3.6':selVal('#dcircsize','large')==='medium'?'1.6':'2.4')+' km lap. Add obstacles, or press Test drive / GO.';
+    if(circErrEl){circErrEl.style.color='#7cff6b';circErrEl.textContent='Loop ready · '}if(circErrEl)circErrEl.textContent='Loop ready · '+(selVal('#dcircsize','large')==='huge'?'3.6':selVal('#dcircsize','large')==='medium'?'1.6':'2.4')+' km lap. Add obstacles, or press Test drive / GO.';
   }
   function generateVenue(){
     if(!pendingTrack)return;
@@ -6384,7 +6415,8 @@ updCircBtn();
      if(circCv)circCv.style.cursor=drawTool==='obstacles'?'pointer':'crosshair';
      if(top)top.textContent=drawTool==='obstacles'?'Tap the track to drop the selected obstacle · tap a marker to remove it':'Draw one closed loop. Switch the tool to Obstacles to tap them onto the track'};
    // changing size after drawing rescales the preview message straight away
-   const sz=$('#dcircsize');if(sz)sz.onchange=()=>{if(drawRS.length>=8){pendingTrack=normalizeLoop(drawRS,CIRC_SIZES[sz.value]);if(circErrEl)circErrEl.textContent='Lap length set to '+(CIRC_SIZES[sz.value]/1000)+' km.'}}}
+   const sz=$('#dcircsize');if(sz)sz.onchange=()=>{if(drawRS.length>=8){pendingTrack=normalizeLoop(drawRS,CIRC_SIZES[sz.value]);if(circErrEl)circErrEl.textContent='Lap length set to '+(CIRC_SIZES[sz.value]/1000)+' km.'}redrawPath()};
+   const sc=$('#dcircscenery');if(sc)sc.addEventListener('change',redrawPath)}
   const saved=(()=>{try{return JSON.parse(localStorage.getItem('sl_venue')||'null')}catch(e){return null}})();
   if(saved){if(circSeedEl)circSeedEl.value=String(saved.seed||271828);const scenery=$('#dcircscenery'),weather=$('#dcircweather'),time=$('#dcirctime');
     if(scenery&&scenery.querySelector('option[value="'+saved.scenery+'"]'))scenery.value=saved.scenery;
