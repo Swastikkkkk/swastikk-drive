@@ -2203,6 +2203,9 @@ t.bd.position.set(x,y+.86,z);
     const FP_SET={truck:{y:2.05,z:2.8},countach:{y:1.27,z:.75}};if(FP_SET[spec.id])bonnet=Object.assign({},FP_SET[spec.id]);
     const nose=top(F-.15)||.6;
     const out={bonnet,bumper:{y:Math.max(.32,Math.min(.75,nose*.55)),z:F+.12},top:mx,back:B};
+    /* the F1 car: 'bonnet' is the onboard T-cam above the driver's helmet (nose, front wheels and wing in view),
+       'bumper' sits just ahead of the front wing, low over the road; the nose cone and wing reach well past spec.F */
+    if(spec.type==='f1'){out.bonnet={y:1.24,z:-.22};out.bumper={y:.36,z:F+.62}}
     if(window.__dev)out.prof=prof.filter((q,i)=>i%2===0).map(q=>[+q[0].toFixed(1),q[1]==null?null:+q[1].toFixed(2)]);
     g.position.y=py;g.updateMatrixWorld(true);return out}
   window.__fp=()=>FP;
