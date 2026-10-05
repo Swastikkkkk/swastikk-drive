@@ -1628,7 +1628,11 @@ async function submitToLeaderboard(ms,vehicle){
     bakeGroup(spin);
     if(detail){const cg=new THREE.Group();cg.scale.x=sx;w.add(cg);
       const c=new THREE.Mesh(new THREE.TorusGeometry(rr*.66,.055,6,10,1.1).rotateY(Math.PI/2),calM);c.scale.set(1.6,1,1);c.rotation.x=-.2;c.position.set(wd*.12,0,0);cg.add(c)}
-    return {w,spin}}
+    // at speed the spokes smear into a disc, the way a camera sees a fast wheel; faded in from the car's speed
+    let blur=null;if(detail){const bg=new THREE.Group();bg.scale.x=sx;w.add(bg);
+      blur=new THREE.Mesh(new THREE.CircleGeometry(rr*.97,40).rotateY(Math.PI/2),new THREE.MeshLambertMaterial({color:0x8d9095,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));
+      blur.position.x=wd*.45;blur.visible=false;bg.add(blur)}
+    return {w,spin,blur}}
   window.makeWheel = makeWheel;
   /* o: paint, roof (colour or null), r wheel radius, zf/zb axle z, F/B nose and tail z, W width, xw/ww wheel track and width, wagon, head/tail materials, wheels */
   function buildCar(o){const g=new THREE.Group(),body=new THREE.Group();g.add(body);
@@ -2240,14 +2244,23 @@ t.bd.position.set(x,y+.86,z);
   const NITRO=(function(){const g=new THREE.Group(),flames=[];
     const mk=(r,col,op,norm)=>{const geo=new THREE.ConeGeometry(r,1,14,1,true);geo.translate(0,.5,0);geo.rotateX(-Math.PI/2);   // wide end at the pipe, tip trailing back along -z
       return new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,blending:norm?THREE.NormalBlending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}))};
-    for(let i=0;i<2;i++){const f=new THREE.Group(),outer=mk(.16,0xe00010,.85,true),core=mk(.075,0xff2a20,.95),glow=mk(.3,0xff0010,.3);f.add(glow,outer,core);f.userData={outer,core,glow};g.add(f);flames.push(f)}
+    // a soft red bloom round each pipe, so the flame sits in its own light
+    const bloomT=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),gr=x.createRadialGradient(32,32,0,32,32,32);
+      gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.25,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=gr;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
+    for(let i=0;i<2;i++){const f=new THREE.Group(),outer=mk(.17,0xe00010,.85,true),core=mk(.08,0xff3a2a,.95),glow=mk(.32,0xff0010,.3);
+      const bloom=new THREE.Sprite(new THREE.SpriteMaterial({map:bloomT,color:0xff1a10,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));bloom.scale.set(.75,.75,1);
+      f.add(glow,outer,core,bloom);f.userData={outer,core,glow,bloom};g.add(f);flames.push(f)}
     g.visible=false;vis.car.add(g);let amt=0;
     return {place(box,bike){const y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05,w=(box.max.x-box.min.x)*.24;
         flames[0].position.set(bike?0:w,y,z);flames[1].position.set(-w,y,z);flames[1].visible=!bike},
-      tick(dt,on){amt+=((on?1:0)-amt)*Math.min(1,dt*(on?10:6));g.visible=amt>.02;if(!g.visible)return amt;
-        for(const f of flames){const k=amt*(.85+Math.random()*.45),wd=.85+Math.random()*.3,u=f.userData;
-          u.outer.scale.set(wd,wd,1.7*k);u.core.scale.set(wd,wd,.75*k);u.glow.scale.set(wd*1.1,wd*1.1,.9*k);
-          u.outer.material.opacity=.8*amt;u.core.material.opacity=.7*amt;u.glow.material.opacity=.22*amt}
+      /* short, fat and flickering at a standstill, stretched out behind the car at speed (it used to be a long thin
+         spike either way, which read as a laser rather than a flame) */
+      tick(dt,on,sp){amt+=((on?1:0)-amt)*Math.min(1,dt*(on?10:6));g.visible=amt>.02;if(!g.visible)return amt;
+        const len=.55+.75*Math.min(1,(sp||0)/30);
+        for(const f of flames){const k=amt*(.8+Math.random()*.5)*len,wd=.9+Math.random()*.35,u=f.userData;
+          u.outer.scale.set(wd,wd,1.15*k);u.core.scale.set(wd*.9,wd*.9,.6*k);u.glow.scale.set(wd*1.2,wd*1.2,.8*k);
+          u.outer.material.opacity=.8*amt;u.core.material.opacity=.75*amt;u.glow.material.opacity=.25*amt;
+          u.bloom.material.opacity=.55*amt*(.8+Math.random()*.3);u.bloom.position.z=-.05}
         return amt},get amt(){return amt}}})();vis.body=new THREE.Group();vis.body.position.y=.55;vis.car.add(vis.body);vis.bodyIn=new THREE.Group();vis.bodyIn.position.y=-.55;vis.body.add(vis.bodyIn);
   const SKN=420;let skI=0;const skLast=[null,null,null,null];
   const skid=new THREE.InstancedMesh(new THREE.PlaneGeometry(.32,.66).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x080808,transparent:true,opacity:.38,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),SKN);
@@ -2268,6 +2281,42 @@ t.bd.position.set(x,y+.86,z);
   let lastNi=0;
   function applyLights(ni){if(ni!=null)lastNi=ni;const n=lightsOff?0:lastNi;
     if(carHL)carHL.intensity=n;headM.emissiveIntensity=lightsOff?0:1+n*.5}
+  /* ---------- the car you drive, up close ----------
+     The builders hand out Phong materials shared with the traffic. The player's car gets its own physically based
+     set on top: metallic paint under a clear coat, glass and chrome that mirror the live cube reflection of the
+     world, satin black trim, alloy wheels. Lamps get soft halos that brighten at night (head) and under braking
+     (tail). Phones (LOW) keep the cheap materials and only get the halos. */
+  const HALO_TEX=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);
+    g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.18,'rgba(255,255,255,.7)');g.addColorStop(.45,'rgba(255,255,255,.18)');g.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
+  const LOOK={head:[],tail:[]};
+  function carLook(){
+    if(!PCAR)return;LOOK.head.length=LOOK.tail.length=0;
+    const env=cubeRT?cubeRT.texture:CARENV,lit=m=>m.emissive&&m.emissive.getHex()!==0&&m.emissiveIntensity>.05;
+    if(!LOW){const swap=new Map();
+      const conv=m=>{if(!m||swap.has(m))return m?swap.get(m):m;let n=m;
+        if((m.isMeshPhongMaterial||m.isMeshLambertMaterial)&&!lit(m)){
+          const c=m.color,lum=c.r*.3+c.g*.59+c.b*.11,base={color:c.clone(),side:m.side,transparent:m.transparent,opacity:m.opacity,map:m.map||null};
+          if(m===PCAR.paint)n=new THREE.MeshPhysicalMaterial(Object.assign(base,{metalness:.45,roughness:.32,clearcoat:1,clearcoatRoughness:.05,envMap:env,envMapIntensity:1.15}));
+          else if(m.isMeshPhongMaterial&&lum<.08&&m.shininess>=100)n=new THREE.MeshStandardMaterial(Object.assign(base,{color:new THREE.Color(0x05080c),metalness:.35,roughness:.06,envMap:env,envMapIntensity:1.1}));   // glass: dark, the sky only at a glance
+          else if(m.isMeshPhongMaterial&&m.reflectivity>=.6)n=new THREE.MeshStandardMaterial(Object.assign(base,{metalness:1,roughness:.12,envMap:env,envMapIntensity:1.2}));   // chrome
+          else if(m.isMeshPhongMaterial&&m.reflectivity>=.25)n=new THREE.MeshStandardMaterial(Object.assign(base,{metalness:.9,roughness:.28,envMap:env,envMapIntensity:1}));   // alloy, gunmetal
+          else if(m.isMeshPhongMaterial&&lum<.05)n=new THREE.MeshStandardMaterial(Object.assign(base,{metalness:.2,roughness:.55,envMap:env,envMapIntensity:.45}))}   // satin trim
+        swap.set(m,n);return n};
+      const pass=o=>{if(o.isMesh&&o.material)o.material=Array.isArray(o.material)?o.material.map(conv):conv(o.material)};
+      PCAR.g.traverse(pass);if(wv)wv.car.forEach(k=>k.w.traverse(pass));
+      if(swap.has(PCAR.paint))PCAR.paint=swap.get(PCAR.paint)}
+    // halos: one per lamp cluster (left/right, front/back), just proud of the lens
+    PCAR.g.updateMatrixWorld(true);const groups=new Map(),box=new THREE.Box3(),ctr=new THREE.Vector3();
+    PCAR.g.traverse(o=>{if(!o.isMesh||!o.material||Array.isArray(o.material))return;const m=o.material,isH=m===headM,isT=m===tailM||m===PCAR.tail;if(!isH&&!isT)return;
+      box.setFromObject(o);if(box.isEmpty())return;box.getCenter(ctr);PCAR.g.worldToLocal(ctr);const k=(isH?'h':'t')+(ctr.x>.15?1:ctr.x<-.15?-1:0);
+      const gr=groups.get(k)||{n:0,x:0,y:0,z:isH?-1e9:1e9,h:isH};gr.n++;gr.x+=ctr.x;gr.y+=ctr.y;
+      const lz=PCAR.g.worldToLocal(isH?box.max.clone():box.min.clone()).z;gr.z=isH?Math.max(gr.z,lz):Math.min(gr.z,lz);groups.set(k,gr)});
+    groups.forEach(gr=>{const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:HALO_TEX,color:gr.h?0xfff1d8:0xff2414,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
+      const sz=gr.h?.95:.6;sp.scale.set(sz,sz*.62,1);sp.position.set(gr.x/gr.n,gr.y/gr.n,gr.z+(gr.h?.06:-.06));sp.renderOrder=3;PCAR.g.add(sp);(gr.h?LOOK.head:LOOK.tail).push(sp)})}
+  // every frame: headlamp halos follow the lights switch and the dark, tail halos the brake pedal
+  function lookTick(braking,boost){const h=lightsOff?0:.12+lastNi*.8,t=braking?.95:boost?.55:.12+lastNi*.38;
+    for(const s of LOOK.head)s.material.opacity=h*(.9+Math.random()*.1);for(const s of LOOK.tail)s.material.opacity=t}
   function toggleLights(){lightsOff=!lightsOff;const lb=document.getElementById('dlights');if(lb)lb.textContent='Lights: '+(lightsOff?'off':'on');applyLights();toastMsg(lightsOff?'Lights off':'Lights on')}
   /* real reflections: a small cube map rendered from the car, one face every few frames, so the
      paint and glass pick up the actual trees, sky and road around you */
@@ -2383,6 +2432,7 @@ t.bd.position.set(x,y+.86,z);
     const nW=spec.type==='bike'?2:spec.type==='truck'?6:4,wheelWd=wheelWdOf(spec);
     wv={car:Array.from({length:nW},(_,i)=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
     wv.car.forEach(k=>vis.car.add(k.w));
+    carLook();
     if(carShadow){carShadow.position.y=.05-(V.rest-.07)-.02;carShadow.scale.z=(spec.F-spec.B)/GARAGE_BASE_LEN}
     try{localStorage.setItem('sl_car',JSON.stringify({id:spec.id,paint:paintHex}))}catch(e){}
     if(mpCarNotify)mpCarNotify();
@@ -2967,6 +3017,7 @@ t.bd.position.set(x,y+.86,z);
   const CAMS=[{n:'Chase',d:9.5,h:4.8,k:1,lag:6.5,ahead:6,ly:1.05,fov:50},{n:'Far chase',d:15,h:7.5,k:1.2,lag:5,ahead:8,ly:1,fov:48},
     {n:'Low chase',d:6.2,h:2.1,k:.6,lag:9,ahead:10,ly:.9,fov:58},{n:'Rear View',d:-9.5,h:4.8,k:1,lag:8,ahead:-14,ly:1.05,fov:55},
     {n:'Bonnet',fp:1,y:.5,z:1.1,fov:66},{n:'Bumper',fp:1,y:.02,z:2.5,fov:70,skip:1},{n:'Cockpit',fp:1,cock:1,fov:72}];
+  let PHOTO=null;
   const HEADV={x:0,z:0,lat:0,lon:0,ok:false,o:new THREE.Vector3(),a:new THREE.Vector3(),q:new THREE.Quaternion()};
   let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}if(CAMS[camMode].n==='Rear View'||CAMS[camMode].skip)camMode=0;
   function cycleCam(){do camMode=(camMode+1)%CAMS.length;while(CAMS[camMode].n==='Rear View'||CAMS[camMode].skip);   // rear view: hold V / Q instead; the bumper cam is retired
@@ -4890,15 +4941,29 @@ const PLANETS={
       if(!path.planet){const now=performance.now(),dt=Math.min(.1,(now-(lastT||now))/1000);lastT=now;
         const hx=Math.sin(h),hz=Math.cos(h),obs=traffic.map(t=>t.bd);try{CAI.bodies.forEach(b=>obs.push(b))}catch(e){}
         // home is the centre line: on the loop both traffic lanes run one way either side of it, so the middle is the clear path
-        const look=Math.max(50,sp*3.2+20),LANE=MODE==='circuit'?CIRC_W/4:2.05+RWX*.62,DEC=6.5;
+        const look=Math.max(50,sp*3.2+20),LANE=MODE==='circuit'?CIRC_W/4:2.05+RWX*.62,DEC=5.2;   // braking we can count on, downhill and on a cold tyre too
         if(!lanePicked){const q0=path.P[ci],q1=path.P[(ci+1)%path.n],th=Math.atan2(q1.x-q0.x,q1.z-q0.z),rs=(x-q0.x)*Math.cos(th)-(z-q0.z)*Math.sin(th);
           latOff=Math.max(-LANE,Math.min(LANE,rs));latT=0;lanePicked=true}
         /* real sizes, not a guess: our half length / half width from the garage spec, theirs from their physics box,
            so every gap below is bumper to bumper and side to side */
         const me=garageOf(curCarId),myHL=Math.max(1.2,((me.F||2.2)-(me.B||-2.2))/2),myHW=Math.max(.5,(me.W||1.9)/2);
         const sizeOf=b=>{const he=b.shapes&&b.shapes[0]&&b.shapes[0].halfExtents;return he?{hl:Math.max(he.z,he.x>he.z?he.x:0),hw:Math.min(he.x,he.z)}:{hl:2.3,hw:1}};
-        const list=[];for(const b of obs){const dx=b.position.x-x,dz=b.position.z-z,fwd=dx*hx+dz*hz;if(fwd<-14||fwd>look)continue;const sz=sizeOf(b);
-          list.push({fwd,side:dx*hz-dz*hx,bv:b.velocity.x*hx+b.velocity.z*hz,bs:b.velocity.x*hz-b.velocity.z*hx,hl:sz.hl,hw:sz.hw})}
+        /* where every car is, measured ALONG THE ROAD: distance down the path and offset from its centre line. Measured
+           straight off our nose instead, a car round the next bend looked like it was off to the side, so we never
+           slowed for it and ran into it on curves. near: the same cars in straight-line terms, for the short-range net. */
+        const P=path.P,n=path.n,tan=i=>{const a=P[i],c=P[(i+1)%n],dx=c.x-a.x,dz=c.z-a.z,l=Math.hypot(dx,dz)||1;return [dx/l,dz/l]};
+        const [t0x,t0z]=tan(ci),myS=(x-P[ci].x)*t0z-(z-P[ci].z)*t0x,myF=(x-P[ci].x)*t0x+(z-P[ci].z)*t0z,segL=i=>Math.hypot(P[(i+1)%n].x-P[i].x,P[(i+1)%n].z-P[i].z);
+        const ROADHW=(MODE==='circuit'?CIRC_W/2:4.5+RWX)+2.5,list=[],near=[];
+        for(const b of obs){const dx=b.position.x-x,dz=b.position.z-z,d=Math.hypot(dx,dz);if(d>look+25)continue;const sz=sizeOf(b),f0=dx*hx+dz*hz;
+          if(f0>-14&&d<45)near.push({fwd:f0,side:dx*hz-dz*hx,bv:b.velocity.x*hx+b.velocity.z*hz,bs:b.velocity.x*hz-b.velocity.z*hx,hl:sz.hl,hw:sz.hw});
+          if(Math.abs(b.position.y-chassisB.position.y)>4)continue;                // on a flyover above or below us
+          const j=nearest(P,n,b.position.x,b.position.z,ci+Math.round(f0/Math.max(.5,segL(ci))));
+          let k=j-ci;if(k>n/2)k-=n;if(k<-n/2)k+=n;if(Math.abs(k)>600)continue;
+          let along=0;if(k>0)for(let i=0;i<k;i++)along+=segL((ci+i)%n);else for(let i=0;i<-k;i++)along-=segL(((ci-1-i)%n+n)%n);
+          const [tx,tz]=tan(j),ox=b.position.x-P[j].x,oz=b.position.z-P[j].z,bS=ox*tz-oz*tx;
+          if(Math.abs(bS)>ROADHW)continue;                                          // on another road that only passes close by
+          const fwd=along+ox*tx+oz*tz-myF;if(fwd<-14||fwd>look)continue;
+          list.push({fwd,side:bS-myS,bv:b.velocity.x*tx+b.velocity.z*tz,bs:b.velocity.x*tz-b.velocity.z*tx,hl:sz.hl,hw:sz.hw})}
         const sideClear=o=>myHW+o.hw+1;                                     // centre-to-centre lateral distance that leaves 1 m between the bodies
         const blocked=(off,from,to)=>list.some(o=>o.fwd>from&&o.fwd<to&&Math.abs(o.side-(off-latOff))<sideClear(o)+.4);
         // the lead is whoever is ahead in the lane we are heading for (not the one we happen to straddle mid-pass),
@@ -4906,18 +4971,24 @@ const PLANETS={
         let lead=null;for(const o of list)if(o.fwd>0&&Math.abs(o.side-(latT-latOff))<sideClear(o)&&(!lead||o.fwd<lead.fwd))lead=o;
         if(lead&&lead.bv<sp-1.5&&lead.fwd<look){
           // step out to a side, nearer free one first, if it is clear from just behind us to well past them
-          const opts=latT===0?[LANE,-LANE]:[0,-latT];for(const off of opts)if(!blocked(off,-10,lead.fwd+25)){latT=off;break}}
+          // only if the lane change finishes before we reach them; otherwise stay behind and let the following below slow us
+          const reach=(lead.fwd-myHL-lead.hl-1)/Math.max(.5,sp-lead.bv);
+          const opts=latT===0?[LANE,-LANE]:[0,-latT];for(const off of opts)if(reach>Math.abs(off-latOff)/2.6+.4&&!blocked(off,-10,lead.fwd+25)){latT=off;break}}
         else if(!lead&&latT!==0&&!blocked(0,-8,30))latT=0;                       // passed: back to the middle
         latOff+=Math.max(-2.6*dt,Math.min(2.6*dt,latT-latOff));
         // following: stop with at least 1 m (plus a short time gap at speed) between our nose and their tail
-        for(const o of list){if(o.fwd<=0||Math.abs(o.side-(latT-latOff))>=sideClear(o))continue;   // still in the lane we are heading for
-          const gap=o.fwd-myHL-o.hl-1-sp*.35,bv=Math.max(0,o.bv);vT=Math.min(vT,gap<=0?0:Math.sqrt(bv*bv+2*DEC*gap))}
+        /* a car counts if it is in the lane we are heading for, OR if it still overlaps where we are now: mid-pass the car
+           being passed is no longer in the target lane, and forgetting it then is how autodrive used to clip it */
+        for(const o of list){if(o.fwd<=0)continue;const inTarget=Math.abs(o.side-(latT-latOff))<sideClear(o),overlap=Math.abs(o.side)<myHW+o.hw+.6;if(!inTarget&&!overlap)continue;
+          const gap=o.fwd-myHL-o.hl-1.5-sp*.5,bv=Math.max(0,o.bv);vT=Math.min(vT,gap<=0?0:Math.sqrt(bv*bv+2*DEC*gap))}
         /* the safety net: project every nearby car 1.5 s ahead on our current and their current velocity. If the
            gap between the bodies would drop under 1 m, brake now, and ease the steering away from them */
         emerg=0;emergSteer=0;
-        for(const o of list){const rvF=o.bv-sp,rvS=o.bs;let minGap=1e9,tMin=0;
-          for(let t=0;t<=1.5;t+=.1){const f=o.fwd+rvF*t,sd=o.side+rvS*t,g=Math.max(Math.abs(f)-myHL-o.hl,Math.abs(sd)-myHW-o.hw);if(g<minGap){minGap=g;tMin=t}}
-          if(minGap<1&&(o.fwd+rvF*tMin)>-myHL){emerg=Math.max(emerg,1-Math.max(0,minGap)/1);const sd=o.side+rvS*tMin;emergSteer+=sd>0?-.6:.6}}}
+        if(window.__dev)window.__autoObs={list:list.map(o=>[+o.fwd.toFixed(1),+o.side.toFixed(1),+o.bv.toFixed(1)]),near:near.map(o=>[+o.fwd.toFixed(1),+o.side.toFixed(1),+o.bv.toFixed(1)]),latT,latOff:+latOff.toFixed(2),vT:+vT.toFixed(1),sp:+sp.toFixed(1)};
+        const horizon=Math.max(1.5,Math.min(3,sp/DEC*.5)),margin=1+sp*.04;   // further ahead the faster we go
+        for(const o of near){const rvF=o.bv-sp,rvS=o.bs;let minGap=1e9,tMin=0;
+          for(let t=0;t<=horizon;t+=.1){const f=o.fwd+rvF*t,sd=o.side+rvS*t,g=Math.max(Math.abs(f)-myHL-o.hl,Math.abs(sd)-myHW-o.hw);if(g<minGap){minGap=g;tMin=t}}
+          if(minGap<margin&&(o.fwd+rvF*tMin)>-myHL){emerg=Math.max(emerg,1-Math.max(0,minGap)/margin);const sd=o.side+rvS*tMin;emergSteer+=sd>0?-.6:.6}}}
       if(vCap!=null){vT=Math.min(vT,vCap);if(vCap<.5){key.l=key.r=0;key.f=0;key.b=1;key.h=0;return}}
       let stF=st;if(emerg>0){vT=0;stF=Math.max(-1,Math.min(1,st+emergSteer*emerg))}
       key.l=stF>0?stF:0;key.r=stF<0?-stF:0;key.f=sp<vT-.5&&!emerg?1:0;key.b=sp>vT+(vCap!=null?2:1.5)||emerg>0&&sp>.5?1:0;key.h=0;if(window.__dev)window.__autoDbg=[+latOff.toFixed(1),+vT.toFixed(1),+curve.toFixed(4),+sp.toFixed(1),ci,+err.toFixed(2)]}
@@ -5020,7 +5091,7 @@ const PLANETS={
       inPond=sub>.06;
       ZN=MODE==='circuit'?{drag:0,fog:1,tint:[1,1,1]}:zoneAt(progU);const zd=ZN.drag;
       if(NP&&frameN%10===0){NP.show(active&&driving);NP.paint(false);if(window.Radio&&Radio.setSpeed)Radio.setSpeed(chassisB.velocity.length()*3.6,dt*10)}
-      padT=Math.max(0,padT-dt);const boost=(key.boost||padT>0)?1:0;NITRO.tick(dt,!!boost&&driving);
+      padT=Math.max(0,padT-dt);const boost=(key.boost||padT>0)?1:0;NITRO.tick(dt,!!boost&&driving,chassisB.velocity.length());
       const eMul=(1-sub*.66)*(1-zd*.52),vmax=V.max*(1+boost*.28)*(1-sub*.68)*(1-zd*.38);
       /* Tractive force used to be flat all the way to the cap, so the car pulled just as
          hard at 90 as it did from rest and then hit a wall. This is the shape a gearbox
@@ -5086,7 +5157,7 @@ const PLANETS={
       // below ~25 km/h full lock felt like the car pivoted on the spot: ease the lock in with speed (still enough to U-turn)
       const lowS=sp<7?.55+.45*sp/7:1;
       const st=steerIn*V.steer*Math.max(.35,1-sp/46)*lowS*(key.h?1.25:1);steerActual+=(st-steerActual)*Math.min(1,dt*(sp<7?5:8));veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
-      tailM.emissiveIntensity=(b||key.h)?1.6:boost?1.2:.5;
+      tailM.emissiveIntensity=(b||key.h)?1.6:boost?1.2:.5;lookTick(b||key.h,boost);
       // cannon integrates damping as pow(1-damping,dt), so anything at or above 1 turns the whole
       // body into NaN on the next step. That was the real cause of the car "flying" over the pond.
       chassisB.linearDamping=.01+sub*.82;
@@ -5322,7 +5393,7 @@ const PLANETS={
       const j=isBike?i*2:i<wi.length?i:2+(i%2),w=wi[j];if(!w)return;const c=w.chassisConnectionPointLocal,dz=isBike||i<wi.length?0:V.r*2.3;
       /* the wheel picture may rise only ~6 cm above its resting place: physics can compress the spring by up to the
          full rest length on bumps and landings, and drawn that far up the tyre comes out through the wing */
-      k.w.position.set(isBike?0:c.x*.9,.05-Math.max(w.suspensionLength,V.rest-.13),c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation});
+      k.w.position.set(isBike?0:c.x*.9,.05-Math.max(w.suspensionLength,V.rest-.13),c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation;if(k.blur){const o=Math.max(0,Math.min(.72,(sp-7)/26));k.blur.visible=o>.02;k.blur.material.opacity=o}});
     if(active&&MP.on)MP.tick(now,dt);
     if(frameN%10===0){
       const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
@@ -5438,6 +5509,9 @@ const PLANETS={
         camT.copy(car.position).addScaledVector(fwd,-dist).add(tmp.set(0,hgt,0));
         C.position.lerp(camT,1-Math.exp(-dt*(active?CM.lag:3.2)));
         lookT.copy(car.position).addScaledVector(fwd,CM.ahead).add(tmp.set(0,CM.ly,0))}
+      if(PHOTO){/* dev only (?dev=1): a fixed shot of the car from its own frame, for checking the models */
+        camT.set(PHOTO[0],PHOTO[1],PHOTO[2]).applyQuaternion(car.quaternion).add(car.position);C.position.copy(camT);
+        lookT.set(0,PHOTO[3]||.7,PHOTO[4]||0).applyQuaternion(car.quaternion).add(car.position)}
       if(shake>.01){lookT.x+=(Math.random()-.5)*shake*.3;lookT.y+=(Math.random()-.5)*shake*.3;shake*=Math.pow(.08,dt)}
       if(CAMS[effCamMode].fp)look.copy(lookT);else look.lerp(lookT,1-Math.exp(-dt*9));
       C.lookAt(look);
@@ -6853,7 +6927,7 @@ updCircBtn();
       if(window.TrackEditor){
         const code=window.TrackEditor.exportTrackCode?window.TrackEditor.exportTrackCode():null;
         if(code){
-          const url=location.origin+location.pathname+'?track='+code;
+          const url=location.origin+'/track/'+code;
           if(window.AppQR&&$('#dqr-modal')){
             window.AppQR.render($('#dqrcanvas'),url);
             $('#dqr-modal').dataset.mode='track';
@@ -6969,7 +7043,7 @@ updCircBtn();
 
   // Auto-load track if ?track=TRK... present in URL
   {
-    const trkParam=new URLSearchParams(location.search).get('track');
+    const trkParam=new URLSearchParams(location.search).get('track')||((/^\/track\/([^/?#]+)/.exec(location.pathname)||[])[1]&&decodeURIComponent(/^\/track\/([^/?#]+)/.exec(location.pathname)[1]));
     if(trkParam&&window.TrackEditor){
       setTimeout(()=>{
         if(window.TrackEditor.importTrackCode(trkParam)){
@@ -7104,9 +7178,36 @@ updCircBtn();
       toastMsg('Free drive');window.__updModes();
     };
     if(modeDaily)modeDaily.onclick=()=>{ if(dailyBtn)dailyBtn.onclick() };
-    // sketchracer.com/daily and /daily/typer open the Daily modal on that tab
-    {const m=/^\/daily(\/typer)?\/?$/.exec(location.pathname);
-     if(m&&dailyBtn)addEventListener('load',()=>setTimeout(()=>{if(dailyModal)dailyModal._want=m[1]?'type':'track';dailyBtn.onclick()},50))}
+    /* ---------- addresses ----------
+       /play free drive · /multiplayer the room lobby · /room/ABCD straight into that room · /draw the track editor
+       /type Type Faster · /garage the garage · /daily today's track · /daily/typer today's typing race · /track/CODE a shared track
+       Opening one of these starts that mode; using the menu keeps the address bar on the mode you are in, so any of
+       them can be copied and shared. vercel.json serves index.html for all of them. */
+    {const NAMES={'/':'Draw it. Drive it.','/play':'Free Drive','/multiplayer':'Multiplayer','/draw':'Draw a Track','/type':'Type Faster','/garage':'Garage','/daily':'Daily Track','/daily/typer':'Daily Typing Race'};
+     const title=t=>{document.title='SketchRacer · '+t};
+     const go=p=>{try{if(location.pathname!==p)history.replaceState(null,'',p+location.search+location.hash)}catch(_){}title(NAMES[p]||NAMES['/'])};
+     window.__route={go,title};
+     const wrap=(el,p)=>{if(!el||!el.onclick)return;const f=el.onclick;el.onclick=function(){const r=f.apply(this,arguments);go(p);return r}};
+     wrap(playBtn,'/play');wrap(mpBtn,'/multiplayer');wrap(editorBtn,'/draw');wrap(modeFree,'/play');
+     {const mt=document.getElementById('dmtype');if(mt)mt.addEventListener('click',()=>go('/type'))}
+     {const gb=document.getElementById('dgarageb');if(gb)gb.addEventListener('click',()=>go('/garage'))}
+     const path=location.pathname.replace(/\/+$/,'')||'/';title(NAMES[path]||NAMES['/']);
+     const start={
+       '/play':()=>playBtn&&playBtn.onclick(),
+       '/multiplayer':()=>mpBtn&&mpBtn.onclick(),
+       '/draw':()=>editorBtn&&editorBtn.onclick(),
+       '/type':()=>{if(playBtn)playBtn.onclick();const mt=document.getElementById('dmtype');if(mt)mt.onclick();go('/type')},
+       '/garage':()=>{if(playBtn)playBtn.onclick();const gb=document.getElementById('dgarageb');if(gb)gb.click()},
+       '/daily':()=>{if(dailyModal)dailyModal._want='track';dailyBtn&&dailyBtn.onclick()},
+       '/daily/typer':()=>{if(dailyModal)dailyModal._want='type';dailyBtn&&dailyBtn.onclick()},
+       '/room':()=>{if(landing)landing.style.display='none';if(!active)try{enterDrive()}catch(_){}const mp=document.getElementById('dmp');if(mp)mp.classList.add('on')},   // the room code itself is joined by the multiplayer code
+       '/track':()=>{if(landing)landing.style.display='none'}};
+     const key=/^\/room\//.test(path)?'/room':/^\/track\//.test(path)?'/track':path;
+     // a link straight into a mode skips the car picker the first drive opens with (/play and /garage keep it)
+     const closeGarage=()=>{const gp=document.getElementById('dgarage');if(gp&&gp.classList.contains('on')){const gx=document.getElementById('dgaragex');if(gx)gx.click();else gp.classList.remove('on')}};
+     const roomTitle=()=>{const m=/^\/room\/([A-Za-z0-9]{4,6})/.exec(location.pathname);return m?'Room '+m[1].toUpperCase():null};
+     if(start[key]&&!/[?&](controller=true|ctrl=1)/.test(location.search))addEventListener('load',()=>setTimeout(()=>{try{start[key]()}catch(e){console.warn('[route]',e)}
+       if(key!=='/play'&&key!=='/garage')setTimeout(closeGarage,30);title(roomTitle()||NAMES[path]||NAMES['/'])},60))}
     {const mt=document.getElementById('dmtype');if(mt)mt.onclick=()=>{try{audioInit()}catch(_){}if(window.TypingRace&&TypingRace.openFast)TypingRace.openFast()}}
 
     // build + enter today's daily track without starting a solo race (used when a room races on it)
@@ -7361,11 +7462,11 @@ updCircBtn();
         if(s==='down')toast2('Cannot reach the room right now');
         if(s==='up'&&was==='retry')toast2('Back online');ui()});
       ui();
-      try{const u=new URL(location.href);u.searchParams.set('room',code);history.replaceState(null,'',u)}catch(e){}}
+      try{const u=new URL(location.href);u.searchParams.delete('room');u.pathname='/room/'+code;history.replaceState(null,'',u)}catch(e){}if(window.__route)window.__route.title('Room '+code)}
     function leave(msg){lg('leave',msg||'');
       if(net){send({k:'bye'});net.close()}
       net=null;peers.forEach(killGhost);peers.clear();room=null;status='off';endRace(true);
-      try{const u=new URL(location.href);u.searchParams.delete('room');u.searchParams.delete('net');history.replaceState(null,'',u)}catch(e){}
+      try{const u=new URL(location.href);u.searchParams.delete('room');u.searchParams.delete('net');if(/^\/room\//.test(u.pathname))u.pathname='/multiplayer';history.replaceState(null,'',u)}catch(e){}
       if(msg)toast2(msg);ui()}
     function note(s){if(el.note)el.note.textContent=s}
     /* ----- race: a shared countdown, everyone on the grid, first round the loop wins ----- */
@@ -7600,7 +7701,7 @@ updCircBtn();
     setInterval(()=>{if(room&&status==='up'&&document.hidden)sendHi(true)},1500);
     addEventListener('pagehide',()=>{if(net)send({k:'bye'})});
     // a friend's invite link opens straight into the room
-    {const m=/[?&]room=([A-Za-z0-9]{4,6})/.exec(location.search);
+    {const m=/[?&]room=([A-Za-z0-9]{4,6})/.exec(location.search)||/^\/room\/([A-Za-z0-9]{4,6})\/?$/.exec(location.pathname);
      if(m)setTimeout(()=>{me.n=savedName();join(m[1])},300)}
     // config sync & ready
     function syncCfg(force){
@@ -7731,7 +7832,7 @@ function carChanged(){if(room)sendHi(true)}
       try{const a=new Uint8Array(12);crypto.getRandomValues(a);_ctrlTok=Array.from(a,x=>x.toString(16).padStart(2,'0')).join('')}
       catch(e){_ctrlTok=(Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+Date.now().toString(36)).slice(0,24)}
       return _ctrlTok}
-    function controllerUrl(){return location.origin+location.pathname+'?controller=true&room='+encodeURIComponent(room)+'&to='+encodeURIComponent(me.id)+'&token='+ctrlToken()+'&pn='+encodeURIComponent(myName())}
+    function controllerUrl(){return location.origin+'/?controller=true&room='+encodeURIComponent(room)+'&to='+encodeURIComponent(me.id)+'&token='+ctrlToken()+'&pn='+encodeURIComponent(myName())}
     let phoneStTimer=0;
     function phoneStatusText(){const PC=window.PhoneController;
       return PC&&PC.isPhoneConnected()?'CONNECTED':(PC&&PC.everConnected?'CONTROLLER DISCONNECTED · scan again or press Reconnect on the phone':'WAITING FOR PHONE')}
@@ -7802,7 +7903,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
