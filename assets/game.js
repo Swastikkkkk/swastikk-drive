@@ -454,7 +454,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       const k=(j*px+i)*4;im.data[k]=Math.max(0,Math.min(255,128+dx*120));im.data[k+1]=Math.max(0,Math.min(255,128+dy*120));im.data[k+2]=252;im.data[k+3]=255}
     cx.putImageData(im,0,0);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(3,3);t.anisotropy=4;return t}
   /* ---------- zones (terrain is carved around them, so they come first) ---------- */
-  const POND={x:30*MK,z:16*MK,r:14,depth:2.3},PG={x:2*MK,z:-14*MK};
+  const POND={x:30*MK,z:16*MK,r:14,depth:2.3},PG={x:108,z:-44},PGR=44;   // the playground: the open middle of the infield, ~95 m from any road
   const WATER_Y=.02;
   function edgeR(a){return POND.r*(1+(noise2(Math.cos(a)*2+9,Math.sin(a)*2+9)-.5)*.34)}
   const pondR=(x,z)=>edgeR(Math.atan2(z-POND.z,x-POND.x));
@@ -471,7 +471,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     return {x:p.x+n.x*side*dist,y:p.y,z:p.z+n.z*side*dist,ry:Math.atan2(dx,dz)}}
   const LEN=curve.getLength();
   const PADS=[];
-  PADS.push({x:PG.x,z:PG.z,y:0,r:17,f:28});
+  PADS.push({x:PG.x,z:PG.z,y:0,r:PGR+2,f:PGR+30});
   // the pad has to hold the whole ring, not just the ramps, or the circle rides a slope
   PADS.push({x:RAMPYARD.x,z:RAMPYARD.z,y:BR_H,r:RING.r+5,f:RING.r+15});
   PADS.push({x:PEAK.x,z:PEAK.z,y:PEAK_H,r:8,f:16});
@@ -486,7 +486,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const SPURS=[];
   function spurTo(q,stop){let bi=0,bd=1e9;for(let i=0;i<N;i+=2){const d=(SAMP[i].x-q.x)**2+(SAMP[i].z-q.z)**2;if(d<bd){bd=d;bi=i}}
     const p=SAMP[bi],dx=q.x-p.x,dz=q.z-p.z,l=Math.hypot(dx,dz),L=l-stop,pts=[];for(let s=7;s<=L;s+=2)pts.push([p.x+dx/l*s,p.z+dz/l*s]);SPURS.push(pts)}
-  spurTo(VZ.stunt,VZ.stunt.r-6);spurTo(VZ.ufo,5);spurTo(VZ.volc,VZ.volc.R*.92);
+  spurTo(VZ.stunt,VZ.stunt.r-6);spurTo(VZ.ufo,5);spurTo(VZ.volc,VZ.volc.R*.92);spurTo(PG,PGR-2);
   function zoneHit(x,z,m=0){for(const k of ['stunt','ufo']){const q=VZ[k];if((x-q.x)**2+(z-q.z)**2<(q.r+m)**2)return true}
     const v=VZ.volc;if((x-v.x)**2+(z-v.z)**2<(v.R*.8+m)**2)return true;
     for(const S2 of SPURS)for(let i=0;i<S2.length;i+=2){const dx=S2[i][0]-x,dz=S2[i][1]-z;if(dx*dx+dz*dz<(5+m)*(5+m))return true}return false}
@@ -817,28 +817,12 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function label(txt,sub,w=1024,h=256,dark=false){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle=dark?'#eef0f3':'#15140f';x.fillRect(0,0,w,h);x.fillStyle=dark?'#15140f':'#eef0f3';x.textAlign='center';x.textBaseline='middle';x.font=`600 ${sub?h*.4:h*.5}px -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Inter,"Helvetica Neue",Arial,sans-serif`;x.fillText(txt,w/2,sub?h*.38:h*.5,w*.94);if(sub){x.font=`600 ${h*.12}px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace`;x.fillStyle=dark?'#6b675f':'#9a958c';x.fillText(sub.toUpperCase(),w/2,h*.78,w*.94)}const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t}
   function signPost(x,z,y,txt,sub,dark,ry){const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=ry;S.add(g);const post=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,3.2,6),steel);post.position.y=1.6;g.add(post);const b=new THREE.Mesh(new THREE.BoxGeometry(6.4,1.8,.2),dark?paper:ink);b.position.y=3.8;g.add(b);const pl=new THREE.Mesh(new THREE.PlaneGeometry(6.2,1.6),new THREE.MeshBasicMaterial({map:label(txt,sub,1024,264,dark)}));pl.position.set(0,3.8,.12);g.add(pl);const p2=pl.clone();p2.rotation.y=Math.PI;p2.position.z=-.12;g.add(p2);staticBox(x,y+1.6,z,.15,1.6,.15);return g}
   signPost(POND.x+POND.r+2,POND.z,0,'The pond','drive in · you can swim',false,-Math.PI/2);
-  signPost(PG.x,PG.z+15,0,'Playground','ramps · crates · cones',false,0);
   signPost(RAMPYARD.x,RAMPYARD.z+13,BR_H,'Ramp rush','clear all three hoops · beat the clock',false,0);
   /* was 4m from the centre line, i.e. a solid pole on the asphalt since the road was widened; 9m puts it on the verge */
   signPost(BR_START.x-BR_OUT.x*9,BR_START.z-BR_OUT.z*9,BR_H,'Ramp yard →','off the main road',false,Math.atan2(BR_OUT.x,BR_OUT.z));
   signPost(PEAK.x-BR_OUT.x*14+PEAK_SIDE.x*9,PEAK.z-BR_OUT.z*14+PEAK_SIDE.z*9,PEAK_H,'The summit','stop for the view',false,Math.atan2(BR_OUT.x,BR_OUT.z));
   const CULL=[];
-  /* ---------- playground obstacles: instanced so 10 crates + 7 cones + 5 tires cost a handful of draw
-     calls instead of ~40, while staying individually knockable via dynBoxI ---------- */
-  const crateIM=new THREE.InstancedMesh(new THREE.BoxGeometry(1.1,1.1,1.1),M(0xd9d2c2),10);crateIM.castShadow=true;S.add(crateIM);
-  {let n=0;for(let i=0;i<4;i++)for(let j=0;j<4-i;j++)dynBoxI([{im:crateIM,idx:n++}],PG.x-8+(j-1.5+i*.5)*1.15,i*1.12+.6,PG.z-6,.55,.55,.55,6)}
-  const coneBodies=[];
-  const coneIM=new THREE.InstancedMesh(new THREE.ConeGeometry(.35,1,10),red,7);coneIM.castShadow=true;S.add(coneIM);
-  const coneBaseIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.8,.08,.8),ink,7);S.add(coneBaseIM);
-  const coneBaseOff=new THREE.Matrix4().makeTranslation(0,-.46,0);
-  function cone(x,z,idx){const b=dynBoxI([{im:coneIM,idx},{im:coneBaseIM,idx,offset:coneBaseOff}],x,.5,z,.35,.5,.35,1);coneBodies.push({b,x,z})}
-  for(let i=0;i<7;i++)cone(PG.x+8,PG.z-10+i*3.2,i);
-  const tireIM=new THREE.InstancedMesh(new THREE.TorusGeometry(.5,.24,8,16),rubber,5);S.add(tireIM);
-  const tireOff=new THREE.Matrix4().makeRotationX(Math.PI/2);
-  function tire(x,z,idx){dynBoxI([{im:tireIM,idx,offset:tireOff}],x,.3,z,.75,.25,.75,4)}
-  for(let i=0;i<5;i++)tire(PG.x-3+i*1.6,PG.z+6,i);
   function ramp(x,z,ry,ang=.2,base=0){const y=base+.5;const m=new THREE.Mesh(new THREE.BoxGeometry(4,.5,7),M(0x8f2a2a));m.position.set(x,y,z);m.rotation.set(-ang,ry,0,'YXZ');m.castShadow=true;m.receiveShadow=true;S.add(m);const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(2,.25,3.5)));b.position.set(x,y,z);const q1=new CANNON.Quaternion();q1.setFromAxisAngle(new CANNON.Vec3(0,1,0),ry);const q2=new CANNON.Quaternion();q2.setFromAxisAngle(new CANNON.Vec3(1,0,0),-ang);b.quaternion=q1.mult(q2);world.addBody(b)}
-  ramp(PG.x,PG.z-2,0);ramp(PG.x-2,PG.z+12,Math.PI/2,.16);
   /* ---------- the outer valley, built ---------- */
   const SWAY={value:0};
   /* wind: foliage sways a little, per tree, in the vertex shader, so it costs nothing on the CPU */
@@ -866,13 +850,235 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      const nx=-tz/l*3,nz=tx/l*3,[x,z]=pts[i];pos.push(x+nx,HF.h(x+nx,z+nz)+.09,z+nz,x-nx,HF.h(x-nx,z-nz)+.09,z-nz);uv.push(0,i*.6,1,i*.6);if(i)idx.push((i-1)*2,(i-1)*2+1,i*2,(i-1)*2+1,i*2+1,i*2)}
      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
      const m=new THREE.Mesh(g,dirtM);m.receiveShadow=true;S.add(m)});
-   const SIGN=[['Stunt park','mega ramp · giant pins · trampolines'],['The UFO','drive under the light'],['The volcano','hot. do not swim.']];
+   const SIGN=[['Stunt park','mega ramp · giant pins · trampolines'],['The UFO','drive under the light'],['The volcano','hot. do not swim.'],['Playground','car soccer · jumps · drift ring · see-saw']];
    SPURS.forEach((pts,i)=>{if(pts.length<8)return;const [x,z]=pts[5],[x2,z2]=pts[6],dx=x2-x,dz=z2-z,l=Math.hypot(dx,dz)||1;let sx=x-dz/l*5.5,sz=z+dx/l*5.5;
      /* since the road was widened one of these posts landed on the asphalt (a solid pole in the racing line): walk it out to the verge */
      for(let k=0;k<40&&roadNear(sx,sz).d<8.5;k++){let bi=0,bd=1e18;for(let j=0;j<N;j++){const ex=sx-SAMP[j].x,ez=sz-SAMP[j].z,e=ex*ex+ez*ez;if(e<bd){bd=e;bi=j}}
        const ex=sx-SAMP[bi].x,ez=sz-SAMP[bi].z,el=Math.hypot(ex,ez)||1;sx+=ex/el*.5;sz+=ez/el*.5}
 
      signPost(sx,sz,HF.h(sx,sz),SIGN[i][0],SIGN[i][1],i%2===1,Math.atan2(-dx,-dz))})}
+  /* ---------- the playground ----------
+     An 88 m asphalt pad in the open middle of the infield, with its own dirt road in from the loop. Car soccer with
+     a big ball and two goals, a kicker and landing for proper air, a quarter pipe, a banked wall, a see-saw, a row of
+     whoops, a drift ring that times your slides, a cone slalom, a crate wall to smash, tyre stacks and floodlights.
+     Pad coordinates: x across, z along, origin at PG; P(x,z) turns them into the world. */
+  const coneBodies=[];
+  const PLAY=(function(){
+    const fwdScratch2=new CANNON.Vec3();
+    const P=(x,z)=>[PG.x+x,PG.z+z],qE=(x,y,z)=>new THREE.Quaternion().setFromEuler(new THREE.Euler(x,y,z,'YXZ'));
+    const SP={x:-14,z:-12,hx:17,hz:11},DR={x:14,z:20,r:10};
+    // the pad: asphalt with every marking painted into one texture
+    {const T=1024,cv=document.createElement('canvas');cv.width=cv.height=T;const x=cv.getContext('2d'),k=T/(2*PGR),px=v=>(v/PGR+1)*T/2;
+     x.fillStyle='#47464b';x.fillRect(0,0,T,T);
+     {const im=x.getImageData(0,0,T,T),d=im.data;for(let i=0;i<d.length;i+=4){const n=(Math.random()-.5)*18;d[i]+=n;d[i+1]+=n;d[i+2]+=n}x.putImageData(im,0,0)}
+     const stroke=(w,c,dash)=>{x.lineWidth=w*k;x.strokeStyle=c;x.setLineDash(dash||[])};
+     stroke(.3,'rgba(255,255,255,.88)');x.strokeRect(px(SP.x-SP.hx),px(SP.z-SP.hz),SP.hx*2*k,SP.hz*2*k);
+     x.beginPath();x.moveTo(px(SP.x),px(SP.z-SP.hz));x.lineTo(px(SP.x),px(SP.z+SP.hz));x.stroke();
+     x.beginPath();x.arc(px(SP.x),px(SP.z),4.5*k,0,6.283);x.stroke();
+     for(const s of [-1,1]){x.strokeRect(px(SP.x+s*SP.hx-(s>0?5:0)),px(SP.z-6),5*k,12*k)}
+     stroke(.45,'rgba(255,206,64,.95)');x.beginPath();x.arc(px(DR.x),px(DR.z),DR.r*k,0,6.283);x.stroke();
+     stroke(.25,'rgba(255,206,64,.6)',[14,12]);x.beginPath();x.arc(px(DR.x),px(DR.z),(DR.r-4.5)*k,0,6.283);x.stroke();
+     stroke(.3,'rgba(255,255,255,.55)',[18,14]);x.beginPath();x.moveTo(px(10),px(-26));x.lineTo(px(10),px(5));x.stroke();   // slalom lane
+     x.setLineDash([]);x.fillStyle='rgba(255,255,255,.82)';x.font='bold 54px Arial';x.textAlign='center';
+     x.save();x.translate(px(DR.x),px(DR.z)+8);x.fillText('DRIFT',0,0);x.restore();
+     x.save();x.translate(px(30),px(-15));x.rotate(Math.PI/2);x.font='bold 40px Arial';x.fillText('JUMP  ▸',0,0);x.restore();
+     stroke(1.1,'rgba(232,184,74,.95)');x.beginPath();x.arc(T/2,T/2,T/2-8,0,6.283);x.stroke();
+     const tx=new THREE.CanvasTexture(cv);tx.anisotropy=8;
+     const pad=new THREE.Mesh(new THREE.CircleGeometry(PGR,80),new THREE.MeshLambertMaterial({map:tx,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+     pad.rotation.x=-Math.PI/2;pad.position.set(PG.x,.05,PG.z);pad.receiveShadow=true;S.add(pad)}
+    // a solid block: the mesh and its collider share one pose
+    const solid=(w,h,d,x,y,z,q,mat)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.quaternion.copy(q);m.castShadow=!LOW;m.receiveShadow=true;S.add(m);
+      const b=new CANNON.Body({mass:0,material:oM});b.addShape(new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2)));b.position.set(x,y,z);b.quaternion.set(q.x,q.y,q.z,q.w);world.addBody(b);return m};
+    const rampM=M(0xc23b2c),rampM2=M(0x2f6fb0),concrete=M(0xa9a59d),yellow=M(0xe1b33a),dark=M(0x26272c);
+    // the jump: kicker, table top, long landing
+    {const [kx,kz]=P(30,-4),[lx,lz]=P(30,-21.5),[tx,tz]=P(30,-12);wedge(kx,kz,Math.PI,8,2.4,6,rampM);wedge(lx,lz,0,11,2.4,8,rampM2);
+     solid(7,2.4,8.2,tx,1.2,tz,qE(0,0,0),concrete)}   // a table top between them: land short and you land on the table, not into a wall
+    // quarter pipe on the west edge: drive at it, ride up, come back down
+    {const R=6,n=10,x0=-31,w=15,zc=6,top=80*Math.PI/180;
+     for(let i=0;i<n;i++){const t0=i/n*top,t1=(i+1)/n*top,tm=(t0+t1)/2,seg=R*(t1-t0)*1.08;
+       const sx=x0-R*Math.sin(tm),sy=R*(1-Math.cos(tm)),nx=Math.sin(tm),ny=Math.cos(tm);const [wx,wz]=P(sx-nx*.2,zc);
+       solid(seg,.4,w,wx,sy-ny*.2,wz,qE(0,0,-tm),i%2?rampM:rampM2)}
+     const [bx,bz]=P(x0-R-.6,zc);solid(1.2,R+.6,w,bx,(R+.6)/2,bz,qE(0,0,0),concrete)}
+    // a banked wall round the north-west corner
+    {const cx=-16,cz=20,R=11,W=5,beta=32*Math.PI/180,a0=40*Math.PI/180,a1=150*Math.PI/180,n=16;
+     for(let i=0;i<n;i++){const am=a0+(i+.5)/n*(a1-a0),seg=(R+W/2)*(a1-a0)/n*1.1;
+       const t=new THREE.Vector3(-Math.sin(am),0,Math.cos(am)),r=new THREE.Vector3(Math.cos(am)*Math.cos(beta),Math.sin(beta),Math.sin(am)*Math.cos(beta)),nrm=new THREE.Vector3().crossVectors(r,t);
+       const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(t,nrm,r)),rm=R+W/2*Math.cos(beta);
+       const [wx,wz]=P(cx+Math.cos(am)*rm-nrm.x*.2,cz+Math.sin(am)*rm-nrm.z*.2);solid(seg,.4,W,wx,W/2*Math.sin(beta)-nrm.y*.2,wz,q,i%2?yellow:dark)}}
+    // whoops: six humps in a row
+    {const n=6,H=.55,L=2.6,w=6;for(let i=0;i<n;i++){const [hx,hz]=P(4+i*3,-37);
+       const sh=new THREE.Shape();sh.moveTo(-L/2,0);for(let k=1;k<=12;k++){const u=k/12;sh.lineTo(-L/2+u*L,H*Math.sin(u*Math.PI))}sh.lineTo(-L/2,0);
+       const g=new THREE.ExtrudeGeometry(sh,{depth:w,bevelEnabled:false,curveSegments:4});g.translate(0,0,-w/2);g.rotateY(-Math.PI/2);
+       const m=new THREE.Mesh(g,i%2?rampM:yellow);m.position.set(hx,0,hz);m.rotation.y=Math.PI/2;m.castShadow=!LOW;m.receiveShadow=true;S.add(m);
+       const a=Math.atan2(H,L/2),hyp=Math.hypot(H,L/2);
+       for(const s of [-1,1])solid(hyp,.3,w,hx+s*L/4,H/2-.15,hz,qE(0,0,-s*a),dark).visible=false}}
+    // the see-saw: a plank on a hinge, tipped down at one end
+    {const [fx,fz]=P(0,38),H=1.1,fb=new CANNON.Body({mass:0,material:oM});fb.addShape(new CANNON.Box(new CANNON.Vec3(.3,(H-.1)/2,1.7)));fb.position.set(fx,(H-.1)/2,fz);world.addBody(fb);
+     const ful=new THREE.Mesh(new THREE.CylinderGeometry(.05,.9,H-.1,3),concrete);ful.rotation.set(0,0,0);ful.scale.z=1.9;ful.position.set(fx,(H-.1)/2,fz);ful.castShadow=!LOW;S.add(ful);
+     const plank=new THREE.Mesh(new THREE.BoxGeometry(12,.24,4.2),M(0xd9a12a));plank.castShadow=!LOW;plank.receiveShadow=true;S.add(plank);
+     const stripes=new THREE.Mesh(new THREE.BoxGeometry(12.02,.02,.3),dark);stripes.position.y=.13;plank.add(stripes);
+     const pb=new CANNON.Body({mass:140,material:oM});pb.addShape(new CANNON.Box(new CANNON.Vec3(6,.12,2.1)));pb.position.set(fx,H+.12,fz);pb.quaternion.setFromAxisAngle(new CANNON.Vec3(0,0,1),.17);pb.angularDamping=.35;world.addBody(pb);
+     world.addConstraint(new CANNON.HingeConstraint(fb,pb,{pivotA:new CANNON.Vec3(0,(H-.1)/2+.1,0),axisA:new CANNON.Vec3(0,0,1),pivotB:new CANNON.Vec3(0,-.12,0),axisB:new CANNON.Vec3(0,0,1)}));
+     dyn.push({mesh:plank,body:pb,home:pb.position.clone(),q:pb.quaternion.clone()})}
+    // the cone slalom (the first seven still count for the cone mission)
+    const coneIM=new THREE.InstancedMesh(new THREE.ConeGeometry(.35,1,10),red,10);coneIM.castShadow=!LOW;S.add(coneIM);
+    const coneBaseIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.8,.08,.8),ink,10);S.add(coneBaseIM);
+    const coneBaseOff=new THREE.Matrix4().makeTranslation(0,-.46,0);
+    for(let i=0;i<10;i++){const [x,z]=P(10+(i%2?.9:-.9),-25+i*3.2);const b=dynBoxI([{im:coneIM,idx:i},{im:coneBaseIM,idx:i,offset:coneBaseOff}],x,.5,z,.35,.5,.35,1);if(i<7)coneBodies.push({b,x,z})}
+    // a crate wall to drive through
+    {const cv=document.createElement('canvas');cv.width=cv.height=128;const x=cv.getContext('2d');x.fillStyle='#b98b4e';x.fillRect(0,0,128,128);x.strokeStyle='#7a5527';x.lineWidth=10;x.strokeRect(5,5,118,118);
+     x.lineWidth=7;x.beginPath();x.moveTo(8,8);x.lineTo(120,120);x.stroke();for(let i=0;i<5;i++){x.fillStyle='rgba(90,60,25,.25)';x.fillRect(10,14+i*22,108,3)}
+     const crateIM=new THREE.InstancedMesh(new THREE.BoxGeometry(1.1,1.1,1.1),new THREE.MeshLambertMaterial({map:new THREE.CanvasTexture(cv)}),28);crateIM.castShadow=!LOW;S.add(crateIM);
+     let n=0;for(let r=0;r<4;r++)for(let c=0;c<7;c++){const [x,z]=P(-13+c*1.12+(r%2)*.45,-33);dynBoxI([{im:crateIM,idx:n++}],x,r*1.12+.56,z,.55,.55,.55,6)}}
+    // tyre stacks round the drift ring
+    {const tireIM=new THREE.InstancedMesh(new THREE.TorusGeometry(.5,.24,8,16),rubber,18);tireIM.castShadow=!LOW;S.add(tireIM);const off=new THREE.Matrix4().makeRotationX(Math.PI/2);let n=0;
+     for(let k=0;k<6;k++){const a=k/6*Math.PI*2+.3,[x,z]=P(DR.x+Math.cos(a)*(DR.r+2.6),DR.z+Math.sin(a)*(DR.r+2.6));for(let h=0;h<3;h++)dynBoxI([{im:tireIM,idx:n++,offset:off}],x,.25+h*.5,z,.72,.24,.72,3)}}
+    // car soccer: a big ball, two goals with nets
+    const pgBallM=new CANNON.Material('pgball');world.addContactMaterial(new CANNON.ContactMaterial(gM,pgBallM,{friction:.4,restitution:.55}));world.addContactMaterial(new CANNON.ContactMaterial(oM,pgBallM,{friction:.3,restitution:.6}));
+    const BR=1.5,[bhx,bhz]=P(SP.x,SP.z);
+    const ballT=(()=>{const c=document.createElement('canvas');c.width=512;c.height=256;const x=c.getContext('2d');x.fillStyle='#f4f4f0';x.fillRect(0,0,512,256);x.fillStyle='#16171b';
+      for(let j=0;j<4;j++)for(let i=0;i<8;i++){const cx=i*64+(j%2)*32+16,cy=j*64+32;x.beginPath();for(let k=0;k<5;k++){const a=k/5*6.283-1.57;x.lineTo(cx+Math.cos(a)*16,cy+Math.sin(a)*16)}x.fill()}return new THREE.CanvasTexture(c)})();
+    const ball=new THREE.Mesh(new THREE.SphereGeometry(BR,32,20),new THREE.MeshPhongMaterial({map:ballT,shininess:60,specular:0x444444}));ball.castShadow=!LOW;S.add(ball);
+    const bb=new CANNON.Body({mass:22,material:pgBallM});bb.addShape(new CANNON.Sphere(BR));bb.position.set(bhx,BR+.05,bhz);bb.linearDamping=.08;bb.angularDamping=.2;bb.sleepSpeedLimit=.1;world.addBody(bb);
+    dyn.push({mesh:ball,body:bb,home:bb.position.clone(),q:bb.quaternion.clone()});
+    const netT=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');x.strokeStyle='rgba(255,255,255,.75)';x.lineWidth=2;for(let i=0;i<=64;i+=8){x.beginPath();x.moveTo(i,0);x.lineTo(i,64);x.stroke();x.beginPath();x.moveTo(0,i);x.lineTo(64,i);x.stroke()}
+      const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(5,3);return t})();
+    const netM=new THREE.MeshBasicMaterial({map:netT,transparent:true,side:THREE.DoubleSide,depthWrite:false}),postM=M(0xf2f2ee);
+    const GW=7,GH=2.8,GD=2.6;
+    for(const s of [-1,1]){const gx=SP.x+s*SP.hx;
+      for(const zz of [-GW/2,GW/2]){const [px,pz]=P(gx,SP.z+zz);solid(.25,GH,.25,px,GH/2,pz,qE(0,0,0),postM);const [sx,sz]=P(gx+s*GD/2,SP.z+zz);solid(GD,GH,.08,sx,GH/2,sz,qE(0,0,0),netM)}
+      {const [px,pz]=P(gx,SP.z);solid(.25,.25,GW+.25,px,GH,pz,qE(0,0,0),postM);const [bx,bz]=P(gx+s*GD,SP.z);solid(.08,GH,GW,bx,GH/2,bz,qE(0,0,0),netM);
+       const [tx,tz]=P(gx+s*GD/2,SP.z);const top=new THREE.Mesh(new THREE.PlaneGeometry(GD,GW),netM);top.rotation.x=-Math.PI/2;top.position.set(tx,GH,tz);S.add(top)}}
+    // floodlights on the rim
+    const lampM=new THREE.MeshLambertMaterial({color:0xfff6dc,emissive:0xfff1c8,emissiveIntensity:.2});
+    for(const a of [20,110,200,290]){const r=a*Math.PI/180,[x,z]=P(Math.cos(r)*(PGR+1.5),Math.sin(r)*(PGR+1.5));
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.16,.24,14,8),steel);pole.position.set(x,7,z);pole.castShadow=!LOW;S.add(pole);staticBox(x,7,z,.25,7,.25);
+      const head=new THREE.Group();head.position.set(x,14.2,z);head.lookAt(PG.x,0,PG.z);S.add(head);
+      const box=new THREE.Mesh(new THREE.BoxGeometry(2.4,1.1,.4),dark);head.add(box);const face=new THREE.Mesh(new THREE.PlaneGeometry(2.2,.9),lampM);face.position.z=.21;head.add(face)}
+    signPost(PG.x-PGR+6,PG.z+PGR*.55,0,'Playground','soccer · jumps · drift · see-saw',false,Math.PI/2);
+    // live bits: goals, the drift timer, the floodlights
+    let score=[0,0],goalT=0,drift=0,driftOff=0,best=0;try{best=+localStorage.getItem('sl_drift_best')||0}catch(_){}
+    function tick(dt){
+      if(goalT>0){goalT-=dt;if(goalT<=0){bb.position.copy(dyn.find(d=>d.body===bb).home);bb.velocity.set(0,0,0);bb.angularVelocity.set(0,0,0);bb.wakeUp()}}
+      else{const lx=bb.position.x-PG.x,lz=bb.position.z-PG.z;
+        if(Math.abs(lz-SP.z)<GW/2&&bb.position.y<GH)for(const s of [-1,1])if(s*(lx-(SP.x+s*SP.hx))>BR*.6){score[s>0?0:1]++;goalT=2.5;toastMsg('GOAL! · '+score[0]+' – '+score[1]);try{blip(880,.25,.12)}catch(_){}}}
+      lampM.emissiveIntensity=.2+lastNi*1.6;
+      // drift ring: time a slide (the car pointing well away from where it is going) inside the ring
+      const c=chassisB.position,d=Math.hypot(c.x-PG.x-DR.x,c.z-PG.z-DR.z),v=chassisB.velocity,sp=Math.hypot(v.x,v.z);
+      if(d<DR.r+2&&sp>6){const f=fwdScratch2.set(0,0,1);chassisB.quaternion.vmult(f,f);const slip=Math.acos(Math.max(-1,Math.min(1,(f.x*v.x+f.z*v.z)/(Math.hypot(f.x,f.z)*sp||1))));
+        if(slip>.38){drift+=dt;driftOff=0}else if(drift>0){driftOff+=dt}}else if(drift>0)driftOff+=dt;
+      if(drift>0&&driftOff>.6){if(drift>1){const nb=drift>best;if(nb){best=drift;try{localStorage.setItem('sl_drift_best',best.toFixed(2))}catch(_){}}toastMsg('Drift '+drift.toFixed(1)+' s'+(nb?' · new best':' · best '+best.toFixed(1)+' s'))}drift=0;driftOff=0}}
+    return {tick,near:()=>Math.hypot(chassisB.position.x-PG.x,chassisB.position.z-PG.z)<PGR+20}})();
+  /* ---------- the peak cableway ----------
+     From a deck beside the summit lookout, two steel ropes on lattice pylons climb to the highest peak inside the
+     valley wall: an open cabin you drive your car into, a ride of about 330 m and 210 m of climb, and a viewing
+     deck on the summit rock from where the whole map, the ridge and the sea beyond it are in view.
+     Drive into the cabin and stop: it leaves after a short countdown. If it is waiting at the other end, stop in
+     the empty bay and it comes to fetch you. While riding the car is carried (its pose follows the cabin floor),
+     and a kinematic floor under it keeps the wheels sitting on something. */
+  const CABLE=(function(){
+    // the top: the highest ground near the western peak, kept well inside the valley wall
+    let TOP={x:-660,z:144,h:-1e9};for(let x=-680;x<=-610;x+=3)for(let z=90;z<=200;z+=3){const h=HF.h(x,z);if(h>TOP.h&&Math.hypot(x,z)<BOUND-40)TOP={x,z,h}}
+    const DIR=new THREE.Vector3(TOP.x-PEAK.x,0,TOP.z-PEAK.z).normalize(),SIDE=new THREE.Vector3(DIR.z,0,-DIR.x),YAW=Math.atan2(DIR.x,DIR.z);
+    let topY=-1e9;for(let a=0;a<6.3;a+=.4)for(const r of [0,6,12,16])topY=Math.max(topY,HF.h(TOP.x+Math.cos(a)*r,TOP.z+Math.sin(a)*r));topY+=.4;
+    const baseY=PEAK_H,HANG=7.5,DECK=30;
+    const D0=new THREE.Vector3(PEAK.x+DIR.x*19,baseY,PEAK.z+DIR.z*19),D1=new THREE.Vector3(TOP.x-DIR.x*(DECK/2-5),topY,TOP.z-DIR.z*(DECK/2-5));
+    const concrete=M(0xb4afa5),steelD=M(0x3a3d42),yellowM=M(0xe1b33a),redM=M(0xb8322f),dark=M(0x1d1e22);
+    const qY=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),YAW);
+    const box=(w,h,d,c,mat,q,body=true,cast=true)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.copy(c);m.quaternion.copy(q||qY);m.castShadow=cast&&!LOW;m.receiveShadow=true;S.add(m);
+      if(body){const b=new CANNON.Body({mass:0,material:oM});b.addShape(new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2)));b.position.set(c.x,c.y,c.z);const qq=q||qY;b.quaternion.set(qq.x,qq.y,qq.z,qq.w);world.addBody(b)}return m};
+    const at3=(base,along,side,y)=>new THREE.Vector3(base.x+DIR.x*along+SIDE.x*side,y,base.z+DIR.z*along+SIDE.z*side);
+    // base deck: from the summit pad out over the slope to the dock, rails along both sides, a stop at the far end
+    {const L=22,c=at3(PEAK,4+L/2,0,baseY-3);box(10,6,L,c,concrete);
+     for(const s of [-1,1])box(.25,1.1,L,at3(PEAK,4+L/2,s*5.1,baseY+.55),yellowM);
+     box(10,1.1,.4,at3(PEAK,4+L+.2,0,baseY+.55),redM);
+     for(const s of [-1,1])for(const a of [6,14,22]){const h=baseY-HF.h(at3(PEAK,a,s*4,0).x,at3(PEAK,a,s*4,0).z);if(h>6)box(1,h-6+.5,1,at3(PEAK,a,s*4,baseY-6-(h-6)/2+.2),concrete,null,false)}
+     // the station roof over the dock and its bullwheel
+     for(const s of [-1,1])for(const a of [-4,4])box(.5,9,.5,at3(D0,a,s*4.6,baseY+4.5),steelD,null,true);
+     box(10.4,.4,9.6,at3(D0,0,0,baseY+9.2),dark,null,false);
+     const bw=new THREE.Mesh(new THREE.TorusGeometry(1.4,.12,8,28),steelD);bw.rotation.x=Math.PI/2;bw.position.copy(at3(D0,3,0,baseY+HANG+.2));S.add(bw);
+     signPost(at3(PEAK,4,-6.5,0).x,at3(PEAK,4,-6.5,0).z,baseY,'Peak cableway','drive in · stop · ride to '+Math.round(topY)+' m',false,YAW+Math.PI)}
+    // top deck: a square viewing platform on the summit rock, railed all round
+    {const c=new THREE.Vector3(TOP.x,topY-3,TOP.z);box(DECK,6,DECK,c,concrete);
+     const deckT=(()=>{const cv=document.createElement('canvas');cv.width=cv.height=512;const x=cv.getContext('2d');x.fillStyle='#8f8a80';x.fillRect(0,0,512,512);
+       for(let i=0;i<512;i+=32){x.fillStyle=i%64?'#958f84':'#8a857b';x.fillRect(0,i,512,32)}x.strokeStyle='#e1b33a';x.lineWidth=10;x.strokeRect(20,20,472,472);
+       x.fillStyle='rgba(255,255,255,.85)';x.font='bold 54px Arial';x.textAlign='center';x.fillText(Math.round(topY)+' m',256,270);return new THREE.CanvasTexture(cv)})();
+     const top=new THREE.Mesh(new THREE.PlaneGeometry(DECK,DECK),new THREE.MeshLambertMaterial({map:deckT}));top.rotation.set(-Math.PI/2,0,-YAW);top.position.set(TOP.x,topY+.02,TOP.z);S.add(top);
+     for(const s of [-1,1]){box(.25,1.1,DECK,at3(TOP,0,s*(DECK/2-.15),topY+.55),yellowM);box(DECK,1.1,.25,at3(TOP,s*(DECK/2-.15),0,topY+.55),yellowM)}
+     for(const s of [-1,1])for(const a of [-4,4])box(.5,9,.5,at3(D1,a,s*4.6,topY+4.5),steelD,null,true);
+     box(10.4,.4,9.6,at3(D1,0,0,topY+9.2),dark,null,false);
+     signPost(at3(TOP,8,-8,0).x,at3(TOP,8,-8,0).z,topY,'The peak',Math.round(topY)+' m · the whole valley below',false,YAW)}
+    // the rope line: straight in plan, sagging a little, never closer than 6 m to the ground under the cabin
+    const NS=240,PATH=[];{const y0=baseY+HANG,y1=topY+HANG,span=D0.distanceTo(D1);
+      for(let i=0;i<=NS;i++){const t=i/NS,x=D0.x+(D1.x-D0.x)*t,z=D0.z+(D1.z-D0.z)*t;let y=y0+(y1-y0)*t-span*.035*4*t*(1-t);
+        if(t>.04&&t<.96)y=Math.max(y,HF.h(x,z)+HANG+6,HF.h(x+SIDE.x*3,z+SIDE.z*3)+HANG+6,HF.h(x-SIDE.x*3,z-SIDE.z*3)+HANG+6);PATH.push(new THREE.Vector3(x,y,z))}
+      for(let pass=0;pass<6;pass++)for(let i=2;i<NS-1;i++){const m=(PATH[i-1].y+PATH[i].y+PATH[i+1].y)/3;PATH[i].y=Math.max(m,HF.h(PATH[i].x,PATH[i].z)+HANG+6)}
+      // level out of each station for a few metres, then ease onto the line
+      for(let i=0;i<=8;i++){PATH[i].y=y0+(PATH[9].y-y0)*(i/9)**2;PATH[NS-i].y=y1+(PATH[NS-9].y-y1)*(i/9)**2}}
+    const curve=new THREE.CatmullRomCurve3(PATH),LEN=curve.getLength();
+    for(const s of [-1,1]){const pts=PATH.map(p=>new THREE.Vector3(p.x+SIDE.x*s*.9,p.y+.35,p.z+SIDE.z*s*.9));const tube=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),NS,.07,6,false),steelD);S.add(tube)}
+    // pylons where the rope runs closest to the ground
+    {const cand=[];for(let i=Math.round(NS*.18);i<NS*.85;i++){const p=PATH[i];cand.push([p.y-HF.h(p.x,p.z),i])}cand.sort((a,b)=>a[0]-b[0]);const picks=[];
+     for(const [,i] of cand){if(picks.every(j=>Math.abs(j-i)>NS*.2))picks.push(i);if(picks.length>=3)break}
+     for(const i of picks){const p=PATH[i],g=HF.h(p.x,p.z)-1,top=p.y+.6,H=top-g,grp=new THREE.Group();grp.position.set(p.x,g,p.z);grp.rotation.y=YAW;S.add(grp);
+       for(const sx of [-1,1])for(const sz of [-1,1]){const a=new THREE.Vector3(sx*1.8,0,sz*1.4),b=new THREE.Vector3(sx*.45,H,sz*.35),d=b.clone().sub(a),leg=new THREE.Mesh(new THREE.CylinderGeometry(.11,.14,d.length(),6),steelD);
+         leg.position.copy(a).add(b).multiplyScalar(.5);leg.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());leg.castShadow=!LOW;grp.add(leg)}
+       for(let k=1;k<6;k++){const f=k/6,w=1.8-(1.8-.45)*f,dd=1.4-(1.4-.35)*f;const r1=new THREE.Mesh(new THREE.BoxGeometry(w*2,.12,.12),steelD);r1.position.set(0,H*f,dd);grp.add(r1);const r2=r1.clone();r2.position.z=-dd;grp.add(r2)}
+       const arm=new THREE.Mesh(new THREE.BoxGeometry(3.4,.35,.6),redM);arm.position.y=H;grp.add(arm);
+       for(const sx of [-1,1]){const sh=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.22,14),steelD);sh.rotation.z=Math.PI/2;sh.position.set(sx*.9,H+.35,0);grp.add(sh)}
+       const b=new CANNON.Body({mass:0,material:oM});b.addShape(new CANNON.Box(new CANNON.Vec3(1.8,H/2,1.4)));b.position.set(p.x,g+H/2,p.z);b.quaternion.set(qY.x,qY.y,qY.z,qY.w);world.addBody(b)}}
+    // the cabin: carriage on the ropes, a hanger, an open cage with a floor long enough for the truck
+    const cab=new THREE.Group();S.add(cab);const CW=4.4,CL=8.4;
+    {const carr=new THREE.Mesh(new THREE.BoxGeometry(2.4,.6,3),redM);carr.position.y=HANG+.1;cab.add(carr);
+     for(const sx of [-1,1])for(const sz of [-1,1]){const w=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.18,12),steelD);w.rotation.z=Math.PI/2;w.position.set(sx*.9,HANG+.42,sz*1.1);cab.add(w)}
+     const hg=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,HANG-3.4,8),steelD);hg.position.y=3.4+(HANG-3.4)/2;cab.add(hg);
+     const fl=new THREE.Mesh(new THREE.BoxGeometry(CW,.24,CL),dark);fl.position.y=-.12;cab.add(fl);
+     for(const sx of [-1,1])for(const sz of [-1,1]){const p=new THREE.Mesh(new THREE.BoxGeometry(.18,3.4,.18),redM);p.position.set(sx*(CW/2-.09),1.7,sz*(CL/2-.09));cab.add(p)}
+     const roof=new THREE.Mesh(new THREE.BoxGeometry(CW+.3,.25,CL+.3),redM);roof.position.y=3.45;cab.add(roof);
+     const glass=new THREE.MeshPhongMaterial({color:0x9cc4dc,transparent:true,opacity:.22,shininess:90,side:THREE.DoubleSide,depthWrite:false});
+     for(const sx of [-1,1]){const g=new THREE.Mesh(new THREE.PlaneGeometry(CL-.3,1.2),glass);g.rotation.y=Math.PI/2;g.position.set(sx*(CW/2-.09),.85,0);cab.add(g);
+       const rail=new THREE.Mesh(new THREE.BoxGeometry(.1,.1,CL),yellowM);rail.position.set(sx*(CW/2-.09),1.45,0);cab.add(rail)}
+     cab.traverse(o=>{if(o.isMesh){o.castShadow=!LOW}});cab.rotation.y=YAW}
+    const floorB=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});floorB.addShape(new CANNON.Box(new CANNON.Vec3(CW/2,.12,CL/2)));floorB.quaternion.set(qY.x,qY.y,qY.z,qY.w);world.addBody(floorB);
+    // state: s along the rope (0 base, 1 top); 'dock0'/'dock1' waiting, 'up'/'down' moving; ride: carrying the car
+    let s=0,st='dock0',ride=null,wait=0,count=0,speedK=1,panT=0,vel=0,armed=true;   // armed: you have driven out since the last rideconst tmpV=new THREE.Vector3(),camA={a:0};
+    const floorAt=u=>{curve.getPointAt(Math.max(0,Math.min(1,u)),tmpV);return {x:tmpV.x,y:tmpV.y-HANG,z:tmpV.z}};
+    function place(){const f=floorAt(s);cab.position.set(f.x,f.y,f.z);const vy=(floorB.position.y?f.y-floorB.position.y:0);floorB.position.set(f.x,f.y-.12,f.z)}
+    place();
+    // the car's place in the cabin frame (along, across, height above the floor) and its heading
+    const local=c=>{const f=floorAt(s),dx=c.x-f.x,dz=c.z-f.z;return {a:dx*DIR.x+dz*DIR.z,b:dx*SIDE.x+dz*SIDE.z,h:c.y-f.y}};
+    function tick(dt){
+      if(MODE!=='world'||SPACE.state!=='earth')return;const c=chassisB.position,v=chassisB.velocity,sp=Math.hypot(v.x,v.z);
+      const atDock=st==='dock0'?0:st==='dock1'?1:-1;
+      if(st==='up'||st==='down'){const dir=st==='up'?1:-1,vmax=12*speedK,acc=1.6;
+        // pull away gently, cruise, and brake so it stops exactly at the station
+        const left=(dir>0?1-s:s)*LEN;vel=Math.min(vmax,vel+acc*dt,Math.sqrt(2*acc*Math.max(0,left))+.25);s=Math.max(0,Math.min(1,s+dir*vel*dt/LEN));place();
+        if(ride){const f=floorAt(s);chassisB.position.set(f.x+DIR.x*ride.a+SIDE.x*ride.b,f.y+ride.h,f.z+DIR.z*ride.a+SIDE.z*ride.b);chassisB.quaternion.copy(ride.q);
+          chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);PREV.ok=false;for(const k2 of ['f','b','l','r','h','boost'])key[k2]=0}
+        if(s<=0||s>=1){st=s>=1?'dock1':'dock0';speedK=1;vel=0;
+          if(ride){ride=null;armed=false;toastMsg(st==='dock1'?'The peak · '+Math.round(topY)+' m · drive out and look around':'Back at the summit');if(st==='dock1')panT=16}}
+        return}
+      // waiting at a station: is the car in the bay?
+      const bay=atDock>=0?(atDock?D1:D0):null;
+      const inBay=(B,y)=>{const dx=c.x-B.x,dz=c.z-B.z,a=dx*DIR.x+dz*DIR.z,b=dx*SIDE.x+dz*SIDE.z;return Math.abs(a)<CL/2-.6&&Math.abs(b)<CW/2-.3&&Math.abs(c.y-y-1)<2.2};
+      if(bay&&!inBay(bay,bay.y))armed=true;
+      if(armed&&bay&&inBay(bay,bay.y)&&sp<1.2){wait+=dt;if(wait>.8){const n=Math.ceil(3-(wait-.8));if(n!==count&&n>0){count=n;toastMsg('Cable car · leaving in '+n)}
+          if(wait>3.8){ride=Object.assign(local(c),{q:chassisB.quaternion.clone()});st=atDock?'down':'up';wait=0;count=0;if(window.AUTO)try{AUTO.set(false,true)}catch(_){}}}}
+      else{if(wait>.8&&bay)toastMsg('Cable car · cancelled');wait=0;count=0;
+        // the other bay is empty: stop in it and the cabin comes for you
+        const other=atDock===0?D1:atDock===1?D0:null;
+        if(other&&inBay(other,other.y)&&sp<1.2){ride=null;speedK=1.7;st=atDock===0?'up':'down';toastMsg('Calling the cable car…')}}}
+    // the ride camera: a slow circle round the cabin; after arriving at the top, a sweep across the valley
+    function cam(camT,lookT,dt,C){
+      if(ride){camA.a+=dt*.09;const f=floorAt(s),r=24;camT.set(f.x+Math.cos(camA.a)*r,f.y+6,f.z+Math.sin(camA.a)*r);lookT.set(f.x,f.y+1.6,f.z);return true}
+      if(panT>0){if(key.f||key.b||key.l||key.r){panT=0;return false}panT-=dt;const t=1-panT/16,toC=Math.atan2(-TOP.x,-TOP.z),a=toC+Math.sin(t*Math.PI*1.6)*1.1;
+        // high over the middle of the deck (clear of the station), rising as it turns across the valley toward the sea
+        camT.set(TOP.x+Math.sin(toC)*6,topY+14+t*12,TOP.z+Math.cos(toC)*6);lookT.set(camT.x+Math.sin(a)*420,topY-150+t*40,camT.z+Math.cos(a)*420);return true}
+      return false}
+    const c0=()=>chassisB.position;
+    // high up: the riding cabin, or anywhere on the top deck
+    const high=()=>(ride&&s>.15)||(Math.hypot(chassisB.position.x-TOP.x,chassisB.position.z-TOP.z)<DECK&&chassisB.position.y>topY-4);
+    return {tick,cam,high,cp:new THREE.Vector3(),cine0:false,get cine(){return !!ride||panT>0},get riding(){return !!ride},TOP,topY,D0,D1,get s(){return s},get st(){return st}}})();
   /* --- stunt park ---
      One axis runs straight through the park, lined up with the dirt track in, so the mega
      jump finally has a run-up: boost pad, a 24 m kicker, a table top with the ring of fire
@@ -1115,7 +1321,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const okSpot=(x,z,minRoad)=>{if(zoneHit(x,z,6))return false;
       if(roadNear(x,z).d<minRoad)return false;
       if((x-POND.x)**2+(z-POND.z)**2<(POND.r+6)**2)return false;
-      if((x-PG.x)**2+(z-PG.z)**2<24*24)return false;
+      if((x-PG.x)**2+(z-PG.z)**2<(PGR+12)**2)return false;
       if(PADS.some(p=>(p.x-x)**2+(p.z-z)**2<p.r*p.r))return false;
       const h=HF.h(x,z);if(h<.35)return false;
       if(HF.slope(x,z)>1.35)return false;
@@ -1992,7 +2198,7 @@ t.bd.position.set(x,y+.86,z);
     const herds=[];let tries=0;
     while(herds.length<(LOW?2:3)&&tries<900){tries++;const x=(rnd()-.5)*(220*MK),z=(rnd()-.5)*(220*MK);
       if(roadNear(x,z).d<26)continue;
-      if((x-POND.x)**2+(z-POND.z)**2<(POND.r+14)**2)continue;if((x-PG.x)**2+(z-PG.z)**2<30*30)continue;
+      if((x-POND.x)**2+(z-POND.z)**2<(POND.r+14)**2)continue;if((x-PG.x)**2+(z-PG.z)**2<(PGR+16)**2)continue;
       if(HF.h(x,z)<.4||HF.slope(x,z)>.55)continue;
       if(herds.some(h=>(h[0]-x)**2+(h[1]-z)**2<70*70))continue;
       herds.push([x,z])}
@@ -3235,6 +3441,9 @@ t.bd.position.set(x,y+.86,z);
       mapLabel(c,'RAMP YARD',RAMPYARD.x*sc,(RAMPYARD.z+RING.r+10)*sc,'#d9d2c4');
       mapLabel(c,'MOUNTAINS',-(BOUND-70)*sc,0,'#eef0f3');mapLabel(c,'SEA',(BOUND-40)*sc,0,'#a8d8ee');
       mapLabel(c,'POND',POND.x*sc,(POND.z+POND.r+9)*sc,'#9fc3d6');mapLabel(c,'PLAYGROUND',PG.x*sc,(PG.z-20)*sc,'#e8a0a0')}
+    // the cableway: a dashed line from the summit deck to the peak
+    {const A=CABLE.D0,B=CABLE.TOP;c.save();c.strokeStyle='rgba(232,72,58,.9)';c.lineWidth=big?2.2:1.5;c.setLineDash([5,4]);c.beginPath();c.moveTo(A.x*sc,A.z*sc);c.lineTo(B.x*sc,B.z*sc);c.stroke();c.restore();
+     c.fillStyle='#e8483a';c.beginPath();c.arc(B.x*sc,B.z*sc,big?5:3.4,0,6.283);c.fill();if(big)mapLabel(c,'PEAK · CABLE CAR',B.x*sc,B.z*sc-16,'#ffb0a6')}
     NAV.drawOnMap(c,sc,big);
     c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
     c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke()}
@@ -5201,6 +5410,7 @@ const PLANETS={
          unevenly on 90-240 Hz screens, which reads as judder, so the car is stepped here and
          drawn interpolated between the last two physics states. */
       physAcc+=dt;{let n=0;while(physAcc>=PSTEP&&n<4){world.step(PSTEP);physAcc-=PSTEP;n++}if(n>=4)physAcc=0}
+      CABLE.tick(dt);   // the cable car carries the car after the physics has moved it
       /* typing race: the car rides the lap at the place your typing has reached, chasing it smoothly, so the
          lap ends exactly as the sentence does and the speed you see is the speed you are typing at */
       if(TYPEF.on&&MODE==='circuit'&&circuit){const L=(TYPEF.L||circuit.curve.getLength())*(TYPEF.laps||1),gap=TYPEF.target-TYPEF.u;   // L: the whole drive, every lap of it
@@ -5225,6 +5435,7 @@ const PLANETS={
         {let a=0;for(let k=0;k<ACTS.length;k++)if(progU>=ACTS[k][0]-.028)a=k;
          if(a!==act){act=a;if(!nightOn&&!wxLock)mood(CHMOOD[a],6);chapEase=1}}}
       /* ---- missions (world only - circuit has no missions in this pass) ---- */
+      if(MODE==='world'&&PLAY.near())PLAY.tick(dt);
       if(MODE==='world'){const mc=curMission();
        if(sub>.45)missSet('swim',1);
        if(frameN%12===0&&mc&&mc.id==='cones'){let k=0;coneBodies.forEach(c=>{if(Math.hypot(c.b.position.x-c.x,c.b.position.z-c.z)>1.5||c.b.position.y<.34)k++});if(k>0)missSet('cones',k)}
@@ -5520,8 +5731,8 @@ const PLANETS={
       const CM=CAMS[effCamMode],pf=W<H?1.5:1;
       const camDir = lookBehind ? tmp.copy(fwd).negate() : fwd;
       if(PCAR&&PCAR.glass&&PCAR.glassOff!==!!CM.fp){PCAR.glassOff=!!CM.fp;PCAR.glass.forEach(m=>m.visible=!CM.fp)}   // no tinted screen in front of a cockpit view
-      {const ck=!!CM.cock&&!lookBehind;if(COCK.g.visible!==ck&&spd.parentNode)spd.parentNode.style.visibility=ck?'hidden':'';COCK.g.visible=ck;if(PCAR&&PCAR.g.visible===ck)PCAR.g.visible=!ck;if(wv&&wv.car[0]&&wv.car[0].w.visible===ck)wv.car.forEach(k=>k.w.visible=!ck)}   // body and wheels would sit across the view   // every frame: a car change mid-cockpit brings a fresh, visible body
-      if(CM.cock&&!lookBehind){/* the driver's seat: the eye, a touch of head movement with the road, looking down the road */
+      {const ck=!!CM.cock&&!lookBehind&&!(MODE==='world'&&CABLE.cine);if(COCK.g.visible!==ck&&spd.parentNode)spd.parentNode.style.visibility=ck?'hidden':'';COCK.g.visible=ck;if(PCAR&&PCAR.g.visible===ck)PCAR.g.visible=!ck;if(wv&&wv.car[0]&&wv.car[0].w.visible===ck)wv.car.forEach(k=>k.w.visible=!ck)}   // body and wheels would sit across the view   // every frame: a car change mid-cockpit brings a fresh, visible body
+      if(CM.cock&&!lookBehind&&!(MODE==='world'&&CABLE.cine)){/* the driver's seat: the eye, a touch of head movement with the road, looking down the road */
         COCK.g.updateMatrixWorld(true);COCK.eye.getWorldPosition(camT);
         /* the driver's head: thrown to the outside in a corner, forward under braking, back when accelerating,
            with a little road buzz that grows with speed. Taken from the car's own acceleration, smoothed like a neck would. */
@@ -5544,6 +5755,7 @@ const PLANETS={
         camT.copy(car.position).addScaledVector(fwd,-dist).add(tmp.set(0,hgt,0));
         C.position.lerp(camT,1-Math.exp(-dt*(active?CM.lag:3.2)));
         lookT.copy(car.position).addScaledVector(fwd,CM.ahead).add(tmp.set(0,CM.ly,0))}
+      if(!PHOTO&&CABLE.cam(camT,lookT,dt)){if(!CABLE.cine0){CABLE.cp.copy(C.position);CABLE.cine0=true}CABLE.cp.lerp(camT,1-Math.exp(-dt*2.5));C.position.copy(CABLE.cp)}else CABLE.cine0=false;
       if(PHOTO){/* dev only (?dev=1): a fixed shot of the car from its own frame, for checking the models */
         camT.set(PHOTO[0],PHOTO[1],PHOTO[2]).applyQuaternion(car.quaternion).add(car.position);C.position.copy(camT);
         lookT.set(0,PHOTO[3]||.7,PHOTO[4]||0).applyQuaternion(car.quaternion).add(car.position)}
@@ -5571,7 +5783,7 @@ const PLANETS={
       if(Math.abs(C.fov-60)>.02){C.fov+=(60-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
     // the horizon ridge is a ring round the valley; from the summit, which sits outside it, it would be a wall across the view
     farRidge.visible=Math.hypot(car.position.x,car.position.z)<235;
-    {const cf=recapCam?700:TOUCH?460:320;if(C.far!==cf&&C.far<=700){C.far=cf;C.updateProjectionMatrix()}}   // the lookout sees the whole map
+    {const hi=MODE==='world'&&CABLE.high(),cf=hi?3200:recapCam?700:TOUCH?460:320;if(C.far!==cf&&(C.far<=700||C.far===3200)){C.far=cf;C.updateProjectionMatrix()}}   // the lookout sees the whole map
     const sunOff=recapCam?SUN_OFF_LOW:SUN_OFF_DEFAULT;
     {const d=shD.copy(sunOff).normalize(),r=shR.set(0,1,0).cross(d).normalize(),u=shU.copy(d).cross(r),tx=60/(sun.shadow.mapSize.x||1024),p=car.position;
      const a=Math.round((p.x*r.x+p.y*r.y+p.z*r.z)/tx)*tx,b=Math.round((p.x*u.x+p.y*u.y+p.z*u.z)/tx)*tx,c=p.x*d.x+p.y*d.y+p.z*d.z;
@@ -5610,7 +5822,7 @@ const PLANETS={
     {const z=ZN,e=.08;
      // a custom venue is open ground out to the mountains, so clear weather there gets a much longer view than the tight valley map
      // and the summit lookout pulls the haze back so the whole valley shows below
-     const fk=MODE==='circuit'?(fogFar0>=200?3.6:Math.max(1,420/Math.max(1,fogFar0))):recapCam?3.8:1,fn=fk>1?2.4:1;   // on a venue even snow / fog keeps ~400 m of view, or the scenery is a white-out
+     const fk=MODE==='circuit'?(fogFar0>=200?3.6:Math.max(1,420/Math.max(1,fogFar0))):CABLE.high()?Math.max(9,2600/Math.max(1,fogFar0)):recapCam?3.8:1,fn=fk>1?2.4:1;   // on a venue even snow / fog keeps ~400 m of view, or the scenery is a white-out
      // phones: the valley's darker bands no longer close the haze in to ~100 m, and the view runs further out
      const zf=TOUCH&&MODE!=='circuit'?Math.max(.85,z.fog)*1.35:z.fog;
      S.fog.far+=(fogFar0*zf*fk-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,zf)*fn-S.fog.near)*e;
@@ -6624,7 +6836,12 @@ const PLANETS={
       if(Math.hypot(ctr.x-cx,ctr.z-cz)<900)continue;
       c.traverse(o=>{if(o.layers.mask===1){o.layers.set(1);worldHidden.push(o)}})}}
   function enterCircuit(){if(!circuit)return;
-    worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
+    /* the valley's state (where the car was, its fog, its gravity) is saved only when we come FROM the valley. Going
+       from one track straight to another (a multiplayer host switching venues, daily after a drawn track) used to save
+       the first track's values as 'the valley's', so back on Earth the car was dropped onto the old track's flat ground
+       and the valley got that track's fog and gravity. */
+    const fromWorld=MODE!=='circuit';
+    if(fromWorld)worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
     MODE='circuit';circU0=-1;circLap=0;circBest=null;circLapT0=performance.now();hideWorld(true);tyresReset();
     if(window.RaceEngine)window.RaceEngine.inPit=p=>!!(circuit&&circuit.inPit&&circuit.inPit(p.x,p.z));
     if(window.RaceEngine&&circuit){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps,roadWidth:CIRC_W})}
@@ -6637,13 +6854,13 @@ const PLANETS={
     for(let i=0;i<4;i++){veh.applyEngineForce(0,i);veh.setBrake(0,i)}
     // each theme tints fog/sky to match (desert haze, snow glare, etc); saved once so leaving
     // always restores the exact value the main map had, regardless of weather/day-night state
-    worldFogSave={fog:S.fog.color.getHex(),bg:S.background.getHex()};
+    if(fromWorld||!worldFogSave)worldFogSave={fog:S.fog.color.getHex(),bg:S.background.getHex()};
     const th=circuit.theme||THEME_DEFAULT;S.fog.color.setHex(th.fog);S.background.setHex(th.sky);
     // gravity is gameplay, not decoration: themes that define one (currently just Moon) override
     // world.gravity.y here and it's restored byte-for-byte on leave. Everything that derives force
     // from gravity (suspension load, hill-climb aid, reverse assist) reads world.gravity.y live,
     // so lighter gravity here isn't just a falling-speed change - the whole car feels different.
-    worldGSave=world.gravity.y;
+    if(fromWorld||worldGSave==null)worldGSave=world.gravity.y;
     world.gravity.y=(th.gravity!=null)?th.gravity:worldGSave;
     if(!worldWeatherSave)worldWeatherSave={lock:wxLock,id:wx.id};
     const venue=circuit.venue||{};let weather=WEATHERS.some(w=>w.id===venue.weather)?venue.weather:'day',time=WEATHERS.some(w=>w.id===venue.time)?venue.time:'day';
@@ -6668,7 +6885,9 @@ const PLANETS={
     if(worldGSave!=null){world.gravity.y=worldGSave;worldGSave=null}
     if(worldWeatherSave){const saved=worldWeatherSave;worldWeatherSave=null;setWeather(saved.lock||'auto',true);if(!saved.lock&&saved.id)mood(saved.id,.8)}
     applyDisplay();
-    hideWorld(false);toastMsg('Back to the valley');updCircBtn()}
+    hideWorld(false);toastMsg('Back to the valley');updCircBtn();
+    // safety net: whatever the path here, the car must come back to the valley, never be left on a track's old ground
+    {const c=chassisB.position;let d=1e9;for(let i=0;i<N;i+=3)d=Math.min(d,Math.hypot(SAMP[i].x-c.x,SAMP[i].z-c.z));if(d>260)resetCar()}}
   /* ---------- drawing overlay ---------- */
   /* ---------- AI rivals for solo races on drawn / daily tracks ----------
      Three cars from the grid slots behind you. Each one reads the track ahead and brakes for the tightest
@@ -7948,7 +8167,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
