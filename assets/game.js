@@ -2057,9 +2057,13 @@ t.bd.position.set(x,y+.86,z);
     else{wxLock=id;nightOn=true;mood(id,3.5);if(!quiet)toastMsg(wxOf(id).label)}
     const nb=$('#dnight');if(nb)nb.textContent=wxLock==='night'?'Daylight':'Night';
     $$('#dwxl button').forEach(b=>b.classList.toggle('on',b.dataset.w===(wxLock||'auto')))}
+  // the game starts at night (headlights, city glow, the cockpit's ambient light); N switches, and the choice is remembered
   function toggleNight(){
-    if(wxLock==='night'){setWeather('auto',true);toastMsg('Daylight')}
-    else{setWeather('night',true);toastMsg('Night · press N to bring the day back')}}
+    if(wxLock==='night'){setWeather('auto',true);toastMsg('Daylight');try{localStorage.setItem('sl_night','0')}catch(e){}}
+    else{setWeather('night',true);toastMsg('Night · press N to bring the day back');try{localStorage.setItem('sl_night','1')}catch(e){}}}
+  let nightDefaultDone=false;
+  function nightByDefault(){if(nightDefaultDone)return;nightDefaultDone=true;let v=null;try{v=localStorage.getItem('sl_night')}catch(e){}
+    if(v!=='0'&&MODE==='world'&&wxLock!=='night'){setWeather('night',true);wxDur=.05}}   // no fade from day on the first frame
   function stepWx(dt){
     if(wxT>=1)return;
     wxT=Math.min(1,wxT+dt/wxDur);const e=wxT*wxT*(3-2*wxT);
@@ -2132,7 +2136,10 @@ t.bd.position.set(x,y+.86,z);
       for(const k of [-1,1]){mk(new THREE.BoxGeometry(.08,.5,1.6),dark2,k*W,-.42,-.1);mk(new THREE.BoxGeometry(.012,.014,1.4),glow,k*(W-.045),-.2,-.05);
         mk(new THREE.BoxGeometry(.012,.012,.6),glowC,k*(W-.045),-.36,.3)}
       // windscreen frame: A-pillars, the header and the roof edge, so the view reads as through a windscreen
-      for(const k of [-1,1])mk(new THREE.BoxGeometry(.05,.85,.05),dark,k*(W+.14),.02,1.05,-.6,0,k*.1);
+      // A-pillars: from the dash corners up and back to the roof header, along the windscreen's edges
+      for(const k of [-1,1]){const a=new THREE.Vector3(k*(W+.02),-.3,1.05),b2=new THREE.Vector3(k*(W-.04),.42,.5),d=b2.clone().sub(a),pl=new THREE.Mesh(new THREE.BoxGeometry(.07,d.length(),.06),dark);
+        pl.position.copy(a).add(b2).multiplyScalar(.5);pl.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());g.add(pl)}
+      mk(new THREE.BoxGeometry(W*2+.1,.1,.6),dark,0,-.36,1.0,-.1);   // dash top runs right out to the pillars
       mk(new THREE.BoxGeometry(W*2,.1,.5),dark,0,.45,.45);
       mk(new THREE.BoxGeometry(W*2,.03,1.4),dark2,0,.5,-.4);
       // rear-view mirror on the header
@@ -2165,9 +2172,9 @@ t.bd.position.set(x,y+.86,z);
        x.fillStyle='#8a4bff';x.font='600 15px Arial';x.fillText('KM/H',256,134);clus.t.needsUpdate=true}
       // centre screen: the song, the station and the time
       {const x=scr.x,w=384,h=224;const gr=x.createLinearGradient(0,0,w,h);gr.addColorStop(0,'#101a2e');gr.addColorStop(1,'#1d0f33');x.fillStyle=gr;x.fillRect(0,0,w,h);
-       const d=new Date(),P=window.Radio&&Radio.playing?Radio.playing():null;
+       const d=new Date(),P=(window.__musicLabel&&window.__musicLabel())||(window.Radio&&Radio.playing?Radio.playing():null);
        x.fillStyle='#bfe3ff';x.font='600 22px Arial';x.textAlign='left';x.fillText(String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),18,34);
-       x.fillStyle='rgba(191,227,255,.6)';x.font='600 14px Arial';x.textAlign='right';x.fillText(P?'FM '+P.fm+' · '+P.station:'RADIO OFF',w-16,32);
+       x.fillStyle='rgba(191,227,255,.6)';x.font='600 14px Arial';x.textAlign='right';x.fillText(P?(P.fm?'FM '+P.fm+' · ':'')+P.station:'RADIO OFF',w-16,32);
        x.fillStyle='#ffffff';x.textAlign='left';x.font='bold 26px Arial';x.fillText(P?P.title:'—',18,110);x.fillStyle='rgba(255,255,255,.65)';x.font='18px Arial';x.fillText(P?P.artist:'Press T for the radio',18,138);
        x.fillStyle='rgba(255,255,255,.15)';x.fillRect(18,170,w-36,5);x.fillStyle='#8a4bff';x.fillRect(18,170,(w-36)*(P?P.progress:0),5);
        x.fillStyle='rgba(255,255,255,.75)';x.font='22px Arial';x.textAlign='center';x.fillText('⏮      ⏯      ⏭',w/2,208);scr.t.needsUpdate=true}}
@@ -2460,19 +2467,87 @@ t.bd.position.set(x,y+.86,z);
     #dnp li{display:flex;gap:8px;padding:6px 2px;cursor:pointer;border-radius:6px}#dnp li:hover{background:rgba(255,255,255,.06)}
     #dnp li.cur{color:#c9b4ff}#dnp li small{color:rgba(238,240,243,.45);margin-left:auto;flex:none}
     #dnp li.cur::before{content:'▶';font-size:9px;margin-top:2px}
+    #dnp .np-x{display:none;margin-top:8px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}
+    #dnp.list .np-x{display:block}
+    #dnp .np-src{display:flex;gap:4px;padding:3px;background:rgba(255,255,255,.06);border-radius:10px}
+    #dnp .np-src button{flex:1;width:auto;height:26px;border-radius:8px;font:600 11px var(--sans,Arial);background:transparent;color:rgba(238,240,243,.7)}
+    #dnp .np-src button.on{background:#eef0f3;color:#0b0c10}
+    #dnp .np-src button[data-s=spotify].on{background:#1ed760}#dnp .np-src button[data-s=apple].on{background:#fa2d48;color:#fff}
+    #dnp .np-link{display:none;margin-top:8px}#dnp.ext .np-link{display:block}#dnp.ext ol{display:none!important}
+    #dnp .np-in{display:flex;gap:6px}
+    #dnp .np-in input{flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#fff;padding:6px 8px;font:500 11px var(--sans,Arial);outline:none}
+    #dnp .np-in input:focus{border-color:#8a4bff}
+    #dnp .np-picks{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+    #dnp .np-picks button{width:auto;height:24px;padding:0 9px;border-radius:999px;font:600 10px var(--sans,Arial)}
+    #dnp .np-note{margin-top:6px;color:rgba(238,240,243,.5);font-size:10px;line-height:1.35}
+    #dnp .np-frame{display:none;margin-top:8px;border-radius:12px;overflow:hidden}#dnp.ext .np-frame{display:block}
+    #dnp .np-frame iframe{display:block;width:100%;border:0;border-radius:12px}
+    #dnp.ext.apple [data-a]{display:none}
     #drive.touch #dnp{bottom:auto;top:calc(110px + env(safe-area-inset-top,0px));width:min(250px,48vw);padding:7px 9px}
     #drive.touch #dnp .np-art{display:none}
     #drive.typing #dnp{display:none!important}`;document.head.appendChild(css);
     const el=document.createElement('div');el.id='dnp';el.innerHTML='<div class="np-row"><div class="np-art">♪</div><div class="np-t" title="Show the playlist"><b>—</b><span></span></div>'+
-      '<button data-a="prev" title="Back">⏮</button><button data-a="toggle" title="Play / pause">⏸</button><button data-a="next" title="Next">⏭</button></div><div class="np-bar"><i></i></div><ol></ol>';
+      '<button data-a="prev" title="Back">⏮</button><button data-a="toggle" title="Play / pause">⏸</button><button data-a="next" title="Next">⏭</button></div><div class="np-bar"><i></i></div>'+
+      '<div class="np-frame"></div>'+
+      '<div class="np-x"><div class="np-src"><button data-s="radio">Game radio</button><button data-s="spotify">Spotify</button><button data-s="apple">Apple Music</button></div>'+
+      '<div class="np-link"><div class="np-in"><input type="text" spellcheck="false" autocomplete="off"><button data-go title="Play this link">▶</button></div><div class="np-picks"></div><div class="np-note"></div></div><ol></ol></div>';
     (document.getElementById('dhud')||sec).appendChild(el);
     const tEl=el.querySelector('.np-t'),bar=el.querySelector('.np-bar i'),ol=el.querySelector('ol'),tg=el.querySelector('[data-a=toggle]');
     let wasOn=true;try{wasOn=localStorage.getItem('sl_radio_off')!=='1'}catch(e){}
     const after=()=>{Radio.setMuted(muted);if(radioBtn)radioBtn.textContent=Radio.label();if(window.Settings)Settings.refreshRadio();paint(true)};
-    el.querySelectorAll('button').forEach(b=>b.onclick=e=>{e.stopPropagation();audioInit();const a=b.dataset.a;Radio[a]();
+    /* ----- your own music: Spotify or Apple Music through their official embedded players -----
+       People sign in inside the player (Spotify: full songs for logged-in listeners, 30 s previews otherwise; Apple
+       Music: full songs for subscribers signed in). Paste any playlist / album / song / artist link, or tap a pick.
+       Spotify is driven through its iFrame API, so the panel's play / pause works on it; Apple Music uses the
+       player's own buttons. The choice and the link are remembered on this device; the game radio is silenced. */
+    const store=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}};
+    let src=store('sl_music_src')||'radio';if(!/^(radio|spotify|apple)$/.test(src))src='radio';
+    const frame=el.querySelector('.np-frame'),inp=el.querySelector('.np-in input'),note=el.querySelector('.np-note'),picks=el.querySelector('.np-picks');
+    const SP_PICKS=[['505 · Arctic Monkeys','https://open.spotify.com/track/58ge6dfP91o9oXMzq3XkIS'],['Arctic Monkeys','https://open.spotify.com/artist/7Ln80lUS6He07XvHI8qqHH'],
+      ["Today's Top Hits",'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M'],['Songs to Sing in the Car','https://open.spotify.com/playlist/37i9dQZF1DWWMOmoXKqHTD']];
+    const spUri=u=>{u=String(u||'').trim();let m=u.match(/^spotify:(track|album|playlist|artist|episode|show):([A-Za-z0-9]{22})$/);if(m)return m[0];
+      m=u.match(/^https?:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(track|album|playlist|artist|episode|show)\/([A-Za-z0-9]{22})/);return m?'spotify:'+m[1]+':'+m[2]:null};
+    const amUrl=u=>{u=String(u||'').trim();const m=u.match(/^https?:\/\/(?:embed\.)?music\.apple\.com\/([a-z]{2})\/(album|playlist|song|artist|station|music-video)\/([^?#]+)(\?[^#]*)?/);
+      return m?'https://embed.music.apple.com/'+m[1]+'/'+m[2]+'/'+m[3]+(m[4]||''):null};
+    let spCtl=null,spPaused=true,spPos=0,spDur=0,spWant=null,spApi=null,spLoading=false,extLabel='';
+    function spotifyApi(cb){if(spApi)return cb(spApi);if(!spLoading){spLoading=true;window.onSpotifyIframeApiReady=api=>{spApi=api;const q=spWant;spWant=null;if(q)q(api)};
+        const sc=document.createElement('script');sc.src='https://open.spotify.com/embed/iframe-api/v1';sc.async=true;sc.onerror=()=>{note.textContent='Could not reach Spotify. Check your connection.'};document.head.appendChild(sc)}
+      spWant=cb}
+    function playSpotify(uri,label,autoplay){frame.innerHTML='';spCtl=null;const host=document.createElement('div');frame.appendChild(host);extLabel=label||'Spotify';
+      spotifyApi(api=>api.createController(host,{uri,width:'100%',height:80},c=>{spCtl=c;c.addListener('playback_update',e=>{const d=e.data||{};spPaused=!!d.isPaused;spPos=d.position||0;spDur=d.duration||0;paint(false)});
+        if(autoplay)try{c.play()}catch(_){}}))}
+    function playApple(url,label){spCtl=null;extLabel=label||'Apple Music';const f=document.createElement('iframe');f.src=url;f.height=/\/song\/|\?i=/.test(url)?'175':'300';
+      f.setAttribute('allow','autoplay *; encrypted-media *; fullscreen *; clipboard-write');
+      f.setAttribute('sandbox','allow-forms allow-popups allow-same-origin allow-scripts allow-storage-access-by-user-activation allow-top-navigation-by-user-activation');
+      frame.innerHTML='';frame.appendChild(f)}
+    function openLink(raw,label,autoplay){
+      if(src==='spotify'){const u=spUri(raw);if(!u){note.textContent='That is not a Spotify link. Copy one from Spotify: Share → Copy link.';return false}
+        store('sl_music_spotify',raw);store('sl_music_spotify_l',label||'');playSpotify(u,label,autoplay);return true}
+      const u=amUrl(raw);if(!u){note.textContent='That is not an Apple Music link. Copy one from Apple Music: Share → Copy link.';return false}
+      store('sl_music_apple',raw);store('sl_music_apple_l',label||'');playApple(u,label);return true}
+    function setSource(s2,autoplay){src=s2;store('sl_music_src',s2);el.classList.toggle('ext',s2!=='radio');el.classList.toggle('apple',s2==='apple');
+      el.querySelectorAll('.np-src button').forEach(b=>b.classList.toggle('on',b.dataset.s===s2));
+      if(s2==='radio'){frame.innerHTML='';spCtl=null;if(Radio.station()<0&&store('sl_radio_off')!=='1'){audioInit();Radio.tune(0)}after();return}
+      if(Radio.station()>=0){Radio.tune(-1);after()}   // one thing playing at a time
+      picks.innerHTML='';inp.placeholder=s2==='spotify'?'Paste a Spotify playlist, album or song link':'Paste an Apple Music playlist, album or song link';
+      note.textContent=s2==='spotify'?'Log in inside the player to hear full songs (previews otherwise). Your playlists: Spotify → Share → Copy link.':'Sign in inside the player with an Apple Music subscription for full songs. Apple Music → Share → Copy link.';
+      if(s2==='spotify')SP_PICKS.forEach(([l,u])=>{const b=document.createElement('button');b.textContent=l;b.onclick=e=>{e.stopPropagation();openLink(u,l,true)};picks.appendChild(b)});
+      const saved=store(s2==='spotify'?'sl_music_spotify':'sl_music_apple'),lab=store(s2==='spotify'?'sl_music_spotify_l':'sl_music_apple_l');
+      inp.value=saved||'';if(saved)openLink(saved,lab||'',autoplay);else{frame.innerHTML='';if(s2==='spotify')openLink(SP_PICKS[0][1],SP_PICKS[0][0],autoplay)}paint(true)}
+    el.querySelectorAll('.np-src button').forEach(b=>b.onclick=e=>{e.stopPropagation();setSource(b.dataset.s,true)});
+    el.querySelector('[data-go]').onclick=e=>{e.stopPropagation();if(openLink(inp.value,'',true))paint(true)};
+    inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'&&openLink(inp.value,'',true))paint(true)});
+    ['pointerdown','click'].forEach(ev=>el.addEventListener(ev,e=>e.stopPropagation()));
+    window.__musicLabel=()=>src==='radio'?null:{title:extLabel||(src==='spotify'?'Spotify':'Apple Music'),artist:src==='spotify'?'Spotify':'Apple Music',fm:'',station:src==='spotify'?'Spotify':'Apple Music',progress:spDur?spPos/spDur:0};
+    el.querySelectorAll('[data-a]').forEach(b=>b.onclick=e=>{e.stopPropagation();audioInit();const a=b.dataset.a;
+      if(src==='spotify'){if(spCtl)try{a==='toggle'?spCtl.togglePlay():a==='prev'?spCtl.seek(0):spCtl.seek(Math.max(0,(spDur-1500)/1000))}catch(_){}return}
+      Radio[a]();
       if(a==='toggle')try{localStorage.setItem('sl_radio_off',Radio.station()<0?'1':'0')}catch(_){}after()});
     tEl.onclick=e=>{e.stopPropagation();el.classList.toggle('list');paint(true)};
-    function paint(full){const P=Radio.playing();tg.textContent=P?'⏸':'▶';
+    function paint(full){
+      if(src!=='radio'){const sp=src==='spotify';tg.textContent=sp&&!spPaused?'⏸':'▶';el.querySelector('.np-t b').textContent=extLabel||(sp?'Spotify':'Apple Music');
+        el.querySelector('.np-t span').textContent=sp?'Spotify · tap for options':'Apple Music · tap for options';bar.style.width=(sp&&spDur?spPos/spDur*100:0)+'%';return}
+      const P=Radio.playing();tg.textContent=P?'⏸':'▶';
       el.querySelector('.np-t b').textContent=P?P.title:'Radio off';el.querySelector('.np-t span').textContent=P?P.artist+' · FM '+P.fm+' '+P.station:'Press ▶ to play';
       bar.style.width=(P?P.progress*100:0)+'%';
       if(full&&el.classList.contains('list')){const L=Radio.playlist();ol.innerHTML='';L.forEach(s=>{const li=document.createElement('li');if(s.current)li.className='cur';
@@ -2481,9 +2556,12 @@ t.bd.position.set(x,y+.86,z);
     Radio.onAuto=fast=>toastMsg(fast?'♪ Fast lane · Night Riff':'♪ Back to your station');
     // autoplay: on the first key or tap of the drive
     const first=()=>{removeEventListener('keydown',first,true);removeEventListener('pointerdown',first,true);
+      if(src!=='radio'){if(spCtl&&spPaused)try{spCtl.play()}catch(_){}return}
       if(wasOn&&Radio.station()<0){audioInit();Radio.tune(0);after()}};
     addEventListener('keydown',first,true);addEventListener('pointerdown',first,true);
     if(window.Settings&&Settings.v.fastSongs===false)Radio.setAuto(false);
+    el.querySelectorAll('.np-src button').forEach(b=>b.classList.toggle('on',b.dataset.s===src));
+    if(src!=='radio')setSource(src,false);
     return {el,paint,show(v){el.classList.toggle('on',v)}}})();
   {const nb=$('#dnight');if(nb)nb.onclick=()=>toggleNight()}
   /* ---------- weather picker ---------- */
@@ -2820,8 +2898,8 @@ t.bd.position.set(x,y+.86,z);
   const CAMS=[{n:'Chase',d:9.5,h:4.8,k:1,lag:6.5,ahead:6,ly:1.05,fov:50},{n:'Far chase',d:15,h:7.5,k:1.2,lag:5,ahead:8,ly:1,fov:48},
     {n:'Low chase',d:6.2,h:2.1,k:.6,lag:9,ahead:10,ly:.9,fov:58},{n:'Rear View',d:-9.5,h:4.8,k:1,lag:8,ahead:-14,ly:1.05,fov:55},
     {n:'Bonnet',fp:1,y:.5,z:1.1,fov:66},{n:'Bumper',fp:1,y:.02,z:2.5,fov:70},{n:'Cockpit',fp:1,cock:1,fov:74}];
-  let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}
-  function cycleCam(){camMode=(camMode+1)%CAMS.length;
+  let camMode=0,lookBehind=false;try{camMode=Math.min(CAMS.length-1,+localStorage.getItem('sl_cam')||0)}catch(e){}if(CAMS[camMode].n==='Rear View')camMode=0;
+  function cycleCam(){camMode=(camMode+1)%CAMS.length;if(CAMS[camMode].n==='Rear View')camMode=(camMode+1)%CAMS.length;   // rear view: hold V / Q instead
     // the bike and the open-wheeler have no cabin to sit in
     if(CAMS[camMode].cock){const t=garageOf(curCarId).type;if(t==='bike'||t==='f1')camMode=0}try{localStorage.setItem('sl_cam',camMode)}catch(e){}toastMsg('Camera: '+CAMS[camMode].n+' · C to switch')}
   {const nb=document.getElementById('dnight');if(nb){const cb=nb.cloneNode(true);cb.id='dcam';cb.textContent='Camera';cb.title='Camera (C)';nb.after(cb);cb.onclick=()=>cycleCam();
@@ -4930,7 +5008,9 @@ const PLANETS={
       /* Steering: the direct, arcade response (full lock easing to a third of it by ~165 km/h). A grip-limited
          version was tried and felt too hard to turn on a keyboard, so it is back to this. The handbrake still
          adds lock for a handbrake turn. */
-      const st=steerIn*V.steer*Math.max(.35,1-sp/46)*(key.h?1.25:1);steerActual+=(st-steerActual)*Math.min(1,dt*8);veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
+      // below ~25 km/h full lock felt like the car pivoted on the spot: ease the lock in with speed (still enough to U-turn)
+      const lowS=sp<7?.55+.45*sp/7:1;
+      const st=steerIn*V.steer*Math.max(.35,1-sp/46)*lowS*(key.h?1.25:1);steerActual+=(st-steerActual)*Math.min(1,dt*(sp<7?5:8));veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
       tailM.emissiveIntensity=(b||key.h)?1.6:boost?1.2:.5;
       // cannon integrates damping as pow(1-damping,dt), so anything at or above 1 turns the whole
       // body into NaN on the next step. That was the real cause of the car "flying" over the pond.
@@ -4958,11 +5038,11 @@ const PLANETS={
       if(MODE==='world'&&frameN%4===0){let best=1e9,bi=0;for(let i=0;i<=N;i+=2){const d=(SAMP[i].x-chassisB.position.x)**2+(SAMP[i].z-chassisB.position.z)**2;if(d<best){best=d;bi=i}}const u=bi/N;if(best<60&&(u>progU||u<progU-.5))progU=u;prog.geometry.setDrawRange(0,Math.floor(progU*N)*6);if(frameN%16===0)lamps.forEach(L=>{L.bulb.material.color.setHex(L.u<=progU?0xf2eee6:0x3a3733)});
         const summitD=Math.hypot(car.position.x-PEAK.x,car.position.z-PEAK.z);
         const wasSummit=atSummit;atSummit=summitD<12;recapCam=atSummit;
-        if(atSummit&&!wasSummit){summitMoodBack=CHMOOD[act]||'day';if(!nightOn)mood('dusk',5);blip(600,.16,.08);toastMsg('The summit')}
-        else if(!atSummit&&wasSummit){if(summitMoodBack){if(!nightOn)mood(summitMoodBack,4);summitMoodBack=null}}
+        if(atSummit&&!wasSummit){summitMoodBack=CHMOOD[act]||'day';if(!nightOn&&!wxLock)mood('dusk',5);blip(600,.16,.08);toastMsg('The summit')}
+        else if(!atSummit&&wasSummit){if(summitMoodBack){if(!nightOn&&!wxLock)mood(summitMoodBack,4);summitMoodBack=null}}
         /* the sky settles into each stretch of the road as you drive into it */
         {let a=0;for(let k=0;k<ACTS.length;k++)if(progU>=ACTS[k][0]-.028)a=k;
-         if(a!==act){act=a;if(!nightOn)mood(CHMOOD[a],6);chapEase=1}}}
+         if(a!==act){act=a;if(!nightOn&&!wxLock)mood(CHMOOD[a],6);chapEase=1}}}
       /* ---- missions (world only - circuit has no missions in this pass) ---- */
       if(MODE==='world'){const mc=curMission();
        if(sub>.45)missSet('swim',1);
@@ -5179,7 +5259,7 @@ const PLANETS={
       if(isNight && !nightOn){
         nightOn=true;
         if(wxLock!=='night')toastMsg('Night driving · headlights required');
-      }else if(!isNight && nightOn){
+      }else if(!isNight && nightOn && wxLock!=='night'){   // a held night is not undone while the sky is still fading in
         nightOn=false;
       }
     }
@@ -5259,7 +5339,7 @@ const PLANETS={
       const CM=CAMS[effCamMode],pf=W<H?1.5:1;
       const camDir = lookBehind ? tmp.copy(fwd).negate() : fwd;
       if(PCAR&&PCAR.glass&&PCAR.glassOff!==!!CM.fp){PCAR.glassOff=!!CM.fp;PCAR.glass.forEach(m=>m.visible=!CM.fp)}   // no tinted screen in front of a cockpit view
-      {const ck=!!CM.cock&&!lookBehind;COCK.g.visible=ck;if(PCAR&&PCAR.g.visible===ck)PCAR.g.visible=!ck}   // every frame: a car change mid-cockpit brings a fresh, visible body
+      {const ck=!!CM.cock&&!lookBehind;COCK.g.visible=ck;if(PCAR&&PCAR.g.visible===ck)PCAR.g.visible=!ck;if(wv&&wv.car[0]&&wv.car[0].w.visible===ck)wv.car.forEach(k=>k.w.visible=!ck)}   // body and wheels would sit across the view   // every frame: a car change mid-cockpit brings a fresh, visible body
       if(CM.cock&&!lookBehind){/* the driver's seat: the eye, a touch of head movement with the road, looking down the road */
         COCK.g.updateMatrixWorld(true);COCK.eye.getWorldPosition(camT);const bob=Math.min(1,sp/40)*.006*Math.sin(performance.now()/90);camT.y+=bob;C.position.copy(camT);
         lookT.set(COCK.eye.position.x,-.06,30).applyMatrix4(COCK.g.matrixWorld);
@@ -5296,7 +5376,7 @@ const PLANETS={
       if(Math.abs(C.fov-60)>.02){C.fov+=(60-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
     // the horizon ridge is a ring round the valley; from the summit, which sits outside it, it would be a wall across the view
     farRidge.visible=Math.hypot(car.position.x,car.position.z)<235;
-    {const cf=recapCam?700:320;if(C.far!==cf&&C.far<=700){C.far=cf;C.updateProjectionMatrix()}}   // the lookout sees the whole map
+    {const cf=recapCam?700:TOUCH?460:320;if(C.far!==cf&&C.far<=700){C.far=cf;C.updateProjectionMatrix()}}   // the lookout sees the whole map
     const sunOff=recapCam?SUN_OFF_LOW:SUN_OFF_DEFAULT;
     {const d=shD.copy(sunOff).normalize(),r=shR.set(0,1,0).cross(d).normalize(),u=shU.copy(d).cross(r),tx=60/(sun.shadow.mapSize.x||1024),p=car.position;
      const a=Math.round((p.x*r.x+p.y*r.y+p.z*r.z)/tx)*tx,b=Math.round((p.x*u.x+p.y*u.y+p.z*u.z)/tx)*tx,c=p.x*d.x+p.y*d.y+p.z*d.z;
@@ -5336,7 +5416,9 @@ const PLANETS={
      // a custom venue is open ground out to the mountains, so clear weather there gets a much longer view than the tight valley map
      // and the summit lookout pulls the haze back so the whole valley shows below
      const fk=MODE==='circuit'?(fogFar0>=200?3.6:Math.max(1,420/Math.max(1,fogFar0))):recapCam?3.8:1,fn=fk>1?2.4:1;   // on a venue even snow / fog keeps ~400 m of view, or the scenery is a white-out
-     S.fog.far+=(fogFar0*z.fog*fk-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,z.fog)*fn-S.fog.near)*e;
+     // phones: the valley's darker bands no longer close the haze in to ~100 m, and the view runs further out
+     const zf=TOUCH&&MODE!=='circuit'?Math.max(.85,z.fog)*1.35:z.fog;
+     S.fog.far+=(fogFar0*zf*fk-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,zf)*fn-S.fog.near)*e;
      const lt=(z.tint[0]+z.tint[1]+z.tint[2])/3;
      if(wxB.id==='storm'){ltT-=dt;if(ltT<=0){ltT=2.5+Math.random()*7;flashV=1;thunderAt=now+300+Math.random()*1800}}
      if(flashV>0){flashV=Math.max(0,flashV-dt*(flashV>.6?3:2.2));if(flashV<.35&&Math.random()<.35)flashV=Math.min(1,flashV+.5*Math.random())}
@@ -7612,7 +7694,7 @@ function carChanged(){if(room)sendHi(true)}
   })();
   /* ---------- go ---------- */
   function resize(){W=sec.clientWidth;H=sec.clientHeight;R.setPixelRatio(DPR());R.setSize(W,H,false);C.aspect=W/H;C.updateProjectionMatrix();if(sun.shadow)sun.shadow.needsUpdate=true}addEventListener('resize',resize);
-  function enterDrive(){active=true;sec.classList.add('active');if(TOUCH)sec.classList.add('touch');resize();{const l=$('#dload');if(l)l.remove()}
+  function enterDrive(){try{nightByDefault()}catch(e){}active=true;sec.classList.add('active');if(TOUCH)sec.classList.add('touch');resize();{const l=$('#dload');if(l)l.remove()}
     driving=true;hud.classList.add('on');if(TOUCH)mob.classList.add('on');checkRot();
     applyDisplay();
     {const {p,tg}=at(progU||0);C.position.set(p.x-tg.x*10,p.y+5,p.z-tg.z*10);look.set(p.x+tg.x*6,p.y+1,p.z+tg.z*6)}
@@ -7622,7 +7704,7 @@ function carChanged(){if(room)sendHi(true)}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,get camMode(){return camMode},set camMode(v){camMode=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
