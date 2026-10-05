@@ -5008,7 +5008,9 @@ const PLANETS={
       /* Steering: the direct, arcade response (full lock easing to a third of it by ~165 km/h). A grip-limited
          version was tried and felt too hard to turn on a keyboard, so it is back to this. The handbrake still
          adds lock for a handbrake turn. */
-      const st=steerIn*V.steer*Math.max(.35,1-sp/46)*(key.h?1.25:1);steerActual+=(st-steerActual)*Math.min(1,dt*8);veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
+      // below ~25 km/h full lock felt like the car pivoted on the spot: ease the lock in with speed (still enough to U-turn)
+      const lowS=sp<7?.55+.45*sp/7:1;
+      const st=steerIn*V.steer*Math.max(.35,1-sp/46)*lowS*(key.h?1.25:1);steerActual+=(st-steerActual)*Math.min(1,dt*(sp<7?5:8));veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
       tailM.emissiveIntensity=(b||key.h)?1.6:boost?1.2:.5;
       // cannon integrates damping as pow(1-damping,dt), so anything at or above 1 turns the whole
       // body into NaN on the next step. That was the real cause of the car "flying" over the pond.
@@ -5374,7 +5376,7 @@ const PLANETS={
       if(Math.abs(C.fov-60)>.02){C.fov+=(60-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
     // the horizon ridge is a ring round the valley; from the summit, which sits outside it, it would be a wall across the view
     farRidge.visible=Math.hypot(car.position.x,car.position.z)<235;
-    {const cf=recapCam?700:320;if(C.far!==cf&&C.far<=700){C.far=cf;C.updateProjectionMatrix()}}   // the lookout sees the whole map
+    {const cf=recapCam?700:TOUCH?460:320;if(C.far!==cf&&C.far<=700){C.far=cf;C.updateProjectionMatrix()}}   // the lookout sees the whole map
     const sunOff=recapCam?SUN_OFF_LOW:SUN_OFF_DEFAULT;
     {const d=shD.copy(sunOff).normalize(),r=shR.set(0,1,0).cross(d).normalize(),u=shU.copy(d).cross(r),tx=60/(sun.shadow.mapSize.x||1024),p=car.position;
      const a=Math.round((p.x*r.x+p.y*r.y+p.z*r.z)/tx)*tx,b=Math.round((p.x*u.x+p.y*u.y+p.z*u.z)/tx)*tx,c=p.x*d.x+p.y*d.y+p.z*d.z;
@@ -5414,7 +5416,9 @@ const PLANETS={
      // a custom venue is open ground out to the mountains, so clear weather there gets a much longer view than the tight valley map
      // and the summit lookout pulls the haze back so the whole valley shows below
      const fk=MODE==='circuit'?(fogFar0>=200?3.6:Math.max(1,420/Math.max(1,fogFar0))):recapCam?3.8:1,fn=fk>1?2.4:1;   // on a venue even snow / fog keeps ~400 m of view, or the scenery is a white-out
-     S.fog.far+=(fogFar0*z.fog*fk-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,z.fog)*fn-S.fog.near)*e;
+     // phones: the valley's darker bands no longer close the haze in to ~100 m, and the view runs further out
+     const zf=TOUCH&&MODE!=='circuit'?Math.max(.85,z.fog)*1.35:z.fog;
+     S.fog.far+=(fogFar0*zf*fk-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,zf)*fn-S.fog.near)*e;
      const lt=(z.tint[0]+z.tint[1]+z.tint[2])/3;
      if(wxB.id==='storm'){ltT-=dt;if(ltT<=0){ltT=2.5+Math.random()*7;flashV=1;thunderAt=now+300+Math.random()*1800}}
      if(flashV>0){flashV=Math.max(0,flashV-dt*(flashV>.6?3:2.2));if(flashV<.35&&Math.random()<.35)flashV=Math.min(1,flashV+.5*Math.random())}
