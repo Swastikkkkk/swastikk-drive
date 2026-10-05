@@ -1,5 +1,5 @@
-/* In-car FM radio. The first twelve FMs are live SomaFM channels (real music, free, ad-free; see LIVE below).
-   The four studio stations after them write every song on the fly with Web Audio, so there are no music files and
+/* In-car FM radio. The dial is 28 live internet stations (SomaFM, Radio Paradise, Nightride FM: real music, free, ad-free; see LIVE below).
+   If none can be reached, four studio stations take over; they write every song on the fly with Web Audio, so there are no music files and
    nothing to license: a station picks a key, a tempo and a chord progression, then plays an intro,
    a groove, a melody section, a breakdown and an outro over about three minutes before the next song.
      88.6  Lo-fi Drive   dusty electric piano, swung beat, vinyl crackle
@@ -20,19 +20,42 @@
   /* Live stations: real music from SomaFM, a free, listener-supported, ad-free internet radio (somafm.com).
      Each FM is a different SomaFM channel streamed in an <audio> element, with the track name read from their
      public song list. If a stream can't be reached (offline, blocked), the radio drops to the studio stations below. */
+  /* Live stations, all free, listener-supported internet radio that anyone may listen to:
+       SomaFM (somafm.com): live = their channel id; the track name comes from their public song list.
+       Radio Paradise (radioparadise.com): rp = its channel number; the track name comes from their now-playing API.
+       Nightride FM (nightride.fm): synthwave channels, stream only.
+     The FM numbers are handed out along the dial in this order. */
+  const SOMA=id=>({live:id}),RP=(path,ch)=>({url:'https://stream.radioparadise.com/'+path,rp:ch}),NRF=id=>({url:'https://stream.nightride.fm/'+id+'.m4a'});
   const LIVE=[
-    {fm:'88.1',name:'Groove Salad',live:'groovesalad',genre:'Chill downtempo beats'},
-    {fm:'90.5',name:'Indie Pop Rocks',live:'indiepop',genre:'Indie pop and rock'},
-    {fm:'92.3',name:'Underground 80s',live:'u80s',genre:'80s new wave and synthpop'},
-    {fm:'94.7',name:'PopTron',live:'poptron',genre:'Electropop and indie dance'},
-    {fm:'96.9',name:'DEF CON Radio',live:'defcon',genre:'Dark electronic for hacking and driving'},
-    {fm:'98.5',name:'Beat Blender',live:'beatblender',genre:'Deep house and downtempo'},
-    {fm:'99.9',name:'Secret Agent',live:'secretagent',genre:'Spy lounge and cinematic grooves'},
-    {fm:'101.1',name:'Sonic Universe',live:'sonicuniverse',genre:'Modern jazz'},
-    {fm:'102.7',name:'Fluid',live:'fluid',genre:'Instrumental hip-hop and future soul'},
-    {fm:'104.3',name:'Seven Inch Soul',live:'7soul',genre:'Vintage soul 45s'},
-    {fm:'105.9',name:'Metal Detector',live:'metal',genre:'Heavy metal'},
-    {fm:'106.7',name:'Boot Liquor',live:'bootliquor',genre:'Americana and roots'}];
+    ['Groove Salad','Chill downtempo beats',SOMA('groovesalad')],
+    ['Radio Paradise','Rock, pop and indie, old and new',RP('mp3-128',0)],
+    ['Indie Pop Rocks','Indie pop and rock',SOMA('indiepop')],
+    ['Nightride FM','Synthwave for night drives',NRF('nightride')],
+    ['Underground 80s','80s new wave and synthpop',SOMA('u80s')],
+    ['Paradise Rock','Rock, classic and new',RP('rock-128',2)],
+    ['PopTron','Electropop and indie dance',SOMA('poptron')],
+    ['Chillsynth','Chilled synthwave',NRF('chillsynth')],
+    ['Suburbs of Goa','Desi and Asian electronic',SOMA('suburbsofgoa')],
+    ['DEF CON Radio','Dark electronic',SOMA('defcon')],
+    ['Darksynth','Heavy, fast synthwave',NRF('darksynth')],
+    ['Left Coast 70s','70s rock and pop',SOMA('seventies')],
+    ['Covers','Famous songs, covered',SOMA('covers')],
+    ['BAGeL Radio','Alternative rock',SOMA('bagel')],
+    ['Beat Blender','Deep house and downtempo',SOMA('beatblender')],
+    ['The Trip','Progressive house and trance',SOMA('thetrip')],
+    ['Dub Step Beyond','Dubstep and bass',SOMA('dubstep')],
+    ['Secret Agent','Spy lounge and cinematic grooves',SOMA('secretagent')],
+    ['Lush','Mellow vocals, electronic',SOMA('lush')],
+    ['Sonic Universe','Modern jazz',SOMA('sonicuniverse')],
+    ['Fluid','Instrumental hip-hop and future soul',SOMA('fluid')],
+    ['Seven Inch Soul','Vintage soul 45s',SOMA('7soul')],
+    ['Heavyweight Reggae','Reggae, ska and rocksteady',SOMA('reggae')],
+    ['Paradise Mellow','Mellow rock and acoustic',RP('mellow-128',1)],
+    ['Metal Detector','Heavy metal',SOMA('metal')],
+    ['Boot Liquor','Americana and roots',SOMA('bootliquor')],
+    ['Vaporwaves','Vaporwave',SOMA('vaporwaves')],
+    ['Spacesynth','Spacesynth and italo',NRF('spacesynth')]
+  ].map(([name,genre,src],k)=>Object.assign({fm:(87.7+k*.7).toFixed(1),name,genre},src));
   const STATIONS=LIVE.concat([
     {fm:'88.6',name:'Lo-fi Drive',style:'lofi',bpm:[72,84],swing:.18,
      progs:[[[2,'m9'],[7,'d9'],[0,'maj9'],[9,'m7']],[[5,'maj7'],[4,'m7'],[2,'m9'],[0,'maj9']],[[9,'m9'],[5,'maj9'],[0,'maj7'],[7,'sus']],[[0,'maj9'],[4,'m7'],[5,'maj7'],[5,'m7']]]},
@@ -44,7 +67,7 @@
     {fm:'107.5',name:'Night Riff',style:'indie',bpm:[132,146],swing:0,
      progs:[[[0,'mi'],[0,'mi'],[8,'ma'],[10,'ma']],[[0,'mi'],[10,'ma'],[8,'ma'],[7,'mi']],[[0,'mi'],[3,'ma'],[10,'ma'],[8,'ma']],[[0,'mi'],[8,'ma'],[3,'ma'],[10,'ma']],[[0,'mi'],[0,'mi'],[5,'mi'],[7,'ma']]]}
   ]);
-  const isLive=i=>i>=0&&!!(STATIONS[i]&&STATIONS[i].live),NR=STATIONS.length-1,FASTLIVE=LIVE.findIndex(s=>s.live==='indiepop');
+  const isLive=i=>i>=0&&!!(STATIONS[i]&&(STATIONS[i].live||STATIONS[i].url)),NR=STATIONS.length-1,FASTLIVE=LIVE.findIndex(s=>s.live==='indiepop');
   let liveDown=false;const fastIdx=()=>liveDown?NR:FASTLIVE;
   CH.mi=[0,3,7];CH.ma=[0,4,7];
   const TI=['Five Hundred Nights','Blue Exit','Tail Lights','Room 214','Last Train South','Neon Static','Slow Burn','Do You Still Drive','Glass Highway','After Hours','Velvet Overpass','Red Line Home','Midnight Return','Hotel Corridor'],
@@ -132,23 +155,29 @@
     if(crackleG)crackleG.gain.setTargetAtTime(STATIONS[st].style==='lofi'&&!muted?.035:0,ac.currentTime,.4);
     info()}
   /* ---- live streams ---- */
-  let el=null,liveOk=false,liveTimer=null,metaT=null,srvI=0,meta=null,recent=[];
-  const SRV=[2,4,1,6,5,3],liveUrl=id=>'https://ice'+SRV[srvI%SRV.length]+'.somafm.com/'+id+'-128-mp3';
+  let failRun=0,el=null,liveOk=false,liveTimer=null,metaT=null,srvI=0,meta=null,recent=[];
+  const SRV=[2,4,1,6,5,3],liveUrl=S=>S.url||'https://ice'+SRV[srvI%SRV.length]+'.somafm.com/'+S.live+'-128-mp3';
   function liveEl(){if(el)return el;el=new Audio();el.preload='none';el.setAttribute('playsinline','');
-    el.addEventListener('playing',()=>{liveOk=true;liveDown=false;clearTimeout(liveTimer);if(R.onChange)R.onChange()});
+    el.addEventListener('playing',()=>{liveOk=true;failRun=0;liveDown=false;clearTimeout(liveTimer);if(R.onChange)R.onChange()});
     el.addEventListener('error',()=>{if(el.getAttribute('src'))liveFail()});return el}
   function liveVol(){if(el){el.volume=Math.min(1,vol);el.muted=muted||!on||!isLive(st)}}
-  function livePlay(){const a=liveEl();a.src=liveUrl(STATIONS[st].live);liveVol();const p=a.play();
+  function livePlay(){const a=liveEl();a.src=liveUrl(STATIONS[st]);liveVol();const p=a.play();
     if(p&&p.catch)p.catch(e=>{if(!e||e.name!=='NotAllowedError')liveFail()});   // NotAllowed: waits for a tap, not a failure
     clearTimeout(liveTimer);liveTimer=setTimeout(()=>{if(!liveOk&&!a.paused)liveFail()},10000)}
   function liveStart(){srvI=0;liveOk=false;meta=null;recent=[];livePlay();fetchMeta();clearInterval(metaT);metaT=setInterval(fetchMeta,20000);info()}
   function liveStop(){clearInterval(metaT);clearTimeout(liveTimer);if(el&&el.getAttribute('src')){el.pause();el.removeAttribute('src');try{el.load()}catch(e){}}}
-  function liveFail(){if(!on||!isLive(st))return;srvI++;if(srvI<3){livePlay();return}   // try two more relay servers
-    liveDown=true;const n=STATIONS[st].name;tune(LIVE.length);if(R.onInfo)R.onInfo(n+' is offline · playing a studio station')}
-  function fetchMeta(){const S=STATIONS[st];if(!S||!S.live)return;const id=S.live;
-    fetch('https://somafm.com/songs/'+id+'.json',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(!STATIONS[st]||STATIONS[st].live!==id)return;
-      recent=(j.songs||[]).slice(0,8);const t=recent[0],k=t?t.title+'|'+t.artist:null;if(k!==meta){meta=k;info()}}).catch(()=>{})}
-  function liveNow(){const S=STATIONS[st],t=recent[0];return {title:t&&t.title||S.genre,artist:t&&t.artist||'SomaFM · live'}}
+  // a stream that won't start: SomaFM gets two more relay servers, others one more try; then the next station on the dial.
+  // Three stations in a row failing means no internet radio here: the studio stations take over.
+  let lastDir=1;
+  function liveFail(){if(!on||!isLive(st))return;srvI++;if(srvI<(STATIONS[st].live?3:2)){livePlay();return}
+    const n=STATIONS[st].name;failRun++;
+    if(failRun>=3){failRun=0;liveDown=true;tune(LIVE.length);if(R.onInfo)R.onInfo('Internet radio unreachable · playing a studio station');return}
+    liveStep(lastDir);if(R.onInfo)R.onInfo(n+' is off air · tuning to '+STATIONS[st].name)}
+  function fetchMeta(){const S=STATIONS[st];if(!S||!isLive(st))return;const key=S.name,ok=()=>STATIONS[st]&&STATIONS[st].name===key,
+      set=list=>{if(!ok())return;recent=list;const t=recent[0],k=t?t.title+'|'+t.artist:null;if(k!==meta){meta=k;info()}};
+    if(S.live)fetch('https://somafm.com/songs/'+S.live+'.json',{cache:'no-store'}).then(r=>r.json()).then(j=>set((j.songs||[]).slice(0,8))).catch(()=>{});
+    else if(S.rp!=null)fetch('https://api.radioparadise.com/api/now_playing?chan='+S.rp,{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.title)set([{title:j.title,artist:j.artist}])}).catch(()=>{})}
+  function liveNow(){const S=STATIONS[st],t=recent[0];return {title:t&&t.title||S.genre,artist:t&&t.artist||'Live radio'}}
   function info(){if(on&&isLive(st)){const n=liveNow();if(R.onInfo)R.onInfo('FM '+STATIONS[st].fm+' · '+STATIONS[st].name+' — “'+n.title+'” · '+n.artist);if(R.onChange)R.onChange();return}
     if(R.onInfo&&song)R.onInfo('FM '+STATIONS[st].fm+' · '+STATIONS[st].name+' — “'+song.title+'” · '+song.artist);if(R.onChange)R.onChange()}
   function section(b,n){
@@ -253,9 +282,9 @@
     master.gain.cancelScheduledValues(T);master.gain.setValueAtTime(master.gain.value,T);master.gain.linearRampToValueAtTime(0,T+.15);master.gain.linearRampToValueAtTime(muted?0:vol,T+.9);
     hi=i;newSong(hist[i].st,hist[i].seed);nextT=T+.2}
 
-  R.cycle=()=>tune(st+1>=STATIONS.length?-1:st+1);
+  R.cycle=()=>tune(st+1>=LIVE.length?-1:st+1);
   // on a live station back and next move along the live dial (a live stream can't be skipped)
-  const liveStep=d=>{const n=LIVE.length;tune(((st+d)%n+n)%n)};
+  const liveStep=d=>{lastDir=d;const n=LIVE.length;tune(((st+d)%n+n)%n)};
   R.prev=()=>{if(!on)return;if(isLive(st))return liveStep(-1);if(song&&song.bar>=3||hi<=0){playAt(hi)}else playAt(hi-1)};   // like a car stereo: back restarts the song, twice goes to the one before
   R.next=()=>{if(!on){tune(Math.max(0,homeSt));return}if(isLive(st))return liveStep(1);if(hi<hist.length-1)playAt(hi+1);else{const T=ac.currentTime;master.gain.setValueAtTime(master.gain.value,T);master.gain.linearRampToValueAtTime(0,T+.15);master.gain.linearRampToValueAtTime(muted?0:vol,T+.9);newSong();nextT=T+.2}};
   R.toggle=()=>{if(on){homeSt=st;tune(-1)}else tune(homeSt>=0?homeSt:0)};
@@ -263,7 +292,7 @@
   R.playing=()=>on&&isLive(st)?Object.assign(liveNow(),{fm:STATIONS[st].fm,station:STATIONS[st].name,style:'live',live:true,progress:liveOk?1:0}):on&&song?{title:song.title,artist:song.artist,fm:STATIONS[st].fm,station:STATIONS[st].name,style:song.style,progress:(song.bar+step/16)/song.bars}:null;
   // the list: up to 6 played before, the current one, and the queued ones (a peek at what is next is written, not played)
   // live: the dial (tap one to tune), with what each live station is; studio: the song history
-  R.playlist=()=>{if(on&&isLive(st))return STATIONS.map((S,k)=>({i:'s'+k,title:S.name,artist:S.live?(k===st?liveNow().title+' · '+liveNow().artist:S.genre):'Studio · written in the browser',fm:S.fm,current:k===st}));
+  R.playlist=()=>{if(on&&isLive(st))return LIVE.map((S,k)=>({i:'s'+k,title:S.name,artist:k===st?liveNow().title+' · '+liveNow().artist:S.genre,fm:S.fm,current:k===st}));
     const out=[];for(let i=Math.max(0,hi-6);i<hist.length;i++){const sg=makeSong(hist[i].st,hist[i].seed);out.push({i,title:sg.title,artist:sg.artist,fm:STATIONS[hist[i].st].fm,current:i===hi})}
     if(on&&hi===hist.length-1){const seed=(rnd()*4294967296)>>>0;hist.push({st,seed});const sg=makeSong(st,seed);out.push({i:hist.length-1,title:sg.title,artist:sg.artist,fm:STATIONS[st].fm,current:false})}
     return out};
@@ -278,7 +307,7 @@
   R.station=()=>on?st:-1;
   R.setVolume=x=>{vol=Math.max(0,Math.min(1.2,x))*1;liveVol();if(ac&&on&&!muted)master.gain.setTargetAtTime(vol,ac.currentTime,.08)};   // 0..1 from the settings
   R.label=()=>on?'Radio: '+STATIONS[st].fm:'Radio: off';
-  R.stations=STATIONS;
+  R.stations=STATIONS;R.live=LIVE;
   R.fastName=()=>STATIONS[fastIdx()].name;
   window.Radio=R;
 })(window);
