@@ -7698,8 +7698,8 @@ updCircBtn();
       if(el.btn)el.btn.textContent=room?('Multiplayer · '+room):'Multiplayer';if(window.__updModes)window.__updModes();
       // Race settings belong to the host and are frozen once a race is counting down or running, so nobody can
       // change 3 laps to 10 halfway through; guests just see what the host chose.
-      {const frozen=race.st===1||race.st===2||race.st===4,host=!room||isHost();
-       ['#dmplaps','#dmpmap'].forEach(sel=>{const e=$(sel);if(e)e.disabled=frozen||!host})}
+      // the host can pick the next track and laps at any time, mid-race too; Restart race then starts that one
+      {const host=!room||isHost();['#dmplaps','#dmpmap'].forEach(sel=>{const e=$(sel);if(e)e.disabled=!host})}
       if(el.out)el.out.style.display=room?'none':'block';
       if(el.inn)el.inn.style.display=room?'block':'none';
       if(el.codeOut)el.codeOut.textContent=room||'';
@@ -7755,7 +7755,8 @@ updCircBtn();
       send({k:'cfg',laps,map,force:!!force});
     }
     ['#dmplaps','#dmpmap'].forEach(sel=>{
-      const el=$(sel);if(el)el.onchange=()=>syncCfg(true);
+      const el=$(sel);if(el)el.onchange=()=>{syncCfg(true);
+        if(race.st===1||race.st===2||race.st===4){const m=$('#dmpmap'),t=m&&m.options[m.selectedIndex]?m.options[m.selectedIndex].text:'';note('Press Restart race to switch to '+t+' · '+getLaps()+' lap'+(getLaps()>1?'s':''))}};
     });
 const rdyBtn=$('#dmpready');
   function paintReady(){
