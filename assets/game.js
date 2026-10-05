@@ -6624,7 +6624,12 @@ const PLANETS={
       if(Math.hypot(ctr.x-cx,ctr.z-cz)<900)continue;
       c.traverse(o=>{if(o.layers.mask===1){o.layers.set(1);worldHidden.push(o)}})}}
   function enterCircuit(){if(!circuit)return;
-    worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
+    /* the valley's state (where the car was, its fog, its gravity) is saved only when we come FROM the valley. Going
+       from one track straight to another (a multiplayer host switching venues, daily after a drawn track) used to save
+       the first track's values as 'the valley's', so back on Earth the car was dropped onto the old track's flat ground
+       and the valley got that track's fog and gravity. */
+    const fromWorld=MODE!=='circuit';
+    if(fromWorld)worldSave={p:chassisB.position.clone(),q:chassisB.quaternion.clone()};
     MODE='circuit';circU0=-1;circLap=0;circBest=null;circLapT0=performance.now();hideWorld(true);tyresReset();
     if(window.RaceEngine)window.RaceEngine.inPit=p=>!!(circuit&&circuit.inPit&&circuit.inPit(p.x,p.z));
     if(window.RaceEngine&&circuit){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps,roadWidth:CIRC_W})}
@@ -6637,13 +6642,13 @@ const PLANETS={
     for(let i=0;i<4;i++){veh.applyEngineForce(0,i);veh.setBrake(0,i)}
     // each theme tints fog/sky to match (desert haze, snow glare, etc); saved once so leaving
     // always restores the exact value the main map had, regardless of weather/day-night state
-    worldFogSave={fog:S.fog.color.getHex(),bg:S.background.getHex()};
+    if(fromWorld||!worldFogSave)worldFogSave={fog:S.fog.color.getHex(),bg:S.background.getHex()};
     const th=circuit.theme||THEME_DEFAULT;S.fog.color.setHex(th.fog);S.background.setHex(th.sky);
     // gravity is gameplay, not decoration: themes that define one (currently just Moon) override
     // world.gravity.y here and it's restored byte-for-byte on leave. Everything that derives force
     // from gravity (suspension load, hill-climb aid, reverse assist) reads world.gravity.y live,
     // so lighter gravity here isn't just a falling-speed change - the whole car feels different.
-    worldGSave=world.gravity.y;
+    if(fromWorld||worldGSave==null)worldGSave=world.gravity.y;
     world.gravity.y=(th.gravity!=null)?th.gravity:worldGSave;
     if(!worldWeatherSave)worldWeatherSave={lock:wxLock,id:wx.id};
     const venue=circuit.venue||{};let weather=WEATHERS.some(w=>w.id===venue.weather)?venue.weather:'day',time=WEATHERS.some(w=>w.id===venue.time)?venue.time:'day';
@@ -6668,7 +6673,9 @@ const PLANETS={
     if(worldGSave!=null){world.gravity.y=worldGSave;worldGSave=null}
     if(worldWeatherSave){const saved=worldWeatherSave;worldWeatherSave=null;setWeather(saved.lock||'auto',true);if(!saved.lock&&saved.id)mood(saved.id,.8)}
     applyDisplay();
-    hideWorld(false);toastMsg('Back to the valley');updCircBtn()}
+    hideWorld(false);toastMsg('Back to the valley');updCircBtn();
+    // safety net: whatever the path here, the car must come back to the valley, never be left on a track's old ground
+    {const c=chassisB.position;let d=1e9;for(let i=0;i<N;i+=3)d=Math.min(d,Math.hypot(SAMP[i].x-c.x,SAMP[i].z-c.z));if(d>260)resetCar()}}
   /* ---------- drawing overlay ---------- */
   /* ---------- AI rivals for solo races on drawn / daily tracks ----------
      Three cars from the grid slots behind you. Each one reads the track ahead and brakes for the tightest
