@@ -2765,10 +2765,18 @@ t.bd.position.set(x,y+.86,z);
      Otherwise a built-in synthesized pack: meow, laughing cat, angry hiss, kitten mew, cat "huh?", woof, double
      bark, howl. Each press plays the next one. */
   const MEME={kinds:['hehe','meow','woof','hiss','huh','bark2','mew','howl'],i:0,clips:null,noise:null};
-  function memeLoad(){if(MEME.clips||!AC)return;MEME.clips=[];
+  const memeDecode=b=>new Promise((ok,no)=>AC.decodeAudioData(b,ok,no));
+  function memeLoad(){if(MEME.clips||!AC)return;MEME.clips=[];MEME.byName={};
     fetch('assets/horns/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():[]).then(L=>Promise.all((Array.isArray(L)?L:[]).slice(0,24).map(n=>
-      fetch('assets/horns/'+encodeURIComponent(n)).then(r=>r.arrayBuffer()).then(b=>new Promise((ok,no)=>AC.decodeAudioData(b,ok,no))).catch(()=>null))))
-      .then(B=>{MEME.clips=B.filter(Boolean)}).catch(()=>{})}
+      fetch('assets/horns/'+encodeURIComponent(n)).then(r=>r.arrayBuffer()).then(memeDecode).then(buf=>({name:n,buf})).catch(()=>null))))
+      .then(B=>{MEME.clips=B.filter(Boolean);MEME.clips.forEach(c=>MEME.byName[c.name]=c.buf)}).catch(()=>{});
+    hornCustomLoad()}
+  // your own horn: one audio file kept in this browser (IndexedDB), picked in Settings > Horn
+  const HDB=()=>new Promise((ok,no)=>{const r=indexedDB.open('sl_horn',1);r.onupgradeneeded=()=>r.result.createObjectStore('f');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+  function hornCustomLoad(){try{HDB().then(db=>{const q=db.transaction('f').objectStore('f').get('custom');q.onsuccess=()=>{if(q.result&&AC)memeDecode(q.result.slice(0)).then(b=>MEME.custom=b).catch(()=>{})}}).catch(()=>{})}catch(e){}}
+  window.HornCustom=ab=>new Promise((ok,no)=>{try{HDB().then(db=>{const t=db.transaction('f','readwrite');t.objectStore('f').put(ab,'custom');t.oncomplete=()=>{if(!AC)return ok(true);memeDecode(ab.slice(0)).then(b=>{MEME.custom=b;ok(true)}).catch(no)};t.onerror=()=>no(t.error)}).catch(no)}catch(e){no(e)}});
+  window.HornList=()=>fetch('assets/horns/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():[]).catch(()=>[]);
+  const hornPick=()=>(window.Settings&&Settings.v.horn)||'meme';
   function memeNoise(){if(MEME.noise)return MEME.noise;const n=AC.sampleRate,b=AC.createBuffer(1,n,n),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;return MEME.noise=b}
   // one voiced sound: pitch contour f:[[t,Hz]], formant contour fm:[[t,F1,F2]], amplitude env a:[[t,g]], optional breath/noise
   function memeVoice(dest,T,o){const vo=AC.createOscillator();vo.type=o.type||'sawtooth';const g=AC.createGain(),b1=AC.createBiquadFilter(),b2=AC.createBiquadFilter(),mx=AC.createGain();
@@ -2794,12 +2802,18 @@ t.bd.position.set(x,y+.86,z);
       case 'howl':return V(0,{type:'triangle',f:[[0,360*p],[.35,640*p],[1,600*p],[1.4,420*p]],fm:[[0,420,850],[.5,520,950],[1.4,380,700]],a:[[.15,.3],[1.1,.28],[1.45,0]],vib:[5.5,14*p],br:.03,q1:4,q2:5})}
     return 0}
   // plays the next meme sound into dest; returns how long it lasts (s)
-  function memeHorn(dest,pitch){if(!AC)return 0;memeLoad();try{
-    // a random pick from the real cat clips plus the dog sounds, never the same one twice in a row
-    const C=MEME.clips||[],dogs=['woof','bark2','howl'],pool=C.length?C.length+dogs.length:MEME.kinds.length;
-    let k=Math.floor(Math.random()*pool);if(pool>1&&k===MEME.last)k=(k+1)%pool;MEME.last=k;
-    if(C.length&&k<C.length){const b=C[k],s=AC.createBufferSource(),g=AC.createGain();s.buffer=b;s.playbackRate.value=pitch||1;g.gain.value=.9;s.connect(g);g.connect(dest);s.start();s.onended=()=>{try{g.disconnect()}catch(e){}};return b.duration/(pitch||1)}
-    return memeSynth(dest,C.length?dogs[k-C.length]:MEME.kinds[k],pitch)}catch(e){return 0}}
+  /* choice: 'meme' (cats + dogs), 'cat', 'dog', 'clip:<file>', 'syn:<kind>', 'custom'. Returns the sound's length (s). */
+  function memeHorn(dest,pitch,choice){if(!AC)return 0;memeLoad();choice=choice||hornPick();pitch=pitch||1;try{
+    const play=b=>{const s=AC.createBufferSource(),g=AC.createGain();s.buffer=b;s.playbackRate.value=pitch;g.gain.value=.9;s.connect(g);g.connect(dest);s.start();s.onended=()=>{try{g.disconnect()}catch(e){}};return b.duration/pitch};
+    if(choice==='custom'){if(MEME.custom)return play(MEME.custom);choice='meme'}
+    if(choice.startsWith('clip:')){const b=MEME.byName&&MEME.byName[choice.slice(5)];if(b)return play(b);choice='cat'}
+    if(choice.startsWith('syn:'))return memeSynth(dest,choice.slice(4),pitch);
+    // random pool, never the same one twice in a row
+    const C=(MEME.clips||[]).map(c=>c.buf),dogs=['woof','bark2','howl'],cats=C.length?C:['meow','hehe','hiss','huh','mew'];
+    const pool=choice==='dog'?dogs:choice==='cat'?cats:cats.concat(dogs);
+    let k=Math.floor(Math.random()*pool.length);if(pool.length>1&&pool[k]===MEME.last)k=(k+1)%pool.length;const it=MEME.last=pool[k];
+    return typeof it==='string'?memeSynth(dest,it,pitch):play(it)}catch(e){return 0}}
+  window.HornPreview=c=>{try{audioInit();setTimeout(()=>{if(!AC)return;const d=SND?SND.fx:AC.destination;if(c==='classic'){const T=AC.currentTime,g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2300;g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.075,T+.025);g.gain.setValueAtTime(.075,T+.5);g.gain.linearRampToValueAtTime(0,T+.56);lp.connect(g);g.connect(d);[405,508].forEach(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start(T);o.stop(T+.6)})}else memeHorn(d,1,c)},60)}catch(e){}};
   let memeNext=0;
   let hornOn=false;
   /* ---------- drifting ----------
@@ -2820,12 +2834,13 @@ t.bd.position.set(x,y+.86,z);
     if(DRIFT.off>.45||sp<5||vfw<1){DRIFT.on=false;driftEl.style.display='none';const pts=Math.round(DRIFT.sc);
       if(pts>120&&DRIFT.t>.7){toastMsg('Drift +'+pts.toLocaleString());if(pts>1500&&typeof earnCoins==='function')earnCoins(Math.min(10,Math.floor(pts/1500)))}}}
   function honk(on){if(!AC||muted)return;try{
-    if(on&&!hornOn){hornOn=true;const T=AC.currentTime,g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2300;lp.Q.value=.9;
-      g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.04,T+.025);lp.connect(g);g.connect(SND?SND.fx:AC.destination);
-      memeNext=AC.currentTime+memeHorn(SND?SND.fx:AC.destination)+.08;
+    const classic=hornPick()==='classic';
+    if(on&&!hornOn&&!classic){hornOn=true;memeNext=AC.currentTime+memeHorn(SND?SND.fx:AC.destination)+.08}
+    else if(on&&!hornOn){hornOn=true;const T=AC.currentTime,g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2300;lp.Q.value=.9;
+      g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.075,T+.025);lp.connect(g);g.connect(SND?SND.fx:AC.destination);
       const oscs=[405,508].map(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start(T);return o});
       hornNodes={g,oscs}}
-    else if(on&&hornOn&&AC.currentTime>memeNext)memeNext=AC.currentTime+memeHorn(SND?SND.fx:AC.destination)+.08;
+    else if(on&&hornOn&&!hornNodes&&AC.currentTime>memeNext)memeNext=AC.currentTime+memeHorn(SND?SND.fx:AC.destination)+.08;
     else if(!on&&hornOn){hornOn=false;if(hornNodes){const {g,oscs}=hornNodes;g.gain.setTargetAtTime(0,AC.currentTime,.03);setTimeout(()=>{try{oscs.forEach(o=>o.stop());g.disconnect()}catch(e){}},200);hornNodes=null}}
   }catch(e){}}
   let hornNodes=null;
@@ -7764,7 +7779,7 @@ updCircBtn();
           if(m.gravity){const el=$('#dmpgravity');if(el)el.value=m.gravity}
         }break;
         case 'rdy':P.ready=!!m.val;paintReady();ui();break;
-        case 'hn':peerHorn(P,!!m.on);break;
+        case 'hn':if(typeof m.hk==='string')P.hk=m.hk.slice(0,80);peerHorn(P,!!m.on);break;
         case 'spec':P.watching=!!m.val;ui();break;
         case 'chat':{if(!m.t||!m.n)return;const log=document.getElementById('dmpchatlog');if(log){const msg=String(m.t).slice(0,120);const name=String(m.n).slice(0,14);const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:11px;line-height:1.4;';line.innerHTML='<span style="color:#4d8dff;font-weight:600;">'+esc(name)+':</span> <span style="color:var(--paper);">'+esc(msg)+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}}break;
         case 's':{
@@ -7930,9 +7945,10 @@ updCircBtn();
         if(!P.gh||!P.gh.g.visible)return;                      // on another planet / in flight: not in earshot
         try{const T=AC.currentTime,pan=AC.createPanner();pan.panningModel='equalpower';pan.distanceModel='inverse';pan.refDistance=14;pan.maxDistance=900;pan.rolloffFactor=1.1;
           const g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2300;lp.Q.value=.9;
-          g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.05,T+.025);lp.connect(g);g.connect(pan);pan.connect(SND.fx);
-          memeHorn(pan,hornPitch(P.id));
-          const k=hornPitch(P.id),oscs=[405*k,508*k].map(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start(T);return o});
+          const hk=P.hk||'classic',k=hornPitch(P.id);pan.connect(SND.fx);let oscs=[];
+          if(hk==='classic'){g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.09,T+.025);lp.connect(g);g.connect(pan);
+            oscs=[405*k,508*k].map(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start(T);return o})}
+          else memeHorn(pan,k,hk);
           P.horn={g,pan,oscs};placeHorn(P)}catch(e){P.horn=null}}
       else if(P.horn){const {g,oscs,pan}=P.horn;P.horn=null;try{g.gain.setTargetAtTime(0,AC.currentTime,.03);setTimeout(()=>{try{oscs.forEach(o=>o.stop());pan.disconnect();g.disconnect()}catch(e){}},220)}catch(e){}}}
     function placeHorn(P){if(!P.horn||!P.gh)return;const p=P.gh.g.position,pn=P.horn.pan;
@@ -7943,7 +7959,7 @@ updCircBtn();
           L.forwardX.setTargetAtTime(LF.x,t,.05);L.forwardY.setTargetAtTime(LF.y,t,.05);L.forwardZ.setTargetAtTime(LF.z,t,.05);L.upX.value=0;L.upY.value=1;L.upZ.value=0}
         else{L.setPosition(p.x,p.y,p.z);L.setOrientation(LF.x,LF.y,LF.z,0,1,0)}}catch(e){}}
     function hornsTick(now){
-      const h=!!key.horn&&active&&driving;if(h!==myHorn){myHorn=h;send({k:'hn',on:h?1:0})}
+      const h=!!key.horn&&active&&driving;if(h!==myHorn){myHorn=h;send({k:'hn',on:h?1:0,hk:hornPick()==='custom'?'meme':hornPick()})}
       let any=false;peers.forEach(P=>{if(P.horn){any=true;if(now-(P.hornT||0)>1200||muted)peerHorn(P,false);else placeHorn(P)}});
       if(any)placeListener()}
     function tick(now,dt){

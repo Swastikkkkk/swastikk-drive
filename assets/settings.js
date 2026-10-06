@@ -5,7 +5,7 @@
 (function(window,document){
   'use strict';
   const DEF={master:80,engine:80,effects:70,music:60,quality:'auto',hints:true,units:'kmh',
-    steer:'buttons',ctrlSize:'m',fastSongs:true,tiltSens:50,tiltDead:30,tiltSmooth:35,tiltInvert:false};
+    steer:'buttons',ctrlSize:'m',fastSongs:true,tiltSens:50,tiltDead:30,tiltSmooth:35,tiltInvert:false,horn:'meme'};
   const TOUCHDEV=matchMedia('(pointer:coarse)').matches||!matchMedia('(hover:hover)').matches;
   let v=Object.assign({},DEF);
   try{const s=JSON.parse(localStorage.getItem('sl_settings')||'null');if(s&&typeof s==='object')for(const k in DEF)if(k in s&&typeof s[k]===typeof DEF[k])v[k]=s[k]}catch(e){}
@@ -66,6 +66,7 @@
     inn.appendChild(h4('Sound'));
     inn.appendChild(slider('master','Master'));inn.appendChild(slider('engine','Engine'));
     inn.appendChild(slider('effects','Effects'));inn.appendChild(slider('music','Music'));
+    buildHorn(inn);
     inn.appendChild(h4('Radio'));
     const R=window.Radio,rs=R?(R.live||R.stations):[];
     const radioSeg=seg([[-1,'Off']].concat(rs.map((s,i)=>[i,s.fm+' '+s.name])),R?R.station():-1,i=>{if(window.Radio)Radio.tune(+i)});
@@ -85,6 +86,26 @@
     KEYS.forEach(([k,d])=>{const r=document.createElement('div');r.innerHTML=`<kbd>${k}</kbd><span>${d}</span>`;kd.appendChild(r)});inn.appendChild(kd);
     el.addEventListener('pointerdown',e=>{if(e.target===el)close()});
     (document.getElementById('drive')||document.body).appendChild(el)}
+  /* Horn: one choice, used for every press. Others in your room hear the one you picked (a custom file stays on this device). */
+  const HORN_NAMES={'cat-young-meow.mp3':'Young cat','cat-siamese.mp3':'Siamese','cat-pleading.mp3':'Pleading','cat-pleading-long.mp3':'Long meow','cat-whine.mp3':'Whine',
+    'cat-complain.mp3':'Complaining','cat-mrrp.mp3':'Mrrp','cat-chipmunk.mp3':'Chipmunk cat','cat-deep.mp3':'Deep cat','cat-double.mp3':'Double meow'};
+  function buildHorn(inn){inn.appendChild(h4('Horn'));
+    const note=document.createElement('div');note.className='st-note';note.textContent='Tap one to hear it. It plays every time you press H.';inn.appendChild(note);
+    const box=document.createElement('div');inn.appendChild(box);
+    const base=[['classic','Classic horn'],['meme','Random meme'],['cat','Random cat'],['dog','Random dog']],syn=[['syn:woof','Woof'],['syn:bark2','Double bark'],['syn:howl','Howl'],['syn:hehe','Laughing cat'],['syn:huh','Huh? cat'],['syn:hiss','Angry cat']];
+    const pick=c=>{set('horn',c);if(window.HornPreview)HornPreview(c)};
+    const draw=files=>{box.innerHTML='';
+      const all=base.concat((files||[]).map(f=>['clip:'+f,HORN_NAMES[f]||f.replace(/\.[^.]+$/,'').replace(/[-_]/g,' ')])).concat(syn).concat([['custom','Custom'+(hasCustom?'':' (upload)')]]);
+      const sg=seg(all,v.horn,c=>{if(c==='custom'&&!hasCustom){fi.click();sg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===v.horn));return}pick(c)});box.appendChild(sg);
+      const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Your own sound (mp3, wav, ogg · up to 3 MB)</span>';
+      const up=document.createElement('button');up.type='button';up.className='st-act';up.textContent=hasCustom?'Replace':'Upload';up.onclick=()=>fi.click();l.appendChild(up);box.appendChild(l)};
+    let hasCustom=false;
+    const fi=document.createElement('input');fi.type='file';fi.accept='audio/*';fi.style.display='none';inn.appendChild(fi);
+    fi.onchange=()=>{const f=fi.files&&fi.files[0];fi.value='';if(!f)return;if(f.size>3e6){note.textContent='That file is over 3 MB. Trim it and try again.';return}
+      f.arrayBuffer().then(ab=>window.HornCustom?HornCustom(ab):Promise.reject()).then(()=>{hasCustom=true;try{localStorage.setItem('sl_horn_custom','1')}catch(e){}pick('custom');note.textContent='Custom horn saved on this device.';list.then(draw)})
+        .catch(()=>{note.textContent='Could not read that file as audio.'})};
+    try{hasCustom=localStorage.getItem('sl_horn_custom')==='1'}catch(e){}
+    const list=window.HornList?HornList():Promise.resolve([]);draw([]);list.then(draw)}
   let meterRAF=0;
   function buildPhone(inn){
     inn.appendChild(h4('Phone controls'));
