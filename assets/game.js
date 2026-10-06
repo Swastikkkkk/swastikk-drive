@@ -119,7 +119,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* ---------- dom ---------- */
   const sec=$('#drive'),cv=$('#dc'),hud=$('#dhud'),hint=$('#dhint'),toast=$('#dtoast'),mm=$('#dmap'),mx2=mm.getContext('2d'),spd=$('#dspeed'),bigmap=$('#dbig'),bmc=$('#dbigc'),mob=$('#dmob'),mute=$('#dmute');
   let W=sec.clientWidth,H=sec.clientHeight,active=false,driving=false,muted=false;
-  const LOW=!matchMedia('(hover:hover)').matches;const TOUCH=matchMedia('(pointer:coarse)').matches||LOW;
+  const TOUCH=typeof window.TOUCH_UI==='boolean'?window.TOUCH_UI:(matchMedia('(pointer:coarse)').matches||!matchMedia('(hover:hover)').matches),LOW=TOUCH;   // phones/tablets only (see settings.js)
   /* ---------- renderer / scene ---------- */
   let R;
   try{R=new THREE.WebGLRenderer({canvas:cv,antialias:!LOW,powerPreference:'high-performance'})}

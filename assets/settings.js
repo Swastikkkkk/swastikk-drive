@@ -5,10 +5,21 @@
 (function(window,document){
   'use strict';
   const DEF={master:80,engine:80,effects:70,music:60,quality:'auto',hints:true,units:'kmh',
-    steer:'buttons',ctrlSize:'m',fastSongs:true,tiltSens:50,tiltDead:30,tiltSmooth:35,tiltInvert:false,horn:'meme'};
-  const TOUCHDEV=matchMedia('(pointer:coarse)').matches||!matchMedia('(hover:hover)').matches;
+    steer:'buttons',ctrlSize:'m',fastSongs:true,tiltSens:50,tiltDead:30,tiltSmooth:35,tiltInvert:false,horn:'meme',layout:'auto'};
   let v=Object.assign({},DEF);
   try{const s=JSON.parse(localStorage.getItem('sl_settings')||'null');if(s&&typeof s==='object')for(const k in DEF)if(k in s&&typeof s[k]===typeof DEF[k])v[k]=s[k]}catch(e){}
+  /* Phone layout (on-screen buttons) only on phones and tablets. A laptop with a touchscreen also has a trackpad or
+     mouse, so it gets the keyboard layout; it used to be caught by "coarse pointer / no hover" and shown the phone UI.
+     Settings > Display > Controls layout overrides it. */
+  const UA=navigator.userAgent||'',phoneUA=/Android|iPhone|iPad|iPod|Mobile|Silk|Kindle/i.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1);
+  const hasMouse=matchMedia('(any-pointer:fine)').matches&&matchMedia('(any-hover:hover)').matches;
+  const autoTouch=phoneUA||(!hasMouse&&matchMedia('(pointer:coarse)').matches);
+  const TOUCHDEV=v.layout==='touch'?true:v.layout==='keyboard'?false:autoTouch;
+  window.TOUCH_UI=TOUCHDEV;
+  // safety net: a real keyboard driving the car on a non-phone means this is a laptop, whatever the browser reported
+  if(TOUCHDEV&&!phoneUA&&v.layout==='auto')window.addEventListener('keydown',function kb(e){
+    if(!/^(Key[WASD]|Arrow(Up|Down|Left|Right))$/.test(e.code))return;window.removeEventListener('keydown',kb,true);
+    v.layout='keyboard';try{localStorage.setItem('sl_settings',JSON.stringify(v))}catch(_){}location.reload()},true);
   const subs=[];
   const save=()=>{try{localStorage.setItem('sl_settings',JSON.stringify(v))}catch(e){}};
   function set(k,val){v[k]=val;save();subs.forEach(f=>{try{f(k,val)}catch(e){}})}
@@ -77,6 +88,7 @@
     inn.appendChild(seg([['auto','Auto'],[0,'High'],[1,'Medium'],[2,'Low']],v.quality,q=>set('quality',q==='auto'?'auto':+q)));
     inn.appendChild(h4('Display'));
     {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Controls bar at the top</span>';l.appendChild(seg([[true,'On'],[false,'Off']],v.hints,x=>set('hints',x==='true'||x===true)));inn.appendChild(l)}
+    {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Controls layout</span>';l.appendChild(seg([['auto','Auto'],['keyboard','Keyboard'],['touch','Touch']],v.layout,x=>{if(x===v.layout)return;set('layout',x);setTimeout(()=>location.reload(),150)}));inn.appendChild(l)}
     {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Speed</span>';l.appendChild(seg([['kmh','km/h'],['mph','mph']],v.units,x=>set('units',x)));inn.appendChild(l)}
     if(TOUCHDEV){inn.appendChild(h4('Screen'));
       const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Full screen</span>';
