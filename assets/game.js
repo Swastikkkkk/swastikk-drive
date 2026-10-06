@@ -2704,7 +2704,7 @@ t.bd.position.set(x,y+.86,z);
   const GEAR={now:'',beep:0,btn:'',el:document.getElementById('dgear'),brk:document.getElementById('dbrk')};
   function revBeep(){if(!AC||muted||AC.state!=='running')return;const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=1150;
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.05,t+.01);g.gain.setValueAtTime(.05,t+.16);g.gain.linearRampToValueAtTime(0,t+.2);o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+.22)}
-  function audioInit(){if(AC){try{if(AC.state==='suspended')AC.resume()}catch(e){}return}try{AC=new (window.AudioContext||window.webkitAudioContext)();AC.resume();
+  function audioInit(){if(AC){try{if(AC.state==='suspended')AC.resume()}catch(e){}return}try{AC=new (window.AudioContext||window.webkitAudioContext)();AC.resume();setTimeout(()=>{try{memeLoad()}catch(e){}},400);
     const T=AC.currentTime,sr=AC.sampleRate,G=v=>{const g=AC.createGain();g.gain.value=v;return g},
       F=(t,f,q)=>{const x=AC.createBiquadFilter();x.type=t;x.frequency.value=f;if(q!=null)x.Q.value=q;return x},
       O=(t,f)=>{const o=AC.createOscillator();o.type=t;o.frequency.value=f;o.start(T);return o},
@@ -2795,8 +2795,11 @@ t.bd.position.set(x,y+.86,z);
     return 0}
   // plays the next meme sound into dest; returns how long it lasts (s)
   function memeHorn(dest,pitch){if(!AC)return 0;memeLoad();try{
-    if(MEME.clips&&MEME.clips.length){const b=MEME.clips[MEME.i++%MEME.clips.length],s=AC.createBufferSource(),g=AC.createGain();s.buffer=b;g.gain.value=.9;s.connect(g);g.connect(dest);s.start();s.onended=()=>{try{g.disconnect()}catch(e){}};return b.duration}
-    return memeSynth(dest,MEME.kinds[MEME.i++%MEME.kinds.length],pitch)}catch(e){return 0}}
+    // a random pick from the real cat clips plus the dog sounds, never the same one twice in a row
+    const C=MEME.clips||[],dogs=['woof','bark2','howl'],pool=C.length?C.length+dogs.length:MEME.kinds.length;
+    let k=Math.floor(Math.random()*pool);if(pool>1&&k===MEME.last)k=(k+1)%pool;MEME.last=k;
+    if(C.length&&k<C.length){const b=C[k],s=AC.createBufferSource(),g=AC.createGain();s.buffer=b;s.playbackRate.value=pitch||1;g.gain.value=.9;s.connect(g);g.connect(dest);s.start();s.onended=()=>{try{g.disconnect()}catch(e){}};return b.duration/(pitch||1)}
+    return memeSynth(dest,C.length?dogs[k-C.length]:MEME.kinds[k],pitch)}catch(e){return 0}}
   let memeNext=0;
   let hornOn=false;
   /* ---------- drifting ----------
