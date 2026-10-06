@@ -5853,7 +5853,7 @@ const PLANETS={
          camT.add(HEADV.o)}
         C.position.copy(camT);
         lookT.set(COCK.eye.position.x,-1.1,30).applyMatrix4(COCK.g.matrixWorld);
-        const st0=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0;COCK.setSteer(Math.max(-1.6,Math.min(1.6,st0*3.4)));COCK.draw(sp*3.6,performance.now())}
+        const st0=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0;COCK.setSteer(Math.max(-1.6,Math.min(1.6,-st0*3.4)));COCK.draw(sp*3.6,performance.now())}
       else if(CM.fp){/* bonnet and bumper cams ride on the car itself */
         const fp=CM.n==='Bumper'?FP.bumper:FP.bonnet,fy=fp.y+FP.off;
         camT.set(0,fy,fp.z).applyQuaternion(car.quaternion).add(car.position);C.position.copy(camT);
