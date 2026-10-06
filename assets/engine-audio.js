@@ -83,6 +83,7 @@
   // cross-plane V8, firing order 1-8-4-3-6-5-7-2, odd cylinders on the left bank: the uneven gaps per bank are the burble
   var XV8=[[0,0,1],[90,1,.86],[180,1,.93],[270,0,.9],[360,1,.88],[450,0,.97],[540,0,.92],[630,1,.84]];
   var CARS={
+    outlaw:     {fire:XV8,idle:620,red:6200,tau:44,noise:.32,rough:.22,pipes:[[6.2,.52],[6.9,.52]],damp:.38,eq:[[78,1,7],[260,1.1,4]],lp:2900,drive:2.7,intake:.32,intakeHz:950,crackle:.14,gain:.9,gears:4,first:.24,shift:.24},
     kestrel:    {fire:even(4,0,[1,.93,.97,.9]),idle:850,red:7800,tau:34,noise:.22,rough:.1,pipes:[[3.4,.45]],damp:.5,eq:[[170,1,4],[1300,1.2,3]],lp:5200,drive:1.6,intake:.3,intakeHz:1900,crackle:.03,gain:1.2,gears:5,first:.22,shift:.22},
     ridgeback:  {fire:[[0,0,1],[144,0,.9],[288,0,.96],[432,0,.88],[576,0,.94]],idle:750,red:6800,tau:38,noise:.25,rough:.12,pipes:[[4.6,.5]],damp:.45,eq:[[130,1,5],[850,1,3]],lp:3900,drive:1.8,intake:.25,intakeHz:1500,crackle:.04,gain:1.3,gears:5,first:.2,shift:.25,turbo:.04,turboHz:1500},
     mamba:      {fire:XV8,idle:700,red:6600,tau:40,noise:.3,rough:.16,pipes:[[5.6,.5],[6.3,.5]],damp:.4,eq:[[95,1,6],[320,1.2,3]],lp:3200,drive:2.4,intake:.3,intakeHz:1100,crackle:.08,gain:.85,gears:6,first:.18,shift:.2},

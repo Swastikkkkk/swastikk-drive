@@ -212,156 +212,157 @@
   // ---------- models ----------
   var MODELS = {};
 
-  // Kestrel: a three-box family sedan
-  MODELS.kestrel = function (o, paint, body) {
-    var B = o.B - 0.02, F = o.F + 0.02, W = o.Wb;
+
+
+
+
+  /* Outlaw V8: a late-60s style fastback muscle coupe (an original design, no real make). Long flat bonnet with a
+     power bulge and scoop, a full-width recessed grille with quad round lamps, chrome bumpers that wrap the corners,
+     coke-bottle hips over the rear wheels, a fastback roof with louvres over the back glass, a kicked-up ducktail,
+     a full-width segmented tail panel, twin over-the-top stripes and quad exhaust tips. */
+  MODELS.outlaw = function (o, paint, body) {
+    var B = o.B - 0.03, F = o.F + 0.03, W = o.Wb, zf = o.zf, zb = o.zb;
+    var lum = (function (h) { return (((h >> 16) & 255) * 0.3 + ((h >> 8) & 255) * 0.59 + (h & 255) * 0.11) / 255; })(o.paint || 0);
+    var stripeM = phong(lum > 0.55 ? 0x121214 : 0xf1efe8, { reflectivity: 0.08, specular: 0x5a5a5a, shininess: 70 });
+    var amberM = new THREE.MeshLambertMaterial({ color: 0xffa31a, emissive: 0xff8a00, emissiveIntensity: 0.35 });
+    var grilleM = new THREE.MeshPhongMaterial({ color: 0x0c0c0e, specular: 0x1c1c20, shininess: 18 });
     var s = sculpt(o, {
-      len: [B, F], sill: 0.3, n: 5,
-      top: [[B, 0.6], [B + 0.12, 0.84], [B + 0.9, 0.9], [o.zb + 0.5, 0.9], [o.zf - 0.6, 0.86], [F - 0.3, 0.8], [F, 0.62]],
-      hw: [[B, W * 0.86], [B + 0.3, W * 0.98], [0, W], [F - 0.35, W * 0.97], [F, W * 0.84]],
-      cabin: { z0: B + 0.95, z1: o.zf - 0.45, roof: [[B + 0.95, 0.9], [B + 1.45, 1.38], [-0.1, 1.42], [o.zf - 0.95, 1.38], [o.zf - 0.45, 0.88]], n: 6, taper: 0.84, pillar: -0.1 }
+      len: [B, F], sill: 0.31, n: 7, archGap: 0.05, waistTaper: 0.95, sillTaper: 0.95,
+      // deck: bumper top, kicked-up ducktail, flat deck, then the long flat bonnet falling gently to the nose
+      top: [[B, 0.64], [B + 0.06, 0.98], [B + 0.16, 1.1], [B + 0.42, 1.06], [zb + 0.45, 1.05], [zf - 1.25, 1.06], [zf - 0.2, 1.05], [F - 0.22, 1.0], [F - 0.04, 0.95], [F, 0.66]],
+      // coke bottle: wide over the rear haunches, pinched at the doors, full over the front wings
+      hw: [[B, W * 0.9], [B + 0.25, W * 0.99], [zb, W * 1.02], [zb + 0.75, W * 0.97], [0.15, W * 0.94], [zf - 0.55, W * 0.97], [zf, W * 0.98], [F - 0.25, W * 0.96], [F, W * 0.9]],
+      nF: [[B, 8], [B + 0.3, 7], [zf, 7], [F, 9]],
+      cabin: { z0: B + 0.5, z1: zf - 1.18, n: 6, taper: 0.8, hwK: 0.88, belt: 0.01,
+        roof: [[B + 0.5, 1.07], [B + 1.25, 1.3], [zb + 0.7, 1.42], [-0.5, 1.5], [-0.05, 1.5], [zf - 1.62, 1.45], [zf - 1.18, 1.05]],
+        roofZ: [B + 1.2, zf - 1.5] }
     }, paint, body);
-    lightPair(W * 0.66, 0.74, F - 0.03, 0.42, 0.11, o.head, body);
-    box(W * 0.9, 0.14, 0.04, darkM, 0, 0.6, F + 0.005, body);                                   // grille
-    lightPair(W * 0.7, 0.8, B + 0.02, 0.38, 0.12, o.tail, body, true);
-    box(W * 1.7, 0.08, 0.06, trimM, 0, 0.4, F - 0.06, body); box(W * 1.7, 0.08, 0.06, trimM, 0, 0.42, B + 0.06, body);
-    mirrorPair(s.hw(o.zf - 0.5) * 0.92, 1.0, o.zf - 0.5, paint, body);
-    exhaust(-W * 0.55, 0.32, B + 0.05, 0.035, body);
+    var top = s.top, hw = s.hw;
+    // bonnet power bulge, rising toward the cowl, with a dark scoop mouth at its front
+    var bulge = stations(zf - 1.12, F - 0.42, 18, function (z, u) {
+      var h = 0.075 * Math.sin(Math.min(1, (1 - u) * 1.6 + 0.15) * Math.PI / 2);
+      return { z: z, yb: top(z) - 0.03, yt: top(z) + h, hw: 0.36 - u * 0.04, n: 3, top: 0.75 };
+    });
+    body.add(loft(bulge, paint, 18));
+    box(0.5, 0.055, 0.05, darkM, 0, top(F - 0.5) + 0.04, F - 0.45, body, -0.2);
+    [-1, 1].forEach(function (k) { cyl(0.018, 0.018, 0.02, chromeM, k * 0.62, top(F - 0.2) + 0.008, F - 0.2, body); });   // bonnet pins
+    // twin stripes over bonnet, roof and deck lid
+    [-0.17, 0.17].forEach(function (x) {
+      var hood = stations(zf - 1.1, F - 0.06, 24, function (z) { var u = Math.min(1, Math.max(0, (z - (zf - 1.12)) / ((F - 0.42) - (zf - 1.12)))), bh = z < F - 0.42 ? 0.075 * Math.sin(Math.min(1, (1 - u) * 1.6 + 0.15) * Math.PI / 2) : 0; var t = top(z) + (Math.abs(x) < 0.33 ? bh : 0); return { z: z, yb: t - 0.004, yt: t + 0.008, hw: 0.075, n: 8 }; });
+      body.add(loft(hood, stripeM, 8));
+      var deck = stations(B + 0.17, B + 0.5, 6, function (z) { var t = top(z); return { z: z, yb: t - 0.004, yt: t + 0.008, hw: 0.075, n: 8 }; });
+      body.add(loft(deck, stripeM, 8));
+    });
+    o.__stripe = stripeM;
+    // grille: full width, recessed, chrome surround, horizontal bars, quad round lamps set into it
+    var gy = 0.74, gh = 0.27, gw = W * 1.72;
+    box(gw, gh, 0.06, grilleM, 0, gy, F - 0.02, body);
+    for (var i = -2; i <= 2; i++) box(gw - 0.06, 0.012, 0.02, trimM, 0, gy + i * 0.045, F + 0.012, body);
+    box(gw + 0.04, 0.025, 0.03, chromeM, 0, gy + gh / 2, F + 0.015, body); box(gw + 0.04, 0.025, 0.03, chromeM, 0, gy - gh / 2, F + 0.015, body);
+    [-1, 1].forEach(function (k) {
+      box(0.025, gh + 0.03, 0.03, chromeM, k * gw / 2, gy, F + 0.015, body);
+      [W * 0.62, W * 0.83].forEach(function (x, j) {
+        var r0 = j ? 0.088 : 0.078;
+        cyl(r0 + 0.018, r0 + 0.018, 0.03, chromeM, k * x, gy + 0.005, F + 0.01, body, Math.PI / 2, 0, 0, 20);
+        var l = cyl(r0, r0, 0.035, o.head, k * x, gy + 0.005, F + 0.02, body, Math.PI / 2, 0, 0, 20); l.castShadow = false;
+      });
+      box(0.12, 0.035, 0.02, chromeM, k * 0.06, gy, F + 0.03, body);   // centre badge bar
+    });
+    // front bumper: a chrome blade wrapping round the corners, a dark valance and amber parking lamps under it
+    box(W * 1.86, 0.1, 0.11, chromeM, 0, 0.46, F + 0.02, body);
+    [-1, 1].forEach(function (k) {
+      var m = box(0.36, 0.1, 0.11, chromeM, k * (W * 0.93 + 0.1), 0.46, F - 0.1, body); m.rotation.y = k * 0.75;
+      box(0.16, 0.05, 0.03, amberM, k * W * 0.55, 0.36, F, body);
+      box(0.04, 0.05, 0.12, amberM, k * (hw(F - 0.35) * 0.97 + 0.012), 0.6, F - 0.35, body);    // side marker
+      box(0.04, 0.05, 0.12, o.tail, k * (hw(B + 0.4) * 0.97 + 0.012), 0.66, B + 0.4, body);
+    });
+    box(W * 1.5, 0.12, 0.05, darkM, 0, 0.33, F - 0.06, body);                                   // valance / chin
+    // rear: dark tail panel with three lamps a side, chrome surround, centre filler cap, chrome bumper, quad tips
+    var ty = 0.84;
+    box(W * 1.76, 0.2, 0.04, grilleM, 0, ty, B + 0.005, body);
+    box(W * 1.8, 0.022, 0.03, chromeM, 0, ty + 0.11, B, body); box(W * 1.8, 0.022, 0.03, chromeM, 0, ty - 0.11, B, body);
+    [-1, 1].forEach(function (k) {
+      for (var j = 0; j < 3; j++) { var x = k * (0.24 + j * 0.24); box(0.2, 0.13, 0.03, o.tail, x, ty, B - 0.012, body); box(0.012, 0.15, 0.035, chromeM, x + k * 0.11, ty, B - 0.012, body) }
+      var m = box(0.34, 0.1, 0.11, chromeM, k * (W * 0.93 + 0.08), 0.48, B + 0.1, body); m.rotation.y = -k * 0.75;
+      exhaust(k * W * 0.52, 0.27, B + 0.02, 0.042, body); exhaust(k * W * 0.66, 0.27, B + 0.02, 0.042, body);
+    });
+    cyl(0.07, 0.07, 0.03, chromeM, 0, ty, B - 0.02, body, Math.PI / 2);
+    box(W * 1.82, 0.1, 0.11, chromeM, 0, 0.48, B - 0.01, body);
+    box(0.36, 0.11, 0.01, new THREE.MeshLambertMaterial({ color: 0xe9e6dc }), 0, 0.6, B - 0.02, body);   // number plate
+    // fastback louvres over the back glass
+    for (var q = 0; q < 7; q++) {
+      var z = lerp(B + 0.62, zb + 0.55, q / 6), y = prof([[B + 0.5, 1.07], [B + 1.25, 1.3], [zb + 0.7, 1.42]])(z);
+      box(hw(z) * 1.32 * 0.8, 0.014, 0.06, darkM, 0, y + 0.012, z, body, -0.3);
+    }
+    // chrome drip rails and belt line trim, door handles, bullet mirrors
+    [-1, 1].forEach(function (k) {
+      var z0 = B + 0.55, z1 = zf - 1.22, n = 16, prev = null;
+      for (var j = 0; j <= n; j++) { var z = lerp(z0, z1, j / n), p = [k * (hw(z) * 0.95), top(z) + 0.005, z]; if (prev) tube(prev, p, 0.011, chromeM, body); prev = p; }
+      box(0.025, 0.025, 0.16, chromeM, k * (hw(0.1) * 0.97 + 0.012), top(0.1) - 0.1, 0.1, body);
+      var mz = zf - 1.15, mx = hw(mz) * 0.93;
+      cyl(0.012, 0.012, 0.09, chromeM, k * (mx + 0.03), top(mz) + 0.05, mz, body);
+      var mh = blob(0.07, 0.05, 0.085, chromeM, k * (mx + 0.08), top(mz) + 0.11, mz - 0.01, body);
+      box(0.02, 0.06, 0.4, trimM, k * (hw(0) * 0.95 + 0.01), 0.42, 0, body);                     // rocker trim
+    });
+    // front chin and a lip on the ducktail
+    box(W * 1.4, 0.025, 0.12, paint, 0, top(B + 0.1) + 0.012, B + 0.1, body, 0.18);
   };
 
-  // Ridgeback: a long-roof estate (wagon)
-  MODELS.ridgeback = function (o, paint, body) {
-    var B = o.B - 0.02, F = o.F + 0.02, W = o.Wb;
-    var s = sculpt(o, {
-      len: [B, F], sill: 0.33, n: 5,
-      top: [[B, 0.68], [B + 0.12, 0.92], [o.zb + 0.4, 0.94], [o.zf - 0.6, 0.9], [F - 0.32, 0.84], [F, 0.64]],
-      hw: [[B, W * 0.9], [B + 0.25, W * 0.99], [0, W], [F - 0.35, W * 0.97], [F, W * 0.86]],
-      cabin: { z0: B + 0.12, z1: o.zf - 0.45, n: 6, taper: 0.82, roof: [[B + 0.12, 1.36], [B + 0.3, 1.5], [-0.2, 1.52], [o.zf - 0.95, 1.46], [o.zf - 0.45, 0.92]], roofZ: [B + 0.18, o.zf - 0.9], pillar: -0.2 }
-    }, paint, body);
-    // roof rails
-    [-1, 1].forEach(function (k) { box(0.04, 0.05, 1.9, chromeM, k * W * 0.62, 1.57, -0.5, body); });
-    lightPair(W * 0.66, 0.8, F - 0.03, 0.44, 0.12, o.head, body);
-    box(W * 0.95, 0.16, 0.04, darkM, 0, 0.64, F + 0.005, body);
-    [-1, 1].forEach(function (k) { box(0.1, 0.42, 0.05, o.tail, k * W * 0.86, 1.06, B + 0.02, body); });   // tall wagon tail lamps
-    box(W * 1.7, 0.09, 0.06, trimM, 0, 0.44, F - 0.06, body); box(W * 1.7, 0.09, 0.06, trimM, 0, 0.46, B + 0.06, body);
-    mirrorPair(s.hw(o.zf - 0.5) * 0.92, 1.05, o.zf - 0.5, paint, body);
-  };
-
-  // Mamba: a muscle car, long bonnet, short deck, wide hips, bonnet scoop, ducktail
+  // Mamba: a modern four-door sports saloon. Shark nose, long roof that flows into a short tail, quad exhausts
   MODELS.mamba = function (o, paint, body) {
-    var B = o.B - 0.04, F = o.F + 0.06, W = o.Wb + 0.03;
+    var B = o.B - 0.03, F = o.F + 0.04, W = o.Wb, zf = o.zf, zb = o.zb;
     var s = sculpt(o, {
-      len: [B, F], sill: 0.27, n: 6,
-      top: [[B, 0.66], [B + 0.08, 0.86], [B + 0.6, 0.88], [o.zb + 0.2, 0.84], [o.zf - 0.2, 0.84], [F - 0.12, 0.8], [F, 0.64]],
-      hw: [[B, W * 0.92], [o.zb, W], [o.zb + 0.7, W * 0.95], [o.zf - 0.2, W * 0.96], [F, W * 0.9]],
-      cabin: { z0: B + 0.62, z1: o.zf - 0.85, n: 6, taper: 0.76, roof: [[B + 0.62, 0.86], [B + 1.55, 1.26], [-0.55, 1.3], [o.zf - 1.3, 1.26], [o.zf - 0.85, 0.84]] }
+      len: [B, F], sill: 0.29, n: 6, archGap: 0.05, waistTaper: 0.93,
+      top: [[B, 0.66], [B + 0.08, 0.98], [B + 0.3, 1.04], [zb + 0.3, 1.02], [zf - 0.9, 1.0], [zf - 0.2, 0.98], [F - 0.25, 0.92], [F - 0.05, 0.84], [F, 0.62]],
+      hw: [[B, W * 0.88], [B + 0.3, W * 0.98], [zb, W], [0, W * 0.97], [zf, W * 0.99], [F - 0.3, W * 0.95], [F, W * 0.84]],
+      cabin: { z0: B + 0.32, z1: zf - 0.95, n: 6, taper: 0.8, hwK: 0.9, pillar: -0.25,
+        roof: [[B + 0.32, 1.03], [B + 0.95, 1.33], [zb + 0.6, 1.43], [-0.3, 1.46], [zf - 1.45, 1.42], [zf - 0.95, 1.0]], roofZ: [B + 0.9, zf - 1.35] }
     }, paint, body);
-    box(0.5, 0.08, 0.7, paint, 0, 0.88, o.zf - 0.25, body);                                      // bonnet scoop
-    box(0.42, 0.06, 0.04, darkM, 0, 0.89, o.zf + 0.1, body);
-    roundLights(W * 0.72, 0.68, F - 0.02, 0.085, o.head, body, false, 2);
-    box(W * 1.1, 0.16, 0.04, darkM, 0, 0.6, F + 0.01, body);
-    box(W * 1.7, 0.1, 0.05, o.tail, 0, 0.74, B + 0.02, body);                                   // full-width tail bar
-    box(W * 1.95, 0.12, 0.08, chromeM, 0, 0.42, F - 0.01, body); box(W * 1.95, 0.12, 0.08, chromeM, 0, 0.44, B + 0.02, body);
-    box(W * 1.6, 0.04, 0.16, paint, 0, 0.9, B + 0.12, body, 0.25);                              // ducktail
-    [-1, 1].forEach(function (k) { exhaust(k * W * 0.5, 0.3, B + 0.04, 0.045, body); });
-    mirrorPair(s.hw(o.zf - 0.9) * 0.92, 0.98, o.zf - 0.9, paint, body);
-    [-1, 1].forEach(function (k) { box(0.02, 0.05, 1.6, darkM, k * (W * 0.98), 0.72, 0.1, body); });   // side stripe
+    var gy = 0.62;
+    box(W * 1.05, 0.2, 0.05, darkM, 0, gy, F - 0.01, body);                                     // grille
+    for (var i = -2; i <= 2; i++) box(W * 1.0, 0.01, 0.02, trimM, 0, gy + i * 0.04, F + 0.016, body);
+    [-1, 1].forEach(function (k) {
+      var l = box(0.46, 0.07, 0.05, o.head, k * W * 0.66, 0.8, F - 0.07, body); l.rotation.y = -k * 0.12; l.castShadow = false;   // slim LED lamps
+      box(0.42, 0.012, 0.055, o.head, k * W * 0.66, 0.75, F - 0.07, body).castShadow = false;
+      box(0.3, 0.13, 0.05, darkM, k * W * 0.7, 0.42, F - 0.02, body);                             // corner intakes
+      var t = box(0.5, 0.06, 0.04, o.tail, k * W * 0.6, 0.86, B + 0.012, body); t.castShadow = false;
+      exhaust(k * W * 0.45, 0.3, B + 0.03, 0.04, body); exhaust(k * W * 0.6, 0.3, B + 0.03, 0.04, body);
+      box(0.03, 0.025, 0.14, chromeM, k * (s.hw(0.4) * 0.96 + 0.01), s.top(0.4) - 0.12, 0.4, body);   // door handles
+      box(0.03, 0.025, 0.14, chromeM, k * (s.hw(-0.6) * 0.96 + 0.01), s.top(-0.6) - 0.12, -0.6, body);
+    });
+    box(W * 1.2, 0.012, 0.04, o.tail, 0, 0.86, B + 0.012, body).castShadow = false;                 // light bar across the boot
+    box(W * 1.6, 0.06, 0.12, darkM, 0, 0.3, F - 0.05, body);                                       // splitter
+    box(W * 1.4, 0.08, 0.06, darkM, 0, 0.36, B + 0.04, body);                                      // diffuser
+    box(W * 1.5, 0.02, 0.12, paint, 0, s.top(B + 0.1) + 0.01, B + 0.1, body, 0.15);                 // boot lip
+    mirrorPair(s.hw(zf - 0.95) * 0.9, 1.1, zf - 0.95, paint, body);
   };
 
-  // RX-7 Spirit: a low, smooth JDM coupe with a bubble fastback and round tail lamps
-  MODELS.rx7spirit = function (o, paint, body) {
-    var B = o.B - 0.02, F = o.F + 0.04, W = o.Wb;
-    var s = sculpt(o, {
-      len: [B, F], sill: 0.25, n: 3.4,
-      top: [[B, 0.6], [B + 0.1, 0.8], [B + 0.5, 0.84], [o.zb + 0.3, 0.8], [o.zf - 0.2, 0.74], [F - 0.25, 0.64], [F, 0.5]],
-      hw: [[B, W * 0.88], [o.zb + 0.1, W], [0, W * 0.94], [o.zf, W], [F, W * 0.8]],
-      cabin: { z0: B + 0.45, z1: o.zf - 0.55, n: 3.2, taper: 0.72, roof: [[B + 0.45, 0.82], [B + 1.6, 1.16], [-0.3, 1.2], [o.zf - 1.05, 1.15], [o.zf - 0.55, 0.76]] }
-    }, paint, body);
-    lightPair(W * 0.68, 0.58, F - 0.08, 0.36, 0.05, o.head, body);                               // slim lamps (pop-ups down)
-    box(W * 0.6, 0.09, 0.04, darkM, 0, 0.4, F - 0.02, body);
-    roundLights(W * 0.7, 0.72, B + 0.02, 0.07, o.tail, body, true, 2);
-    box(W * 1.6, 0.04, 0.2, paint, 0, 0.88, B + 0.2, body, -0.08);                              // lip spoiler
-    exhaust(-W * 0.5, 0.3, B + 0.04, 0.04, body);
-    mirrorPair(s.hw(o.zf - 0.6) * 0.9, 0.86, o.zf - 0.6, paint, body);
-  };
+
 
   // Skyline GT-R: a squared-off performance coupe, four round tail lamps, big rear wing
   MODELS.skyline = function (o, paint, body) {
     var B = o.B - 0.02, F = o.F + 0.04, W = o.Wb + 0.02;
     var s = sculpt(o, {
       len: [B, F], sill: 0.27, n: 7,
-      top: [[B, 0.64], [B + 0.08, 0.88], [B + 0.5, 0.9], [o.zb + 0.3, 0.88], [o.zf - 0.3, 0.84], [F - 0.2, 0.78], [F, 0.6]],
+      top: [[B, 0.66], [B + 0.08, 0.98], [B + 0.5, 1.0], [o.zb + 0.3, 0.99], [o.zf - 0.3, 0.98], [F - 0.2, 0.92], [F, 0.64]],
       hw: [[B, W * 0.92], [o.zb, W], [0, W * 0.96], [o.zf, W], [F, W * 0.9]],
-      cabin: { z0: B + 0.55, z1: o.zf - 0.5, n: 6, taper: 0.8, roof: [[B + 0.55, 0.88], [B + 1.3, 1.28], [-0.1, 1.32], [o.zf - 1.0, 1.28], [o.zf - 0.5, 0.86]], pillar: -0.15 }
+      cabin: { z0: B + 0.55, z1: o.zf - 0.5, n: 6, taper: 0.8, roof: [[B + 0.55, 0.98], [B + 1.3, 1.38], [-0.1, 1.42], [o.zf - 1.0, 1.38], [o.zf - 0.5, 0.97]], pillar: -0.15 }
     }, paint, body);
-    lightPair(W * 0.66, 0.7, F - 0.02, 0.4, 0.1, o.head, body);
-    box(W * 0.8, 0.18, 0.04, darkM, 0, 0.55, F + 0.01, body);
+    lightPair(W * 0.66, 0.8, F - 0.04, 0.42, 0.1, o.head, body);
+    box(W * 0.8, 0.18, 0.04, darkM, 0, 0.64, F + 0.005, body);
     box(W * 1.4, 0.12, 0.04, darkM, 0, 0.36, F, body);                                           // splitter intake
-    roundLights(W * 0.74, 0.76, B + 0.02, 0.075, o.tail, body, true, 2);                         // the four round lamps
-    o.deck = 0.88; wing(o, B + 0.22, 1.12, W * 1.8, 0.28, paint, body, true);
+    roundLights(W * 0.74, 0.84, B + 0.01, 0.08, o.tail, body, true, 2);                         // the four round lamps
+    o.deck = 0.99; wing(o, B + 0.22, 1.22, W * 1.8, 0.28, paint, body, true);
     exhaust(-W * 0.55, 0.3, B + 0.04, 0.05, body);
-    mirrorPair(s.hw(o.zf - 0.55) * 0.92, 0.98, o.zf - 0.55, paint, body);
+    mirrorPair(s.hw(o.zf - 0.55) * 0.92, 1.08, o.zf - 0.55, paint, body);
     [-1, 1].forEach(function (k) { box(0.04, 0.08, 1.5, darkM, k * W * 0.96, 0.32, 0, body); });  // side skirts
   };
 
-  // Countach: the wedge. Very low, sharp nose, cab-forward, flared arches, huge wing
-  MODELS.countach = function (o, paint, body) {
-    var B = o.B - 0.02, F = o.F + 0.1, W = o.Wb + 0.05;
-    var s = sculpt(o, {
-      len: [B, F], sill: 0.24, n: 8,
-      top: [[B, 0.62], [B + 0.06, 0.82], [o.zb + 0.3, 0.84], [-0.2, 0.78], [o.zf - 0.2, 0.62], [F - 0.1, 0.44], [F, 0.38]],
-      hw: [[B, W * 0.96], [o.zb, W], [-0.3, W * 0.9], [o.zf, W * 0.97], [F, W * 0.82]],
-      cabin: { z0: -0.75, z1: o.zf - 0.1, n: 7, taper: 0.7, hwK: 0.8, roof: [[-0.75, 0.84], [-0.45, 1.05], [0.15, 1.07], [o.zf - 0.1, 0.66]], roofZ: [-0.6, 0.35] }
-    }, paint, body);
-    lightPair(W * 0.62, 0.46, F - 0.12, 0.34, 0.05, o.head, body);
-    box(W * 1.7, 0.12, 0.06, o.tail, 0, 0.66, B + 0.02, body);
-    box(W * 1.2, 0.1, 0.04, darkM, 0, 0.48, B, body);
-    [-1, 1].forEach(function (k) { box(0.06, 0.18, 0.5, darkM, k * W * 0.86, 0.72, -0.85, body); });  // NACA side scoops
-    o.deck = 0.84; wing(o, B + 0.25, 1.06, W * 1.85, 0.38, paint, body, true);
-    [-1, 1].forEach(function (k) { exhaust(k * W * 0.35, 0.34, B + 0.03, 0.045, body); exhaust(k * W * 0.55, 0.34, B + 0.03, 0.045, body); });
-    mirrorPair(s.hw(o.zf - 0.3) * 0.84, 0.78, o.zf - 0.25, paint, body);
-  };
 
-  // Mini Classic: small, upright, round lamps, contrast roof
-  MODELS.classicmini = function (o, paint, body) {
-    var B = o.B - 0.03, F = o.F + 0.04, W = o.Wb;
-    var s = sculpt(o, {
-      len: [B, F], sill: 0.24, n: 5,
-      top: [[B, 0.56], [B + 0.08, 0.76], [o.zb + 0.2, 0.8], [o.zf - 0.1, 0.78], [F - 0.15, 0.7], [F, 0.5]],
-      hw: [[B, W * 0.92], [0, W], [F, W * 0.9]],
-      cabin: { z0: B + 0.12, z1: o.zf - 0.15, n: 7, taper: 0.86, hwK: 0.94, roof: [[B + 0.12, 0.8], [B + 0.24, 1.32], [o.zf - 0.35, 1.32], [o.zf - 0.15, 0.8]], roofZ: [B + 0.14, o.zf - 0.22], pillar: -0.05 }
-    }, paint, body);
-    // white contrast roof cap
-    var rp = stations(B + 0.16, o.zf - 0.25, 10, function (z) { return { z: z, yb: 1.32, yt: 1.37, hw: W * 0.94 * 0.86 * 1.06, n: 8 }; });
-    body.add(loft(rp, phong(0xf0eee6), 12));
-    roundLights(W * 0.62, 0.66, F - 0.02, 0.09, o.head, body, false, 1);
-    box(W * 0.75, 0.2, 0.04, chromeM, 0, 0.56, F, body);
-    [-1, 1].forEach(function (k) { box(0.1, 0.16, 0.04, o.tail, k * W * 0.8, 0.7, B + 0.01, body); });
-    box(W * 1.9, 0.08, 0.08, chromeM, 0, 0.38, F + 0.02, body); box(W * 1.9, 0.08, 0.08, chromeM, 0, 0.38, B, body);
-    mirrorPair(s.hw(o.zf - 0.25) * 0.94, 0.86, o.zf - 0.2, paint, body);
-  };
 
-  // GT40: a 1960s Le Mans racer, about a metre tall, curvy, long tail, racing stripes
-  MODELS.gt40 = function (o, paint, body) {
-    var B = o.B - 0.06, F = o.F + 0.08, W = o.Wb + 0.04;
-    var s = sculpt(o, {
-      len: [B, F], sill: 0.24, n: 3.2,
-      top: [[B, 0.6], [B + 0.1, 0.8], [o.zb, 0.86], [-0.4, 0.74], [o.zf - 0.1, 0.7], [F - 0.15, 0.56], [F, 0.42]],
-      hw: [[B, W * 0.9], [o.zb, W], [-0.3, W * 0.88], [o.zf, W * 0.98], [F, W * 0.78]],
-      cabin: { z0: -0.85, z1: o.zf - 0.25, n: 3, taper: 0.72, hwK: 0.82, roof: [[-0.85, 0.76], [-0.45, 1.0], [0.1, 1.02], [o.zf - 0.25, 0.7]], roofZ: [-0.6, 0.25] }
-    }, paint, body);
-    var white = phong(0xf3f1ea);
-    [-0.18, 0.18].forEach(function (x) {                                                       // twin racing stripes over the top
-      var st = stations(B + 0.05, F - 0.05, 30, function (z) { var t = s.top(z); return { z: z, yb: t - 0.01, yt: t + 0.012, hw: 0.07, n: 8 }; });
-      var m = loft(st, white, 8); m.position.x = x; body.add(m);
-    });
-    roundLights(W * 0.68, 0.58, F - 0.14, 0.08, o.head, body, false, 1);
-    roundLights(W * 0.66, 0.7, B + 0.02, 0.07, o.tail, body, true, 1);
-    box(W * 0.6, 0.1, 0.04, darkM, 0, 0.44, F - 0.03, body);
-    box(W * 1.3, 0.08, 0.12, darkM, 0, 0.68, B + 0.08, body);                                   // rear spoiler lip
-    [-1, 1].forEach(function (k) { exhaust(k * 0.22, 0.42, B + 0.02, 0.05, body); });
-    mirrorPair(s.hw(o.zf - 0.35) * 0.82, 0.8, o.zf - 0.3, paint, body);
-  };
+
+
+
 
   // Titan 4x4: an off-roader. High clearance, boxy, flared arches, roof rack, snorkel, spare on the tailgate
   MODELS.titan4x4 = function (o, paint, body) {

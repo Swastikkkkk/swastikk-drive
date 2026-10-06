@@ -32,7 +32,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     // had selected, so shipping this doesn't retroactively lock people out of their own car
     if(unlockedRaw==null){try{const sc=JSON.parse(localStorage.getItem('sl_car')||'null');if(sc&&sc.id)set.add(sc.id)}catch(e){}}
     return set})();
-  unlocked.add('aster'); // the starter car is always free, regardless of what's saved
+  unlocked.add('outlaw'); // the starter car is always free, regardless of what's saved
   if(unlockedRaw==null)saveUnlocked();
   let updCoinsUI=()=>{}; // the garage UI wiring below replaces this once #dgcoins exists
   // state-only on purpose: callers fold the amount into whatever toast they're already showing
@@ -44,21 +44,12 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      Defined once here so every caller shares it. */
   const SUPA={url:'https://oceaylrebzflgyxfjqfb.supabase.co',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'};
   const GARAGE=[
-    {id:'aster',label:'Aster',type:'ev',blurb:'Balanced',mass:190,F:2.42,B:-2.36,W:2.3,price:0,
-     V:{engine:650,max:30.8,slip:2.4,xw:1.05,zf:1.35,zb:-1.35,r:.46,rest:.42,steer:.55,roll:.02},
-     paints:[0x640c0e,0x14161b,0xd9d4c6,0x27476b]},
-    {id:'voltgt',label:'Volt GT',type:'ev',blurb:'Wide, low, fast',mass:198,F:2.4,B:-2.32,W:2.42,price:400,
-     V:{engine:760,max:34.5,slip:2.6,xw:1.14,zf:1.3,zb:-1.3,r:.42,rest:.36,steer:.5,roll:.016},
-     paints:[0x18345c,0x14161b,0xc7cbce,0x7a1620]},
+    {id:'outlaw',label:'Outlaw V8',type:'car',blurb:'Big-block muscle, smokes the rears',mass:205,F:2.5,B:-2.45,W:2.04,price:0,
+     V:{engine:820,max:34,slip:2.3,xw:1.0,zf:1.45,zb:-1.35,r:.44,rest:.38,steer:.56,roll:.02},
+     paints:[0x5a0a0e,0x111114,0x173224,0xb4481a,0x16335f,0xe8e4da]},
     {id:'phantom',label:'Phantom',type:'ev',blurb:'Longest, top speed, twitchy',mass:210,F:2.7,B:-2.62,W:2.28,price:600,
      V:{engine:820,max:37.5,slip:2.1,xw:1.08,zf:1.55,zb:-1.55,r:.46,rest:.4,steer:.58,roll:.024},
      paints:[0x121216,0x2c2c30,0xd9d4c6,0x5c1418]},
-    {id:'kestrel',label:'Kestrel',type:'car',blurb:'Sedan, agile',mass:165,F:2.05,B:-2.05,W:1.92,wagon:false,price:150,
-     V:{engine:600,max:29,slip:2.55,xw:.92,zf:1.15,zb:-1.15,r:.4,rest:.38,steer:.66,roll:.018},
-     paints:[0x1f7a3d,0x14161b,0xd9d4c6,0x27476b]},
-    {id:'ridgeback',label:'Ridgeback',type:'car',blurb:'Wagon, heavy, grippy',mass:235,F:2.2,B:-2.35,W:2.05,wagon:true,price:300,
-     V:{engine:640,max:27.5,slip:2.9,xw:1.0,zf:1.35,zb:-1.35,r:.44,rest:.44,steer:.48,roll:.026},
-     paints:[0x3a4550,0x14161b,0xd9d4c6,0x5c3a1e]},
     {id:'mamba',label:'Mamba',type:'car',blurb:'Sedan, quick, loose',mass:175,F:2.1,B:-2.1,W:1.95,wagon:false,price:220,
      V:{engine:700,max:31.5,slip:2.15,xw:.95,zf:1.2,zb:-1.2,r:.4,rest:.36,steer:.6,roll:.016},
      paints:[0xb33a1e,0x14161b,0xd9d4c6,0x27476b]},
@@ -74,24 +65,12 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {id:'valkyrie',label:'Valkyrie LeMans',type:'hypercar',blurb:'Le Mans Hypercar',mass:165,F:2.0,B:-1.9,W:1.8,price:1000,
      V:{engine:1050,max:46.5,slip:3.2,xw:1.15,zf:1.35,zb:-1.35,r:.4,rest:.32,steer:.7,roll:.01},
      paints:[0x0d1b2a,0xff0033,0x00ff88,0xffd700]},
-    {id:'rx7spirit',label:'RX-7 Spirit',type:'car',blurb:'JDM Legend, rotary scream',mass:160,F:2.1,B:-2.0,W:1.85,price:450,
-     V:{engine:750,max:33,slip:2.7,xw:.98,zf:1.25,zb:-1.25,r:.4,rest:.38,steer:.68,roll:.015},
-     paints:[0x1a1a2e,0xff6b35,0x00d4aa,0xffd700]},
     {id:'skyline',label:'Skyline GTR',type:'car',blurb:'Godzilla, AWD legend',mass:180,F:2.2,B:-2.1,W:1.9,price:500,
      V:{engine:800,max:35,slip:3.0,xw:1.05,zf:1.3,zb:-1.3,r:.42,rest:.4,steer:.6,roll:.02},
      paints:[0x0066cc,0x1a1a2e,0xd9d4c6,0xffd700]},
-    {id:'countach',label:'Countach LP500',type:'car',blurb:'Wedge icon, scissor doors',mass:170,F:2.0,B:-1.9,W:1.8,price:700,
-     V:{engine:780,max:34,slip:2.5,xw:1.1,zf:1.4,zb:-1.4,r:.4,rest:.35,steer:.6,roll:.018},
-     paints:[0xff6b35,0x1a1a2e,0xf0e68c,0x00ffff]},
     {id:'truck',label:'Titan Hauler',type:'truck',blurb:'Heavy hauler, 18-wheeler',mass:450,F:3.0,B:-4.0,W:2.5,wagon:true,price:800,
      V:{engine:900,max:25,slip:3.5,xw:1.4,zf:2.0,zb:-2.0,r:.6,rest:.6,steer:.35,roll:.04},
      paints:[0x8b4513,0x2d4a22,0x1a1a2e,0xd4a843]},
-    {id:'classicmini',label:'Mini Classic',type:'car',blurb:'Tiny tossable go-kart',mass:80,F:1.5,B:-1.4,W:1.4,price:200,
-     V:{engine:500,max:26,slip:2.2,xw:.8,zf:1.0,zb:-1.0,r:.35,rest:.3,steer:.85,roll:.01},
-     paints:[0x0066cc,0xcc0000,0xf0e68c,0x00ffff]},
-    {id:'gt40',label:'GT40 MkII',type:'car',blurb:'Le Mans winner, Ford vs Ferrari',mass:140,F:1.9,B:-1.8,W:1.7,price:900,
-     V:{engine:850,max:38,slip:3.3,xw:1.0,zf:1.3,zb:-1.3,r:.38,rest:.33,steer:.75,roll:.012},
-     paints:[0x0066cc,0xf0e68c,0xd4a83a,0x1a1a2e]},
   ];
   /* every car free for now: flip to false to bring prices back (nothing is saved, so nobody keeps them) */
   const FREE_CARS=true;
@@ -2315,7 +2294,7 @@ t.bd.position.set(x,y+.86,z);
   /* Cornering limit per car, in g: what full steering lock asks of the tyres at speed (see the
      steering code). Road cars sit around 1.45 g, the race cars well above, the heavy ones below.
      BRAKE_DECEL is the service-brake deceleration in m/s^2, about 1.2 g: 100 to 0 in roughly 32 m. */
-  const LAT_G={f1apex:2.3,valkyrie:1.9,gt40:1.75,phantombike:1.35,truck:.85,titan4x4:1.0,ridgeback:1.15,classicmini:1.3,
+  const LAT_G={outlaw:1.42,f1apex:2.3,valkyrie:1.9,gt40:1.75,phantombike:1.35,truck:.85,titan4x4:1.0,ridgeback:1.15,classicmini:1.3,
     countach:1.55,skyline:1.55,rx7spirit:1.6,mamba:1.5,kestrel:1.5,phantom:1.55,voltgt:1.5,aster:1.4};
   const latG=id=>LAT_G[id]||1.45,BRAKE_DECEL=12;
   /* Careful with applyForce in this build of cannon: the second argument is a point in
@@ -2572,7 +2551,7 @@ t.bd.position.set(x,y+.86,z);
   const V=VEHS.car;
   function applyVehicle(){veh.wheelInfos.forEach((w,i)=>{const sx=i%2?-1:1;w.chassisConnectionPointLocal.set(sx*V.xw,.05,i<2?V.zf:V.zb);w.radius=V.r;w.suspensionRestLength=V.rest;w.frictionSlip=V.slip*wx.slip;w.rollInfluence=V.roll});chassisB.angularDamping=.4}
   /* ---------- swap the whole car: physics rig, body mesh, wheels, mass, shadow ---------- */
-  let curCarId='aster',mpCarNotify=null;
+  let curCarId='outlaw',mpCarNotify=null;
   /* Where the first-person cameras and the mirror sit on the current body, measured from the mesh
      itself (body-local: y=0 is the ground, +z forward). One fixed height used to put the bonnet cam
      inside the truck's cab and floating over the F1. */
@@ -7780,7 +7759,7 @@ updCircBtn();
         // more than MAXP in a room: the latest joiner is the one who is out
         const a=sorted().concat([{id:m.id,j}]).sort((x,y)=>x.j-y.j||(x.id<y.id?-1:1));
         if(a.findIndex(z=>z.id===m.id)>=MAXP)return null;
-        P={id:String(m.id).slice(0,12),n:clean(m.n)||'Driver',j,last:0,gh:null,car:'aster',ping:null,tp:new THREE.Vector3(),tq:new THREE.Quaternion(),vx:0,vy:0,vz:0,pt:0,st:0,vf:0,wr:0,d:0,fin:0,got:false,sp:0};
+        P={id:String(m.id).slice(0,12),n:clean(m.n)||'Driver',j,last:0,gh:null,car:'outlaw',ping:null,tp:new THREE.Vector3(),tq:new THREE.Quaternion(),vx:0,vy:0,vz:0,pt:0,st:0,vf:0,wr:0,d:0,fin:0,got:false,sp:0};
         peers.set(P.id,P);lg('add',P.n,'j',j,'me',me.j);
         if(idxOf(me.id)>=MAXP){leave('Room is full · '+MAXP+' drivers max');return null}
         toast2(P.n+' joined');ui()}
