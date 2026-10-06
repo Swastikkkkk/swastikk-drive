@@ -2759,12 +2759,70 @@ t.bd.position.set(x,y+.86,z);
      g.gain.setValueAtTime(.08+.32*k,T);g.gain.exponentialRampToValueAtTime(.0001,T+.34);o.connect(g);g.connect(S.fx);o.start(T);o.stop(T+.38)}
     if(k>.45){const s=AC.createBufferSource();s.buffer=S.wh;const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=1600+Math.random()*500;f.Q.value=3;const g=AC.createGain();
      g.gain.setValueAtTime(.16*k,T);g.gain.exponentialRampToValueAtTime(.0001,T+.15);s.connect(f);f.connect(g);g.connect(S.fx);s.start(T,Math.random());s.stop(T+.18)}}catch(e){}}
+  /* ---------- meme horns ----------
+     Every horn (yours and every other car's) plays a cat or dog meme sound on top of the horn. If clips are dropped
+     into assets/horns/ and listed in assets/horns/index.json (["laugh.mp3", ...]) those are used instead, in order.
+     Otherwise a built-in synthesized pack: meow, laughing cat, angry hiss, kitten mew, cat "huh?", woof, double
+     bark, howl. Each press plays the next one. */
+  const MEME={kinds:['hehe','meow','woof','hiss','huh','bark2','mew','howl'],i:0,clips:null,noise:null};
+  function memeLoad(){if(MEME.clips||!AC)return;MEME.clips=[];
+    fetch('assets/horns/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():[]).then(L=>Promise.all((Array.isArray(L)?L:[]).slice(0,24).map(n=>
+      fetch('assets/horns/'+encodeURIComponent(n)).then(r=>r.arrayBuffer()).then(b=>new Promise((ok,no)=>AC.decodeAudioData(b,ok,no))).catch(()=>null))))
+      .then(B=>{MEME.clips=B.filter(Boolean)}).catch(()=>{})}
+  function memeNoise(){if(MEME.noise)return MEME.noise;const n=AC.sampleRate,b=AC.createBuffer(1,n,n),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;return MEME.noise=b}
+  // one voiced sound: pitch contour f:[[t,Hz]], formant contour fm:[[t,F1,F2]], amplitude env a:[[t,g]], optional breath/noise
+  function memeVoice(dest,T,o){const vo=AC.createOscillator();vo.type=o.type||'sawtooth';const g=AC.createGain(),b1=AC.createBiquadFilter(),b2=AC.createBiquadFilter(),mx=AC.createGain();
+    b1.type=b2.type='bandpass';b1.Q.value=o.q1||6;b2.Q.value=o.q2||9;mx.gain.value=1;
+    o.f.forEach(([t,f],k)=>k?vo.frequency.linearRampToValueAtTime(f,T+t):vo.frequency.setValueAtTime(f,T+t));
+    (o.fm||[[0,700,1800]]).forEach(([t,a,c],k)=>{if(k){b1.frequency.linearRampToValueAtTime(a,T+t);b2.frequency.linearRampToValueAtTime(c,T+t)}else{b1.frequency.setValueAtTime(a,T+t);b2.frequency.setValueAtTime(c,T+t)}});
+    if(o.vib){const l=AC.createOscillator(),lg=AC.createGain();l.frequency.value=o.vib[0];lg.gain.value=o.vib[1];l.connect(lg);lg.connect(vo.frequency);l.start(T);l.stop(T+o.a[o.a.length-1][0]+.05)}
+    vo.connect(b1);vo.connect(b2);const g2=AC.createGain();g2.gain.value=.6;b1.connect(mx);b2.connect(g2);g2.connect(mx);mx.connect(g);
+    if(o.br){const ns=AC.createBufferSource();ns.buffer=memeNoise();const nf=AC.createBiquadFilter();nf.type='bandpass';nf.frequency.value=o.brF||2500;nf.Q.value=1.2;const ng=AC.createGain();ng.gain.value=o.br;ns.connect(nf);nf.connect(ng);ng.connect(g);ns.start(T,Math.random()*.5);ns.stop(T+o.a[o.a.length-1][0]+.05)}
+    g.gain.setValueAtTime(0,T);o.a.forEach(([t,v])=>g.gain.linearRampToValueAtTime(v,T+t));g.connect(dest);
+    const end=o.a[o.a.length-1][0];vo.start(T);vo.stop(T+end+.05);setTimeout(()=>{try{g.disconnect()}catch(e){}},(end+.3)*1000);return end}
+  function memeSynth(dest,kind,p){const T=AC.currentTime+.01,V=(t,o)=>memeVoice(dest,T+t,o);p=p||1;
+    switch(kind){
+      case 'meow':return V(0,{f:[[0,520*p],[.15,780*p],[.4,700*p],[.65,430*p]],fm:[[0,500,1500],[.18,1000,2300],[.45,800,1700],[.65,450,900]],a:[[.04,.32],[.45,.3],[.66,0]],vib:[6,10*p],br:.05});
+      case 'mew':return V(0,{f:[[0,950*p],[.12,1250*p],[.3,880*p]],fm:[[0,900,2600],[.12,1300,3000],[.3,800,2200]],a:[[.02,.26],[.2,.22],[.32,0]],br:.04});
+      case 'huh':return V(0,{f:[[0,300*p],[.12,330*p],[.34,560*p]],fm:[[0,650,1100],[.34,750,1900]],a:[[.03,.34],[.28,.3],[.36,0]],br:.08,brF:1800});
+      case 'hehe':{let e=0;for(let k=0;k<5;k++){const f0=(760-k*28)*p;e=k*.13+V(k*.13,{f:[[0,f0],[.05,f0*1.18],[.1,f0*.9]],fm:[[0,500,2000],[.1,600,2300]],a:[[.012,.3],[.07,.22],[.1,0]],br:.18,brF:3000})}return e}
+      case 'hiss':{const ns=AC.createBufferSource();ns.buffer=memeNoise();const hp=AC.createBiquadFilter();hp.type='highpass';hp.frequency.value=2600;const g=AC.createGain();g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.22,T+.06);g.gain.linearRampToValueAtTime(.18,T+.4);g.gain.linearRampToValueAtTime(0,T+.55);ns.connect(hp);hp.connect(g);g.connect(dest);ns.start(T);ns.stop(T+.6);
+        return .55+V(.58,{f:[[0,620*p],[.1,900*p],[.35,520*p]],fm:[[0,900,2400],[.35,600,1300]],a:[[.02,.34],[.25,.3],[.38,0]],vib:[9,18*p],br:.12})}
+      case 'woof':return V(0,{f:[[0,250*p],[.05,210*p],[.17,120*p]],fm:[[0,600,1300],[.17,350,800]],a:[[.01,.5],[.08,.36],[.19,0]],br:.25,brF:900,q1:3,q2:4});
+      case 'bark2':V(0,{f:[[0,280*p],[.05,230*p],[.15,140*p]],fm:[[0,650,1400],[.15,400,900]],a:[[.01,.48],[.07,.32],[.16,0]],br:.25,brF:950,q1:3,q2:4});
+        return .26+V(.26,{f:[[0,300*p],[.05,240*p],[.17,130*p]],fm:[[0,650,1400],[.17,380,850]],a:[[.01,.5],[.08,.34],[.19,0]],br:.25,brF:950,q1:3,q2:4});
+      case 'howl':return V(0,{type:'triangle',f:[[0,360*p],[.35,640*p],[1,600*p],[1.4,420*p]],fm:[[0,420,850],[.5,520,950],[1.4,380,700]],a:[[.15,.3],[1.1,.28],[1.45,0]],vib:[5.5,14*p],br:.03,q1:4,q2:5})}
+    return 0}
+  // plays the next meme sound into dest; returns how long it lasts (s)
+  function memeHorn(dest,pitch){if(!AC)return 0;memeLoad();try{
+    if(MEME.clips&&MEME.clips.length){const b=MEME.clips[MEME.i++%MEME.clips.length],s=AC.createBufferSource(),g=AC.createGain();s.buffer=b;g.gain.value=.9;s.connect(g);g.connect(dest);s.start();s.onended=()=>{try{g.disconnect()}catch(e){}};return b.duration}
+    return memeSynth(dest,MEME.kinds[MEME.i++%MEME.kinds.length],pitch)}catch(e){return 0}}
+  let memeNext=0;
   let hornOn=false;
+  /* ---------- drifting ----------
+     Kick it with the handbrake (or lift-and-throttle) while steering at speed and the car settles into a held
+     slide: the rear lets go just enough, throttle keeps it sideways, counter-steer catches it. The handbrake only
+     drags for the first moment so a drift keeps its speed. Score builds with angle x speed. */
+  const DRIFT={on:false,t:0,sc:0,off:0,mult:1};
+  const driftEl=(()=>{const e=document.createElement('div');e.className='mono';
+    e.style.cssText='position:absolute;left:50%;top:calc(96px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:4;display:none;padding:6px 14px;border-radius:12px;background:rgba(14,15,18,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#eef0f3;font-size:13px;letter-spacing:.14em;pointer-events:none';
+    (document.getElementById('dhud')||document.body).appendChild(e);return e})();
+  function driftTick(dt,sp,vfw,fwd,steerIn,thr){const v=chassisB.velocity,lx=v.x-fwd.x*vfw,lz=v.z-fwd.z*vfw,lat=Math.hypot(lx,lz),slip=Math.atan2(lat,Math.max(.5,Math.abs(vfw)));
+    if(!DRIFT.on){if(sp>9&&vfw>4&&steerIn!==0&&(key.h||(slip>.3&&thr))){DRIFT.on=true;DRIFT.t=0;DRIFT.sc=0;DRIFT.off=0;DRIFT.mult=1}return}
+    DRIFT.t+=dt;DRIFT.off=slip>.13?0:DRIFT.off+dt;DRIFT.sc+=slip*sp*dt*14*DRIFT.mult;if(DRIFT.t>2)DRIFT.mult=Math.min(3,1+Math.floor(DRIFT.t/2)*.5);
+    // steering steers the slide (counter-steer catches it), and a little throttle push keeps the momentum the sideways scrub eats
+    const av=chassisB.angularVelocity;av.y+=steerIn*dt*(thr?1.1:.8);av.y=Math.max(-2.4,Math.min(2.4,av.y));
+    if(thr&&sp>2){const k=chassisB.mass*3.2;fScratch.set(v.x/sp*k,0,v.z/sp*k);chassisB.applyForce(fScratch,chassisB.position)}
+    if(frameN%4===0){driftEl.style.display='block';driftEl.innerHTML='DRIFT <b style="color:#ffd23f">'+Math.round(DRIFT.sc).toLocaleString()+'</b>'+(DRIFT.mult>1?' &times;'+DRIFT.mult:'')}
+    if(DRIFT.off>.45||sp<5||vfw<1){DRIFT.on=false;driftEl.style.display='none';const pts=Math.round(DRIFT.sc);
+      if(pts>120&&DRIFT.t>.7){toastMsg('Drift +'+pts.toLocaleString());if(pts>1500&&typeof earnCoins==='function')earnCoins(Math.min(10,Math.floor(pts/1500)))}}}
   function honk(on){if(!AC||muted)return;try{
     if(on&&!hornOn){hornOn=true;const T=AC.currentTime,g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2300;lp.Q.value=.9;
-      g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.075,T+.025);lp.connect(g);g.connect(SND?SND.fx:AC.destination);
+      g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.04,T+.025);lp.connect(g);g.connect(SND?SND.fx:AC.destination);
+      memeNext=AC.currentTime+memeHorn(SND?SND.fx:AC.destination)+.08;
       const oscs=[405,508].map(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start(T);return o});
       hornNodes={g,oscs}}
+    else if(on&&hornOn&&AC.currentTime>memeNext)memeNext=AC.currentTime+memeHorn(SND?SND.fx:AC.destination)+.08;
     else if(!on&&hornOn){hornOn=false;if(hornNodes){const {g,oscs}=hornNodes;g.gain.setTargetAtTime(0,AC.currentTime,.03);setTimeout(()=>{try{oscs.forEach(o=>o.stop());g.disconnect()}catch(e){}},200);hornNodes=null}}
   }catch(e){}}
   let hornNodes=null;
@@ -3731,7 +3789,7 @@ t.bd.position.set(x,y+.86,z);
            fScratch.set(-vv.x/vs*dg,0,-vv.z/vs*dg);chassisB.applyForce(fScratch,chassisB.position)}}
        lvScratch.copy(chassisB.velocity);chassisB.quaternion.conjugate(qScratch);qScratch.vmult(lvScratch,lvScratch);
 let lateral=Math.min(1,Math.abs(lvScratch.x)/8),
-      rearGrip=key.h?.42:1,
+      rearGrip=DRIFT.on?(key.f?.5:.62)*(key.h?.85:1):key.h?.42:1,
       // weather effects on grip
       weatherGripMult=wx.slip,
       grip=V.slip*weatherGripMult*(1-sub*.72)*(1+gradeNow*.55)*(1+lateral*.22);
@@ -3749,7 +3807,7 @@ let lateral=Math.min(1,Math.abs(lvScratch.x)/8),
          // load sensitivity: grip climbs with load, but slower than the load does
          const lr=STATIC>0?wLoad[i]/STATIC:1;
          const ls=wi[i].isInContact?Math.max(.4,Math.pow(Math.min(LOAD_CAP,lr),LOAD_EXP)):1;
-         wi[i].frictionSlip=grip*TYRE.grip*(i>1?rearGrip:1)*(isFinite(ls)?ls:1)}
+         wi[i].frictionSlip=grip*TYRE.grip*(i>1?rearGrip:DRIFT.on?1.12:1)*(isFinite(ls)?ls:1)}
        // nothing above is allowed to hand the solver a NaN — that is what used to launch the car
 const F=chassisB.force,T=chassisB.torque;
         if(!isFinite(F.x)||!isFinite(F.y)||!isFinite(F.z))F.set(0,0,0);
@@ -5391,7 +5449,7 @@ const PLANETS={
       /* handbrake: the rear wheels drag at about 0.8 g and lose their side grip (rearGrip), so the
          tail swings round instead of the car stopping dead the way the old fixed clamp made it */
       const hbImp=chassisB.mass*8*PSTEP/2;
-      for(let i=0;i<4;i++){const fr=i<2;veh.setBrake(Math.max(svc*(fr?1.25:.75),key.h&&!fr?hbImp:0),i)}
+      for(let i=0;i<4;i++){const fr=i<2;veh.setBrake(Math.max(svc*(fr?1.25:.75),key.h&&!fr&&(!DRIFT.on||DRIFT.t<.3)?hbImp:0),i)}
       // hard ceiling: if it is still climbing past the cap, damp the velocity directly
       if(sp>vmax*1.18&&!inPond){const s=vmax*1.18/sp;chassisB.velocity.x*=s;chassisB.velocity.z*=s}
       // steeper ground => more angular damping, which is what kills the hillside wobble
@@ -5408,6 +5466,7 @@ const PLANETS={
       // below ~25 km/h full lock felt like the car pivoted on the spot: ease the lock in with speed (still enough to U-turn)
       const lowS=sp<7?.55+.45*sp/7:1;
       const st=steerIn*V.steer*Math.max(.35,1-sp/46)*lowS*(key.h?1.25:1);steerActual+=(st-steerActual)*Math.min(1,dt*(sp<7?5:8));veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
+      if(!inPond&&V.label!=='Phantom Bike')driftTick(dt,sp,vfw,fwd,steerIn,!!f);else if(DRIFT.on){DRIFT.on=false;driftEl.style.display='none'}
       tailM.emissiveIntensity=(b||key.h)?1.6:boost?1.2:.5;lookTick(b||key.h,boost);
       // cannon integrates damping as pow(1-damping,dt), so anything at or above 1 turns the whole
       // body into NaN on the next step. That was the real cause of the car "flying" over the pond.
@@ -5471,7 +5530,7 @@ const PLANETS={
            (a seam, a bank it climbed). Put it back on the line and take away the outward speed. A safety net
            under the walls, not a replacement for them. */
         const inPitNow=!!(circuit.inPit&&circuit.inPit(chassisB.position.x,chassisB.position.z));
-        pitTick(inPitNow,dt,now);
+        pitTick(inPitNow,dt,now,bi);
         {const lim=CIRC_W/2+BARRIER_OFF+.8,d=Math.sqrt(best);
          if(!inPitNow&&d>lim&&d<lim+25){const c0=CSAMP[bi],c1=CSAMP[(bi+1)%CN],tx=c1.x-c0.x,tz=c1.z-c0.z,tl=Math.hypot(tx,tz)||1;
            const ox=chassisB.position.x-c0.x,oz=chassisB.position.z-c0.z,along=(ox*tx+oz*tz)/tl,px=c0.x+tx/tl*along,pz=c0.z+tz/tl*along;
@@ -5895,13 +5954,28 @@ const PLANETS={
     e.style.cssText='position:absolute;left:var(--gut,16px);top:calc(96px + env(safe-area-inset-top,0px));z-index:3;display:none;padding:7px 12px;border-radius:12px;background:rgba(14,15,18,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#eef0f3;font-size:11px;letter-spacing:.12em;pointer-events:none';
     (document.getElementById('dhud')||document.body).appendChild(e);return e})();
   function tyresReset(){TYRE.wear=0;TYRE.grip=1;pitStop=null;pitLeft=true}
-  function pitTick(inPit,dt,now){
+  const pitBan=(()=>{const e=document.createElement('div');e.id='dpitban';e.className='mono';
+    e.style.cssText='position:absolute;left:50%;top:calc(150px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:4;display:none;padding:10px 16px;border-radius:14px;background:rgba(14,15,18,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#eef0f3;font-size:12px;letter-spacing:.1em;text-align:center;pointer-events:none;white-space:nowrap;border:1px solid rgba(255,210,63,.45)';
+    (document.getElementById('dhud')||document.body).appendChild(e);return e})();
+  let pitWasIn=false,pitBanTxt='';
+  function pitBanner(inPit,bi){const P=circuit.pit;let t='';
+    if(P&&P.boxes&&!pitStop){const {CSAMP,CN}=circuit,TL=circuit.TL||circuit.curve.getLength(),u=bi/CN,d=(u<.5?u:u-1)*TL;
+      const c0=CSAMP[bi],c1=CSAMP[(bi+1)%CN],tx=c1.x-c0.x,tz=c1.z-c0.z,tl=Math.hypot(tx,tz)||1,v=chassisB.velocity,fwdOk=(v.x*tx+v.z*tz)/tl>2;
+      const L=P.side<0?'LEFT':'RIGHT',R=P.side<0?'RIGHT':'LEFT';
+      if(inPit)t='<span style="color:#ffd23f">PIT LANE · 60 KM/H</span> · stop in a yellow box for fresh tyres';
+      else if(fwdOk&&d>P.d0-170&&d<P.d0+8){const lat=((chassisB.position.x-c0.x)*(-tz/tl)+(chassisB.position.z-c0.z)*(tx/tl))*P.side;
+        t=lat>CIRC_W*.12?'<span style="color:#ffd23f">PITTING</span> · keep '+L+' and brake to 60 km/h':'<span style="color:#ffd23f">PIT ENTRY AHEAD</span> · '+L+' lane to pit · stay '+R+' to race on'}}
+    if(t!==pitBanTxt){pitBanTxt=t;pitBan.innerHTML=t;pitBan.style.display=t?'block':'none'}}
+  function pitTick(inPit,dt,now,bi){
     const v=chassisB.velocity,sp=Math.hypot(v.x,v.z),racing=window.RaceEngine&&window.RaceEngine.active;
     if(!pitStop){   // wear: distance driven, a bit more when the tyres are sliding
       const slide=veh.wheelInfos.reduce((m,w)=>Math.max(m,w.skidInfo!=null?1-w.skidInfo:0),0);
       TYRE.wear=Math.min(1,TYRE.wear+sp*dt/(circuit.curve.getLength()*5)*(1+slide*1.5))}
     TYRE.grip=1-.18*TYRE.wear;
-    if(inPit&&sp>60/3.6){const k=(60/3.6)/sp;v.x*=k;v.z*=k}   // pit limiter
+    // pit limiter: eases you down to 60 over about a second instead of a hard clamp, and only in the lane itself
+    if(inPit&&!pitWasIn){toastMsg('Pit limiter on · 60 km/h');blip(620,.1,.06)}pitWasIn=inPit;
+    if(inPit&&sp>60/3.6){const lim=60/3.6,ns=sp+(lim-sp)*(1-Math.exp(-dt*2.6)),k=ns/sp;v.x*=k;v.z*=k}
+    if(frameN%6===0&&bi!=null)pitBanner(inPit,bi);
     const box=inPit&&circuit.pit&&circuit.pit.boxes?circuit.pit.boxes.find(b=>Math.hypot(b.x-chassisB.position.x,b.z-chassisB.position.z)<3.6):null;
     if(!box)pitLeft=true;
     if(box&&!pitStop&&pitLeft&&sp<1.2){pitStop={t0:now,box};pitLeft=false;bigCount('PIT');blip(700,.12,.08)}
@@ -6076,15 +6150,16 @@ const PLANETS={
      const arc=(u,v)=>{let d=Math.abs(u-v);return Math.min(d,1-d)*BL};
      const nearStart=u=>Math.min(u,1-u)*BL<60;
      found.forEach(f=>{if(f.sin<.22)return;   // nearly parallel overlap: a bridge would be absurdly long
-       const flat=(CIRC_W/2+BARRIER_OFF+3)/f.sin+CIRC_W/2+4,ramp=Math.max(60,BH*9);
+       const flat=(CIRC_W/2+BARRIER_OFF+3)/f.sin+CIRC_W/2+4,ramp=Math.max(42,BH*7);
        // lift the pass whose ramps don't reach another crossing where it has to stay low, and never the start straight
        const ok=u=>!nearStart(u)&&arc(u,0)>flat+ramp&&!found.some(g=>g!==f&&(arc(u,g.ua)<flat+ramp||arc(u,g.ub)<flat+ramp));
        // on a hilly venue the two passes can already be metres apart: lift the higher one, by enough to clear the other
        const ya=base.getPointAt(f.ua).y,yb=base.getPointAt(f.ub).y,hi=yb>=ya?f.ub:f.ua,lo2=hi===f.ub?f.ua:f.ub;
-       const u=ok(hi)?hi:ok(lo2)?lo2:null;if(u==null)return;
-       const yU=u===f.ub?yb:ya,yL=u===f.ub?ya:yb,h=Math.max(2,yL+BH-yU);if(h>24)return;   // already high above it: a short lift, just enough to make it a proper deck
-       if(BRIDGES.some(B=>arc(B.u,u)<B.flat+B.ramp+flat+ramp))return;
-       BRIDGES.push({u,flat,ramp:Math.max(ramp,h*9),h,x:f.x,z:f.z,low:u===f.ub?f.ua:f.ub})});
+       const u=ok(hi)?hi:ok(lo2)?lo2:null;if(u==null){f.skip=1;return}
+       const yU=u===f.ub?yb:ya,yL=u===f.ub?ya:yb,h=Math.max(2,yL+BH-yU);if(h>24)return;f.ok=1;   // already high above it: a short lift, just enough to make it a proper deck
+       if(BRIDGES.some(B=>arc(B.u,u)<B.flat+B.ramp+flat+ramp)){f.ok=0;f.skip=1;return}
+       BRIDGES.push({u,flat,ramp:Math.max(ramp,h*8),h,x:f.x,z:f.z,low:u===f.ub?f.ua:f.ub})});
+     {const bad=found.filter(f=>f.skip||f.sin<.22).length;if(bad)setTimeout(()=>toastMsg(bad+' crossing'+(bad>1?'s are':' is')+' too tight for a flyover · spread them out a bit'),1200)}
      if(BRIDGES.length){
        // the lift needs dense control points to be exact, so the curve is rebuilt from the base one
        const M2=Math.max(80,Math.round(BL/5));pts3=[];
@@ -6100,6 +6175,7 @@ const PLANETS={
     for(let i=0;i<DN;i++){const q=curve.getPointAt(i/DN);DX[i]=q.x;DL[i]=liftAt(i/DN);DY[i]=q.y-DL[i];DZ[i]=q.z;}
     // a flat grid of cells over the track's bounds, indexed directly; searches are clamped to it
     let GX0=1e9,GZ0=1e9,GX1=-1e9,GZ1=-1e9;for(let i=0;i<DN;i++){const gx=Math.floor(DX[i]/CELL),gz=Math.floor(DZ[i]/CELL);if(gx<GX0)GX0=gx;if(gx>GX1)GX1=gx;if(gz<GZ0)GZ0=gz;if(gz>GZ1)GZ1=gz}
+    GX0-=4;GZ0-=4;GX1+=4;GZ1+=4;   // pad: the outer edge of the outermost corners needs its ground too (it used to snap back to base level there)
     const GNX=GX1-GX0+1,GNZ=GZ1-GZ0+1,GRID=new Array(GNX*GNZ);
     for(let i=0;i<DN;i++){const k=(Math.floor(DX[i]/CELL)-GX0)*GNZ+Math.floor(DZ[i]/CELL)-GZ0;(GRID[k]||(GRID[k]=[])).push(i)}
     // this runs for every terrain vertex; a string-keyed Map here used to be most of the build time
@@ -6118,8 +6194,10 @@ const PLANETS={
     const NEAR=new Uint8Array(GNX*GNZ);
     for(let a=0;a<GNX;a++)for(let b=0;b<GNZ;b++){if(!GRID[a*GNZ+b])continue;for(let da=-3;da<=3;da++)for(let db=-3;db<=3;db++){const aa=a+da,bb=b+db;if(aa>=0&&aa<GNX&&bb>=0&&bb<GNZ)NEAR[aa*GNZ+bb]=1}}
     const nearTrack=(x,z)=>{const gx=Math.floor(x/CELL)-GX0,gz=Math.floor(z/CELL)-GZ0;return gx>=0&&gx<GNX&&gz>=0&&gz<GNZ&&NEAR[gx*GNZ+gz]===1};
-    const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;if(!nearTrack(x,z))return CIRC_Y;let ws=H0W,hs=H0W*CIRC_Y;
-      nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,w=1/(q*q)*(1-SM(DL[i]/1.5));ws+=w;hs+=w*DY[i]});return hs/ws};   // a bridge in the air shapes no ground
+    const CUT=CIRC_W/2+BARRIER_OFF+1.5,CUTF=16;
+    const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;if(!nearTrack(x,z))return CIRC_Y;let ws=H0W,hs=H0W*CIRC_Y,bq=1e9,by=0;
+      nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,fw=1-SM(DL[i]/1.5),w=1/(q*q)*fw;ws+=w;hs+=w*DY[i];if(fw>.5&&q<bq){bq=q;by=DY[i]}});
+      const g=hs/ws;if(bq>=1e9)return g;const d=Math.sqrt(bq-1);if(d<=CUT)return by;if(d<CUT+CUTF){const k=SM((d-CUT)/CUTF);return by*(1-k)+g*k}return g};   // a bridge in the air shapes no ground   // a bridge in the air shapes no ground
     /* the road's surface: the ground on hills, except where a bridge lifts it, which follows its own planned line */
     const roadY=(u,x,z)=>{const lf=liftAt(u);if(!ELEV)return CIRC_Y+lf;const g=groundAt(x,z)+lf;if(lf<.01)return g;const k=SM(lf/1.5);return g*(1-k)+curve.getPointAt(((u%1)+1)%1).y*k};
     const hFn=ELEV?groundAt:null,hRoad=ELEV?(x,z,u)=>roadY(u,x,z):null,liftEff=(u,x,z)=>roadY(u,x,z)-(ELEV?groundAt(x,z):CIRC_Y);
@@ -6212,7 +6290,7 @@ const PLANETS={
        was the flat plane below it.) The physics slab / heightfield stays the collision body. */
     {
       const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=new Uint32Array((n2-1)*(n2-1)*6);let ii=0;
-      for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;pos[k+1]=(ELEV?(hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03+visH(x,z);pos[k+2]=z}
+      for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;{const dd=DF(x,z),sink=dd<CIRC_W/2+BARRIER_OFF+10?.35*(1-SM((dd-CIRC_W/2-BARRIER_OFF)/10)):0;pos[k+1]=(ELEV?(hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03-sink+visH(x,z)}pos[k+2]=z}
       for(let i=0;i<n2-1;i++)for(let j=0;j<n2-1;j++){const a=i*n2+j,b=(i+1)*n2+j;idx[ii++]=a;idx[ii++]=a+1;idx[ii++]=b;idx[ii++]=b;idx[ii++]=a+1;idx[ii++]=b+1}
       const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(new THREE.BufferAttribute(idx,1));decorate(tg);
       const terrainMesh=new THREE.Mesh(tg,terrainMat);terrainMesh.name='terrain';terrainMesh.receiveShadow=true;terrainMesh.userData.fixedY=terrainMesh.userData.onTrack=true;root.add(terrainMesh);
@@ -6220,7 +6298,7 @@ const PLANETS={
     BT('terrain');
     const gy=(x,z)=>CIRC_Y+visH(x,z);                 // where props sit: the visual ground (ELEV venues are lifted by the settle pass later)
     roadStrip.userData.onTrack=edgeStrip.userData.onTrack=true;
-    const runoff=circStrip(curve,CN,CIRC_W+4,.035,groundMat,rep,hRoad);runoff.receiveShadow=true;runoff.name='runoff';root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
+    const shoulderM=M(theme.id==='snow'?0x6a6e74:0x4a4c51,{roughness:.93});ownedMats.push(shoulderM);const runoff=circStrip(curve,CN,CIRC_W+4,.035,shoulderM,rep,hRoad);runoff.receiveShadow=true;runoff.name='runoff';root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
     const curbRed=M(kerbOf(theme),{roughness:.75}),curbWhite=M(0xf2f2f0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
     const curbGeo=new THREE.BoxGeometry(1.7,.18,Math.max(1.8,Math.min(4,curve.getLength()/CN)));
     const curbRedIM=new THREE.InstancedMesh(curbGeo,curbRed,CN*2),curbWhiteIM=new THREE.InstancedMesh(curbGeo,curbWhite,CN*2);
@@ -6803,7 +6881,7 @@ const PLANETS={
     if(ELEV)wallBodies.forEach(b=>{b.position.y+=groundAt(b.position.x,b.position.z)-CIRC_Y});
     passes();
     BT('passes');
-    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,pit:PIT,pitPts,inPit:(x,z)=>{if(!PIT)return false;for(let i=0;i<pitPts.length;i+=2){const q=pitPts[i];if(Math.abs(q.x-x)<PIT.half+1.5&&Math.abs(q.z-z)<PIT.half+1.5&&Math.hypot(q.x-x,q.z-z)<PIT.half+1)return true}return false},lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
+    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,pit:PIT,pitPts,TL,inPit:(x,z)=>{if(!PIT)return false;if(trackDist(x,z,CIRC_W)<CIRC_W/2+1)return false;for(let i=0;i<pitPts.length;i+=2){const q=pitPts[i];if(Math.abs(q.x-x)<PIT.half+1.5&&Math.abs(q.z-z)<PIT.half+1.5&&Math.hypot(q.x-x,q.z-z)<PIT.half+1)return true}return false},lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
     if(window.RaceEngine){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
     /* the rest streams in: a few milliseconds of jobs per frame, each batch run through the passes as it lands;
        when the queue is empty every prop set is cut into culled, distance-limited cells. Leaving (or rebuilding)
@@ -6883,7 +6961,7 @@ const PLANETS={
     C.far=1800;C.updateProjectionMatrix();                  // the venue's ground and mountains run out to the horizon
     if(circuit.hazeTo)circuit.hazeTo(S.fog.color);
     toastMsg('Venue · '+th.name+' · seed '+circuit.seed);updCircBtn()}
-  function leaveCircuit(){if(MODE!=='circuit')return;tyreEl.style.display='none';TYRE.grip=1;pitStop=null;
+  function leaveCircuit(){if(MODE!=='circuit')return;tyreEl.style.display='none';pitBan.style.display='none';pitBanTxt='';pitWasIn=false;TYRE.grip=1;pitStop=null;
     C.far=320;C.updateProjectionMatrix();
     MODE='world';
     if(window.RaceEngine)window.RaceEngine.stopRace();try{CAI.clear()}catch(e){}
@@ -7849,7 +7927,8 @@ updCircBtn();
         if(!P.gh||!P.gh.g.visible)return;                      // on another planet / in flight: not in earshot
         try{const T=AC.currentTime,pan=AC.createPanner();pan.panningModel='equalpower';pan.distanceModel='inverse';pan.refDistance=14;pan.maxDistance=900;pan.rolloffFactor=1.1;
           const g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2300;lp.Q.value=.9;
-          g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.09,T+.025);lp.connect(g);g.connect(pan);pan.connect(SND.fx);
+          g.gain.setValueAtTime(0,T);g.gain.linearRampToValueAtTime(.05,T+.025);lp.connect(g);g.connect(pan);pan.connect(SND.fx);
+          memeHorn(pan,hornPitch(P.id));
           const k=hornPitch(P.id),oscs=[405*k,508*k].map(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start(T);return o});
           P.horn={g,pan,oscs};placeHorn(P)}catch(e){P.horn=null}}
       else if(P.horn){const {g,oscs,pan}=P.horn;P.horn=null;try{g.gain.setTargetAtTime(0,AC.currentTime,.03);setTimeout(()=>{try{oscs.forEach(o=>o.stop());pan.disconnect();g.disconnect()}catch(e){}},220)}catch(e){}}}
