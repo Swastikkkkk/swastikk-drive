@@ -5847,7 +5847,8 @@ const PLANETS={
       if(Math.abs(C.fov-60)>.02){C.fov+=(60-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
     // the horizon ridge is a ring round the valley; from the summit, which sits outside it, it would be a wall across the view
     farRidge.visible=Math.hypot(car.position.x,car.position.z)<235;
-    {const hi=MODE==='world'&&CABLE.high(),cf=hi?3200:recapCam?700:TOUCH?460:320;if(C.far!==cf&&(C.far<=700||C.far===3200)){C.far=cf;C.updateProjectionMatrix()}}   // the lookout sees the whole map
+    {const hi=MODE==='world'&&CABLE.high(),base=hi?3200:recapCam?700:TOUCH?460:320,cf=Math.round(Math.max(base,S.fog?S.fog.far*1.08:0)/20)*20;if(C.far!==cf&&(C.far<=1600||C.far===3200)&&MODE!=='circuit'){C.far=cf;C.updateProjectionMatrix()}
+     if(MODE==='circuit'&&S.fog&&C.far<S.fog.far*1.08&&C.far<20000){C.far=Math.ceil(S.fog.far*1.1/100)*100;C.updateProjectionMatrix()}}   // the lookout sees the whole map
     const sunOff=recapCam?SUN_OFF_LOW:SUN_OFF_DEFAULT;
     {const d=shD.copy(sunOff).normalize(),r=shR.set(0,1,0).cross(d).normalize(),u=shU.copy(d).cross(r),tx=60/(sun.shadow.mapSize.x||1024),p=car.position;
      const a=Math.round((p.x*r.x+p.y*r.y+p.z*r.z)/tx)*tx,b=Math.round((p.x*u.x+p.y*u.y+p.z*u.z)/tx)*tx,c=p.x*d.x+p.y*d.y+p.z*d.z;
@@ -6111,7 +6112,8 @@ const PLANETS={
       root.remove(im)});
     return out}
   // hide venue cells beyond their draw distance (called every few frames from the circuit loop)
-  function lodTick(cells,cx,cz){for(let i=0;i<cells.length;i++){const c=cells[i],v=Math.hypot(c.x-cx,c.z-cz)-c.r<c.d;if(c.m.visible!==v)c.m.visible=v}}
+  function lodTick(cells,cx,cz){const f=S.fog,hid=f?f.near+(f.far-f.near)*.94:1e9;   // 94% fogged: the cell is already a faint smudge when it goes
+    for(let i=0;i<cells.length;i++){const c=cells[i],lim=LOW?Math.min(c.d,hid):c.d<400?Math.min(hid,720):hid,v=Math.hypot(c.x-cx,c.z-cz)-c.r<lim;if(c.m.visible!==v)c.m.visible=v}}
   function buildCircuit(pts2D,theme,seed,venue){let buildPits=null;const BT0=performance.now(),BTL=[];let BTp=BT0;const BT=l=>{const t=performance.now();BTL.push(l+' '+(t-BTp).toFixed(0));BTp=t};window.__buildT=BTL; // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
     clearCircuit();
     venue=Object.assign({weather:'day',time:'day'},venue||{});

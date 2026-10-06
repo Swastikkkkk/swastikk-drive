@@ -325,12 +325,12 @@
       var l = box(0.46, 0.07, 0.05, o.head, k * W * 0.66, 0.8, F - 0.07, body); l.rotation.y = -k * 0.12; l.castShadow = false;   // slim LED lamps
       box(0.42, 0.012, 0.055, o.head, k * W * 0.66, 0.75, F - 0.07, body).castShadow = false;
       box(0.3, 0.13, 0.05, darkM, k * W * 0.7, 0.42, F - 0.02, body);                             // corner intakes
-      var t = box(0.5, 0.06, 0.04, o.tail, k * W * 0.6, 0.86, B + 0.012, body); t.castShadow = false;
+      var t = box(0.5, 0.07, 0.04, o.tail, k * W * 0.58, 0.86, B + 0.07, body); t.castShadow = false;
       exhaust(k * W * 0.45, 0.3, B + 0.03, 0.04, body); exhaust(k * W * 0.6, 0.3, B + 0.03, 0.04, body);
       box(0.03, 0.025, 0.14, chromeM, k * (s.hw(0.4) * 0.96 + 0.01), s.top(0.4) - 0.12, 0.4, body);   // door handles
       box(0.03, 0.025, 0.14, chromeM, k * (s.hw(-0.6) * 0.96 + 0.01), s.top(-0.6) - 0.12, -0.6, body);
     });
-    box(W * 1.2, 0.012, 0.04, o.tail, 0, 0.86, B + 0.012, body).castShadow = false;                 // light bar across the boot
+    box(W * 1.2, 0.014, 0.04, o.tail, 0, 0.86, B + 0.07, body).castShadow = false;                 // light bar across the boot
     box(W * 1.6, 0.06, 0.12, darkM, 0, 0.3, F - 0.05, body);                                       // splitter
     box(W * 1.4, 0.08, 0.06, darkM, 0, 0.36, B + 0.04, body);                                      // diffuser
     box(W * 1.5, 0.02, 0.12, paint, 0, s.top(B + 0.1) + 0.01, B + 0.1, body, 0.15);                 // boot lip
@@ -351,7 +351,7 @@
     lightPair(W * 0.66, 0.8, F - 0.04, 0.42, 0.1, o.head, body);
     box(W * 0.8, 0.18, 0.04, darkM, 0, 0.64, F + 0.005, body);
     box(W * 1.4, 0.12, 0.04, darkM, 0, 0.36, F, body);                                           // splitter intake
-    roundLights(W * 0.74, 0.84, B + 0.01, 0.08, o.tail, body, true, 2);                         // the four round lamps
+    roundLights(W * 0.7, 0.84, B + 0.07, 0.085, o.tail, body, true, 2);                         // the four round lamps
     o.deck = 0.99; wing(o, B + 0.22, 1.22, W * 1.8, 0.28, paint, body, true);
     exhaust(-W * 0.55, 0.3, B + 0.04, 0.05, body);
     mirrorPair(s.hw(o.zf - 0.55) * 0.92, 1.08, o.zf - 0.55, paint, body);
