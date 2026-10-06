@@ -72,6 +72,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      V:{engine:900,max:25,slip:3.5,xw:1.4,zf:2.0,zb:-2.0,r:.6,rest:.6,steer:.35,roll:.04},
      paints:[0x8b4513,0x2d4a22,0x1a1a2e,0xd4a843]},
   ];
+  /* ---------- your own car (Garage > Make your own) ----------
+     From a photo: the photo's paint colour and the shape of the car in it pick the closest body in the garage, painted to
+     match and tuned a little hotter. From a 3D model (.glb / .gltf with embedded data / .obj): the model is scaled and
+     turned to sit on the same physics rig, and drives with the Outlaw's running gear. Kept in this browser. */
+  const ALIAS={},CUSTOM={spec:null,model:null,flip:false};
+  try{const c=JSON.parse(localStorage.getItem('sl_custom')||'null');
+    if(c&&c.base){const b=GARAGE.find(g=>g.id===c.base)||GARAGE[0],V2=Object.assign({},b.V,{engine:Math.round(b.V.engine*1.1),max:+(b.V.max*1.05).toFixed(1)});
+      const spec=Object.assign({},b,{id:'custom',label:(c.name||'My car').slice(0,18),blurb:c.kind==='model'?'Your 3D model':'Built from your photo',price:0,V:V2,
+        paints:[c.paint!=null?c.paint:b.paints[0]].concat(b.paints.filter(x=>x!==c.paint)).slice(0,5),buildAs:b.id,kind:c.kind,ownWheels:c.kind==='model'});
+      if(c.kind==='model'){spec.type='car';spec.F=c.F||2.45;spec.B=c.B||-2.45}
+      ALIAS.custom=b.id;CUSTOM.spec=spec;CUSTOM.flip=!!c.flip;GARAGE.push(spec)}}catch(e){}
   /* every car free for now: flip to false to bring prices back (nothing is saved, so nobody keeps them) */
   const FREE_CARS=true;
   if(FREE_CARS)GARAGE.forEach(c=>unlocked.add(c.id));
@@ -2339,7 +2350,7 @@ t.bd.position.set(x,y+.86,z);
      BRAKE_DECEL is the service-brake deceleration in m/s^2, about 1.2 g: 100 to 0 in roughly 32 m. */
   const LAT_G={outlaw:1.42,f1apex:2.3,valkyrie:1.9,gt40:1.75,phantombike:1.35,truck:.85,titan4x4:1.0,ridgeback:1.15,classicmini:1.3,
     countach:1.55,skyline:1.55,rx7spirit:1.6,mamba:1.5,kestrel:1.5,phantom:1.55,voltgt:1.5,aster:1.4};
-  const latG=id=>LAT_G[id]||1.45,BRAKE_DECEL=12;
+  const latG=id=>LAT_G[id]||LAT_G[ALIAS[id]]||1.45,BRAKE_DECEL=12;
   /* Careful with applyForce in this build of cannon: the second argument is a point in
      WORLD space, not an offset from the centre of mass, whatever the docs say. Passing
      a small offset silently applies the force way out near the world origin instead, and
@@ -2646,7 +2657,13 @@ t.bd.position.set(x,y+.86,z);
   const GARAGE_BASE_LEN=2.42-(-2.36);
   function garageOf(id){return GARAGE.find(g=>g.id===id)||GARAGE[0]}
   /* the body mesh for one garage entry; shared by the car you drive and the garage preview */
+  function customModelBody(o){const g=new THREE.Group(),body=new THREE.Group();g.add(body);
+    const m=CUSTOM.model.clone(true);if(CUSTOM.flip)m.rotation.y+=Math.PI;const w=new THREE.Group();w.add(m);
+    m.traverse(x=>{if(x.isMesh){x.castShadow=true;x.receiveShadow=true;x.geometry=x.geometry.clone();x.material=Array.isArray(x.material)?x.material.map(q=>q.clone()):x.material.clone()}});body.add(w);
+    const lm=c=>new THREE.MeshLambertMaterial({color:c});
+    return {g,body,wheels:[],tail:lm(0xff3b30),paint:new THREE.MeshPhongMaterial({color:o.paint||0x777777}),rev:lm(0xdedede)}}
   function makeBody(spec,o){
+    if(spec.id==='custom'){if(spec.kind==='model'&&CUSTOM.model)return customModelBody(o);spec=Object.assign({},spec,{id:spec.buildAs||'outlaw'})}
     // lofted bodies (assets/vehicles.js) for every model it knows; the EVs and the F1 keep their own builders
     if (window.VehicleKit && window.VehicleKit.has(spec.id)) {
       return window.VehicleKit.build(spec.id, o);
@@ -2693,6 +2710,7 @@ t.bd.position.set(x,y+.86,z);
     const nW=spec.type==='bike'?2:spec.type==='truck'?6:4,wheelWd=wheelWdOf(spec);
     wv={car:Array.from({length:nW},(_,i)=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
     wv.car.forEach(k=>vis.car.add(k.w));
+    if(spec.ownWheels&&CUSTOM.model)wv.car.forEach(k=>{k.w.visible=false;k.w.traverse(x=>x.visible=false)});
     carLook();
     if(carShadow){carShadow.position.y=.05-(V.rest-.07)-.02;carShadow.scale.z=(spec.F-spec.B)/GARAGE_BASE_LEN}
     try{localStorage.setItem('sl_car',JSON.stringify({id:spec.id,paint:paintHex}))}catch(e){}
@@ -2714,7 +2732,7 @@ t.bd.position.set(x,y+.86,z);
     voltgt: {ev:1,lo:170,hi:1250,w:['sine','sine','triangle'],mix:[.55,.15,.12],h:4.1,filt:[900,3400,1.4],lfo:[6,1],vol:.13},
     phantom:{ev:1,lo:85, hi:620, w:['triangle','sine','sine'],mix:[.7,.45,.06], h:2.5,filt:[500,1800,.9],lfo:[3,2],vol:.17},
   };
-  function engineVoice(S,id,T){
+  function engineVoice(S,id,T){id=ALIAS[id]||id;
     const ice=window.EngineAudio&&EngineAudio.CARS[id];
     if(ice){if(S.prof!==id){S.prof=id;S.gear=0;S.rpm=ice.idle;S.shiftT=0;S.cutT=0;if(S.eng)S.eng.setCar(id)}return ice}
     const e=ENGINES[id]||ENGINES.aster;if(S.prof===id)return e;S.prof=id;
@@ -3032,6 +3050,63 @@ t.bd.position.set(x,y+.86,z);
      addEventListener('pointerdown',e=>{if(!wx.classList.contains('on'))return;if(!wx.contains(e.target)&&e.target!==wb)setOpen(false)});
      $$('#dwxl button').forEach(b=>b.classList.toggle('on',b.dataset.w==='auto'))
    }}
+  /* ---------- Make your own car: the dialog and the two converters ---------- */
+  const CDB=()=>new Promise((ok,no)=>{const r=indexedDB.open('sl_custom',1);r.onupgradeneeded=()=>r.result.createObjectStore('f');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+  const cdbPut=v=>CDB().then(db=>new Promise((ok,no)=>{const t=db.transaction('f','readwrite');t.objectStore('f').put(v,'model');t.oncomplete=ok;t.onerror=()=>no(t.error)}));
+  const cdbGet=()=>CDB().then(db=>new Promise(ok=>{const q=db.transaction('f').objectStore('f').get('model');q.onsuccess=()=>ok(q.result||null);q.onerror=()=>ok(null)}));
+  /* parse + fit: longest ground axis becomes the car's length, scaled to 4.9 m, centred, wheels on the ground */
+  function parseModel(rec){return new Promise((ok,no)=>{try{
+      const done=root=>{const box=new THREE.Box3().setFromObject(root),sz=box.getSize(new THREE.Vector3());if(!isFinite(sz.x)||sz.length()<1e-6)return no(new Error('empty model'));
+        const holder=new THREE.Group();holder.add(root);if(sz.x>sz.z)root.rotation.y=Math.PI/2;holder.updateMatrixWorld(true);
+        const b2=new THREE.Box3().setFromObject(holder),s2=b2.getSize(new THREE.Vector3()),k=4.9/Math.max(s2.z,1e-6);
+        holder.scale.setScalar(k);holder.updateMatrixWorld(true);const b3=new THREE.Box3().setFromObject(holder),c3=b3.getCenter(new THREE.Vector3());
+        holder.position.set(-c3.x,-b3.min.y+.02,-c3.z);const out=new THREE.Group();out.add(holder);out.userData.len=s2.z*k;ok(out)};
+      if(rec.ext==='obj'){const t=new TextDecoder().decode(rec.buf),o=new THREE.OBJLoader().parse(t);o.traverse(x=>{if(x.isMesh&&(!x.material||x.material.type==='MeshPhongMaterial'&&!x.material.map))x.material=new THREE.MeshStandardMaterial({color:0x9aa0a8,metalness:.3,roughness:.5})});done(o)}
+      else new THREE.GLTFLoader().parse(rec.buf,'',g=>done(g.scene),e=>no(e||new Error('could not read the model')))}catch(e){no(e)}})}
+  if(CUSTOM.spec&&CUSTOM.spec.kind==='model')cdbGet().then(rec=>rec?parseModel(rec):null).then(m=>{if(!m)return;CUSTOM.model=m;
+      if(curCarId==='custom'){try{const s=JSON.parse(localStorage.getItem('sl_car')||'null');setCar('custom',s&&s.paint,true)}catch(e){setCar('custom',null,true)}}
+      if(window.__garageRefresh)window.__garageRefresh()}).catch(()=>{});
+  /* photo: background from the border, the car is what differs from it; shape -> body, body-panel colour -> paint */
+  function analysePhoto(img){const M=220,k=Math.min(1,M/Math.max(img.width,img.height)),w=Math.max(8,Math.round(img.width*k)),h=Math.max(8,Math.round(img.height*k));
+    const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.drawImage(img,0,0,w,h);const d=x.getImageData(0,0,w,h).data;
+    let br=0,bg=0,bb=0,bn=0;const px=(i,j)=>(j*w+i)*4;
+    for(let i=0;i<w;i++)for(const j of [0,1,h-2,h-1]){const q=px(i,j);br+=d[q];bg+=d[q+1];bb+=d[q+2];bn++}
+    for(let j=0;j<h;j++)for(const i of [0,1,w-2,w-1]){const q=px(i,j);br+=d[q];bg+=d[q+1];bb+=d[q+2];bn++}
+    br/=bn;bg/=bn;bb/=bn;const mask=new Uint8Array(w*h);
+    for(let j=0;j<h;j++)for(let i=0;i<w;i++){const q=px(i,j);if(Math.hypot(d[q]-br,d[q+1]-bg,d[q+2]-bb)>55)mask[j*w+i]=1}
+    const rowOn=j=>{let n=0;for(let i=0;i<w;i++)n+=mask[j*w+i];return n>w*.04},colOn=i=>{let n=0;for(let j=0;j<h;j++)n+=mask[j*w+i];return n>h*.04};
+    let x0=0,x1=w-1,y0=0,y1=h-1;while(x0<x1&&!colOn(x0))x0++;while(x1>x0&&!colOn(x1))x1--;while(y0<y1&&!rowOn(y0))y0++;while(y1>y0&&!rowOn(y1))y1--;
+    if(x1-x0<w*.15||y1-y0<h*.1){x0=0;x1=w-1;y0=0;y1=h-1}
+    const aspect=(y1-y0+1)/(x1-x0+1);
+    // paint: the commonest saturated colour in the body band (below the glass, above the wheels)
+    const bins=new Map();const ya=Math.round(y0+(y1-y0)*.3),yb=Math.round(y0+(y1-y0)*.68);
+    for(let j=ya;j<=yb;j++)for(let i=x0;i<=x1;i++){if(!mask[j*w+i])continue;const q=px(i,j),r=d[q],g=d[q+1],b=d[q+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b),sat=mx?(mx-mn)/mx:0,lum=(r+g+b)/3;
+      const key=(r>>5)<<6|(g>>5)<<3|(b>>5),wgt=.25+sat*2+(lum>40&&lum<235?.5:0);let e=bins.get(key);if(!e)bins.set(key,e={w:0,r:0,g:0,b:0});e.w+=wgt;e.r+=r*wgt;e.g+=g*wgt;e.b+=b*wgt}
+    let best=null;bins.forEach(e=>{if(!best||e.w>best.w)best=e});
+    const paint=best?((Math.round(best.r/best.w)<<16)|(Math.round(best.g/best.w)<<8)|Math.round(best.b/best.w)):0x7a0d12;
+    const base=aspect>.5?'titan4x4':aspect>.42?'mamba':aspect>.34?'outlaw':aspect>.27?'skyline':'valkyrie';
+    return {base,paint,aspect:+aspect.toFixed(2)}}
+  function openMaker(){let el=$('#dmaker');if(!el){el=document.createElement('div');el.id='dmaker';
+      el.innerHTML='<div class="mk-in"><div class="mk-hd"><h3>Make your own car</h3><button class="dbtn mono mk-x" type="button">Close</button></div>'+
+        '<label class="mono mk-l">Name</label><input id="dmkname" maxlength="18" placeholder="My car" autocomplete="off">'+
+        '<div class="mk-row"><button class="dbtn mono" id="dmkphoto" type="button">From a photo</button><button class="dbtn mono" id="dmkmodel" type="button">From a 3D model</button></div>'+
+        '<div class="mono mk-note" id="dmknote">Photo: a side or 3/4 shot of a car on a plain background works best. We match its colour and shape to the closest body and tune it.<br>3D model: .glb, .gltf (embedded) or .obj, up to 25 MB.</div>'+
+        (CUSTOM.spec?'<div class="mk-row"><button class="dbtn mono" id="dmkflip" type="button">Turn model round</button><button class="dbtn mono" id="dmkdel" type="button">Delete my car</button></div>':'')+
+        '<input type="file" id="dmkfp" accept="image/*" hidden><input type="file" id="dmkfm" accept=".glb,.gltf,.obj,model/gltf-binary,model/gltf+json" hidden></div>';
+      const st=document.createElement('style');st.textContent='#dmaker{position:absolute;inset:0;z-index:40;display:grid;place-items:center;background:rgba(6,7,9,.72);backdrop-filter:blur(8px);padding:20px}#dmaker .mk-in{width:min(460px,100%);background:linear-gradient(180deg,rgba(26,27,32,.96),rgba(13,14,17,.98));border:1px solid rgba(238,240,243,.12);border-radius:22px;padding:22px;color:#eef0f3}#dmaker .mk-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}#dmaker h3{margin:0;font-size:22px}#dmaker .mk-l{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#828a98}#dmaker input#dmkname{width:100%;box-sizing:border-box;margin:6px 0 14px;padding:10px 12px;border-radius:12px;border:1px solid rgba(238,240,243,.16);background:rgba(238,240,243,.06);color:inherit;font:inherit}#dmaker .mk-row{display:flex;gap:8px;margin:8px 0}#dmaker .mk-row .dbtn{flex:1;padding:12px}#dmaker .mk-note{font-size:12px;line-height:1.5;color:#9aa1ad;margin-top:6px}';
+      document.head.appendChild(st);(document.getElementById('drive')||document.body).appendChild(el);
+      const note=$('#dmknote'),nm=()=>($('#dmkname').value||'').trim()||'My car',save=c=>{localStorage.setItem('sl_custom',JSON.stringify(c));localStorage.setItem('sl_car',JSON.stringify({id:'custom',paint:c.paint}));note.textContent='Done. Loading your car...';setTimeout(()=>location.reload(),500)};
+      el.querySelector('.mk-x').onclick=()=>el.remove();el.addEventListener('pointerdown',e=>{if(e.target===el)el.remove()});
+      $('#dmkphoto').onclick=()=>$('#dmkfp').click();$('#dmkmodel').onclick=()=>$('#dmkfm').click();
+      $('#dmkfp').onchange=e=>{const f=e.target.files[0];if(!f)return;note.textContent='Reading the photo...';const u=URL.createObjectURL(f),im=new Image();
+        im.onload=()=>{try{const r=analysePhoto(im);URL.revokeObjectURL(u);save({kind:'photo',name:nm(),base:r.base,paint:r.paint})}catch(err){note.textContent='Could not read that photo.'}};im.onerror=()=>{note.textContent='That file is not an image.'};im.src=u};
+      $('#dmkfm').onchange=e=>{const f=e.target.files[0];if(!f)return;if(f.size>25e6){note.textContent='That model is over 25 MB.';return}
+        const ext=(f.name.split('.').pop()||'').toLowerCase();note.textContent='Loading the model...';
+        f.arrayBuffer().then(buf=>parseModel({buf,ext}).then(m=>{const L=m.userData.len||4.9;return cdbPut({buf,ext}).then(()=>save({kind:'model',name:nm(),base:'outlaw',paint:0x777777,F:+(L/2).toFixed(2),B:+(-L/2).toFixed(2)}))}))
+          .catch(err=>{note.textContent='Could not load that model'+(ext==='gltf'?' (a .gltf needs its textures embedded, or use .glb)':'')+'.'})};
+      const fl=$('#dmkflip');if(fl)fl.onclick=()=>{const c=JSON.parse(localStorage.getItem('sl_custom')||'{}');c.flip=!c.flip;save(c)};
+      const dl=$('#dmkdel');if(dl)dl.onclick=()=>{localStorage.removeItem('sl_custom');localStorage.removeItem('sl_car');CDB().then(db=>{db.transaction('f','readwrite').objectStore('f').delete('model')}).catch(()=>{});note.textContent='Deleted.';setTimeout(()=>location.reload(),400)}}}
+  window.openCarMaker=openMaker;
   /* ---------- garage ----------
      A carousel: one car at a time with its name on top, a 3D model you can drag round 360°
      in the middle and its stats below. Swipe or use the arrows to move between cars, then
@@ -3040,6 +3115,7 @@ t.bd.position.set(x,y+.86,z);
   {const gb=$('#dgarageb'),gp=$('#dgarage'),gx=$('#dgaragex'),gpaints=$('#dgpaints'),gname=$('#dgname'),gblurb=$('#dgblurb'),gcoins=$('#dgcoins'),
      gview=$('#dgview'),gcv=$('#dgcanvas'),gcname=$('#dgcname'),gcclass=$('#dgcclass'),gcount=$('#dgcount'),gdots=$('#dgdots'),gstats=$('#dgstats'),gpick=$('#dgpick');
    if(gb&&gp&&gview){
+     if(gpick&&!$('#dgmake')){const mb=document.createElement('button');mb.id='dgmake';mb.className='dbtn mono';mb.textContent=CUSTOM.spec?'Edit my car':'Make your own car';mb.style.cssText='width:100%;margin-top:8px;padding:11px;font-size:12px';mb.onclick=e=>{e.stopPropagation();openMaker()};gpick.insertAdjacentElement('afterend',mb)}
      let curPaint=GARAGE[0].paints[0],hadSave=false;
      try{const s=JSON.parse(localStorage.getItem('sl_car')||'null');
        if(s&&garageOf(s.id)){hadSave=true;curPaint=s.paint!=null?s.paint:garageOf(s.id).paints[0];setCar(s.id,curPaint,true)}}catch(e){}
@@ -3072,6 +3148,7 @@ t.bd.position.set(x,y+.86,z);
        return true};
      const dropModel=()=>{if(!rig)return;PS.remove(rig);rig=null;
        ownMats.forEach(m=>m.dispose());ownGeos.forEach(g=>g.dispose());ownMats.length=0;ownGeos.length=0};
+     window.__garageRefresh=()=>{try{if(PR&&GARAGE[idx]&&GARAGE[idx].id==='custom')buildModel()}catch(e){}};
      const buildModel=()=>{if(!PR)return;dropModel();
        const spec=GARAGE[idx],v=spec.V,isBike=spec.type==='bike',isTruck=spec.type==='truck';
        rig=new THREE.Group();
@@ -3079,7 +3156,7 @@ t.bd.position.set(x,y+.86,z);
        const body=makeBody(spec,{paint:viewPaint,r:v.r,zf:v.zf,zb:v.zb,F:spec.F,B:spec.B,W:spec.W,xw:v.xw,head:headM,tail:tailM});
        rig.add(body.g);
        const n=isBike?2:isTruck?6:4,wd=wheelWdOf(spec);
-       for(let i=0;i<n;i++){const k=makeWheel(v.r,wd,i%2?-1:1,true,true);
+       for(let i=0;i<(spec.ownWheels&&CUSTOM.model?0:n);i++){const k=makeWheel(v.r,wd,i%2?-1:1,true,true);
          const front=isBike?i===0:i<2,z=isBike?(i===0?v.zf:v.zb):i<4?(i<2?v.zf:v.zb):v.zb+v.r*2.3;
          k.w.position.set(isBike?0:(i%2?-1:1)*v.xw*.9,v.r,z);if(front)k.w.rotation.y=.28;rig.add(k.w)}
        const seen=new Map();
