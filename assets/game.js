@@ -1027,7 +1027,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const floorB=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});floorB.addShape(new CANNON.Box(new CANNON.Vec3(CW/2,.12,CL/2)));floorB.quaternion.set(qY.x,qY.y,qY.z,qY.w);world.addBody(floorB);
     // state: s along the rope (0 base, 1 top); 'dock0'/'dock1' waiting, 'up'/'down' moving; ride: carrying the car
     // armed: you have driven out of the bay since the last ride, so arriving never sends you straight back
-    let s=0,st='dock0',ride=null,wait=0,count=0,speedK=1,panT=0,vel=0,armed=true;const tmpV=new THREE.Vector3(),camA={a:0};
+    let s=0,st='dock0',ride=null,wait=0,count=0,speedK=1,panT=0,vel=0,armed=true;const tmpV=new THREE.Vector3(),tmpL=new THREE.Vector3(),camA={a:0,look:null};
     const floorAt=u=>{curve.getPointAt(Math.max(0,Math.min(1,u)),tmpV);return {x:tmpV.x,y:tmpV.y-HANG,z:tmpV.z}};
     function place(){const f=floorAt(s);cab.position.set(f.x,f.y,f.z);const vy=(floorB.position.y?f.y-floorB.position.y:0);floorB.position.set(f.x,f.y-.12,f.z)}
     place();
@@ -1036,7 +1036,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function tick(dt){
       if(MODE!=='world'||SPACE.state!=='earth')return;const c=chassisB.position,v=chassisB.velocity,sp=Math.hypot(v.x,v.z);
       const atDock=st==='dock0'?0:st==='dock1'?1:-1;
-      if(st==='up'||st==='down'){const dir=st==='up'?1:-1,vmax=12*speedK,acc=1.6;
+      if(st==='up'||st==='down'){const dir=st==='up'?1:-1,vmax=19*speedK,acc=2.2;
         // pull away gently, cruise, and brake so it stops exactly at the station
         const left=(dir>0?1-s:s)*LEN;vel=Math.min(vmax,vel+acc*dt,Math.sqrt(2*acc*Math.max(0,left))+.25);s=Math.max(0,Math.min(1,s+dir*vel*dt/LEN));place();
         if(ride){const f=floorAt(s);chassisB.position.set(f.x+DIR.x*ride.a+SIDE.x*ride.b,f.y+ride.h,f.z+DIR.z*ride.a+SIDE.z*ride.b);chassisB.quaternion.copy(ride.q);
@@ -1056,10 +1056,18 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         if(other&&inBay(other,other.y)&&sp<1.2){ride=null;speedK=1.7;st=atDock===0?'up':'down';toastMsg('Calling the cable car…')}}}
     // the ride camera: a slow circle round the cabin; after arriving at the top, a sweep across the valley
     function cam(camT,lookT,dt,C){
-      if(ride){camA.a+=dt*.09;const f=floorAt(s),r=24;camT.set(f.x+Math.cos(camA.a)*r,f.y+6,f.z+Math.sin(camA.a)*r);lookT.set(f.x,f.y+1.6,f.z);return true}
+      if(ride){/* behind the cabin and out on the open (valley) side, swinging slowly; always well above the rock, and the
+          look point leans past the cabin toward the valley so the view opens up as it climbs */
+        camA.a+=dt*.16;const f=floorAt(s),sw=Math.sin(camA.a)*.55,vx=-TOP.x,vz=-TOP.z,vl=Math.hypot(vx,vz)||1,ox=vx/vl,oz=vz/vl;
+        // ahead of the cabin and above it, looking back over it to the valley it is leaving behind
+        let px=f.x+DIR.x*24+SIDE.x*sw*16,pz=f.z+DIR.z*24+SIDE.z*sw*16,py=f.y+10+Math.cos(camA.a*.7)*2;
+        let gmax=-1e9;for(let k=0;k<=4;k++){const t=k/4,qx=f.x+(px-f.x)*t,qz=f.z+(pz-f.z)*t;gmax=Math.max(gmax,HF.h(qx,qz))}py=Math.max(py,gmax+8);
+        camT.set(px,py,pz);const lx=f.x-DIR.x*(30+90*s),ly=f.y-4-40*s,lz=f.z-DIR.z*(30+90*s);
+        if(!camA.look)camA.look=new THREE.Vector3(lx,ly,lz);camA.look.lerp(tmpL.set(lx,ly,lz),1-Math.exp(-dt*2.5));lookT.copy(camA.look);return true}
+      camA.look=null;
       if(panT>0){if(key.f||key.b||key.l||key.r){panT=0;return false}panT-=dt;const t=1-panT/16,toC=Math.atan2(-TOP.x,-TOP.z),a=toC+Math.sin(t*Math.PI*1.6)*1.1;
         // high over the middle of the deck (clear of the station), rising as it turns across the valley toward the sea
-        camT.set(TOP.x+Math.sin(toC)*6,topY+14+t*12,TOP.z+Math.cos(toC)*6);lookT.set(camT.x+Math.sin(a)*420,topY-150+t*40,camT.z+Math.cos(a)*420);return true}
+        camT.set(TOP.x+Math.sin(toC)*(DECK/2+8),topY+16+t*12,TOP.z+Math.cos(toC)*(DECK/2+8));lookT.set(camT.x+Math.sin(a)*420,topY-150+t*40,camT.z+Math.cos(a)*420);return true}
       return false}
     const c0=()=>chassisB.position;
     // high up: the riding cabin, or anywhere on the top deck
@@ -1220,6 +1228,40 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     for(let i=0;i<14;i++){const px=40+Math.random()*176,py=52+Math.random()*36,r=20+Math.random()*28,g=x.createRadialGradient(px,py,2,px,py,r);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,256,128)}
     CLOUDM.map=new THREE.CanvasTexture(c);
     for(let i=0;i<(LOW?8:16);i++){const s=new THREE.Sprite(CLOUDM),sc=50+Math.random()*50;s.scale.set(sc,sc*.45,1);s.position.set((Math.random()-.5)*400,90+Math.random()*25,(Math.random()-.5)*300);CLOUD.add(s)}}
+  /* --- the view from the peak: low cloud banks on the mountain flanks, three little villages whose windows light up at
+     night, and birds wheeling round the summit --- */
+  const VIEW=(function(){
+    const T=CABLE_TOP,top=T.h;
+    // cloud banks: sprites hanging below the summit along the western wall, drifting slowly
+    const banks=new THREE.Group();S.add(banks);const CB=[];
+    for(let i=0;i<(LOW?6:10);i++){const sp=new THREE.Sprite(CLOUDM.clone());sp.material.opacity=.3+Math.random()*.15;const sc=120+Math.random()*90;sp.scale.set(sc,sc*.25,1);
+      const a=(Math.random()-.5)*2.6,d=80+Math.random()*200,x=T.x+Math.cos(a)*d*.3+d*.25,z=T.z+Math.sin(a)*d;
+      sp.position.set(x,Math.max(HF.h(x,z)+14,top-120-Math.random()*60),z);banks.add(sp);CB.push({sp,ph:Math.random()*6.28,x0:x})}
+    // villages: houses on open, gentle ground away from the roads and the parks
+    const winM=new THREE.MeshLambertMaterial({color:0x3a3022,emissive:0xffc46b,emissiveIntensity:0}),wallM=M(0xffffff),roofM=M(0xffffff);
+    const HN=LOW?60:120,walls=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),wallM,HN),roofs=new THREE.InstancedMesh(new THREE.ConeGeometry(.78,1,4).rotateY(Math.PI/4),roofM,HN),wins=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),winM,HN);
+    [walls,roofs,wins].forEach(m=>{m.castShadow=!LOW;m.receiveShadow=true;S.add(m)});
+    const WC=[0xe9e2d2,0xd8c7a8,0xf1ece3,0xc9b59a,0xe6d6c0],RC=[0x9a3b2c,0x6b3a2a,0x3d4c5c,0x7a4630,0x504a44];
+    const mx=new THREE.Matrix4(),q=new THREE.Quaternion(),pv=new THREE.Vector3(),sv=new THREE.Vector3(),col=new THREE.Color();let n=0;
+    const ok=(x,z)=>{if(Math.abs(x)>WS*.86||Math.abs(z)>WS*.86)return false;if(zoneHit(x,z,25))return false;if(Math.hypot(x-POND.x,z-POND.z)<POND.r+20||Math.hypot(x-PG.x,z-PG.z)<PGR+10)return false;
+      if(roadNear(x,z).d<20)return false;const h=HF.h(x,z);return Math.abs(HF.h(x+4,z)-h)<1.4&&Math.abs(HF.h(x,z+4)-h)<1.4};
+    let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
+    for(let v=0;v<40&&n<HN;v++){const cx=(rnd()-.5)*WS*1.5,cz=(rnd()-.5)*WS*1.5;if(!ok(cx,cz))continue;
+      const k=8+Math.floor(rnd()*10),ry=rnd()*6.28;for(let i=0;i<k*3&&n<HN;i++){const a=rnd()*6.28,d=6+rnd()*34,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d;if(!ok(x,z))continue;
+        const w=4+rnd()*3,l=5+rnd()*4,h=3+rnd()*2.6,y=HF.h(x,z),yaw=ry+Math.round(rnd()*3)*Math.PI/2;q.setFromAxisAngle(new THREE.Vector3(0,1,0),yaw);
+        pv.set(x,y+h/2-.1,z);sv.set(w,h,l);mx.compose(pv,q,sv);walls.setMatrixAt(n,mx);walls.setColorAt(n,col.setHex(WC[n%WC.length]));
+        pv.set(x,y+h+1.1,z);sv.set(w*1.1,2.2,l*1.1);mx.compose(pv,q,sv);roofs.setMatrixAt(n,mx);roofs.setColorAt(n,col.setHex(RC[(n*3)%RC.length]));
+        pv.set(x,y+h*.55,z);sv.set(w+.06,.5,l*.6);mx.compose(pv,q,sv);wins.setMatrixAt(n,mx);n++}
+    }
+    [walls,roofs,wins].forEach(m=>{m.count=n;m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true});
+    // birds: a few dark chevrons circling the summit
+    const birdG=new THREE.BufferGeometry();birdG.setAttribute('position',new THREE.Float32BufferAttribute([-1.2,.25,0, 0,0,.3, 0,0,-.3, 1.2,.25,0, 0,0,.3, 0,0,-.3],3));
+    const birdM=new THREE.MeshBasicMaterial({color:0x1b1b1e,side:THREE.DoubleSide}),BIRDS=[];
+    for(let i=0;i<7;i++){const b=new THREE.Mesh(birdG,birdM);S.add(b);BIRDS.push({b,a:i*.9,r:40+i*9,h:top+18+i*3,sp:.18+i*.02,f:Math.random()*6})}
+    function tick(dt,t,night){CB.forEach(c=>{c.sp.position.x=c.x0+Math.sin(t*.02+c.ph)*25});
+      winM.emissiveIntensity+=((night?1.4:0)-winM.emissiveIntensity)*Math.min(1,dt*2);
+      BIRDS.forEach(k=>{k.a+=k.sp*dt;k.b.position.set(T.x+Math.cos(k.a)*k.r,k.h+Math.sin(k.a*3)*2,T.z+Math.sin(k.a)*k.r);k.b.rotation.y=-k.a;k.b.scale.y=1+Math.sin(t*8+k.f)*.6})}
+    return {tick,houses:()=>n}})();
   /* --- more chaos: a ring of fire over the gap, boulders off the volcano, a shark, fireworks, a speed trap --- */
   const FIRE=(function(){const q=VZ.stunt,gy=HF.h(q.x,q.z),R=3.2,[x,z]=SP(-2,0),g=new THREE.Group();g.position.set(x,gy+6+R+.06,z);g.rotation.y=SAX.ry;S.add(g);
     g.add(new THREE.Mesh(new THREE.TorusGeometry(R,.3,10,48),new THREE.MeshBasicMaterial({color:0xff7a22})));
@@ -1250,8 +1292,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       TRAP.c=Math.max(0,TRAP.c-dt);if(TRAP.c<=0&&Math.hypot(cp.x-TRAP.x,cp.z-TRAP.z)<7){TRAP.c=4;const kmh=Math.round(Math.hypot(v.x,v.z)*3.6);const nb=kmh>TRAP.best;if(nb)TRAP.best=kmh;toastMsg('Speed trap · '+kmh+' km/h'+(nb?' · new best':' · best '+TRAP.best));blip(nb?900:600,.15,.08)}}}
   let offD=0,smokeT=0;
   function WORLDFX(dt,now){const t=now/1000;SWAY.value=t;
-    CLOUD.position.set(C.position.x,0,C.position.z);CLOUD.children.forEach(s=>{s.position.x+=dt*2.2;if(s.position.x>200)s.position.x=-200});
+    CLOUD.position.set(C.position.x,Math.max(0,C.position.y-70),C.position.z);CLOUD.children.forEach(s=>{s.position.x+=dt*2.2;if(s.position.x>200)s.position.x=-200});
     TURB.forEach(T=>T.rot.rotation.z-=dt*T.sp);
+    try{VIEW.tick(dt,performance.now()/1000,nightOn||(wx&&wx.star>.5))}catch(e){}
     BAL.forEach((B,i)=>{B.a+=dt*B.sp;B.g.position.set(B.cx+Math.cos(B.a)*B.r,B.h+Math.sin(t*.35+i)*2.2,B.cz+Math.sin(B.a)*B.r)});
     VOLC.t+=dt;VOLC.lavaM.color.setHSL(.045,1,.5+.07*Math.sin(VOLC.t*2.1));
     smokeT-=dt;if(smokeT<=0&&Math.hypot(C.position.x-VOLC.x,C.position.z-VOLC.z)<340){smokeT=.35;SMOKE.emit(VOLC.x+(Math.random()-.5)*6,VOLC.fy+4,VOLC.z+(Math.random()-.5)*6,Math.random()<.5?0x2f2c2a:0x46423e,{life:9,vy:4+Math.random()*2,vx:1.6,vz:.4,s0:7,s1:30,a:.6})}
