@@ -6168,7 +6168,7 @@ const PLANETS={
      const arc=(u,v)=>{let d=Math.abs(u-v);return Math.min(d,1-d)*BL};
      const nearStart=u=>Math.min(u,1-u)*BL<60;
      found.forEach(f=>{if(f.sin<.22)return;   // nearly parallel overlap: a bridge would be absurdly long
-       const flat=(CIRC_W/2+BARRIER_OFF+3)/f.sin+CIRC_W/2+4,ramp=Math.max(42,BH*7);
+       const flat=(CIRC_W/2+BARRIER_OFF+3)/f.sin+CIRC_W/2+4,ramp=Math.max(48,BH*9);
        // lift the pass whose ramps don't reach another crossing where it has to stay low, and never the start straight
        const ok=u=>!nearStart(u)&&arc(u,0)>flat+ramp&&!found.some(g=>g!==f&&(arc(u,g.ua)<flat+ramp||arc(u,g.ub)<flat+ramp));
        // on a hilly venue the two passes can already be metres apart: lift the higher one, by enough to clear the other
@@ -6176,7 +6176,7 @@ const PLANETS={
        const u=ok(hi)?hi:ok(lo2)?lo2:null;if(u==null){f.skip=1;return}
        const yU=u===f.ub?yb:ya,yL=u===f.ub?ya:yb,h=Math.max(2,yL+BH-yU);if(h>24)return;f.ok=1;   // already high above it: a short lift, just enough to make it a proper deck
        if(BRIDGES.some(B=>arc(B.u,u)<B.flat+B.ramp+flat+ramp)){f.ok=0;f.skip=1;return}
-       BRIDGES.push({u,flat,ramp:Math.max(ramp,h*8),h,x:f.x,z:f.z,low:u===f.ub?f.ua:f.ub})});
+       BRIDGES.push({u,flat,ramp:Math.max(ramp,h*9),h,x:f.x,z:f.z,low:u===f.ub?f.ua:f.ub})});
      {const bad=found.filter(f=>f.skip||f.sin<.22).length;if(bad)setTimeout(()=>toastMsg(bad+' crossing'+(bad>1?'s are':' is')+' too tight for a flyover · spread them out a bit'),1200)}
      if(BRIDGES.length){
        // the lift needs dense control points to be exact, so the curve is rebuilt from the base one
@@ -6213,19 +6213,22 @@ const PLANETS={
     for(let a=0;a<GNX;a++)for(let b=0;b<GNZ;b++){if(!GRID[a*GNZ+b])continue;for(let da=-3;da<=3;da++)for(let db=-3;db<=3;db++){const aa=a+da,bb=b+db;if(aa>=0&&aa<GNX&&bb>=0&&bb<GNZ)NEAR[aa*GNZ+bb]=1}}
     const nearTrack=(x,z)=>{const gx=Math.floor(x/CELL)-GX0,gz=Math.floor(z/CELL)-GZ0;return gx>=0&&gx<GNX&&gz>=0&&gz<GNZ&&NEAR[gx*GNZ+gz]===1};
     const CUT=CIRC_W/2+BARRIER_OFF+1.5,CUTF=16;
-    const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;if(!nearTrack(x,z))return CIRC_Y;let ws=H0W,hs=H0W*CIRC_Y,bq=1e9,by=0;
-      nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,fw=1-SM(DL[i]/1.5),w=1/(q*q)*fw;ws+=w;hs+=w*DY[i];if(fw>.5&&q<bq){bq=q;by=DY[i]}});
-      const g=hs/ws;if(bq>=1e9)return g;const d=Math.sqrt(bq-1);if(d<=CUT)return by;if(d<CUT+CUTF){const k=SM((d-CUT)/CUTF);return by*(1-k)+g*k}return g};   // a bridge in the air shapes no ground   // a bridge in the air shapes no ground
+    const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;if(!nearTrack(x,z))return CIRC_Y;let ws=H0W,hs=H0W*CIRC_Y,bq=1e9,by=0,bi=-1;
+      nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,fw=1-SM(DL[i]/1.5),w=1/(q*q)*fw;ws+=w;hs+=w*DY[i];if(fw>.5&&q<bq){bq=q;bi=i}});
+      const g=hs/ws;if(bq>=1e9)return g;
+      {const seg=(a,b)=>{const ax=DX[a],az=DZ[a],ex=DX[b]-ax,ez=DZ[b]-az,L2=ex*ex+ez*ez||1,t=Math.max(0,Math.min(1,((x-ax)*ex+(z-az)*ez)/L2)),px=ax+ex*t-x,pz=az+ez*t-z;return [px*px+pz*pz,DY[a]+(DY[b]-DY[a])*t]};
+       const A=seg(bi,(bi+1)%DN),B=seg((bi-1+DN)%DN,bi),C=A[0]<=B[0]?A:B;by=C[1];bq=C[0]+1}const d=Math.sqrt(bq-1);if(d<=CUT)return by;if(d<CUT+CUTF){const k=SM((d-CUT)/CUTF);return by*(1-k)+g*k}return g};   // a bridge in the air shapes no ground   // a bridge in the air shapes no ground
     /* the road's surface: the ground on hills, except where a bridge lifts it, which follows its own planned line */
     const roadY=(u,x,z)=>{const lf=liftAt(u);if(!ELEV)return CIRC_Y+lf;const g=groundAt(x,z)+lf;if(lf<.01)return g;const k=SM(lf/1.5);return g*(1-k)+curve.getPointAt(((u%1)+1)%1).y*k};
-    const hFn=ELEV?groundAt:null,hRoad=ELEV?(x,z,u)=>roadY(u,x,z):null,liftEff=(u,x,z)=>roadY(u,x,z)-(ELEV?groundAt(x,z):CIRC_Y);
+    const hFn=ELEV?groundAt:null,hRoad=ELEV||BRIDGES.length?(x,z,u)=>roadY(u,x,z):null,liftEff=(u,x,z)=>roadY(u,x,z)-(ELEV?groundAt(x,z):CIRC_Y);
     let minY=CIRC_Y;for(let i=0;i<DN;i++)minY=Math.min(minY,DY[i]);
     BT('path+index');
     const root=new THREE.Group();S.add(root);
     let stadiumBodies=[];
     const rep=curve.getLength()/12;
-    const edgeStrip=circStrip(curve,CN,CIRC_W+1.8,.06,edgeM,rep,hRoad);edgeStrip.receiveShadow=true;edgeStrip.name='edge';root.add(edgeStrip);
-    const roadStrip=circStrip(curve,CN,CIRC_W,.12,roadM,rep,hRoad);roadStrip.receiveShadow=true;roadStrip.name='road';root.add(roadStrip);
+    const RN=Math.max(CN,Math.min(2400,Math.round(TL/1.75)));   // road mesh: ~1.75 m pieces, so ramps and crests are a smooth curve, not 7 m flats with a bend at each joint
+    const edgeStrip=circStrip(curve,RN,CIRC_W+1.8,.06,edgeM,rep,hRoad);edgeStrip.receiveShadow=true;edgeStrip.name='edge';root.add(edgeStrip);
+    const roadStrip=circStrip(curve,RN,CIRC_W,.12,roadM,rep,hRoad);roadStrip.receiveShadow=true;roadStrip.name='road';root.add(roadStrip);
     edgeStrip.userData.fixedY=roadStrip.userData.fixedY=true;
     let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;pts3.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z)});
     const cx=(minX+maxX)/2,cz=(minZ+maxZ)/2;
@@ -6316,7 +6319,7 @@ const PLANETS={
     BT('terrain');
     const gy=(x,z)=>CIRC_Y+visH(x,z);                 // where props sit: the visual ground (ELEV venues are lifted by the settle pass later)
     roadStrip.userData.onTrack=edgeStrip.userData.onTrack=true;
-    const shoulderM=M(theme.id==='snow'?0x6a6e74:0x4a4c51,{roughness:.93});ownedMats.push(shoulderM);const runoff=circStrip(curve,CN,CIRC_W+4,.035,shoulderM,rep,hRoad);runoff.receiveShadow=true;runoff.name='runoff';root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
+    const shoulderM=M(theme.id==='snow'?0x6a6e74:0x4a4c51,{roughness:.93});ownedMats.push(shoulderM);const runoff=circStrip(curve,RN,CIRC_W+4,.035,shoulderM,rep,hRoad);runoff.receiveShadow=true;runoff.name='runoff';root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
     const curbRed=M(kerbOf(theme),{roughness:.75}),curbWhite=M(0xf2f2f0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
     const curbGeo=new THREE.BoxGeometry(1.7,.18,Math.max(1.8,Math.min(4,curve.getLength()/CN)));
     const curbRedIM=new THREE.InstancedMesh(curbGeo,curbRed,CN*2),curbWhiteIM=new THREE.InstancedMesh(curbGeo,curbWhite,CN*2);
@@ -6453,7 +6456,7 @@ const PLANETS={
     const bridgeBodies=[];
     bridgeBodies.push(...barrierBodies);   // the track-limit walls, placed at absolute heights (not settled)
     if(BRIDGES.length){const deckMat=M(0x9a9893,{roughness:.9}),pillarMat=M(0x8a8780,{roughness:.9});ownedMats.push(deckMat,pillarMat);
-      const half=CIRC_W/2+BARRIER_OFF+.5,STEP=4,segs=[],pils=[];
+      const half=CIRC_W/2+BARRIER_OFF+.5,STEP=2,segs=[],pils=[];
       const baseY=(x,z)=>ELEV?groundAt(x,z):CIRC_Y,surf=u=>{const {p}=circAt(u,curve);return roadY(u,p.x,p.z)+.12};
       BRIDGES.forEach(B=>{const span=(B.flat+B.ramp)/TL,n=Math.ceil((B.flat+B.ramp)*2/STEP);
         for(let k=0;k<n;k++){const u0=B.u-span+k*STEP/TL,u1=u0+STEP/TL;if(liftAt((u0+u1)/2)<.05)continue;
@@ -6465,7 +6468,7 @@ const PLANETS={
       const cq=new CANNON.Quaternion(),tq=new THREE.Quaternion(),te=new THREE.Euler(0,0,0,'YXZ'),tp=new THREE.Vector3(),ts=new THREE.Vector3(),tm=new THREE.Matrix4();
       const deckIM=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),deckMat,Math.max(1,segs.length));deckIM.castShadow=!LOW;deckIM.receiveShadow=true;let dn=0;
       segs.forEach(g=>{te.set(g.pitch,g.yaw,0);tq.setFromEuler(te);
-        const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(half,.5,g.len/2+.35)));
+        const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(half,.5,g.len/2+.03)));
         // top face on the road surface
         tp.set(0,-.5,0).applyQuaternion(tq);b.position.set(g.x+tp.x,g.y+tp.y,g.z+tp.z);cq.set(tq.x,tq.y,tq.z,tq.w);b.quaternion.copy(cq);world.addBody(b);bridgeBodies.push(b);
         if(g.lift>.8){tp.set(0,-.62,0).applyQuaternion(tq).add(new THREE.Vector3(g.x,g.y,g.z));ts.set(half*2,1.1,g.len+.3);tm.compose(tp,tq,ts);deckIM.setMatrixAt(dn++,tm)}});
@@ -6899,7 +6902,7 @@ const PLANETS={
     if(ELEV)wallBodies.forEach(b=>{b.position.y+=groundAt(b.position.x,b.position.z)-CIRC_Y});
     passes();
     BT('passes');
-    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,pit:PIT,pitPts,TL,inPit:(x,z)=>{if(!PIT)return false;if(trackDist(x,z,CIRC_W)<CIRC_W/2+1)return false;for(let i=0;i<pitPts.length;i+=2){const q=pitPts[i];if(Math.abs(q.x-x)<PIT.half+1.5&&Math.abs(q.z-z)<PIT.half+1.5&&Math.hypot(q.x-x,q.z-z)<PIT.half+1)return true}return false},lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
+    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,BRIDGES,TL,pit:PIT,pitPts,TL,inPit:(x,z)=>{if(!PIT)return false;if(trackDist(x,z,CIRC_W)<CIRC_W/2+1)return false;for(let i=0;i<pitPts.length;i+=2){const q=pitPts[i];if(Math.abs(q.x-x)<PIT.half+1.5&&Math.abs(q.z-z)<PIT.half+1.5&&Math.hypot(q.x-x,q.z-z)<PIT.half+1)return true}return false},lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
     if(window.RaceEngine){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
     /* the rest streams in: a few milliseconds of jobs per frame, each batch run through the passes as it lands;
        when the queue is empty every prop set is cut into culled, distance-limited cells. Leaving (or rebuilding)
