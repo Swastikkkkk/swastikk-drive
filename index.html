@@ -659,9 +659,11 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
       </div>
 
       <!-- Host Controls -->
+      <div class="mono" id="dmpsteps" style="font-size:11px;color:var(--bone);letter-spacing:.06em;margin:14px 0 0">1 · Draw or pick a track &nbsp;→&nbsp; 2 · Everyone presses Ready &nbsp;→&nbsp; 3 · Host presses Start race</div>
+      <div class="bd-me" id="dmpdrawrow" style="margin-top:10px"><button id="dmpdraw" class="dbtn mono" style="background:linear-gradient(180deg,var(--gold),var(--gold2));color:var(--goldt);border-color:transparent">Draw the race track</button><span id="dmptrackst" class="mono" style="align-self:center;font-size:11px;color:var(--bone);margin-left:10px">No track drawn yet</span></div>
       <div id="dmphostcontrols" class="dmp-cfg-grid mono">
         <label>Track
-          <select id="dmpmap"><option value="earth">Earth valley loop</option><option value="circuit">My drawn track</option><option value="daily">Today's daily track</option><option value="moon">Moon sprint · 3 km</option><option value="mars">Mars sprint · 3 km</option><option value="europa">Europa sprint · 3 km</option></select>
+          <select id="dmpmap"><option value="circuit">My drawn track</option><option value="earth">Earth valley loop</option><option value="daily">Today's daily track</option><option value="moon">Moon sprint · 3 km</option><option value="mars">Mars sprint · 3 km</option><option value="europa">Europa sprint · 3 km</option></select>
         </label>
         
         <label>Laps

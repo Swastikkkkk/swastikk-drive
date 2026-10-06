@@ -7165,7 +7165,14 @@ const PLANETS={
     drawObs.push({t:selVal('#dcircobstype','speed_breaker'),u:bi/drawRS.length,s:side});
     redrawPath();if(circErrEl)circErrEl.textContent=drawObs.length+' obstacle'+(drawObs.length===1?'':'s')+' on the track · tap one again to remove it'}
   function openDrawer(){if(!circDrawEl)return;if(MODE==='circuit'){toastMsg('Return to Earth before generating a new venue');return}resizeDrawCv();drawPts=[];drawingNow=false;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;if(circErrEl)circErrEl.textContent='';redrawPath();circDrawEl.classList.add('on');drawerOpen=true}
-  function closeDrawer(){if(circDrawEl)circDrawEl.classList.remove('on');drawerOpen=false}
+  function closeDrawer(){if(circDrawEl)circDrawEl.classList.remove('on');drawerOpen=false;drawBanner(false)}
+  let drawForRoom=false;
+  function drawBanner(on){let b=document.getElementById('dcircroom');
+    if(on&&!b&&circDrawEl){b=document.createElement('div');b.id='dcircroom';b.className='mono';b.style.cssText='position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;padding:9px 16px;border-radius:12px;background:rgba(14,15,18,.86);border:1px solid rgba(77,141,255,.5);color:#eef0f3;font-size:12px;letter-spacing:.06em;pointer-events:none;white-space:nowrap';circDrawEl.appendChild(b)}
+    if(b){b.style.display=on?'block':'none';if(on)b.textContent='Drawing the track for your room · draw a loop, then press GO to send it to everyone'}}
+  window.__drawForRoom=()=>{drawForRoom=true;const mp=document.getElementById('dmp');if(mp)mp.classList.remove('on');
+    if(MODE==='circuit')try{leaveCircuit()}catch(e){}
+    openDrawer();drawBanner(true)};
   if(circCv){
     const posOf=e=>{const r=circCv.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}};
     circCv.addEventListener('pointerdown',e=>{if(drawTool==='obstacles'){placeObstacle(posOf(e));return}if(circErrEl)circErrEl.style.color='';drawRS=[];drawObs=[];drawingNow=true;pendingTrack=null;if(circGoEl)circGoEl.disabled=true;drawPts=[posOf(e)];if(circErrEl)circErrEl.textContent='';try{circCv.setPointerCapture(e.pointerId)}catch(_){}});
@@ -7248,7 +7255,13 @@ const PLANETS={
     const obstacles=drawObs.map(o=>({t:o.t,u:+o.u.toFixed(4),s:o.s}));
     const theme=THEMES.find(t=>t.id===scenery)||THEME_DEFAULT,venue={weather,time,width,elev,obstacles};
     try{localStorage.setItem('sl_venue',JSON.stringify({seed,scenery,weather,time,size,width,elev}))}catch(e){}
+    const forRoom=drawForRoom;drawForRoom=false;
     buildCircuit(pendingTrack,theme,seed,venue);closeDrawer();enterCircuit();updCircBtn();
+    if(forRoom||(typeof MP!=='undefined'&&MP.on)){const sel=$('#dmpmap');if(sel&&sel.value!=='circuit'){sel.value='circuit';sel.dispatchEvent(new Event('change'))}
+      const mp=document.getElementById('dmp');if(mp)mp.classList.add('on');
+      const st=document.getElementById('dmptrackst');if(st)st.textContent='Track ready · '+(size==='huge'?'3.6':size==='medium'?'1.6':'2.4')+' km · sent to the room';
+      const db=document.getElementById('dmpdraw');if(db)db.textContent='Redraw the track';
+      toastMsg('Track sent to the room · press Start race when everyone is ready')}
     // alone, GO starts the race itself (grid, lights, N laps). In a room the host starts it from the room panel.
     if(!(typeof MP!=='undefined'&&MP.on))restartSoloRace();
     // record (and, if already in a room, broadcast) this venue so friends build + race the same one
@@ -7898,7 +7911,7 @@ updCircBtn();
         const m1={k:'race',startAt,rid,laps:1,v};send(m1);setTimeout(()=>send(Object.assign({},m1)),700);beginCountdown('You',startAt,rid,1,v);return}
       // get the host onto the chosen track first, then send it with the race so nobody races somewhere else
       if(pick==='circuit'){
-        if(!circuit||circuit.daily){note('Draw a track first: Menu → Draw track, then GO & Publish');return}
+        if(!circuit||circuit.daily){note('Draw the track first');if(window.__drawForRoom)window.__drawForRoom();return}
         if(MODE!=='circuit')enterCircuit();
       }else if(pick==='daily'){
         if(!(circuit&&circuit.daily)&&window.__buildDaily)window.__buildDaily();else if(MODE!=='circuit')enterCircuit();
@@ -8058,7 +8071,7 @@ updCircBtn();
       // Race settings belong to the host and are frozen once a race is counting down or running, so nobody can
       // change 3 laps to 10 halfway through; guests just see what the host chose.
       // the host can pick the next track and laps at any time, mid-race too; Restart race then starts that one
-      {const host=!room||isHost();['#dmplaps','#dmpmap'].forEach(sel=>{const e=$(sel);if(e)e.disabled=!host})}
+      {const host=!room||isHost();['#dmplaps','#dmpmap'].forEach(sel=>{const e=$(sel);if(e)e.disabled=!host});const dr=$('#dmpdrawrow');if(dr)dr.style.display=host?'flex':'none';const sp=$('#dmpsteps');if(sp)sp.innerHTML=host?'1 · Draw or pick a track &nbsp;→&nbsp; 2 · Everyone presses Ready &nbsp;→&nbsp; 3 · You press Start race':'The host picks the track · press Ready, the race starts when the host hits Start'}
       if(el.out)el.out.style.display=room?'none':'block';
       if(el.inn)el.inn.style.display=room?'block':'none';
       if(el.codeOut)el.codeOut.textContent=room||'';
@@ -8113,6 +8126,11 @@ updCircBtn();
       const map=$('#dmpmap')?$('#dmpmap').value:'earth';
       send({k:'cfg',laps,map,force:!!force});
     }
+    {const paintBadge=()=>{const m=$('#dmpmap'),l=$('#dmplaps'),sm=document.getElementById('st-map'),sl=document.getElementById('st-laps'),sg=document.getElementById('st-grav'),mo=document.getElementById('st-mode');
+       if(m&&sm)sm.textContent=m.options[m.selectedIndex]?m.options[m.selectedIndex].text:'';if(l&&sl)sl.textContent=l.value;
+       const pl=m&&{moon:'Moon',mars:'Mars',europa:'Europa'}[m.value];if(sg)sg.textContent=pl||'Earth';if(mo)mo.textContent=pl?'Sprint':'Circuit'};
+     ['#dmpmap','#dmplaps'].forEach(q=>{const e=$(q);if(e)e.addEventListener('change',paintBadge)});setInterval(paintBadge,1500);paintBadge()}
+    {const db=$('#dmpdraw');if(db)db.onclick=()=>{if(room&&!isHost()){note('Only the host picks the track');return}if(window.__drawForRoom)window.__drawForRoom()}}
     ['#dmplaps','#dmpmap'].forEach(sel=>{
       const el=$(sel);if(el)el.onchange=()=>{syncCfg(true);
         if(race.st===1||race.st===2||race.st===4){const m=$('#dmpmap'),t=m&&m.options[m.selectedIndex]?m.options[m.selectedIndex].text:'';note('Press Restart race to switch to '+t+' · '+getLaps()+' lap'+(getLaps()>1?'s':''))}};
