@@ -8603,11 +8603,11 @@ function carChanged(){if(room)sendHi(true)}
      with the ways to play over it. Picking one drops you into it; Esc or Free drive just drives. */
   {const HOME={on:true,cam:new THREE.PerspectiveCamera(46,W/H,.5,5000),a:0,el:null};const wasDriving=driving;driving=false;
    const st=document.createElement('style');st.textContent=`
-#dstartscr{position:fixed;inset:0;z-index:2147482000;background:#0b0d14 url(assets/home-bg.jpg) center/cover no-repeat;animation:hmdrift 40s ease-in-out infinite alternate;display:flex;align-items:flex-end;justify-content:flex-start;padding:clamp(20px,5vw,64px);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif;color:#f5f5f7;
+#dstartscr{position:fixed;inset:0;z-index:2147482000;background:#0b0d14 url(assets/home-bg.jpg) 50% 50%/auto 125% no-repeat;cursor:grab;touch-action:pan-y;display:flex;align-items:flex-end;justify-content:flex-start;padding:clamp(20px,5vw,64px);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif;color:#f5f5f7;
   transition:opacity .45s ease}
 #dstartscr.out{opacity:0;pointer-events:none}
 #dstartscr::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,6,10,.72) 0%,rgba(5,6,10,.35) 45%,rgba(5,6,10,0) 70%);pointer-events:none}#dstartscr .hm{position:relative}
-@keyframes hmdrift{from{background-position:0% 50%}to{background-position:6% 50%}}
+@media (min-aspect-ratio:1907/1090){#dstartscr{background-size:125% auto}}#dstartscr.drag{cursor:grabbing}
 #dstartscr .hm{width:min(560px,100%)}
 #dstartscr h1{margin:0 0 6px;font-size:clamp(40px,7vw,72px);font-weight:700;letter-spacing:-.03em;line-height:1}
 #dstartscr .sub{margin:0 0 28px;font-size:17px;color:rgba(245,245,247,.72);font-weight:400}
@@ -8623,7 +8623,16 @@ function carChanged(){if(room)sendHi(true)}
 #dstartscr .back:hover{color:#fff}
 body.homeon #drive>*:not(canvas){visibility:hidden!important}body.homeon #dlanding{display:none!important}
 @media (max-width:520px){#dstartscr .grid{grid-template-columns:1fr}#dstartscr .sub{margin-bottom:18px}}`;document.head.appendChild(st);
-   document.body.classList.add('homeon');const el=document.createElement('div');el.id='dstartscr';HOME.el=el;document.body.appendChild(el);
+   document.body.classList.add('homeon');const el=document.createElement('div');el.id='dstartscr';HOME.el=el;document.body.appendChild(el);(function(){let tx=62,ty=50,x=62,y=50,drag=null,last=performance.now(),idle=0,dir=1;
+const isBtn=t=>t.closest&&t.closest('button,input,select,a');
+el.addEventListener('pointerdown',e=>{if(isBtn(e.target))return;drag={sx:e.clientX,sy:e.clientY,tx,ty};el.classList.add('drag');idle=0});
+addEventListener('pointermove',e=>{if(drag){tx=drag.tx-(e.clientX-drag.sx)/innerWidth*140;ty=drag.ty-(e.clientY-drag.sy)/innerHeight*120;idle=0}});
+addEventListener('pointerup',()=>{drag=null;el.classList.remove('drag')});
+addEventListener('deviceorientation',e=>{if(e.gamma==null||drag)return;tx=62+Math.max(-30,Math.min(30,e.gamma))*1.2;ty=50+Math.max(-20,Math.min(20,(e.beta||45)-45))*1;idle=0});
+(function f(now){if(!document.body.contains(el))return;const dt=Math.min(.1,(now-last)/1000);last=now;idle+=dt;
+if(!drag&&idle>3){tx+=dir*dt*2.2;if(tx>95)dir=-1;if(tx<20)dir=1}
+tx=Math.max(0,Math.min(100,tx));ty=Math.max(0,Math.min(100,ty));const k=1-Math.pow(.002,dt);x+=(tx-x)*k;y+=(ty-y)*k;
+if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y.toFixed(2)+'%';requestAnimationFrame(f)})(last)})();
    const T=(id,title,sub,wide)=>`<button class="t${wide?' wide':''}" data-go="${id}"><b>${title}</b><span>${sub}</span></button>`;
    const main=()=>{el.innerHTML='<div class="hm"><h1>SketchRacer</h1><p class="sub">Pick how you want to play.</p><div class="grid">'+
      T('free','Free drive','Open valley, ramps, the summit and the cable car',true)+T('mp','Multiplayer','Race up to 4 friends with a room code')+T('daily',"Daily track","Today's circuit and its leaderboard")+
