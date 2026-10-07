@@ -1082,6 +1082,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const floorAt=u=>{curve.getPointAt(Math.max(0,Math.min(1,u)),tmpV);return {x:tmpV.x,y:tmpV.y-HANG,z:tmpV.z}};
     function place(){const f=floorAt(s);cab.position.set(f.x,f.y,f.z);const vy=(floorB.position.y?f.y-floorB.position.y:0);floorB.position.set(f.x,f.y-.12,f.z)}
     place();
+    /* riding: the car is pinned to the cabin after EVERY physics step (not once a frame), with gravity off for it, so
+       nothing in between (gravity, the moving floor's contact) can shake it inside the cage */
+    function pin(){const f=floorAt(s);chassisB.position.set(f.x+DIR.x*ride.a+SIDE.x*ride.b,f.y+ride.h,f.z+DIR.z*ride.a+SIDE.z*ride.b);chassisB.quaternion.copy(ride.q);
+      chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}
+    world.addEventListener('postStep',()=>{if(ride&&(st==='up'||st==='down'))pin()});
     // the car's place in the cabin frame (along, across, height above the floor) and its heading
     const local=c=>{const f=floorAt(s),dx=c.x-f.x,dz=c.z-f.z;return {a:dx*DIR.x+dz*DIR.z,b:dx*SIDE.x+dz*SIDE.z,h:c.y-f.y}};
     function tick(dt){
@@ -1090,10 +1095,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       if(st==='up'||st==='down'){const dir=st==='up'?1:-1,vmax=19*speedK,acc=2.2;
         // pull away gently, cruise, and brake so it stops exactly at the station
         const left=(dir>0?1-s:s)*LEN;vel=Math.min(vmax,vel+acc*dt,Math.sqrt(2*acc*Math.max(0,left))+.25);s=Math.max(0,Math.min(1,s+dir*vel*dt/LEN));place();
-        if(ride){const f=floorAt(s);chassisB.position.set(f.x+DIR.x*ride.a+SIDE.x*ride.b,f.y+ride.h,f.z+DIR.z*ride.a+SIDE.z*ride.b);chassisB.quaternion.copy(ride.q);
-          chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);PREV.ok=false;for(const k2 of ['f','b','l','r','h','boost'])key[k2]=0}
+        if(ride){pin();chassisB.collisionResponse=false;chassisB.type=CANNON.Body.KINEMATIC;PREV.ok=false;for(const k2 of ['f','b','l','r','h','boost'])key[k2]=0}
         if(s<=0||s>=1){st=s>=1?'dock1':'dock0';speedK=1;vel=0;
-          if(ride){ride=null;armed=false;toastMsg(st==='dock1'?'The peak · '+Math.round(topY)+' m · drive out and look around':'Back at the summit');if(st==='dock1')panT=16}}
+          if(ride){pin();chassisB.type=CANNON.Body.DYNAMIC;chassisB.collisionResponse=true;chassisB.wakeUp();ride=null;armed=false;toastMsg(st==='dock1'?'The peak · '+Math.round(topY)+' m · drive out and look around':'Back at the summit');if(st==='dock1')panT=16}}
         return}
       // waiting at a station: is the car in the bay?
       const bay=atDock>=0?(atDock?D1:D0):null;
@@ -1123,7 +1127,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const c0=()=>chassisB.position;
     // high up: the riding cabin, or anywhere on the top deck
     const high=()=>(ride&&s>.15)||(Math.hypot(chassisB.position.x-TOP.x,chassisB.position.z-TOP.z)<DECK&&chassisB.position.y>topY-4);
-    return {tick,cam,high,cp:new THREE.Vector3(),cine0:false,get cine(){return !!ride||panT>0},get dbg(){return {wait:+wait.toFixed(2),armed,st,count}},get riding(){return !!ride},TOP,topY,D0,D1,get s(){return s},get st(){return st}}})();
+    return {tick,cam,high,cab,cp:new THREE.Vector3(),cine0:false,get cine(){return !!ride||panT>0},get dbg(){return {wait:+wait.toFixed(2),armed,st,count}},get riding(){return !!ride},TOP,topY,D0,D1,get s(){return s},get st(){return st}}})();
   /* --- stunt park ---
      One axis runs straight through the park, lined up with the dirt track in, so the mega
      jump finally has a run-up: boost pad, a 24 m kicker, a table top with the ring of fire
@@ -3667,7 +3671,7 @@ t.bd.position.set(x,y+.86,z);
     veh.wheelInfos.forEach(w=>{w.suspensionLength=w.suspensionRestLength;w.deltaRotation=0});
     for(let i=0;i<4;i++){veh.applyEngineForce(0,i);veh.setBrake(0,i)}
     sub=0;inPond=false;steerActual=0;vehicleDamage=0;if(raceMode&&!lapArmed&&!lapVoid){lapVoid=true;lapEl.classList.add('void')}blip(330,.2)}
-  function resetCarTo(target){if(window.__dmgClear)window.__dmgClear();
+  function resetCarTo(target){if(window.__dmgClear)window.__dmgClear();if(chassisB.type!==CANNON.Body.DYNAMIC){chassisB.type=CANNON.Body.DYNAMIC;chassisB.collisionResponse=true}
     const p=(target&&target.pos)?target.pos:((MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve).p:at(progU).p);
     const tg=(target&&target.tangent)?target.tangent:((MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve).tg:at(progU).tg);
     PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
@@ -8932,7 +8936,7 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={get SINK(){return SINK},setWeather,WORLDX,get WXU(){return WORLDX_U},at,critters,GHOSTLAP,SLIP,DAMAGE,get circU0(){return circU0},get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get SINK(){return SINK},get PREVOK(){return PREV.ok},setWeather,WORLDX,get WXU(){return WORLDX_U},at,critters,GHOSTLAP,SLIP,DAMAGE,get circU0(){return circU0},get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
