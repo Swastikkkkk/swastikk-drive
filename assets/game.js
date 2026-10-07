@@ -77,15 +77,18 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      match and tuned a little hotter. From a 3D model (.glb / .gltf with embedded data / .obj): the model is scaled and
      turned to sit on the same physics rig, and drives with the Outlaw's running gear. Kept in this browser. */
   const ALIAS={},CUSTOM={spec:null,model:null,flip:false};
-  try{const c=JSON.parse(localStorage.getItem('sl_custom')||'null');
-    if(c&&c.base){const b=GARAGE.find(g=>g.id===c.base)||GARAGE[0],tops=GARAGE.filter(g=>g.id==='f1apex'||g.id==='valkyrie'),cap=tops.length?Math.min(...tops.map(g=>g.V.max))*.95:b.V.max*1.2,
+  /* a custom car's spec from its saved description: used for your own car and, in multiplayer, for a friend's
+     (they send the description, so you see their photo car / face car, not yours or a default) */
+  function customSpecFrom(c){if(!c||!c.base)return null;{const b=GARAGE.find(g=>g.id===c.base)||GARAGE[0],tops=GARAGE.filter(g=>g.id==='f1apex'||g.id==='valkyrie'),cap=tops.length?Math.min(...tops.map(g=>g.V.max))*.95:b.V.max*1.2,
         ecap=tops.length?Math.min(...tops.map(g=>g.V.engine))*.95:b.V.engine*1.2,sp=c.speed!=null?Math.max(0,Math.min(1,+c.speed)):.5,
         V2=Object.assign({},b.V,{max:+(b.V.max*.85+(cap-b.V.max*.85)*sp).toFixed(1),engine:Math.round(b.V.engine*.85+(ecap-b.V.engine*.85)*sp)});
       const spec=Object.assign({},b,{id:'custom',label:(c.name||'My car').slice(0,18),blurb:c.kind==='model'?'Your 3D model':'Built from your photo',price:0,V:V2,
         paints:[c.paint!=null?c.paint:b.paints[0]].concat(b.paints.filter(x=>x!==c.paint)).slice(0,5),buildAs:b.id,kind:c.kind,ownWheels:c.kind==='model'});
       if(c.kind==='model'){spec.type='car';spec.F=c.F||2.45;spec.B=c.B||-2.45}
       if(c.kind==='face'){spec.type='car';spec.blurb='Your friend, on wheels';spec.face=c.face||null;spec.paints=[c.paint!=null?c.paint:0x1c3f7a,0x111114,0x7a0d12,0xe8e4da,0x173224]}
-      ALIAS.custom=b.id;CUSTOM.spec=spec;CUSTOM.flip=!!c.flip;GARAGE.push(spec)}}catch(e){}
+      spec.desc=c;return spec}}
+  try{const c=JSON.parse(localStorage.getItem('sl_custom')||'null'),spec=customSpecFrom(c);
+    if(spec){const b=GARAGE.find(g=>g.id===c.base)||GARAGE[0];ALIAS.custom=b.id;CUSTOM.spec=spec;CUSTOM.flip=!!c.flip;GARAGE.push(spec)}}catch(e){}
   /* every car free for now: flip to false to bring prices back (nothing is saved, so nobody keeps them) */
   const FREE_CARS=true;
   if(FREE_CARS)GARAGE.forEach(c=>unlocked.add(c.id));
@@ -2388,6 +2391,16 @@ t.bd.position.set(x,y+.86,z);
     applyWx(wxT>=1)}
   /* ---------- vehicle ---------- */
   const car=new THREE.Group();S.add(car);
+  const GLUE={air:0};
+  const GROUNDFIX={lift:0,want:0,rc:new THREE.Raycaster(),o:new THREE.Vector3(),dn:new THREE.Vector3(0,-1,0),list:null,key:null};
+  // the big drawn surfaces you drive on (road ribbons, decks, terrain): rebuilt when the venue changes
+  function groundMeshes(){const key=MODE+'|'+(typeof circuit!=='undefined'&&circuit?circuit.seed:0);if(GROUNDFIX.key===key&&GROUNDFIX.list)return GROUNDFIX.list;
+    const out=[];S.traverse(o=>{if(!o.isMesh||o.isInstancedMesh||o.isSkinnedMesh)return;let p=o;while(p){if(p===car)return;p=p.parent}
+      if(!o.geometry.boundingSphere)o.geometry.computeBoundingSphere();if(o.geometry.boundingSphere.radius*Math.max(o.scale.x,o.scale.z)<25)return;
+      const m=Array.isArray(o.material)?o.material[0]:o.material;if(!m||m.isShaderMaterial||m.transparent&&m.opacity<.5)return;
+      if(o.geometry.attributes.position.count>20000)return;   // the terrain: it IS the physics ground, and testing 90k triangles per ray cost 25 ms
+      out.push(o)});
+    GROUNDFIX.list=out;GROUNDFIX.key=key;return out}
   const chassisB=new CANNON.Body({mass:190,material:oM});chassisB.addShape(new CANNON.Box(new CANNON.Vec3(1,.32,2)),new CANNON.Vec3(0,.2,0));chassisB.addShape(new CANNON.Box(new CANNON.Vec3(.7,.3,.9)),new CANNON.Vec3(0,.8,-.2));chassisB.angularDamping=.4;chassisB.allowSleep=false;
   {const {p,tg}=at(.004);chassisB.position.set(p.x,1.2,p.z);chassisB.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),Math.atan2(tg.x,tg.z))}
   const veh=new CANNON.RaycastVehicle({chassisBody:chassisB,indexRightAxis:0,indexUpAxis:1,indexForwardAxis:2});
@@ -3698,6 +3711,15 @@ t.bd.position.set(x,y+.86,z);
     return cv2;
   }
   let planetMapCache=null;
+  /* friends in your room on the map: a dot in their colour with a name tag (kept upright on the turning minimap) */
+  let mpMapTags=null;
+  function drawPeerTags(c,sc,big){if(!mpMapTags)return;const L=mpMapTags();if(!L.length)return;
+    c.font='600 '+(big?12:10)+'px -apple-system,BlinkMacSystemFont,Arial,sans-serif';c.textAlign='center';c.textBaseline='middle';
+    for(const p of L){const x=p.x*sc,z=p.z*sc;c.save();c.translate(x,z);if(!big)c.rotate(-mapRot);
+      c.fillStyle=p.col;c.strokeStyle='#fff';c.lineWidth=1.5;c.beginPath();c.arc(0,0,big?5.5:4,0,6.283);c.fill();c.stroke();
+      const t=p.n.slice(0,12),w=c.measureText(t).width+10,h=big?17:14,y=-(big?16:13);
+      c.fillStyle='rgba(12,12,14,.82)';c.beginPath();if(c.roundRect)c.roundRect(-w/2,y-h/2,w,h,h/2);else c.rect(-w/2,y-h/2,w,h);c.fill();
+      c.fillStyle='#fff';c.fillText(t,0,y+.5);c.restore()}}
   function drawMap(c,size,big){
     if(SPACE.state!=='earth'){   // off Earth: this planet's map, or nothing in flight; never Earth's valley
       if(!(SPACE.drawBigMap&&SPACE.drawBigMap(c,size))){c.clearRect(0,0,size,size);c.fillStyle='rgba(238,240,243,.7)';c.font='600 '+Math.round(size/30)+'px ui-monospace,monospace';c.textAlign='center';c.fillText('No map in flight',size/2,size/2)}
@@ -3715,7 +3737,7 @@ t.bd.position.set(x,y+.86,z);
       c.strokeStyle='rgba(238,240,243,.9)';c.lineWidth=big?5:3.5;c.lineJoin='round';c.beginPath();
       pts.forEach((p,i)=>{i?c.lineTo(p.x*csc,p.z*csc):c.moveTo(p.x*csc,p.z*csc)});c.closePath();c.stroke();
       if(circuit.startP){c.fillStyle='#f2b26b';c.beginPath();c.arc(circuit.startP.p.x*csc,circuit.startP.p.z*csc,big?5:3.4,0,6.283);c.fill()}
-      NAV.drawOnMap(c,csc,big);
+      NAV.drawOnMap(c,csc,big);drawPeerTags(c,csc,big);
       c.translate(chassisB.position.x*csc,chassisB.position.z*csc);c.rotate(Math.PI-yaw);
       c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
       c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke();return}
@@ -3776,7 +3798,7 @@ t.bd.position.set(x,y+.86,z);
     // the cableway: a dashed line from the summit deck to the peak
     {const A=CABLE.D0,B=CABLE.TOP;c.save();c.strokeStyle='rgba(232,72,58,.9)';c.lineWidth=big?2.2:1.5;c.setLineDash([5,4]);c.beginPath();c.moveTo(A.x*sc,A.z*sc);c.lineTo(B.x*sc,B.z*sc);c.stroke();c.restore();
      c.fillStyle='#e8483a';c.beginPath();c.arc(B.x*sc,B.z*sc,big?5:3.4,0,6.283);c.fill();if(big)mapLabel(c,'PEAK · CABLE CAR',B.x*sc,B.z*sc-16,'#ffb0a6')}
-    NAV.drawOnMap(c,sc,big);
+    NAV.drawOnMap(c,sc,big);drawPeerTags(c,sc,big);
     c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-7);c.lineTo(5,5);c.lineTo(0,2.5);c.lineTo(-5,5);c.closePath();c.fill();c.restore();
     c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=1.5;c.beginPath();c.arc(size/2,size/2,size/2-1,0,6.283);c.stroke()}
   /* ---------- navigation ----------
@@ -5784,6 +5806,13 @@ const PLANETS={
         // and kill the sideways slide a little when the wheels are pointing where you are going
         const rx=Math.cos(Math.atan2(fwd.x,fwd.z)),rz=-Math.sin(Math.atan2(fwd.x,fwd.z)),lat=chassisB.velocity.x*rx+chassisB.velocity.z*rz;
         if(Math.abs(steerIn)<.1){const k=Math.min(1,dt*1.8);chassisB.velocity.x-=rx*lat*k;chassisB.velocity.z-=rz*lat*k}}
+      /* glue: a small bump or a seam in the ground used to pop the car up for a moment, which reads as the car
+         flying along the road. When all four tyres leave the ground with only a little upward speed (not a ramp jump,
+         those leave much faster), extra downforce brings it straight back onto its tyres. */
+      {let onG=0;for(let i=0;i<4;i++)if(veh.wheelInfos[i]&&veh.wheelInfos[i].isInContact)onG++;
+       if(onG){GLUE.air=0;GLUE.jump=false}else{if(GLUE.air===0)GLUE.jump=chassisB.velocity.y>3.2;GLUE.air+=dt}   // a real jump (ramp, crest at speed) is left alone all the way down
+       if(!onG&&!GLUE.jump&&GLUE.air<.7&&!inPond&&padT<=0){const v=chassisB.velocity;if(v.y<3.2)v.y-=30*dt*(v.y>0?1.6:1)}
+       else if(onG&&onG<4&&sp>8){const v=chassisB.velocity;if(v.y>0)v.y*=.85}}   // two wheels up on a kerb: settle, don't bounce
       veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
       if(!inPond&&V.label!=='Phantom Bike')driftTick(dt,sp,vfw,fwd,steerIn,!!f);else if(DRIFT.on){DRIFT.on=false;driftEl.style.display='none'}
       tailM.emissiveIntensity=(b||key.h)?1.6:boost?1.2:.5;lookTick(b||key.h,boost);
@@ -5981,7 +6010,15 @@ const PLANETS={
        car.position.set(pp.x+dx*a,pp.y+dy*a,pp.z+dz*a);
        qA.set(PREV.q.x,PREV.q.y,PREV.q.z,PREV.q.w);qB.set(chassisB.quaternion.x,chassisB.quaternion.y,chassisB.quaternion.z,chassisB.quaternion.w);
        car.quaternion.copy(qA).slerp(qB,a)}
-     else{car.position.copy(cp);car.quaternion.copy(chassisB.quaternion)}}
+     else{car.position.copy(cp);car.quaternion.copy(chassisB.quaternion)}
+     /* ride height fix: the tarmac is drawn a few cm above the physics ground (so it never flickers into the grass),
+        which made every tyre look sunk into the road. Every few frames a ray finds the drawn surface under the car and
+        the picture of the car is raised by that gap (0 on grass, where the two agree), eased so it never pops. */
+     if(active&&driving){if(frameN%6===0){const L=groundMeshes();let n=0,hx=0,hy=0,hz=0;
+         for(let i=0;i<4;i++){const w=veh.wheelInfos[i];if(!w||!w.isInContact)continue;const h=w.raycastResult.hitPointWorld;hx+=h.x;hy+=h.y;hz+=h.z;n++}
+         if(!n){}/* airborne: keep the last lift */else{GROUNDFIX.want=0;if(L.length){hx/=n;hy/=n;hz/=n;GROUNDFIX.o.set(hx,hy+1.2,hz);GROUNDFIX.rc.set(GROUNDFIX.o,GROUNDFIX.dn);GROUNDFIX.rc.far=2;   // one ray, under the middle of the tyres
+           const hit=GROUNDFIX.rc.intersectObjects(L,false)[0];if(hit){const g=hit.point.y-hy;if(g>-.05&&g<.3)GROUNDFIX.want=Math.max(0,g)}}}}
+       GROUNDFIX.lift+=(GROUNDFIX.want-GROUNDFIX.lift)*Math.min(1,dt*8);car.position.y+=GROUNDFIX.lift}}
     /* body lean: the shell rolls out of a corner and squats or dives with the throttle,
        a couple of degrees at most. Purely visual, the physics body never moves. */
     if(active&&driving){
@@ -6025,7 +6062,7 @@ const PLANETS={
       const j=isBike?i*2:i<wi.length?i:2+(i%2),w=wi[j];if(!w)return;const c=w.chassisConnectionPointLocal,dz=isBike||i<wi.length?0:V.r*2.3;
       /* the wheel picture may rise only ~6 cm above its resting place: physics can compress the spring by up to the
          full rest length on bumps and landings, and drawn that far up the tyre comes out through the wing */
-      k.w.position.set(isBike?0:c.x*.9,.05-Math.max(w.suspensionLength,V.rest-.13),c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation;if(k.blur){const o=Math.max(0,Math.min(.72,(sp-7)/26));k.blur.visible=o>.02;k.blur.material.opacity=o}});
+      k.w.position.set(isBike?0:c.x*.9,.05-Math.max(w.suspensionLength,V.rest-.2),c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation;if(k.blur){const o=Math.max(0,Math.min(.72,(sp-7)/26));k.blur.visible=o>.02;k.blur.material.opacity=o}});
     if(active&&MP.on)MP.tick(now,dt);
     if(frameN%10===0){
       const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
@@ -8070,8 +8107,8 @@ updCircBtn();
       x.fillStyle='#eef0f3';x.font='700 27px -apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif';x.textBaseline='middle';
       let t=name;while(x.measureText(t).width>176&&t.length>2)t=t.slice(0,-1);x.fillText(t,50,34);
       const tx=new THREE.CanvasTexture(c);tx.minFilter=THREE.LinearFilter;return tx}
-    function makeGhost(carId,col,name){
-      const spec=garageOf(carId),sv=spec.V;
+    function makeGhost(carId,col,name,own){
+      const spec=own||garageOf(carId),sv=spec.V;
       const g=new THREE.Group(),vg=new THREE.Group(),bo=new THREE.Group(),bi=new THREE.Group();
       g.add(vg);bo.position.y=.55;vg.add(bo);bi.position.y=-.55;bo.add(bi);
       const o={paint:col,r:sv.r,zf:sv.zf,zb:sv.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};
@@ -8121,8 +8158,18 @@ updCircBtn();
     function toast2(s){try{toastMsg(s)}catch(e){}}
     /* ----- messages ----- */
     function send(m){if(net&&status==='up'){m.id=me.id;net.send(m)}}
+    mpMapTags=()=>{const out=[];if(!room)return out;peers.forEach(P=>{const G=P.gh;if(!G||G.away||!G.g.visible)return;out.push({x:G.g.position.x,z:G.g.position.z,n:P.n||'Driver',col:'#'+colorOf(P.id).toString(16).padStart(6,'0')})});return out};
     function chatLine(name,msg,col){const log=document.getElementById('dmpchatlog');if(!log)return;const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:13px;line-height:1.4';
       line.innerHTML='<span style="color:'+col+';font-weight:600">'+esc(String(name).slice(0,20))+':</span> <span style="color:#f5f5f7">'+esc(String(msg).slice(0,120))+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}
+    /* your custom car's description, so friends build the same car: the face photo is shrunk to a small JPEG first */
+    let ccPack=null,ccKey='';
+    function sendCustom(){if(curCarId!=='custom')return;let c=null;try{c=JSON.parse(localStorage.getItem('sl_custom')||'null')}catch(e){}if(!c)return;
+      const key=JSON.stringify([c.base,c.kind,c.paint,c.name,(c.face||'').length]);
+      const go=()=>send({k:'cc',c:ccPack});if(ccPack&&ccKey===key)return go();
+      const base={base:c.base,kind:c.kind,name:c.name,paint:c.paint,speed:c.speed};
+      if(!c.face){ccPack=base;ccKey=key;return go()}
+      const im=new Image();im.onload=()=>{const k=Math.min(1,384/Math.max(im.width,im.height)),cv=document.createElement('canvas');cv.width=Math.round(im.width*k);cv.height=Math.round(im.height*k);
+        cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);ccPack=Object.assign(base,{face:cv.toDataURL('image/jpeg',.88)});ccKey=key;go()};im.src=c.face}
     function sendHi(rep){send({k:'hi',n:myName(),j:me.j,r:rep?1:0,car:curCarId,rid:race.id,rs:race.st,startAt:race.startAt,fin:myFin,rdy:myReady?1:0,d:race.st>=2?race.d0+race.rp:0})}
     function syncRace(P,m){
       const remoteState=num(m.rs,0,4,0),rid=String(m.rid||'');
@@ -8153,11 +8200,16 @@ updCircBtn();
        else if(m.k==='hn'){if(now-(P.hnT||-1e9)<150)return;P.hnT=now}}
       P.last=now;
       if(m.n){const nn=clean(m.n);if(nn&&nn!==P.n){P.n=nn;if(P.gh){P.gh.tg.material.map.dispose();P.gh.tg.material.map=tagTex(nn,P.gh.col);P.gh.name=nn}ui()}}
-      if(m.car){const cid=garageOf(String(m.car)).id;if(cid!==P.car){P.car=cid;
-        if(P.gh){const was=P.gh;killGhost(P);P.gh=makeGhost(P.car,was.col,P.n);
+      if(m.car){const raw=String(m.car),cid=raw==='custom'?'custom':garageOf(raw).id;if(cid!==P.car){P.car=cid;
+        if(P.gh){const was=P.gh;killGhost(P);P.gh=makeGhost(P.car,was.col,P.n,P.car==='custom'?P.ccSpec:null);
           P.gh.g.position.copy(P.tp);P.gh.g.quaternion.copy(P.tq);P.gh.g.visible=was.g.visible;P.gh.tg.visible=was.tg.visible}}}
       switch(m.k){
-        case 'hi':if('rdy' in m)P.ready=!!m.rdy;if(!m.r){sendHi(true);if(lastVenue&&isHost())send(Object.assign({k:'trk'},lastVenue));if(isHost()&&syncCfg)syncCfg(true)}syncRace(P,m);break;
+        case 'cc':{const c=m.c;if(!c||typeof c!=='object')break;
+          const d={base:String(c.base||'').slice(0,20),kind:['face','photo','model'].includes(c.kind)?c.kind:'photo',name:String(c.name||'').slice(0,18),paint:+c.paint||0,speed:+c.speed||.5,
+            face:typeof c.face==='string'&&/^data:image\/(jpeg|png|webp);base64,/.test(c.face)&&c.face.length<300000?c.face:null};
+          P.ccSpec=customSpecFrom(d);if(P.ccSpec&&P.car==='custom'&&P.gh){const was=P.gh;killGhost(P);P.gh=makeGhost('custom',was.col,P.n,P.ccSpec);
+            P.gh.g.position.copy(P.tp);P.gh.g.quaternion.copy(P.tq);P.gh.g.visible=was.g.visible;P.gh.tg.visible=was.tg.visible}}break;
+        case 'hi':if('rdy' in m)P.ready=!!m.rdy;if(!m.r){sendHi(true);sendCustom();if(lastVenue&&isHost())send(Object.assign({k:'trk'},lastVenue));if(isHost()&&syncCfg)syncCfg(true)}syncRace(P,m);break;
         case 'trk':adoptVenue(m);break;
         case 'cfg':if(!isHost()){
           if(m.laps){const el=$('#dmplaps');if(el)el.value=m.laps}
@@ -8174,12 +8226,14 @@ updCircBtn();
           const x=num(m.p[0],-1e4,1e4,0),y=num(m.p[1],-500,2000,0),z=num(m.p[2],-1e4,1e4,0);
           if(!P.got||Math.hypot(x-P.tp.x,z-P.tp.z)>60){P.got=true;P.pt=0;P.vx=P.vy=P.vz=0;P.tp.set(x,y,z);
             P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize();
-            const G=P.gh||(P.gh=makeGhost(P.car,colorOf(P.id),P.n));G.g.position.copy(P.tp);G.g.quaternion.copy(P.tq);G.g.visible=true;G.tg.visible=true}
+            const G=P.gh||(P.gh=makeGhost(P.car,colorOf(P.id),P.n,P.car==='custom'?P.ccSpec:null));G.g.position.copy(P.tp);G.g.quaternion.copy(P.tq);G.g.visible=true;G.tg.visible=true}
           else{const dt=Math.max(.04,Math.min(.5,(now-P.pt)/1000)),a=.6;
             if(Array.isArray(m.v)){P.vx=num(m.v[0],-200,200,0);P.vy=num(m.v[1],-200,200,0);P.vz=num(m.v[2],-200,200,0)}
             else{P.vx+=((x-P.tp.x)/dt-P.vx)*a;P.vy+=((y-P.tp.y)/dt-P.vy)*a;P.vz+=((z-P.tp.z)/dt-P.vz)*a}
             P.tp.set(x,y,z);P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize()}
           if(m.h===1)peerHorn(P,true);else if(m.h===0&&P.horn)peerHorn(P,false);
+          {const B=P.buf||(P.buf=[]);if(B.length&&now-B[B.length-1].t>1500)B.length=0;   // a long gap (tab hidden, teleport): start the playback fresh
+           B.push({t:now,x:P.tp.x,y:P.tp.y,z:P.tp.z,vx:P.vx,vy:P.vy,vz:P.vz,q:P.tq.clone()});if(B.length>14)B.shift()}
           P.pt=now;P.st=num(m.st,-1,1,0);P.vf=num(m.vf,-80,120,0);P.d=num(m.d,-5,50,0);P.pl=typeof m.pl==='string'&&/^[a-z]{3,8}$/.test(m.pl)?m.pl:'earth';break}
         case 'race':beginCountdown(P.n,num(m.startAt,0,1e15,Date.now()+CD_LEAD),String(m.rid||''),num(m.laps,1,20,3),m.v&&typeof m.v==='object'?m.v:null);break;
         case 'fin':
@@ -8204,7 +8258,7 @@ updCircBtn();
       try{localStorage.setItem('sl_name',me.n)}catch(e){}
       room=code;me.j=Date.now();status='connecting';race.st=0;myFin=0;
       net=openNet(code,onMsg,s=>{const was=status;status=s;
-        if(s==='up'){sendHi(false);lastHi=performance.now()}
+        if(s==='up'){sendHi(false);sendCustom();lastHi=performance.now()}
         if(s==='down')toast2('Cannot reach the room right now');
         if(s==='up'&&was==='retry')toast2('Back online');ui()});
       ui();
@@ -8318,7 +8372,7 @@ updCircBtn();
       if(race.endAt&&now>race.endAt){race.st=3;ui()}
       if(myFin){let all=true;peers.forEach(p=>{if(!p.fin&&p.got&&now-p.last<STALE)all=false});if(all&&race.st===2){race.st=3;ui()}}}
     /* ----- per frame ----- */
-    const tmpV=new THREE.Vector3(),fwdV=new THREE.Vector3(),qq=new THREE.Quaternion(),UPQ=new CANNON.Vec3(0,0,1),fw=new CANNON.Vec3(),plP=new THREE.Vector3(),plQ=new THREE.Quaternion();
+    const tmpV=new THREE.Vector3(),tmpQ=new THREE.Quaternion(),fwdV=new THREE.Vector3(),qq=new THREE.Quaternion(),UPQ=new CANNON.Vec3(0,0,1),fw=new CANNON.Vec3(),plP=new THREE.Vector3(),plQ=new THREE.Quaternion();
     let spinMe=0;
     /* ----- horns: you hear everyone else's, from where their car is -----
        Pressing the horn sends 'hn' on/off at once, and every pose carries h:1 while it is held, so a lost message
@@ -8375,10 +8429,18 @@ updCircBtn();
         {const pl=P.pl||'earth',sc=pl==='earth'?(SPACE.state==='earth'?S:null):SPACE.sceneFor(pl);
          if(sc&&G.g.parent!==sc){sc.add(G.g);sc.add(G.tg)}G.away=!sc}
         // dead reckoning: move with the sent velocity every frame, then bleed off the error, so a friend glides instead of stepping 10x a second
-        const ex=Math.min(.35,(now-P.pt)/1000);
-        tmpV.set(P.tp.x+P.vx*ex,P.tp.y+P.vy*ex,P.tp.z+P.vz*ex);
-        {const err=G.g.position.distanceTo(tmpV);if(err>25)G.g.position.copy(tmpV);else G.g.position.lerp(tmpV,1-Math.exp(-dt*(err>4?14:7)))}
-        G.g.quaternion.slerp(P.tq,1-Math.exp(-dt*9));
+        /* snapshot playback: friends are drawn ~110 ms in the past, between two real poses they sent (a curve that
+           matches both positions AND speeds), so turns follow their true line instead of being guessed. If packets
+           are late, it carries on with the last speed for up to 0.3 s. */
+        {const B=P.buf,rt=now-110;let qa=null,qb=null,f=0;
+         if(B&&B.length>1&&rt>=B[0].t){let i=B.length-1;while(i>0&&B[i-1].t>rt)i--;
+           if(rt<=B[B.length-1].t&&i>0){const a=B[i-1],b=B[i],T=Math.max(.001,(b.t-a.t)/1000);f=Math.min(1,Math.max(0,(rt-a.t)/(b.t-a.t)));
+             const f2=f*f,f3=f2*f,h00=2*f3-3*f2+1,h10=f3-2*f2+f,h01=-2*f3+3*f2,h11=f3-f2;
+             tmpV.set(h00*a.x+h10*T*a.vx+h01*b.x+h11*T*b.vx,h00*a.y+h10*T*a.vy+h01*b.y+h11*T*b.vy,h00*a.z+h10*T*a.vz+h01*b.z+h11*T*b.vz);qa=a.q;qb=b.q}
+           else{const L=B[B.length-1],ex=Math.min(.3,(rt-L.t)/1000);tmpV.set(L.x+L.vx*ex,L.y+L.vy*ex,L.z+L.vz*ex);qa=qb=L.q}}
+         else{const ex=Math.min(.3,(now-P.pt)/1000);tmpV.set(P.tp.x+P.vx*ex,P.tp.y+P.vy*ex,P.tp.z+P.vz*ex)}
+         const err=G.g.position.distanceTo(tmpV);if(err>25)G.g.position.copy(tmpV);else G.g.position.lerp(tmpV,1-Math.exp(-dt*30));
+         if(qa){tmpQ.copy(qa).slerp(qb,f);G.g.quaternion.slerp(tmpQ,1-Math.exp(-dt*30))}else G.g.quaternion.slerp(P.tq,1-Math.exp(-dt*12))}
         P.wr-=P.vf/V.r*dt;   // this build turns its wheel angle the other way round: negative is forward
         for(let i=0;i<4;i++){const w=G.wl[i];w.spin.rotation.x=P.wr;if(i<2)w.w.rotation.y+=(P.st-w.w.rotation.y)*Math.min(1,dt*12)}
         G.tg.position.set(G.g.position.x,G.g.position.y+2.5,G.g.position.z);
@@ -8504,7 +8566,7 @@ const rdyBtn=$('#dmpready');
     };
   }
 
-function carChanged(){if(room)sendHi(true)}
+function carChanged(){if(room){sendHi(true);sendCustom()}}
   mpCarNotify=carChanged;
   // Chat send
   const chatInput=$('#dmpchatinput'),chatSend=$('#dmpchatsend');
