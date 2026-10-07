@@ -3465,7 +3465,7 @@ t.bd.position.set(x,y+.86,z);
         if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true);
       }else if(MODE==='circuit'||SPACE.state!=='earth')NAV.toggle();
       return
-    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyT'&&!e.repeat){radioCycle();return}if(e.code==='KeyO'&&!e.repeat){if(window.Settings)Settings.open();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyT'&&!e.repeat){radioCycle();return}if(/^Digit[1-4]$/.test(e.code)&&!e.repeat&&MP.on){MP.emote(+e.code.slice(5)-1);return}if(e.code==='KeyO'&&!e.repeat){if(window.Settings)Settings.open();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -6283,6 +6283,7 @@ const PLANETS={
       C.lookAt(look);
       if(Math.abs(camRoll)>.0005){camRoll*=Math.exp(-dt*4)}
       if(Math.abs(C.fov-60)>.02){C.fov+=(60-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
+    if(active&&window.__specCam)try{window.__specCam(dt)}catch(_){}
     // the horizon ridge is a ring round the valley; from the summit, which sits outside it, it would be a wall across the view
     farRidge.position.set(C.position.x,0,C.position.z);
     {const hi=MODE==='world'&&CABLE.high(),base=hi?3200:recapCam?700:TOUCH?460:320,cf=Math.round(Math.max(base,S.fog?S.fog.far*1.08:0)/20)*20;if(C.far!==cf&&(C.far<=1600||C.far===3200)&&MODE!=='circuit'){C.far=cf;C.updateProjectionMatrix()}
@@ -8230,6 +8231,26 @@ updCircBtn();
     function toast2(s){try{toastMsg(s)}catch(e){}}
     /* ----- messages ----- */
     function send(m){if(net&&status==='up'){m.id=me.id;net.send(m)}}
+    /* ----- emotes: keys 1-4 put a bubble over your car for everyone in the room ----- */
+    const EMO=['gg','nice!','wait up','HONK HONK'],bubbles=[];
+    function bubble(parent,txt,col){const c=document.createElement('canvas');c.width=512;c.height=160;const x=c.getContext('2d');x.font='700 64px -apple-system,BlinkMacSystemFont,Arial,sans-serif';
+      const w=Math.min(500,x.measureText(txt).width+70);x.fillStyle='rgba(14,14,16,.88)';x.beginPath();if(x.roundRect)x.roundRect((512-w)/2,20,w,100,50);else x.rect((512-w)/2,20,w,100);x.fill();
+      x.strokeStyle=col;x.lineWidth=6;x.stroke();x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';x.fillText(txt,256,72);
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));sp.scale.set(4,1.25,1);sp.position.set(0,3.6,0);sp.renderOrder=20;parent.add(sp);bubbles.push({sp,t:2.6})}
+    function emote(i){if(!room||status!=='up'||i<0||i>3)return;const now=performance.now();if(now-(emote.t||0)<700)return;emote.t=now;send({k:'em',e:i});bubble(car,EMO[i],'#4d8dff');if(i===3){key.horn=1;setTimeout(()=>key.horn=0,600)}}
+    function bubblesTick(dt){for(let i=bubbles.length-1;i>=0;i--){const b=bubbles[i];b.t-=dt;b.sp.position.y=3.6+(2.6-b.t)*.25;b.sp.material.opacity=Math.min(1,b.t/.5);if(b.t<=0){b.sp.parent&&b.sp.parent.remove(b.sp);b.sp.material.map.dispose();b.sp.material.dispose();bubbles.splice(i,1)}}}
+    /* ----- championship: points for every finished race in this room session ----- */
+    const PTS=new Map(),PTS_FOR=[10,6,4,3,2,1];let tallied='';
+    function tally(rows){if(!race.id||tallied===race.id)return;tallied=race.id;rows.forEach((r,i)=>{if(!r.fin)return;const k=r.me?'me':r.id;const o=PTS.get(k)||{n:r.n,p:0,w:0};o.n=r.n;o.p+=PTS_FOR[i]||0;if(i===0)o.w++;PTS.set(k,o)})}
+    function champHtml(){const L=[...PTS.entries()].sort((a,b)=>b[1].p-a[1].p);if(!L.length)return'';
+      return '<div style="margin-top:14px;font-weight:600;font-size:13px;opacity:.8">Room championship</div>'+L.map(([k,o],i)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px"><span>${i+1}. ${esc(o.n)}${k==='me'?' (you)':''}</span><span>${o.p} pts${o.w?' · '+o.w+' win'+(o.w>1?'s':''):''}</span></div>`).join('')}
+    /* ----- spectator camera: once you finish, the camera follows whoever is still racing (the closest to the line) ----- */
+    let specEl=null;
+    window.__specCam=dt=>{const on=room&&myFin&&race.st===2;let T=null,bd=-1;if(on)peers.forEach(P=>{if(!P.fin&&P.gh&&!P.gh.away&&P.gh.g.visible&&(P.d||0)>bd){bd=P.d||0;T=P}});
+      if(!specEl){specEl=document.createElement('div');specEl.style.cssText='position:absolute;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:3;pointer-events:none;font:600 13px -apple-system,BlinkMacSystemFont,Arial,sans-serif;color:#fff;padding:7px 14px;border-radius:99px;background:rgba(14,14,16,.7);display:none';(document.getElementById('dhud')||document.body).appendChild(specEl)}
+      specEl.style.display=T?'block':'none';if(!T)return false;specEl.textContent='Spectating '+(T.n||'Driver');
+      const g=T.gh.g,f=new THREE.Vector3(0,0,1).applyQuaternion(g.quaternion);f.y=0;f.normalize();
+      const want=new THREE.Vector3(g.position.x-f.x*9,g.position.y+3.6,g.position.z-f.z*9);C.position.lerp(want,1-Math.exp(-dt*4));C.lookAt(g.position.x+f.x*4,g.position.y+1.2,g.position.z+f.z*4);return true};
     mpMapTags=()=>{const out=[];if(!room)return out;peers.forEach(P=>{const G=P.gh;if(!G||G.away||!G.g.visible)return;out.push({x:G.g.position.x,z:G.g.position.z,n:P.n||'Driver',col:'#'+colorOf(P.id).toString(16).padStart(6,'0')})});return out};
     function chatLine(name,msg,col){const log=document.getElementById('dmpchatlog');if(!log)return;const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:13px;line-height:1.4';
       line.innerHTML='<span style="color:'+col+';font-weight:600">'+esc(String(name).slice(0,20))+':</span> <span style="color:#f5f5f7">'+esc(String(msg).slice(0,120))+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}
@@ -8281,6 +8302,7 @@ updCircBtn();
             face:typeof c.face==='string'&&/^data:image\/(jpeg|png|webp);base64,/.test(c.face)&&c.face.length<300000?c.face:null};
           P.ccSpec=customSpecFrom(d);if(P.ccSpec&&P.car==='custom'&&P.gh){const was=P.gh;killGhost(P);P.gh=makeGhost('custom',was.col,P.n,P.ccSpec);
             P.gh.g.position.copy(P.tp);P.gh.g.quaternion.copy(P.tq);P.gh.g.visible=was.g.visible;P.gh.tg.visible=was.tg.visible}}break;
+        case 'em':{const i=num(m.e,0,3,0)|0;if(P.gh&&!P.gh.away)bubble(P.gh.g,EMO[i],'#'+colorOf(P.id).toString(16).padStart(6,'0'));else toastMsg((P.n||'Driver')+': '+EMO[i])}break;
         case 'hi':if('rdy' in m)P.ready=!!m.rdy;if(!m.r){sendHi(true);sendCustom();if(lastVenue&&isHost())send(Object.assign({k:'trk'},lastVenue));if(isHost()&&syncCfg)syncCfg(true)}syncRace(P,m);break;
         case 'trk':adoptVenue(m);break;
         case 'cfg':if(!isHost()){
@@ -8522,7 +8544,7 @@ updCircBtn();
          if(want&&!G.inWorld){world.addBody(G.body);G.inWorld=true}else if(!want&&G.inWorld){world.removeBody(G.body);G.inWorld=false}
          if(G.inWorld){G.body.position.set(G.g.position.x,G.g.position.y,G.g.position.z);G.body.quaternion.set(G.g.quaternion.x,G.g.quaternion.y,G.g.quaternion.z,G.g.quaternion.w);G.body.velocity.set(P.vx,P.vy,P.vz)}}
         P.sp=Math.hypot(car.position.x-G.g.position.x,car.position.z-G.g.position.z)});
-      raceTick(now,dt);autoStart(now);
+      raceTick(now,dt);autoStart(now);bubblesTick(dt);
       if(now-lastUI>250){lastUI=now;if(el.panel&&el.panel.classList.contains('on')&&room)ui();else roster()}}
     /* ----- HUD ----- */
     function roster(){
@@ -8582,6 +8604,9 @@ updCircBtn();
     function invite(){const u=new URL(location.href);u.search='';u.hash='';u.searchParams.set('room',room);return u.toString()}
     if(el.btn)el.btn.onclick=openPanel;
     if(el.x)el.x.onclick=closePanel;
+    // free roam with the room: no race, no lobby, everyone's car is in the valley with you
+    {const fb=document.getElementById('dmpfree');if(fb)fb.onclick=()=>{if(!room){toastMsg('Join a room first');return}closePanel();if(MODE==='circuit')try{leaveCircuit()}catch(_){}
+      driving=true;toastMsg('Free drive with the room · press 1-4 for emotes')}}
     if(el.panel)el.panel.addEventListener('click',e=>{if(e.target===el.panel)closePanel()});
     if(el.join)el.join.onclick=()=>join(el.code.value);
     if(el.code)el.code.addEventListener('keydown',e=>{if(e.key==='Enter')join(el.code.value)});
@@ -8776,11 +8801,12 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
     function showResults(){
       const m=document.getElementById('dresults');if(!m)return;
       const rows=[{n:myName(),fin:myFin,me:1}];
-      peers.forEach(P=>{if(P.fin||P.got)rows.push({n:P.n,fin:P.fin})});
-      rows.sort((a,b)=>a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:0);
+      peers.forEach(P=>{if(P.fin||P.got)rows.push({n:P.n,fin:P.fin,id:P.id})});
+      rows.sort((a,b)=>a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:0);tally(rows);
       const best=rows.length&&rows[0].fin?rows[0].fin:0,list=document.getElementById('dreslist'),nl=race.laps||getLaps();
       if(list)list.innerHTML=rows.map((r,i)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span>${r.fin?i+1+'.':'–'} ${esc(r.n)}${r.me?' (you)':''}</span><span>${r.fin?fmtT(r.fin)+(best&&r.fin>best?' <span style="opacity:.6">+'+((r.fin-best)/1000).toFixed(2)+'s</span>':''):'DNF'}</span></div>`).join('')+
         `<div style="margin-top:8px;opacity:.7;font-size:12px">${race.planet?(SPACE.PLANETS[race.planet].name+' sprint · '+(SPACE.RACE_LEN/1000)+' km'):nl+' lap'+(nl>1?'s':'')+' · '+(MODE==='circuit'&&circuit?'drawn track':'Earth valley loop')}</div>`;
+      if(list)list.innerHTML+=champHtml();
       let st=document.getElementById('dresstatus');
       if(!st&&list){st=document.createElement('div');st.id='dresstatus';st.className='mono';st.style.cssText='margin-top:12px;font-size:12px;color:#4d8dff;min-height:1.4em';list.parentNode.insertBefore(st,list.nextSibling)}
       const lobby=document.getElementById('dreslobby');if(lobby)lobby.textContent=isHost()?'Change track / laps':'Room';
@@ -8794,7 +8820,7 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
       if(!all){if(autoStartAt){autoStartAt=0;paintReady()}return}
       if(!autoStartAt){autoStartAt=now+2500;note('Everyone is ready · starting…');toast2('Everyone is ready · starting');paintReady()}
       else if(now>=autoStartAt){autoStartAt=0;requestRace()}}
-    return {tick,join,leave,LOG,shareVenue,inRoom,getLaps,getPeers,isHolding,isHostNow:()=>isHost(),get on(){return !!room},get state(){return {room,status,peers,race,me}},_dbg:{sorted}}
+    return {tick,emote,join,leave,LOG,shareVenue,inRoom,getLaps,getPeers,isHolding,isHostNow:()=>isHost(),get on(){return !!room},get state(){return {room,status,peers,race,me}},_dbg:{sorted}}
   })();
   /* ---------- go ---------- */
   function resize(){W=sec.clientWidth;H=sec.clientHeight;R.setPixelRatio(DPR());R.setSize(W,H,false);C.aspect=W/H;C.updateProjectionMatrix();if(sun.shadow)sun.shadow.needsUpdate=true}addEventListener('resize',resize);
