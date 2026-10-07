@@ -5687,6 +5687,139 @@ const PLANETS={
   const phoneSt={on:false,cam:false,reset:false};let rcSince=0;
   const garageEl=$('#dgarage');
   let drawerOpen=false;   // the draw-track screen covers the view: the world holds still underneath (no render, no physics) so drawing stays responsive
+  /* ---------- best-lap ghost ----------
+     Every lap you drive on a circuit is recorded (a pose every 0.1 s). The fastest one is kept on this device for that
+     track (daily tracks by date, drawn tracks by their shape) and replayed as a see-through car from the start line,
+     so you race your own record. */
+  const GHOSTLAP=(function(){let rec=null,t0=0,best=null,key='',mesh=null,playT0=0;
+    const mat=new THREE.MeshBasicMaterial({color:0x8fc4ff,transparent:true,opacity:.32,depthWrite:false});
+    const keyOf=()=>circuit?('gl_'+(circuit.daily?'d'+circuit.daily:'s'+circuit.seed)+'_'+Math.round(circuit.TL||0)):'';
+    function build(){if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}const spec=garageOf(curCarId),sv=spec.V;
+      const o={paint:0x8fc4ff,r:sv.r,zf:sv.zf,zb:sv.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};let P=null;try{P=makeBody(spec,o)}catch(e){}
+      const g=new THREE.Group();if(P){P.g.position.y=.05-(sv.rest-.07)-sv.r+.55-.55;g.add(P.g)}else g.add(new THREE.Mesh(new THREE.BoxGeometry(1.8,.9,4.2),mat));
+      g.traverse(o=>{if(o.isMesh){o.material=mat;o.castShadow=false;o.receiveShadow=false}});g.visible=false;(circuit&&circuit.root||S).add(g);mesh=g}
+    function load(){key=keyOf();best=null;try{const j=JSON.parse(localStorage.getItem(key)||'null');if(j&&j.p&&j.p.length>10)best=j}catch(e){}if(best)build()}
+    function onLap(now,fresh){const lapMs=now-t0;
+      if(rec&&!fresh&&rec.length>20&&lapMs>8000&&(!best||lapMs<best.ms)){best={ms:lapMs,p:rec};try{localStorage.setItem(key,JSON.stringify(best))}catch(e){}if(!mesh)build();toastMsg('New best lap · ghost saved')}
+      rec=[];t0=now;playT0=now}
+    function tick(u,prevU,now){if(!circuit){if(mesh)mesh.visible=false;return}
+      if(keyOf()!==key)load();else if(best&&(!mesh||mesh.parent!==circuit.root))build();
+      if(prevU>.82&&u<.18)onLap(now,!rec);
+      if(rec&&now-t0>=rec.length*100){const p=chassisB.position,q=chassisB.quaternion,yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
+        if(rec.length<6000)rec.push([+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2),+yaw.toFixed(3)])}
+      if(best&&mesh&&rec){const f=(now-playT0)/100,i=Math.floor(f);if(i<best.p.length-1){const a=best.p[i],b=best.p[i+1],k=f-i;
+          mesh.visible=true;mesh.position.set(a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k-.55+.55,a[2]+(b[2]-a[2])*k);let dy=b[3]-a[3];dy=Math.atan2(Math.sin(dy),Math.cos(dy));mesh.rotation.set(0,a[3]+dy*k,0)}
+        else mesh.visible=false}}
+    return {tick,reset(){rec=null;key='';if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}},get best(){return best}}})();
+  /* ---------- slipstream ----------
+     Tuck in 4-25 m behind another car (a friend, a circuit rival or traffic), roughly in line with it, and the air it
+     punches through pulls you along: up to ~0.25 g extra, building in over a second. */
+  const SLIP=(function(){let k=0,el=null;const fw=new CANNON.Vec3();
+    function targets(){const out=[];if(typeof mpMapTags==='function'&&mpMapTags)mpMapTags().forEach(t=>out.push(t));
+      if(typeof CAI!=='undefined'&&CAI.on)CAI.bodies.forEach(b=>out.push({x:b.position.x,z:b.position.z}));
+      if(MODE==='world')traffic.forEach(t=>{if(t.bd)out.push({x:t.bd.position.x,z:t.bd.position.z})});return out}
+    function tick(dt,sp){let want=0;if(sp>14&&driving){fw.set(0,0,1);chassisB.quaternion.vmult(fw,fw);const hl=Math.hypot(fw.x,fw.z)||1,fx=fw.x/hl,fz=fw.z/hl,p=chassisB.position;
+        for(const t of targets()){const dx=t.x-p.x,dz=t.z-p.z,along=dx*fx+dz*fz;if(along<4||along>25)continue;const lat=Math.abs(dx*fz-dz*fx);if(lat>2.2)continue;want=Math.max(want,1-(along-4)/21)}}
+      k+=(want-k)*Math.min(1,dt*(want>k?1.2:3));
+      if(k>.02){fw.set(0,0,1);chassisB.quaternion.vmult(fw,fw);const a=2.4*k*dt;chassisB.velocity.x+=fw.x*a;chassisB.velocity.z+=fw.z*a}
+      if(!el){el=document.createElement('div');el.style.cssText='position:absolute;left:50%;top:calc(96px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3;pointer-events:none;font:600 12px -apple-system,BlinkMacSystemFont,Arial,sans-serif;letter-spacing:.06em;color:#bfe0ff;padding:6px 12px;border-radius:99px;background:rgba(20,40,70,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:opacity .25s;opacity:0';el.textContent='SLIPSTREAM';(document.getElementById('dhud')||document.body).appendChild(el)}
+      el.style.opacity=k>.25?Math.min(1,k*1.4).toFixed(2):'0'}
+    return {tick,get k(){return k}}})();
+  /* ---------- visual damage ----------
+     A hard hit (wall, another car, a tree) leaves a scuff and a dent mark on the side that took it. Purely cosmetic: the
+     car drives exactly the same. Up to 14 marks; a reset (R) or a car change cleans the car. */
+  const DAMAGE=(function(){const marks=[];let tex=null,dentTex=null,last=0;
+    function mk(dark){const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');
+      if(dark){const g=x.createRadialGradient(64,64,4,64,64,60);g.addColorStop(0,'rgba(0,0,0,.55)');g.addColorStop(.6,'rgba(0,0,0,.25)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,128,128)}
+      else{x.lineCap='round';for(let i=0;i<26;i++){const y=20+Math.random()*88,x0=8+Math.random()*30,len=40+Math.random()*70;x.strokeStyle='rgba('+(200+Math.random()*55|0)+','+(200+Math.random()*55|0)+','+(200+Math.random()*55|0)+','+(.35+Math.random()*.5).toFixed(2)+')';x.lineWidth=.6+Math.random()*1.6;x.beginPath();x.moveTo(x0,y);x.lineTo(Math.min(124,x0+len),y+(Math.random()-.5)*14);x.stroke()}}
+      const t=new THREE.CanvasTexture(c);return t}
+    function add(nLocal,strength){const now=performance.now();if(now-last<250)return;last=now;if(!tex){tex=mk(false);dentTex=mk(true)}
+      const spec=garageOf(curCarId),W=(spec.W||1.9)/2+.02,F=spec.F||2.2,B=spec.B||-2.2,ax=Math.abs(nLocal.x),az=Math.abs(nLocal.z);
+      const g=new THREE.Group(),sz=.5+Math.min(1,strength/20)*.7;
+      [dentTex,tex].forEach((t,i)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(sz*(i?1.5:1.1),sz*(i?.7:.8)),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}));m.position.z=i*.003;m.rotation.z=(Math.random()-.5)*.6;g.add(m)});
+      const y=.15+Math.random()*.25;
+      if(ax>az){const sd=nLocal.x>0?1:-1;g.position.set(sd*W,y,(B+(F-B)*(.2+Math.random()*.6)));g.rotation.y=sd*Math.PI/2}
+      else{const fr=nLocal.z>0;g.position.set((Math.random()-.5)*W,y,fr?F+.02:B-.02);g.rotation.y=fr?0:Math.PI}
+      vis.body.add(g);marks.push(g);if(marks.length>14){const o=marks.shift();o.parent&&o.parent.remove(o)}}
+    function clear(){marks.forEach(o=>o.parent&&o.parent.remove(o));marks.length=0}
+    window.__dmgClear=clear;
+    chassisB.addEventListener('collide',e=>{try{const c=e.contact,iv=Math.abs(c.getImpactVelocityAlongNormal());if(iv<7)return;const other=c.bi===chassisB?c.bj:c.bi;
+      if(other.mass===0&&other.shapes[0]&&other.shapes[0].type===CANNON.Shape.types.HEIGHTFIELD)return;   // the ground itself (landings) does not scratch the sides
+      const n=c.bi===chassisB?c.ni:c.ni.negate(new CANNON.Vec3()),wn=new THREE.Vector3(n.x,n.y,n.z);if(Math.abs(wn.y)>.7)return;
+      const q=new THREE.Quaternion(chassisB.quaternion.x,chassisB.quaternion.y,chassisB.quaternion.z,chassisB.quaternion.w).invert();wn.applyQuaternion(q);add(wn,iv)}catch(_){}});
+    return {add,clear,get n(){return marks.length}}})();
+  let WORLDX_U=null;
+  /* ---------- the valley, alive: rain fronts, a neon strip, hidden tokens ----------
+     RAIN: in auto weather, every few minutes a rain front can roll in over ~20 s, last a minute or two and clear. While
+     the road is wet, dark glossy puddles show on the tarmac and the tyres throw spray.
+     NEON STRIP: one stretch of the valley loop is a small night town: streetlights both sides, low buildings with lit
+     windows and neon signs. It is there all day; after dark it glows.
+     TOKENS: 12 gold tokens hidden off the road around the valley. Each one found unlocks a paint in the paint shop. */
+  const WORLDX=(function(){if(LOW&&false)return {tick(){}};
+    const root=new THREE.Group();S.add(root);let wet=0,front=null,nextFront=performance.now()+120000+Math.random()*120000;
+    let seed=9091;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+    // puddles
+    const pudM=new THREE.MeshPhongMaterial({color:0x1a2230,specular:0xbfd3ea,shininess:120,transparent:true,opacity:0,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});
+    const PN=LOW?60:140,pud=new THREE.InstancedMesh(new THREE.CircleGeometry(1,18).rotateX(-Math.PI/2),pudM,PN);pud.frustumCulled=false;pud.renderOrder=2;root.add(pud);
+    {const o=new THREE.Object3D();for(let i=0;i<PN;i++){const u=rnd(),{p,n}=at(u),off=(rnd()-.5)*9;o.position.set(p.x+n.x*off,p.y+.1,p.z+n.z*off);o.scale.set(.8+rnd()*1.8,1,.5+rnd()*1.2);o.rotation.y=rnd()*6.283;o.updateMatrix();pud.setMatrixAt(i,o.matrix)}pud.instanceMatrix.needsUpdate=true}
+    // spray
+    const SPN=160,spG=new THREE.BufferGeometry(),spP=new Float32Array(SPN*3),spV=new Float32Array(SPN*3),spL=new Float32Array(SPN);spG.setAttribute('position',new THREE.BufferAttribute(spP,3));
+    const spray=new THREE.Points(spG,new THREE.PointsMaterial({color:0xdfe8f0,size:.22,transparent:true,opacity:.55,depthWrite:false}));spray.frustumCulled=false;root.add(spray);let spI=0;
+    // neon strip on the loop
+    const city=new THREE.Group();root.add(city);const glows=[],winMats=[],neonMats=[];
+    {const glowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.3,'rgba(255,255,255,.35)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
+     const winTex=()=>{const c=document.createElement('canvas');c.width=64;c.height=128;const x=c.getContext('2d');x.fillStyle='#000';x.fillRect(0,0,64,128);for(let yy=6;yy<124;yy+=14)for(let xx=5;xx<60;xx+=12){if(Math.random()<.42){x.fillStyle=['#ffd98a','#ffe9b8','#bfe4ff','#ffc06a'][Math.random()*4|0];x.fillRect(xx,yy,7,8)}}const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t};
+     const signTex=(txt,col)=>{const c=document.createElement('canvas');c.width=512;c.height=160;const x=c.getContext('2d');x.font='800 92px -apple-system,BlinkMacSystemFont,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.shadowColor=col;x.shadowBlur=26;x.fillStyle=col;x.fillText(txt,256,84);x.shadowBlur=0;x.fillStyle='#fff';x.globalAlpha=.85;x.fillText(txt,256,84);return new THREE.CanvasTexture(c)};
+     const poleM=M(0x2a2b2e,{roughness:.6}),bodyM=[0x2b2d33,0x3a3530,0x23272e,0x40382f,0x2e2a33];
+     const NAMES=[['DINER','#ff4fa3'],['ARCADE','#4fd8ff'],['24/7','#ffe24f'],['MOTEL','#ff6a3d'],['GARAGE','#7dff6a'],['NOODLES','#ff4f6a'],['DRIVE-IN','#b26bff'],['SKETCH','#4fffd2']];
+     // the straightest flat stretch of the loop, clear of the traffic lights
+     let bestU=.66,bestS=1e9;for(let u=0;u<1;u+=.01){if(Math.abs(u-.185)<.08||Math.abs(u-.545)<.08)continue;let sc=0;for(let k=0;k<6;k++){const a=at(u+k*.006).tg,b=at(u+k*.006+.006).tg;sc+=Math.acos(Math.max(-1,Math.min(1,a.x*b.x+a.z*b.z)))+HF.slope(at(u+k*.006).p.x,at(u+k*.006).p.z)*.3}if(sc<bestS){bestS=sc;bestU=u}}
+     const U0=bestU,U1=bestU+.05,L=curve.getLength()*(U1-U0),off=(7+RWX*1.6)/2+1.6;let si=0;
+     for(let d=0;d<L;d+=24){const u=U0+(U1-U0)*d/L,{p,n,tg}=at(u);for(const sd of[-1,1]){const x=p.x+n.x*sd*off,z=p.z+n.z*sd*off,y=HF.h(x,z);
+        {const sp2=spurAt(x,z);if(roadNear(x,z).d<off-1.2||sp2&&sp2.d<8)continue}   // never on another road or a junction
+        const pole=new THREE.Mesh(new THREE.CylinderGeometry(.08,.11,6.2,8),poleM);pole.position.set(x,y+3.1,z);city.add(pole);
+        const arm=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,1.6),poleM);arm.position.set(x-n.x*sd*.7,y+6.1,z-n.z*sd*.7);arm.rotation.y=Math.atan2(n.x,n.z);city.add(arm);
+        const lampM=new THREE.MeshBasicMaterial({color:0xfff1c8});const lamp=new THREE.Mesh(new THREE.BoxGeometry(.32,.12,.5),lampM);lamp.position.set(x-n.x*sd*1.4,y+6.02,z-n.z*sd*1.4);lamp.rotation.y=Math.atan2(n.x,n.z);city.add(lamp);
+        const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffd99a,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));gl.position.copy(lamp.position);gl.scale.setScalar(4.5);city.add(gl);glows.push(gl);
+        staticBox(x,y+3,z,.12,3,.12)}
+      // buildings behind the lights, every other step, where the ground is free
+      if((d/24|0)%2===0)for(const sd of[-1,1]){const dist=off+9+rnd()*8,x=p.x+n.x*sd*dist,z=p.z+n.z*sd*dist;if(roadNear(x,z).d<off+5||HF.slope(x,z)>.5)continue;{const sp2=spurAt(x,z);if(sp2&&sp2.d<14)continue}
+        const w=8+rnd()*6,h=6+rnd()*10,dp=7+rnd()*4,y=HF.h(x,z);const wt=winTex();wt.repeat.set(Math.round(w/4),Math.round(h/5));
+        const wm=new THREE.MeshLambertMaterial({color:bodyM[si%bodyM.length],emissive:0xffffff,emissiveMap:wt,emissiveIntensity:.15});winMats.push(wm);
+        const b=new THREE.Mesh(new THREE.BoxGeometry(dp,h,w),wm);b.position.set(x,y+h/2-.3,z);b.rotation.y=Math.atan2(tg.x,tg.z);b.castShadow=!LOW;b.receiveShadow=true;city.add(b);
+        staticBox(x,y+h/2,z,dp/2,h/2,w/2,Math.atan2(tg.x,tg.z));
+        const [txt,col]=NAMES[si%NAMES.length];si++;const nm=new THREE.MeshBasicMaterial({map:signTex(txt,col),transparent:true,depthWrite:false,opacity:.6});neonMats.push(nm);
+        const sign=new THREE.Mesh(new THREE.PlaneGeometry(6,1.9),nm);const fx=x-n.x*sd*(dp/2+.08),fz=z-n.z*sd*(dp/2+.08);sign.position.set(fx,y+Math.min(h-1.5,5.2),fz);sign.rotation.y=Math.atan2(-n.x*sd,-n.z*sd);city.add(sign);
+        const ng=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:new THREE.Color(col),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:0}));ng.position.copy(sign.position);ng.scale.set(9,4,1);city.add(ng);glows.push(ng)}}
+     WORLDX_U=[U0,U1]}
+    // tokens
+    const TOK_PAINTS=[0xff2d55,0x00c7be,0xffcc00,0x5856d6,0xff9500,0x34c759,0xaf52de,0x0a84ff,0xd4af37,0xe5e5ea,0x1c1c1e,0xff6f91];
+    let found=[];try{found=JSON.parse(localStorage.getItem('sl_tokens')||'[]')}catch(e){}
+    const tokM=new THREE.MeshStandardMaterial({color:0xffd34d,metalness:.9,roughness:.25,emissive:0x7a5a00,emissiveIntensity:.6});
+    const tokens=[];{let tries=0;while(tokens.length<12&&tries<4000){tries++;const x=(rnd()-.5)*(BOUND*1.7),z=(rnd()-.5)*(BOUND*1.7),rd=roadNear(x,z).d;
+        if(rd<18||rd>140)continue;if(HF.h(x,z)<.5||HF.slope(x,z)>.7)continue;if((x-POND.x)**2+(z-POND.z)**2<(POND.r+10)**2)continue;if(tokens.some(t=>(t.x-x)**2+(t.z-z)**2<90*90))continue;
+        const g=new THREE.Group(),coin=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,.18,28),tokM);coin.rotation.x=Math.PI/2;g.add(coin);
+        const star=new THREE.Mesh(new THREE.OctahedronGeometry(.42,0),new THREE.MeshBasicMaterial({color:0xfff6c8}));star.scale.z=.3;g.add(star);
+        const y=HF.h(x,z);g.position.set(x,y+1.6,z);root.add(g);const id=tokens.length;g.visible=!found.includes(id);tokens.push({x,y,z,g,id})}}
+    window.TOKEN_PAINTS=TOK_PAINTS;window.tokenFound=()=>found.slice();
+    function tick(dt,now){const on=MODE==='world';root.visible=on;if(!on)return;
+      // rain fronts (auto weather only)
+      if(!wxLock&&!atSummit){if(!front&&now>nextFront){if(Math.random()<.45){front={end:now+60000+Math.random()*60000};mood('rain',18);toastMsg('Rain rolling in')}nextFront=now+150000+Math.random()*150000}
+        if(front&&now>front.end){front=null;mood(CHMOOD[Math.max(0,act)]||'day',20);toastMsg('Clearing up')}}else front=null;
+      const raining=wxB.id==='rain'||wxB.id==='storm';wet+=((raining?1:0)-wet)*Math.min(1,dt/(raining?14:40));
+      pudM.opacity=wet*.82;pud.visible=wet>.02;
+      // spray from the tyres
+      const sp=chassisB.velocity.length();if(wet>.2&&sp>9&&driving){const n=Math.min(6,sp/6|0);for(let k=0;k<n;k++){const i=spI++%SPN,w=veh.wheelInfos[2+(k&1)];if(!w)break;const h=w.raycastResult.hitPointWorld;
+          spP[i*3]=h.x;spP[i*3+1]=h.y+.15;spP[i*3+2]=h.z;const v=chassisB.velocity;spV[i*3]=-v.x*.18+(Math.random()-.5)*2;spV[i*3+1]=1.2+Math.random()*2.2;spV[i*3+2]=-v.z*.18+(Math.random()-.5)*2;spL[i]=.6}}
+      for(let i=0;i<SPN;i++){if(spL[i]<=0){spP[i*3+1]=-999;continue}spL[i]-=dt;spV[i*3+1]-=9*dt;spP[i*3]+=spV[i*3]*dt;spP[i*3+1]+=spV[i*3+1]*dt;spP[i*3+2]+=spV[i*3+2]*dt}
+      spG.attributes.position.needsUpdate=true;spray.material.opacity=.5*wet;
+      // night glow
+      const night=Math.min(1,typeof lastNi==='number'?lastNi:0);glows.forEach(g=>g.material.opacity=.15+night*.85);winMats.forEach(m=>m.emissiveIntensity=.08+night*.8);neonMats.forEach(m=>m.opacity=.55+night*.45);
+      // tokens
+      const cx=car.position.x,cz=car.position.z;for(const t of tokens){if(!t.g.visible)continue;t.g.rotation.y+=dt*1.8;t.g.position.y=t.y+1.6+Math.sin(now*.003+t.id)*.2;
+        if((t.x-cx)**2+(t.z-cz)**2<12&&driving){t.g.visible=false;found.push(t.id);try{localStorage.setItem('sl_tokens',JSON.stringify(found))}catch(e){}
+          toastMsg('Token '+found.length+'/12 · new paint unlocked in the paint shop');blip(1200,.12,.12);setTimeout(()=>blip(1600,.16,.1),110)}}}
+    return {tick,get wet(){return wet},get found(){return found.length}}})();
   function loop(now){requestAnimationFrame(loop);
     if(drawerOpen){last=now;return}
     /* the garage covers the screen and runs its own preview, so solo play holds still underneath it
