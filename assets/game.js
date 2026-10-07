@@ -2258,17 +2258,36 @@ t.bd.position.set(x,y+.86,z);
   const birds=[];for(let i=0;i<5;i++){const b=bird();const y=8+((i*37)%10)/10*4;b.g.position.set(POND.x+(i-2)*4,y,POND.z+(i%2?4:-4));S.add(b.g);
     birds.push({...b,a:i*1.26,r:8+((i*53)%10),sp:.14+((i*29)%10)/10*.14,y})}
   // grazers: a neck that actually drops to the grass, and they scatter when a car comes at them
-  function grazer(hex){const g=new THREE.Group();const bm=M(hex,{roughness:.95});
-    const body=new THREE.Mesh(new THREE.BoxGeometry(1.05,.58,.46),bm);body.position.y=.72;body.castShadow=!LOW;g.add(body);
-    const rump=new THREE.Mesh(new THREE.BoxGeometry(.3,.44,.42),bm);rump.position.set(-.6,.7,0);g.add(rump);
-    const tail=new THREE.Mesh(new THREE.BoxGeometry(.07,.3,.07),bm);tail.position.set(-.76,.56,0);g.add(tail);
-    const neck=new THREE.Group();neck.position.set(.48,.86,0);g.add(neck);
-    const nk=new THREE.Mesh(new THREE.BoxGeometry(.24,.42,.26),bm);nk.position.set(.05,-.14,0);nk.rotation.z=-.35;neck.add(nk);
-    const head=new THREE.Mesh(new THREE.BoxGeometry(.34,.24,.26),bm);head.position.set(.24,-.34,0);neck.add(head);
-    const muzzle=new THREE.Mesh(new THREE.BoxGeometry(.13,.14,.2),M(0x2a2622,{roughness:.9}));muzzle.position.set(.42,-.38,0);neck.add(muzzle);
-    [-1,1].forEach(s=>{const ear=new THREE.Mesh(new THREE.BoxGeometry(.06,.14,.1),bm);ear.position.set(.14,-.19,s*.13);ear.rotation.z=.4;neck.add(ear)});
-    const legs=[];for(const sx of[-1,1])for(const sz of[-1,1]){const lg=new THREE.Mesh(new THREE.BoxGeometry(.13,.62,.13),bm);
-      lg.position.set(.34*sx,.34,.16*sz);g.add(lg);legs.push(lg)}
+  /* Cattle. Modelled facing +x inside an inner group turned so the herd walks the way it faces (the old box cows
+     slid sideways). Rounded barrel, deep chest, hip bones, a head with a broad muzzle, horns, ears, an udder and a
+     tufted tail; legs hang from hip and shoulder pivots with a knee and dark hooves, and swing fore-aft. Some coats
+     get white patches. */
+  function grazer(hex){const g=new THREE.Group(),m=new THREE.Group();m.rotation.y=-Math.PI/2;g.add(m);
+    const bm=M(hex,{roughness:.92}),dark=M(0x1d1a17,{roughness:.8}),pink=M(0xd9a090,{roughness:.8}),horn=M(0xe8dcc0,{roughness:.6}),
+      white=M(0xece7dc,{roughness:.92}),seg=LOW?8:12,sh=!LOW;
+    const ell=(rx,ry,rz,mat,x,y,z,parent)=>{const o=new THREE.Mesh(new THREE.SphereGeometry(1,seg,Math.max(6,seg-4)),mat);o.scale.set(rx,ry,rz);o.position.set(x,y,z);o.castShadow=sh;(parent||m).add(o);return o};
+    // body: barrel + chest + hips, slightly sway-backed
+    ell(.72,.36,.34,bm,0,.98,0);ell(.36,.38,.33,bm,.42,1.0,0);ell(.34,.36,.33,bm,-.46,1.02,0);
+    if((hex*7)%3===0){ell(.3,.22,.345,white,-.1,1.02,.02);ell(.22,.2,.345,white,.35,.92,-.03)}   // patches on some coats
+    ell(.12,.08,.12,pink,-.12,.62,0);   // udder
+    // neck + head on a pivot at the withers, so it can drop to the grass
+    const neck=new THREE.Group();neck.position.set(.62,1.1,0);m.add(neck);
+    const nk=ell(.28,.2,.19,bm,.18,.0,0,neck);nk.rotation.z=-.35;
+    const head=new THREE.Group();head.position.set(.42,-.06,0);neck.add(head);
+    ell(.2,.15,.14,bm,0,0,0,head);const mz=ell(.13,.11,.12,pink,.17,-.06,0,head);
+    ell(.03,.02,.025,dark,.27,-.04,.05,head);ell(.03,.02,.025,dark,.27,-.04,-.05,head);   // nostrils
+    [-1,1].forEach(sd=>{ell(.025,.025,.02,dark,.06,.06,sd*.12,head);   // eyes
+      const ear=ell(.09,.035,.05,bm,-.06,.08,sd*.17,head);ear.rotation.x=sd*.5;
+      const hn=new THREE.Mesh(new THREE.ConeGeometry(.025,.16,6),horn);hn.position.set(-.04,.15,sd*.1);hn.rotation.x=-sd*.7;head.add(hn)});
+    // tail: hangs from the rump, tuft at the end
+    const tail=new THREE.Group();tail.position.set(-.78,1.12,0);m.add(tail);
+    const tl=new THREE.Mesh(new THREE.CylinderGeometry(.02,.025,.62,5),bm);tl.position.y=-.31;tail.add(tl);ell(.05,.09,.05,dark,0,-.64,0,tail);
+    // legs: pivot at the top, upper + lower with a knee, hoof
+    const legs=[];for(const sx of[-1,1])for(const sz of[-1,1]){const piv=new THREE.Group();piv.position.set(sx>0?.5:-.5,.9,sz*.2);m.add(piv);
+      const up=new THREE.Mesh(new THREE.CylinderGeometry(.075,.06,.42,seg),bm);up.position.y=-.21;up.castShadow=sh;piv.add(up);
+      const lo=new THREE.Mesh(new THREE.CylinderGeometry(.05,.045,.42,seg),bm);lo.position.y=-.6;lo.castShadow=sh;piv.add(lo);
+      const hf=new THREE.Mesh(new THREE.CylinderGeometry(.055,.065,.08,seg),dark);hf.position.y=-.85;piv.add(hf);legs.push(piv)}
+    g.scale.setScalar(1.05);
     return {g,legs,neck,tail}}
   const critters=[];const CRIT_COL=[0x6b4a30,0x8a7458,0x4c4842,0x715a3e,0x93785a];
   {let seed=311;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
@@ -4044,13 +4063,13 @@ let lateral=Math.min(1,Math.abs(lvScratch.x)/8),
       grip=V.slip*weatherGripMult*(1-sub*.72)*(1+gradeNow*.55)*(1+lateral*.22);
         // additional weather-specific grip modifiers
         if(wxB.part==='rain' || wxB.part==='storm'){
-          grip*=0.6; // wet roads
+          grip*=0.85; // wet roads (wx.slip already takes the main cut)
         }else if(wxB.part==='snow' || wxB.part==='blizzard'){
-          grip*=0.3; // icy roads
+          grip*=0.72; // icy roads
         }else if(wxB.part==='fog'){
-          grip*=0.8; // reduced visibility
+          grip*=1; // fog only hides the road, it does not make it slippery
         }else if(wxB.part==='sand'){
-          grip*=0.7; // sandy roads
+          grip*=0.85; // sandy roads
         }
        for(let i=0;i<wheelCount;i++){
          // load sensitivity: grip climbs with load, but slower than the load does
@@ -5614,7 +5633,8 @@ const PLANETS={
         el.innerHTML='<div style="margin-bottom:4px">SUPER NITRO</div><div style="height:6px;border-radius:3px;background:rgba(180,92,255,.18);overflow:hidden"><i style="display:block;height:100%;width:100%;border-radius:3px;background:linear-gradient(90deg,#8a3dff,#d36bff);box-shadow:0 0 8px #b45cff"></i></div>';
         (document.getElementById('dhud')||document.body).appendChild(el);bar=el.querySelector('i')}
       el.style.display=t>0&&driving?'block':'none';if(t>0)bar.style.width=(t/DUR*100).toFixed(1)+'%'}
-    function tick(dt,now){
+    const ON=false;   // switched off for now; flip to bring the pickups back
+    function tick(dt,now){if(!ON){t=0;return}
       let list=null;
       if(MODE==='world'){if(!worldSet){const grp=new THREE.Group();S.add(grp);worldSet={grp,list:make(grp,worldPts())}}worldSet.grp.visible=true;list=worldSet.list}
       else if(worldSet)worldSet.grp.visible=false;
@@ -5755,7 +5775,17 @@ const PLANETS={
          adds lock for a handbrake turn. */
       // below ~25 km/h full lock felt like the car pivoted on the spot: ease the lock in with speed (still enough to U-turn)
       const lowS=sp<7?.55+.45*sp/7:1;
-      const st=steerIn*V.steer*Math.max(.35,1-sp/46)*lowS*(key.h?1.25:1);steerActual+=(st-steerActual)*Math.min(1,dt*(sp<7?5:8));veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
+      const st=steerIn*V.steer*Math.max(.35,1-sp/46)*lowS*(key.h?1.25:1);{const back=Math.abs(st)<Math.abs(steerActual)||st*steerActual<0;   // unwinding is quicker than winding on, so the car straightens without a wobble
+       steerActual+=(st-steerActual)*Math.min(1,dt*(back?13:sp<7?5:sp>30?6.5:8))}
+      /* stability assist: unless you are drifting or on the handbrake, the car can only yaw about as fast as its
+         front wheels ask (speed x steer / wheelbase). Anything beyond that, the start of a spin or a tank-slapper,
+         is damped out, so fast corners feel planted and a lift mid-corner no longer swaps the ends. */
+      if(!DRIFT.on&&!key.h&&sp>6&&!inPond){const av=chassisB.angularVelocity,wb=Math.max(2,Math.abs(V.zf-V.zb)),want=vfw*Math.tan(steerActual)/wb,lim=Math.abs(want)*1.25+.35;
+        if(Math.abs(av.y)>lim){const tgt=Math.sign(av.y)*lim;av.y+=(tgt-av.y)*Math.min(1,dt*7)}
+        // and kill the sideways slide a little when the wheels are pointing where you are going
+        const rx=Math.cos(Math.atan2(fwd.x,fwd.z)),rz=-Math.sin(Math.atan2(fwd.x,fwd.z)),lat=chassisB.velocity.x*rx+chassisB.velocity.z*rz;
+        if(Math.abs(steerIn)<.1){const k=Math.min(1,dt*1.8);chassisB.velocity.x-=rx*lat*k;chassisB.velocity.z-=rz*lat*k}}
+      veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
       if(!inPond&&V.label!=='Phantom Bike')driftTick(dt,sp,vfw,fwd,steerIn,!!f);else if(DRIFT.on){DRIFT.on=false;driftEl.style.display='none'}
       tailM.emissiveIntensity=(b||key.h)?1.6:boost?1.2:.5;lookTick(b||key.h,boost);
       // cannon integrates damping as pow(1-damping,dt), so anything at or above 1 turns the whole
@@ -6050,12 +6080,13 @@ const PLANETS={
           nx2=Math.max(-128*MK,Math.min(128*MK,nx2));nz2=Math.max(-128*MK,Math.min(128*MK,nz2));
           c.g.position.set(nx2,HF.h(nx2,nz2),nz2)}
         else if(c.state!=='graze'){c.state='graze';c.t=3+Math.random()*5}
-        c.legs.forEach((lg,li)=>{lg.rotation.x=Math.sin(tt*(c.state==='flee'?12:5.5)+li*Math.PI/2)*(c.state==='flee'?.75:.42)})}
-      else c.legs.forEach(lg=>{lg.rotation.x*=.9});
+        {const f=c.state==='flee'?9:4.2,amp=c.state==='flee'?.6:.32;c.legs.forEach((lg,li)=>{const ph=[0,Math.PI,Math.PI,0][li]+(c.state==='flee'?li*.6:0);lg.rotation.z=Math.sin(tt*f+ph)*amp});   // diagonal pairs move together, like a real walk
+         c.g.position.y+=Math.abs(Math.sin(tt*f))*(c.state==='flee'?.08:.025)}}
+      else c.legs.forEach(lg=>{lg.rotation.z*=.9});
       // head down in the grass when settled, up and watching when something is moving
-      const nk=c.state==='graze'?1.02+Math.sin(tt*1.4+ci)*.07:c.state==='flee'?-.12:.3;
+      const nk=c.state==='graze'?-1.05+Math.sin(tt*1.4+ci)*.08:c.state==='flee'?.2:-.15;   // graze: muzzle down in the grass
       c.neck.rotation.z+=(nk-c.neck.rotation.z)*Math.min(1,dt*3.5);
-      c.tail.rotation.x=Math.sin(tt*2+ci)*.2}
+      c.tail.rotation.x=Math.sin(tt*1.7+ci)*.35;c.tail.rotation.z=.15+Math.sin(tt*.9+ci)*.08}
     if(active)ducks.forEach(d=>{d.a+=dt*d.sp;const x=POND.x+Math.cos(d.a)*d.r,z=POND.z+Math.sin(d.a)*d.r;
       d.g.position.set(x,WATER_Y+.1+Math.sin(tt*1.7+d.bob)*.03,z);d.g.rotation.y=-d.a+(d.sp>0?-Math.PI/2:Math.PI/2);   // head (+x) along the direction of travel
       d.g.rotation.z=Math.sin(tt*2.2+d.bob)*.05});
