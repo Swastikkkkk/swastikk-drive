@@ -2988,7 +2988,7 @@ t.bd.position.set(x,y+.86,z);
     #dnp.on{display:block}
     #dnp .np-row{display:flex;align-items:center;gap:8px}
     #dnp .np-art{width:34px;height:34px;border-radius:8px;flex:none;background:linear-gradient(135deg,#8a4bff,#3fa9ff);display:grid;place-items:center;font-size:16px}
-    #dnp .np-t{flex:1;min-width:0;cursor:pointer}
+    #dnp .np-t{flex:1;min-width:0;cursor:pointer}#dnp button{display:grid;place-items:center}
     #dnp .np-t b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #dnp .np-t span{display:block;color:rgba(238,240,243,.6);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #dnp button{background:rgba(255,255,255,.08);border:0;color:#fff;border-radius:999px;width:30px;height:30px;font-size:13px;cursor:pointer;flex:none;pointer-events:auto}
@@ -2998,7 +2998,7 @@ t.bd.position.set(x,y+.86,z);
     #dnp.list ol{display:block}
     #dnp li{display:flex;gap:8px;padding:6px 2px;cursor:pointer;border-radius:6px}#dnp li:hover{background:rgba(255,255,255,.06)}
     #dnp li.cur{color:#c9b4ff}#dnp li small{color:rgba(238,240,243,.45);margin-left:auto;flex:none}
-    #dnp li.cur::before{content:'▶';font-size:9px;margin-top:2px}
+    #dnp li.cur::before{content:'';width:6px;height:6px;border-radius:3px;background:#c9b4ff;margin-top:5px;flex:none}
     #dnp .np-x{display:none;margin-top:8px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}
     #dnp.list .np-x{display:block}
     #dnp .np-src{display:flex;gap:4px;padding:3px;background:rgba(255,255,255,.06);border-radius:10px}
@@ -3012,18 +3012,18 @@ t.bd.position.set(x,y+.86,z);
     #dnp .np-picks{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
     #dnp .np-picks button{width:auto;height:24px;padding:0 9px;border-radius:999px;font:600 10px var(--sans,Arial)}
     #dnp .np-note{margin-top:6px;color:rgba(238,240,243,.5);font-size:10px;line-height:1.35}
-    #dnp .np-frame{display:none;margin-top:8px;border-radius:12px;overflow:hidden}#dnp.ext .np-frame{display:block}
+    #dnp .np-frame{display:block;height:0;margin-top:0;border-radius:12px;overflow:hidden;opacity:0;pointer-events:none}#dnp.ext.list .np-frame{height:auto;margin-top:8px;opacity:1;pointer-events:auto}   /* collapsed: player kept alive but out of sight, so music keeps playing */
     #dnp .np-frame iframe{display:block;width:100%;border:0;border-radius:12px}
     #dnp .np-full{display:none;margin-top:8px;padding:9px 10px;border-radius:10px;background:rgba(30,215,96,.12);box-shadow:inset 0 0 0 1px rgba(30,215,96,.35);font-size:11px;line-height:1.4;color:rgba(238,240,243,.85)}
-    #dnp.ext.preview .np-full{display:block}
+    #dnp.ext.list.preview .np-full{display:block}
     #dnp .np-full a{display:inline-block;margin:6px 6px 0 0;padding:6px 10px;border-radius:999px;background:#1ed760;color:#06070b;font-weight:700;text-decoration:none;pointer-events:auto}
     #dnp .np-full a.alt{background:rgba(255,255,255,.12);color:#fff}
     #dnp.ext.apple [data-a]{display:none}
     #drive.touch #dnp{bottom:auto;top:calc(110px + env(safe-area-inset-top,0px));width:min(250px,48vw);padding:7px 9px}
     #drive.touch #dnp .np-art{display:none}
     #drive.typing #dnp{display:none!important}`;document.head.appendChild(css);
-    const el=document.createElement('div');el.id='dnp';el.innerHTML='<div class="np-row"><div class="np-art">♪</div><div class="np-t" title="Show the playlist"><b>—</b><span></span></div>'+
-      '<button data-a="prev" title="Back">⏮</button><button data-a="toggle" title="Play / pause">⏸</button><button data-a="next" title="Next">⏭</button></div><div class="np-bar"><i></i></div>'+
+    const el=document.createElement('div');el.id='dnp';el.innerHTML='<div class="np-row"><div class="np-art"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M4 9h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM6 9l11-5 .8 1.8L10.5 9z"/><circle cx="9" cy="15" r="2.6" fill="#0b0c10"/><rect x="13" y="12" width="5" height="1.6" rx=".8" fill="#0b0c10"/><rect x="13" y="15.5" width="5" height="1.6" rx=".8" fill="#0b0c10"/></svg></div><div class="np-t" title="Show the playlist"><b>—</b><span></span></div>'+
+      '<button data-a="prev" title="Back"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button><button data-a="toggle" title="Play / pause"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button><button data-a="next" title="Next"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button></div><div class="np-bar"><i></i></div>'+
       '<div class="np-frame"></div><div class="np-full"><b>Only a 30 s preview?</b> Spotify plays the whole song when it knows you are logged in.<br><a class="sp-app" target="_blank" rel="noopener">Play full song in Spotify</a><a class="alt sp-login" target="_blank" rel="noopener" href="https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F">Log in to Spotify</a></div>'+
       '<div class="np-x"><div class="np-src"><button data-s="radio">Game radio</button><button data-s="spotify">Spotify</button><button data-s="apple">Apple Music</button></div>'+
       '<div class="np-link"><div class="np-in"><input type="text" spellcheck="false" autocomplete="off"><button data-go title="Play this link">▶</button></div><div class="np-picks"></div><div class="np-note"></div></div><ol></ol></div>';
@@ -3090,9 +3090,9 @@ t.bd.position.set(x,y+.86,z);
       if(a==='toggle')try{localStorage.setItem('sl_radio_off',Radio.station()<0?'1':'0')}catch(_){}after()});
     tEl.onclick=e=>{e.stopPropagation();el.classList.toggle('list');paint(true)};
     function paint(full){
-      if(src!=='radio'){const sp=src==='spotify';tg.textContent=sp&&!spPaused?'⏸':'▶';el.querySelector('.np-t b').textContent=extLabel||(sp?'Spotify':'Apple Music');
+      if(src!=='radio'){const sp=src==='spotify';tg.innerHTML=sp&&!spPaused?'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>';el.querySelector('.np-t b').textContent=extLabel||(sp?'Spotify':'Apple Music');
         el.querySelector('.np-t span').textContent=sp?'Spotify · tap for options':'Apple Music · tap for options';bar.style.width=(sp&&spDur?spPos/spDur*100:0)+'%';return}
-      const P=Radio.playing();tg.textContent=P?'⏸':'▶';
+      const P=Radio.playing();tg.innerHTML=P?'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>';
       el.querySelector('.np-t b').textContent=P?P.title:'Radio off';el.querySelector('.np-t span').textContent=P?P.artist+' · FM '+P.fm+' '+P.station:'Press ▶ to play';
       bar.style.width=(P?P.progress*100:0)+'%';
       if(full&&el.classList.contains('list')){const L=Radio.playlist();ol.innerHTML='';L.forEach(s=>{const li=document.createElement('li');if(s.current)li.className='cur';
