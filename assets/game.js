@@ -658,16 +658,24 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {const o=new THREE.Object3D();rockPts.forEach(([x,hh,z,s,ry],i)=>{o.position.set(x,hh+s*.22,z);o.scale.set(s,s*.78,s*.92);o.rotation.set(ry*.5,ry,ry*.3);o.updateMatrix();rockIM.setMatrixAt(i,o.matrix)});S.add(rockIM)}
     return {h:hAcc,slope:slAcc,paint,mesh,body}})();
   /* ---------- distant ridge line, so the horizon is land and not fog ---------- */
-  const farRidge=(function(){const pos=[],idx=[],col=[];const SEG=84,R0=268;
-    for(let i=0;i<=SEG;i++){const a=i/SEG*Math.PI*2;const hh=16+fbm2(Math.cos(a)*7+31,Math.sin(a)*7-12)*30;
-      const r=R0+noise2(Math.cos(a)*4,Math.sin(a)*4)*22;
-      pos.push(Math.cos(a)*r,-4,Math.sin(a)*r,Math.cos(a)*r,hh,Math.sin(a)*r);
-      col.push(.20,.21,.25,.30,.32,.38);
-      if(i<SEG){const k=i*2;idx.push(k,k+1,k+2,k+1,k+3,k+2)}}
-    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setIndex(idx);g.computeVertexNormals();
-    const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide,fog:true,transparent:true,opacity:.9,depthWrite:false}));m.renderOrder=-1;S.add(m);return m})();
-  function ridgeTint(t){const c=farRidge.geometry.attributes.color,a=c.array;
-    for(let i=0;i<a.length;i+=6){a[i]=t[0];a[i+1]=t[1];a[i+2]=t[2];a[i+3]=Math.min(1,t[0]*1.45);a[i+4]=Math.min(1,t[1]*1.45);a[i+5]=Math.min(1,t[2]*1.45)}
+  const farRidge=(function(){
+    /* Two mountain rings that travel with the car like a skybox: always the same distance away, so they never pop
+       out or get close enough to look like a flat card. They skip fog and are pre-blended with the sky colour
+       instead (bottom fully sky, peaks most solid), and the far ring is hazier, which gives the horizon depth. */
+    const pos=[],idx=[],LAY=[];const SEG=220;let v=0;
+    [[285,1.25,9,58,.6],[250,1,3,40,.25]].forEach(([R0,sc,seed,amp,haze])=>{const start=v;
+      for(let i=0;i<=SEG;i++){const a=i/SEG*Math.PI*2,cx=Math.cos(a),sx=Math.sin(a);
+        let hh=10+fbm2(cx*5*sc+seed,sx*5*sc-seed)*amp+Math.pow(Math.abs(noise2(cx*13+seed,sx*13)-.5)*2,1.6)*amp*.35;
+        const r=R0+noise2(cx*3+seed,sx*3)*18;
+        pos.push(cx*r,-30,sx*r, cx*r,hh*.45,sx*r, cx*r,hh,sx*r);
+        if(i<SEG){const k=v+i*3;idx.push(k,k+1,k+3,k+1,k+4,k+3, k+1,k+2,k+4,k+2,k+5,k+4)}}
+      v+=(SEG+1)*3;LAY.push({start,n:(SEG+1)*3,haze})});
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(pos.length),3));g.setIndex(idx);
+    const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide,fog:false,depthWrite:false}));m.renderOrder=-1;m.frustumCulled=false;m.userData.LAY=LAY;S.add(m);return m})();
+  function ridgeTint(t){const c=farRidge.geometry.attributes.color,a=c.array,bg=S.fog?S.fog.color:new THREE.Color(0x888888);
+    farRidge.userData.LAY.forEach(L=>{for(let j=0;j<L.n;j+=3){const o=(L.start+j)*3;
+      [[1,0],[L.haze+.35,.85],[L.haze,1.25]].forEach(([mix,lift],r)=>{const q=o+r*3;
+        for(let ch=0;ch<3;ch++){const tc=Math.min(1,t[ch]*lift),b=[bg.r,bg.g,bg.b][ch];a[q+ch]=tc+(b-tc)*Math.min(1,mix)}})}});
     c.needsUpdate=true}
   /* ---------- road surface ----------
      Asphalt is painted once into a texture: dark aggregate, faint wear in the wheel tracks,
@@ -6094,7 +6102,7 @@ const PLANETS={
       if(Math.abs(camRoll)>.0005){camRoll*=Math.exp(-dt*4)}
       if(Math.abs(C.fov-60)>.02){C.fov+=(60-C.fov)*(1-Math.exp(-dt*2));C.updateProjectionMatrix()}}
     // the horizon ridge is a ring round the valley; from the summit, which sits outside it, it would be a wall across the view
-    farRidge.visible=Math.hypot(car.position.x,car.position.z)<235;
+    farRidge.position.set(C.position.x,0,C.position.z);
     {const hi=MODE==='world'&&CABLE.high(),base=hi?3200:recapCam?700:TOUCH?460:320,cf=Math.round(Math.max(base,S.fog?S.fog.far*1.08:0)/20)*20;if(C.far!==cf&&(C.far<=1600||C.far===3200)&&MODE!=='circuit'){C.far=cf;C.updateProjectionMatrix()}
      if(MODE==='circuit'&&S.fog&&C.far<S.fog.far*1.08&&C.far<20000){C.far=Math.ceil(S.fog.far*1.1/100)*100;C.updateProjectionMatrix()}}   // the lookout sees the whole map
     const sunOff=recapCam?SUN_OFF_LOW:SUN_OFF_DEFAULT;
