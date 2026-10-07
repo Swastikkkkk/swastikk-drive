@@ -304,7 +304,18 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* ---------- physics ---------- */
   const world=new CANNON.World();world.gravity.set(0,-24,0);world.broadphase=new CANNON.SAPBroadphase(world);world.allowSleep=true;world.defaultContactMaterial.friction=.3;
   const gM=new CANNON.Material('g'),oM=new CANNON.Material('o');world.addContactMaterial(new CANNON.ContactMaterial(gM,oM,{friction:.5,restitution:.1}));
-  const barM=new CANNON.Material('barrier');world.addContactMaterial(new CANNON.ContactMaterial(barM,oM,{friction:.03,restitution:.18}));   // track barriers: glance off and keep going
+  const barM=new CANNON.Material('barrier');world.addContactMaterial(new CANNON.ContactMaterial(barM,oM,{friction:0,restitution:.12}));   // track barriers: glance off and keep going
+  /* scraping along a barrier keeps your speed: after each step, if the car touched a barrier, only the part of its
+     velocity going INTO the wall is taken away; the speed along the wall is restored to what it was before the touch
+     (a little less, ~1% per step of contact), and the spin the hit put on the car is damped so it does not turn into the wall */
+  {const pv=new CANNON.Vec3();let pre=false;
+   world.addEventListener('preStep',()=>{if(typeof chassisB==='undefined')return;pv.copy(chassisB.velocity);pre=true});
+   world.addEventListener('postStep',()=>{if(!pre||typeof chassisB==='undefined')return;let nx=0,nz=0,hit=false;
+     const cs=world.contacts;for(let i=0;i<cs.length;i++){const c=cs[i];let s=0;if(c.bi===chassisB&&c.bj.material===barM)s=1;else if(c.bj===chassisB&&c.bi.material===barM)s=-1;if(!s)continue;hit=true;nx+=c.ni.x*s;nz+=c.ni.z*s}
+     if(!hit)return;const nl=Math.hypot(nx,nz);if(nl<1e-6)return;nx/=nl;nz/=nl;   // n: from the car toward the wall
+     const v=chassisB.velocity,before=pv.x*nx+pv.z*nz,tx=pv.x-before*nx,tz=pv.z-before*nz,tl=Math.hypot(tx,tz);if(tl<.5)return;
+     const vn=v.x*nx+v.z*nz,keep=tl*.99;v.x=tx/tl*keep+(vn<0?vn*nx:0);v.z=tz/tl*keep+(vn<0?vn*nz:0);
+     chassisB.angularVelocity.y*=.7})}
   // no infinite ground plane: the world heightfield below is the only ground, which is what lets the pond have a real bed
   const MK=2.1,LAND=1.75,VK=MK/1.45,RWX=3.4;/* RWX = extra half-width the roads gained */const BOUND=Math.round(192*MK*LAND);[[BOUND,0,0,.5,8,BOUND],[-BOUND,0,0,.5,8,BOUND],[0,0,BOUND,BOUND,8,.5],[0,0,-BOUND,BOUND,8,.5]].forEach(([x,y,z,a,b,c])=>{const w=new CANNON.Body({mass:0});w.addShape(new CANNON.Box(new CANNON.Vec3(a,b,c)));w.position.set(x,y,z);world.addBody(w)});
   /* Heightfield half-extent and grid spacing, declared early because the branch and
@@ -6637,7 +6648,7 @@ const PLANETS={
           const {p:cp}=circAt(u,curve),gb=ELEV?groundAt(x,z):CIRC_Y,ry=roadY(u,cp.x,cp.z),bot=lf>1?ry-1.5:Math.min(gb,ry)-4,top=Math.max(gb,ry)+3.5;   /* on a bridge only the deck edge: a wall down to the ground would fence off the road underneath */   /* deep footing: the physics ground on a steep bank can sit metres under groundAt */
           /* 3.2 m thick, grown outward so the face the car meets stays where it was: at 140 km/h a car moves ~0.6 m
              per physics step, and a 0.7 m wall let the solver resolve the overlap out the far side */
-          const nX=dz/L*side,nZ=-dx/L*side,o2=1.25*(nX*(x-cp.x)+nZ*(z-cp.z)>0?1:-1);
+          const nX=dz/L*side,nZ=-dx/L*side,o2=1.6*(nX*(x-cp.x)+nZ*(z-cp.z)>0?1:-1);
           const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(1.6,(top-bot)/2,L/2+1.5)));   /* long overlaps: no seam to slip through between pieces on a bend */
           b.position.set(x+nX*o2,(top+bot)/2,z+nZ*o2);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);barrierBodies.push(b);
           const vis=Math.max(gb,ry)-gb;   // the rail is drawn at road level (the settle pass adds the ground height on hills)
