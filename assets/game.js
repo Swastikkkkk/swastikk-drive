@@ -7960,23 +7960,28 @@ updCircBtn();
       const g=new THREE.Group(),vg=new THREE.Group(),bo=new THREE.Group(),bi=new THREE.Group();
       g.add(vg);bo.position.y=.55;vg.add(bo);bi.position.y=-.55;bo.add(bi);
       const o={paint:col,r:sv.r,zf:sv.zf,zb:sv.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};
-      const P=spec.type==='ev'?buildEV(o):buildCar(Object.assign(o,{wagon:!!spec.wagon,wheels:false}));
+      const P=makeBody(spec,o);   // their real car, solid, the same model you see in the garage
       P.g.position.y=.05-(sv.rest-.07)-sv.r;bi.add(P.g);
       const wl=[0,1,2,3].map(i=>{const k=makeWheel(sv.r,.36,i%2?-1:1,true,true);
         k.w.position.set((i%2?-1:1)*sv.xw*.9,.05-sv.rest,i<2?sv.zf:sv.zb);vg.add(k.w);return k});
       const sh=new THREE.Mesh(new THREE.PlaneGeometry(2.9,5.4).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:blob(),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,opacity:.7}));
       sh.position.y=.05-(sv.rest-.07)-.02;sh.renderOrder=1;vg.add(sh);
-      // see-through: every material is a private copy so the traffic and the player keep theirs
+      // solid: private material copies (so recolouring never touches your own car), casting shadows like any car
       const seen=new Map();
-      g.traverse(o=>{o.castShadow=false;if(!o.material||o===sh)return;
+      g.traverse(o=>{if(o===sh)return;if(o.isMesh)o.castShadow=true;if(!o.material)return;
         const mm=Array.isArray(o.material)?o.material:[o.material];
-        const nm=mm.map(m=>{let c=seen.get(m);if(!c){c=m.clone();c.transparent=true;c.opacity=Math.min(c.opacity==null?1:c.opacity,.58);c.envMap=null;c.needsUpdate=true;seen.set(m,c)}return c});
+        const nm=mm.map(m=>{let c=seen.get(m);if(!c){c=m.clone();c.side=THREE.DoubleSide;c.needsUpdate=true;seen.set(m,c)}return c});
         o.material=Array.isArray(o.material)?nm:nm[0]});
+      /* a physics body that follows them (kinematic: moved to their pose with their velocity every frame), so you
+         can bump, push and be pushed by a friend instead of driving through them */
+      const body=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});
+      body.addShape(new CANNON.Box(new CANNON.Vec3(Math.max(.75,sv.xw*.95),.32,Math.max(1.6,(spec.F-spec.B)/2*.92))),new CANNON.Vec3(0,.2,0));
+      body.addShape(new CANNON.Box(new CANNON.Vec3(.7,.3,.9)),new CANNON.Vec3(0,.8,-.2));body.collisionResponse=true;
       const tg=new THREE.Sprite(new THREE.SpriteMaterial({map:tagTex(name,col),transparent:true,depthTest:false,depthWrite:false,fog:false}));
       tg.renderOrder=999;tg.scale.set(6,1.5,1);
       S.add(g);S.add(tg);g.visible=false;tg.visible=false;
-      return {g,tg,wl,col,name,carId:spec.id}}
-    function killGhost(P){if(!P.gh)return;const G=P.gh;if(G.g.parent)G.g.parent.remove(G.g);if(G.tg.parent)G.tg.parent.remove(G.tg);
+      return {g,tg,wl,col,name,carId:spec.id,body,inWorld:false}}
+    function killGhost(P){if(!P.gh)return;const G=P.gh;if(G.inWorld){try{world.removeBody(G.body)}catch(e){}G.inWorld=false}if(G.g.parent)G.g.parent.remove(G.g);if(G.tg.parent)G.tg.parent.remove(G.tg);
       G.g.traverse(o=>{if(o.material&&!CARMATS.includes(o.material)){const mm=Array.isArray(o.material)?o.material:[o.material];mm.forEach(m=>m.dispose&&m.dispose())}});
       if(G.tg.material.map)G.tg.material.map.dispose();G.tg.material.dispose();P.gh=null}
     /* ----- members ----- */
@@ -8259,6 +8264,9 @@ updCircBtn();
         G.tg.position.set(G.g.position.x,G.g.position.y+2.5,G.g.position.z);
         const dd=C.position.distanceTo(G.tg.position),s=Math.max(1,Math.min(8,dd*.032));G.tg.scale.set(s*4,s,1);
         G.g.visible=!G.away;G.tg.visible=dd<520&&!G.away;
+        {const want=!G.away&&SPACE.state==='earth'&&(P.pl||'earth')==='earth';
+         if(want&&!G.inWorld){world.addBody(G.body);G.inWorld=true}else if(!want&&G.inWorld){world.removeBody(G.body);G.inWorld=false}
+         if(G.inWorld){G.body.position.set(G.g.position.x,G.g.position.y,G.g.position.z);G.body.quaternion.set(G.g.quaternion.x,G.g.quaternion.y,G.g.quaternion.z,G.g.quaternion.w);G.body.velocity.set(P.vx,P.vy,P.vz)}}
         P.sp=Math.hypot(car.position.x-G.g.position.x,car.position.z-G.g.position.z)});
       raceTick(now,dt);autoStart(now);
       if(now-lastUI>250){lastUI=now;if(el.panel&&el.panel.classList.contains('on')&&room)ui();else roster()}}
@@ -8312,7 +8320,7 @@ updCircBtn();
           h+='<li class="'+(P.me?'me':'')+'"><i style="background:'+HEX(P.c)+'"></i><span class="mp-driver">'+(racing?'<em>'+(P.fin?i+1:'')+'</em>':'')+esc(P.n)+(P.me?' (you)':'')+(P.id===(sorted()[0]||{}).id?' · host':'')+'</span><span class="mp-timing">'+timing+(ping?' · '+ping:'')+
             (host&&!P.me?'<button class="kick" type="button" data-id="'+P.id+'" title="Remove from room" aria-label="Remove '+esc(P.n)+' from room">&times;</button>':'')+'</span></li>'});
         el.list.innerHTML=h}
-      if(el.note&&room)el.note.textContent=status==='up'?(peers.size?'Everyone here is a ghost to everyone else. No crashes, just a name above the car.':'Waiting for friends. Send them the code or the link.'):status==='down'?'Cannot reach the room. Check your connection and rejoin.':'Connecting…';
+      if(el.note&&room)el.note.textContent=status==='up'?(peers.size?'Everyone here is solid: bump and push each other. Names float above each car.':'Waiting for friends. Send them the code or the link.'):status==='down'?'Cannot reach the room. Check your connection and rejoin.':'Connecting…';
       roster()}
     function openPanel(){if(!el.panel)return;if(el.name&&!el.name.value)el.name.value=me.n||savedName();ui();el.panel.classList.add('on');for(const k in key)key[k]=0;
       setTimeout(()=>{try{(room?el.race:(el.code.value?el.join:el.code)).focus()}catch(e){}},50)}
