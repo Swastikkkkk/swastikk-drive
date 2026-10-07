@@ -1286,7 +1286,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     function tick(dt,t,night){CB.forEach(c=>{c.sp.position.x=c.x0+Math.sin(t*.02+c.ph)*25});
       winM.emissiveIntensity+=((night?1.4:0)-winM.emissiveIntensity)*Math.min(1,dt*2);
       BIRDS.forEach(k=>{k.a+=k.sp*dt;k.b.position.set(T.x+Math.cos(k.a)*k.r,k.h+Math.sin(k.a*3)*2,T.z+Math.sin(k.a)*k.r);k.b.rotation.y=-k.a;k.b.scale.y=1+Math.sin(t*8+k.f)*.6})}
-    return {tick,houses:()=>n}})();
+    return {tick,houses:()=>n,banks}})();
   /* --- more chaos: a ring of fire over the gap, boulders off the volcano, a shark, fireworks, a speed trap --- */
   const FIRE=(function(){const q=VZ.stunt,gy=HF.h(q.x,q.z),R=3.2,[x,z]=SP(-2,0),g=new THREE.Group();g.position.set(x,gy+6+R+.06,z);g.rotation.y=SAX.ry;S.add(g);
     g.add(new THREE.Mesh(new THREE.TorusGeometry(R,.3,10,48),new THREE.MeshBasicMaterial({color:0xff7a22})));
@@ -8570,9 +8570,11 @@ function carChanged(){if(room)sendHi(true)}
      with the ways to play over it. Picking one drops you into it; Esc or Free drive just drives. */
   {const HOME={on:true,cam:new THREE.PerspectiveCamera(46,W/H,.5,5000),a:0,el:null};const wasDriving=driving;driving=false;
    const st=document.createElement('style');st.textContent=`
-#dstartscr{position:fixed;inset:0;z-index:2147482000;display:flex;align-items:flex-end;justify-content:flex-start;padding:clamp(20px,5vw,64px);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif;color:#f5f5f7;
-  background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.55) 100%);transition:opacity .45s ease}
+#dstartscr{position:fixed;inset:0;z-index:2147482000;background:#0b0d14 url(assets/home-bg.jpg) center/cover no-repeat;animation:hmdrift 40s ease-in-out infinite alternate;display:flex;align-items:flex-end;justify-content:flex-start;padding:clamp(20px,5vw,64px);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif;color:#f5f5f7;
+  transition:opacity .45s ease}
 #dstartscr.out{opacity:0;pointer-events:none}
+#dstartscr::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,6,10,.72) 0%,rgba(5,6,10,.35) 45%,rgba(5,6,10,0) 70%);pointer-events:none}#dstartscr .hm{position:relative}
+@keyframes hmdrift{from{background-position:0% 50%}to{background-position:6% 50%}}
 #dstartscr .hm{width:min(560px,100%)}
 #dstartscr h1{margin:0 0 6px;font-size:clamp(40px,7vw,72px);font-weight:700;letter-spacing:-.03em;line-height:1}
 #dstartscr .sub{margin:0 0 28px;font-size:17px;color:rgba(245,245,247,.72);font-weight:400}
@@ -8590,12 +8592,12 @@ body.homeon #drive>*:not(canvas){visibility:hidden!important}body.homeon #dlandi
 @media (max-width:520px){#dstartscr .grid{grid-template-columns:1fr}#dstartscr .sub{margin-bottom:18px}}`;document.head.appendChild(st);
    document.body.classList.add('homeon');const el=document.createElement('div');el.id='dstartscr';HOME.el=el;document.body.appendChild(el);
    const T=(id,title,sub,wide)=>`<button class="t${wide?' wide':''}" data-go="${id}"><b>${title}</b><span>${sub}</span></button>`;
-   const main=()=>{el.innerHTML='<div class="hm"><h1>Swastikk Drive</h1><p class="sub">Pick how you want to play.</p><div class="grid">'+
+   const main=()=>{el.innerHTML='<div class="hm"><h1>SketchRacer</h1><p class="sub">Pick how you want to play.</p><div class="grid">'+
      T('free','Free drive','Open valley, ramps, the summit and the cable car',true)+T('mp','Multiplayer','Race up to 4 friends with a room code')+T('daily',"Daily track","Today's circuit and its leaderboard")+
      T('typing','Typing','Type to drive: practice or the daily test')+T('draw','Draw a track','Sketch a circuit and race it')+T('garage','Garage','Pick a car or make your own')+T('settings','Settings','Sound, graphics, controls')+'</div></div>'};
    const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
      T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
-   const close=after=>{if(!HOME.on)return;HOME.on=false;el.classList.add('out');document.body.classList.remove('homeon');driving=wasDriving||true;setTimeout(()=>{el.remove()},500);if(after)setTimeout(after,120)};
+   const close=after=>{if(!HOME.on)return;HOME.on=false;try{HOME.putAway&&HOME.putAway(false)}catch(_){}el.classList.add('out');document.body.classList.remove('homeon');driving=wasDriving||true;setTimeout(()=>{el.remove()},500);if(after)setTimeout(after,120)};
    const btn=id=>()=>{const b=document.getElementById(id);if(b)b.click()};
    const ACT={free:()=>close(btn('dmfree')),mp:()=>close(btn('droom')),daily:()=>close(btn('dmdaily')),draw:()=>close(btn('dcircb')),garage:()=>close(()=>window.__openGarage&&window.__openGarage()),
      settings:()=>close(()=>window.Settings&&Settings.open()),typing,home:main,tfast:()=>close(btn('dmtype')),tdaily:()=>close(()=>{try{audioInit()}catch(_){}if(window.TypingRace)TypingRace.start()})};
@@ -8603,8 +8605,11 @@ body.homeon #drive>*:not(canvas){visibility:hidden!important}body.homeon #dlandi
    addEventListener('keydown',e=>{if(HOME.on&&e.code==='Escape')close()},true);
    main();
    // the camera: high over the summit lookout, panning slowly across the valley, with the haze pulled back
-   const _r=R.render.bind(R);R.render=(sc,c)=>{if(HOME.on&&sc===S){HOME.a+=.0009;const P=PEAK,cx=P.x,cz=P.z,dir=Math.atan2(-cx,-cz)+Math.sin(HOME.a)*.9;
-       HOME.cam.aspect=W/H;HOME.cam.updateProjectionMatrix();HOME.cam.position.set(cx-Math.sin(dir)*30,PEAK_H+38,cz-Math.cos(dir)*30);HOME.cam.lookAt(cx+Math.sin(dir)*520,PEAK_H-150,cz+Math.cos(dir)*520);
-       if(S.fog){S.fog.near=Math.max(S.fog.near,260);S.fog.far=Math.max(S.fog.far,2600)}return _r(sc,HOME.cam)}return _r(sc,c)};
+   /* the camera: out past the summit's edge over the valley, so the mountain itself is behind it and the whole valley
+      is in view; the haze, the far ridge sheet and the cloud banks are put away while the menu is up */
+   const hidden=[];const putAway=on=>{if(on){[VIEW&&VIEW.banks].forEach(o=>{if(o&&o.visible){o.visible=false;hidden.push(o)}})}else{hidden.forEach(o=>o.visible=true);hidden.length=0}};putAway(true);HOME.putAway=putAway;
+   /* the summit lookout view: just behind and above the summit road, looking out over the valley, the volcano and the
+      mountains, panning slowly from side to side */
+   // background: a still of the summit road, the car and the valley (assets/home-bg.jpg), slowly drifting
    window.__home=HOME}
 })();
