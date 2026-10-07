@@ -122,7 +122,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      render nine times the pixels for a picture the same size. Everything else is kept
      cheap by construction (Lambert materials, instanced scatter, a shadow map redrawn
      every third frame, boards culled by distance) rather than by asking the player. */
-  const ULTRA={dpr:1.3,dprLow:1.15,shEvery:2};
+  const HIDPI=(devicePixelRatio||1)>=1.5,ULTRA={dpr:HIDPI?2:1.5,dprLow:HIDPI?1.5:1.15,shEvery:2};   // sharp edges on Retina/4K: render at the screen's real resolution (auto quality still steps down if fps drops)
   /* Quality used to be decided once, from a coarse touch/mouse guess, and never
      revisited — so a weak laptop with a mouse got full shadows and 1.3 DPR for
      the entire drive regardless of actual frame rate. This instead watches the
@@ -135,8 +135,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let Q_UP_MS=4000;let qGoodT=0,qBadT=0;
   const qDownMs=()=>qTier===0?450:900;
   function tierCfg(t){
-    return t===2?{dpr:.75,shadow:!LOW,shEvery:8}
-         : t===1?{dpr:LOW?1.0:1.05,shadow:!LOW,shEvery:5}
+    return t===2?{dpr:HIDPI?1.1:.85,shadow:!LOW,shEvery:8}
+         : t===1?{dpr:LOW?1.0:HIDPI?1.5:1.2,shadow:!LOW,shEvery:5}
          :        {dpr:ULTRA.dpr,shadow:true,shEvery:2};
   }
   function setTier(t){
@@ -3934,7 +3934,7 @@ const F=chassisB.force,T=chassisB.torque;
         if(active&&driving){
           const impactForce=Math.hypot(F.x,F.z);
           if(DAMAGE_SYSTEM&&impactForce>5000){
-            let f=key.f?1:0,b=key.b?1:0;const boost=key.boost?1:0,dt=h,speed=Math.hypot(chassisB.velocity.x,chassisB.velocity.z)*3.6;
+            let f=(key.f||key.boost&&!key.b)?1:0,b=key.b?1:0;const boost=key.boost?1:0,dt=h,speed=Math.hypot(chassisB.velocity.x,chassisB.velocity.z)*3.6;
             const damageAmount=Math.min(1,impactForce/50000);
             vehicleDamage=Math.min(1,vehicleDamage+damageAmount);
             // distribute damage to systems
@@ -5509,7 +5509,7 @@ const PLANETS={
     AUTO.tick();
     if(active&&driving){
       const kv=v=>v===true?1:(+v>0?Math.min(1,+v):0);
-      let f=key.f?1:0,b=key.b?1:0,l=kv(key.l),rr=kv(key.r);
+      let f=(key.f||key.boost&&!key.b)?1:0,b=key.b?1:0,l=kv(key.l),rr=kv(key.r);   // boost drives on its own: no need to hold gas too
       if(raceHolding){ f=0; b=1; chassisB.velocity.set(0,0,0); chassisB.angularVelocity.set(0,0,0); }
       // water: how far the hull is under the waterline, 0 on dry land, 1 fully submerged
       {const pd=Math.hypot(chassisB.position.x-POND.x,chassisB.position.z-POND.z),pr=pondR(chassisB.position.x,chassisB.position.z);
