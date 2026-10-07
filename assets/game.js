@@ -308,7 +308,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* ---------- physics ---------- */
   const world=new CANNON.World();world.gravity.set(0,-24,0);world.broadphase=new CANNON.SAPBroadphase(world);world.allowSleep=true;world.defaultContactMaterial.friction=.3;
   const gM=new CANNON.Material('g'),oM=new CANNON.Material('o');world.addContactMaterial(new CANNON.ContactMaterial(gM,oM,{friction:.5,restitution:.1}));
-  const barM=new CANNON.Material('barrier');world.addContactMaterial(new CANNON.ContactMaterial(barM,oM,{friction:0,restitution:.12}));   // track barriers: glance off and keep going
+  const barM=new CANNON.Material('barrier');world.addContactMaterial(new CANNON.ContactMaterial(barM,oM,{friction:0,restitution:0,contactEquationStiffness:4e6,contactEquationRelaxation:4}));   // track barriers: glance off and keep going
   /* scraping along a barrier keeps your speed: after each step, if the car touched a barrier, only the part of its
      velocity going INTO the wall is taken away; the speed along the wall is restored to what it was before the touch
      (a little less, ~1% per step of contact), and the spin the hit put on the car is damped so it does not turn into the wall */
@@ -318,8 +318,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      const cs=world.contacts;for(let i=0;i<cs.length;i++){const c=cs[i];let s=0;if(c.bi===chassisB&&c.bj.material===barM)s=1;else if(c.bj===chassisB&&c.bi.material===barM)s=-1;if(!s)continue;hit=true;nx+=c.ni.x*s;nz+=c.ni.z*s}
      if(!hit)return;const nl=Math.hypot(nx,nz);if(nl<1e-6)return;nx/=nl;nz/=nl;   // n: from the car toward the wall
      const v=chassisB.velocity,before=pv.x*nx+pv.z*nz,tx=pv.x-before*nx,tz=pv.z-before*nz,tl=Math.hypot(tx,tz);if(tl<.5)return;
-     const vn=v.x*nx+v.z*nz,keep=tl*.99;v.x=tx/tl*keep+(vn<0?vn*nx:0);v.z=tz/tl*keep+(vn<0?vn*nz:0);
-     chassisB.angularVelocity.y*=.7})}
+     // a head-on hit loses more than a glance, but never stops dead; the bounce off the wall is a gentle push, not a kick
+     const into=Math.max(0,before)/Math.max(1,Math.hypot(pv.x,pv.z)),keep=tl*(.995-into*.25);let vn=v.x*nx+v.z*nz;vn=Math.max(-2.5,Math.min(0,vn));
+     v.x=tx/tl*keep+vn*nx;v.z=tz/tl*keep+vn*nz;if(v.y>1.5)v.y=1.5;
+     const av=chassisB.angularVelocity;av.y*=.55;av.x*=.6;av.z*=.6})}
   // no infinite ground plane: the world heightfield below is the only ground, which is what lets the pond have a real bed
   const MK=2.1,LAND=1.75,VK=MK/1.45,RWX=3.4;/* RWX = extra half-width the roads gained */const BOUND=Math.round(192*MK*LAND);[[BOUND,0,0,.5,8,BOUND],[-BOUND,0,0,.5,8,BOUND],[0,0,BOUND,BOUND,8,.5],[0,0,-BOUND,BOUND,8,.5]].forEach(([x,y,z,a,b,c])=>{const w=new CANNON.Body({mass:0});w.addShape(new CANNON.Box(new CANNON.Vec3(a,b,c)));w.position.set(x,y,z);world.addBody(w)});
   /* Heightfield half-extent and grid spacing, declared early because the branch and
@@ -5589,6 +5591,41 @@ const PLANETS={
   const phoneSt={on:false,cam:false,reset:false};let rcSince=0;
   const garageEl=$('#dgarage');
   let drawerOpen=false;   // the draw-track screen covers the view: the world holds still underneath (no render, no physics) so drawing stays responsive
+  /* ---------- super nitro: purple pickups along every road ----------
+     A glowing purple crystal sits on the road every ~260 m (the valley loop, the summit road and every circuit).
+     Driving through one gives 5 s of super boost on top of nitro: far more pull and a higher top speed. The crystal
+     then goes dark and grows back after 20 s. */
+  const SUPER=(function(){const DUR=5,RELOAD=20,GAP=180;
+    const gemG=new THREE.OctahedronGeometry(.9,0),ringG=new THREE.TorusGeometry(1.5,.08,6,28);
+    const gemM=new THREE.MeshBasicMaterial({color:0x9d3bff}),ringM=new THREE.MeshBasicMaterial({color:0xd9a6ff,transparent:true,opacity:.75,depthWrite:false}),
+      glowM=new THREE.MeshBasicMaterial({color:0x8a2cff,transparent:true,opacity:.18,depthWrite:false,blending:THREE.AdditiveBlending});
+    const glowG=new THREE.SphereGeometry(1.6,12,8);
+    let worldSet=null,circSet=null,circFor=null,t=0,el=null,bar=null;
+    function make(parent,pts){const list=[];pts.forEach(p=>{const g=new THREE.Group();g.position.set(p.x,p.y+1.3,p.z);
+        const gem=new THREE.Mesh(gemG,gemM);gem.scale.y=1.4;g.add(gem);const ring=new THREE.Mesh(ringG,ringM);ring.rotation.x=Math.PI/2;ring.position.y=-1.1;g.add(ring);g.add(new THREE.Mesh(glowG,glowM));
+        parent.add(g);list.push({g,gem,x:p.x,z:p.z,y:p.y,off:0})});return list}
+    function worldPts(){const out=[];
+      const L=curve.getLength(),n=Math.max(4,Math.round(L/GAP));for(let i=0;i<n;i++){const u=(i+.5)/n,{p}=at(u);out.push({x:p.x,y:p.y,z:p.z})}
+      const bl=brCurve.getLength(),bn=Math.max(1,Math.round(bl/GAP));for(let i=0;i<bn;i++){const {p}=bAt((i+.5)/bn);out.push({x:p.x,y:p.y,z:p.z})}
+      return out}
+    function circPts(c){const out=[],TL=c.TL||c.curve.getLength(),n=Math.max(3,Math.round(TL/GAP));
+      for(let i=0;i<n;i++){const u=(i+.6)/n;if(c.liftAt&&c.liftAt(u)>.22)continue;const a=circAt(u,c.curve);out.push({x:a.p.x,y:c.roadY(u,a.p.x,a.p.z),z:a.p.z})}return out}
+    function hud(){if(!el){el=document.createElement('div');el.style.cssText='position:absolute;right:calc(var(--gut,16px) + 4px);bottom:calc(122px + env(safe-area-inset-bottom,0px));z-index:3;width:120px;pointer-events:none;font:600 10px var(--mono,monospace);letter-spacing:.14em;color:#d9b8ff;display:none';
+        el.innerHTML='<div style="margin-bottom:4px">SUPER NITRO</div><div style="height:6px;border-radius:3px;background:rgba(180,92,255,.18);overflow:hidden"><i style="display:block;height:100%;width:100%;border-radius:3px;background:linear-gradient(90deg,#8a3dff,#d36bff);box-shadow:0 0 8px #b45cff"></i></div>';
+        (document.getElementById('dhud')||document.body).appendChild(el);bar=el.querySelector('i')}
+      el.style.display=t>0&&driving?'block':'none';if(t>0)bar.style.width=(t/DUR*100).toFixed(1)+'%'}
+    function tick(dt,now){
+      let list=null;
+      if(MODE==='world'){if(!worldSet){const grp=new THREE.Group();S.add(grp);worldSet={grp,list:make(grp,worldPts())}}worldSet.grp.visible=true;list=worldSet.list}
+      else if(worldSet)worldSet.grp.visible=false;
+      if(MODE==='circuit'&&circuit){if(circFor!==circuit){circFor=circuit;circSet=make(circuit.root,circPts(circuit))}list=circSet}
+      if(list){const cx=car.position.x,cy=car.position.y,cz=car.position.z,sp=now*.0025;
+        for(const P of list){const dx=P.x-cx,dz=P.z-cz,d2=dx*dx+dz*dz;if(d2>90000){P.g.visible=false;continue}
+          if(P.off>0){P.off-=dt;P.g.visible=P.off<=0;continue}
+          P.g.visible=true;P.gem.rotation.y=sp+P.x;P.g.position.y=P.y+1.3+Math.sin(sp*1.6+P.z)*.18;
+          if(d2<30&&Math.abs(cy-P.y)<4&&driving){P.off=RELOAD;P.g.visible=false;t=DUR;try{toastMsg('Super nitro · 5 s')}catch(e){}}}}
+      if(t>0)t=Math.max(0,t-dt);if(frameN%3===0)hud()}
+    return {tick,get k(){return t>0?1:0},reset(){t=0}}})();
   function loop(now){requestAnimationFrame(loop);
     if(drawerOpen){last=now;return}
     /* the garage covers the screen and runs its own preview, so solo play holds still underneath it
@@ -5653,8 +5690,8 @@ const PLANETS={
       inPond=sub>.06;
       ZN=MODE==='circuit'?{drag:0,fog:1,tint:[1,1,1]}:zoneAt(progU);const zd=ZN.drag;
       if(NP&&frameN%10===0){NP.show(active&&driving);NP.paint(false);if(window.Radio&&Radio.setSpeed)Radio.setSpeed(chassisB.velocity.length()*3.6,dt*10)}
-      padT=Math.max(0,padT-dt);const boost=(NTANK.on||padT>0)?1:0;NITRO.tick(dt,!!boost&&driving,chassisB.velocity.length());
-      const eMul=(1-sub*.66)*(1-zd*.52),vmax=V.max*(1+boost*.28)*(1-sub*.68)*(1-zd*.38);
+      padT=Math.max(0,padT-dt);SUPER.tick(dt,performance.now());const boost=(NTANK.on||padT>0||SUPER.k)?1:0;NITRO.tick(dt,!!boost&&driving,chassisB.velocity.length());
+      const eMul=(1-sub*.66)*(1-zd*.52)*(1+SUPER.k*1.3),vmax=V.max*(1+boost*.28+SUPER.k*.32)*(1-sub*.68)*(1-zd*.38);
       /* Tractive force used to be flat all the way to the cap, so the car pulled just as
          hard at 90 as it did from rest and then hit a wall. This is the shape a gearbox
          actually gives you: strong off the line, tapering as the revs run out. */
@@ -6670,6 +6707,9 @@ const PLANETS={
       const segL=7,NB=Math.max(60,Math.round(TL/segL)),off=CIRC_W/2+BARRIER_OFF;
       const railIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.14,.34,segL+.15),railMat,NB*6),postIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,.8,.16),postMat,NB*6);
       railIM.castShadow=!LOW;railIM.receiveShadow=true;postIM.castShadow=!LOW;root.add(railIM,postIM);railIM.userData.onTrack=postIM.userData.onTrack=true;
+      // raised sections (flyovers, ramps) get their own rail at deck height, so every wall you can hit is one you can see
+      const bRailM=railMat.clone(),bPostM=postMat.clone();ownedMats.push(bRailM,bPostM);const bRailIM=new THREE.InstancedMesh(railIM.geometry.clone(),bRailM,NB*2),bPostIM=new THREE.InstancedMesh(postIM.geometry.clone(),bPostM,NB*2);let nb=0;bRailIM.count=bPostIM.count=0;
+      bRailIM.castShadow=!LOW;bRailIM.userData.fixedY=bPostIM.userData.fixedY=bRailIM.userData.onTrack=bPostIM.userData.onTrack=true;root.add(bRailIM,bPostIM);
       const up=new THREE.Vector3(0,1,0),q=new THREE.Quaternion(),pp=new THREE.Vector3(),sc=new THREE.Vector3(1,1,1),mx=new THREE.Matrix4(),cup=new CANNON.Vec3(0,1,0);let nr=0;
       /* Pieces are laid along the barrier's own line, not the centre line: on the outside of a tight bend the
          barrier is much longer than the road, and centre-line spacing left metre-wide gaps you could drive through. */
@@ -6690,7 +6730,8 @@ const PLANETS={
           const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(1.6,(top-bot)/2,L/2+1.5)));   /* long overlaps: no seam to slip through between pieces on a bend */
           b.position.set(x+nX*o2,(top+bot)/2,z+nZ*o2);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);barrierBodies.push(b);
           const vis=Math.max(gb,ry)-gb;   // the rail is drawn at road level (the settle pass adds the ground height on hills)
-          if(lf<=.22&&nr<railIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,CIRC_Y+.66+vis,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);sc.set(1,1,1);pp.set(x,CIRC_Y+.4+vis,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}};
+          if(lf<=.22&&nr<railIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,CIRC_Y+.66+vis,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);sc.set(1,1,1);pp.set(x,CIRC_Y+.4+vis,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}
+          else if(lf>.22&&nb<bRailIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,ry+.66,z);mx.compose(pp,q,sc);bRailIM.setMatrixAt(nb,mx);sc.set(1,1,1);pp.set(x,ry+.4,z);mx.compose(pp,q,sc);bPostIM.setMatrixAt(nb,mx);nb++;bRailIM.count=bPostIM.count=nb;bRailIM.instanceMatrix.needsUpdate=bPostIM.instanceMatrix.needsUpdate=true}};
         /* a piece runs on until it is 24 m long or the barrier line bends away from it by more than ~0.35 m: one box
            per 24 m on the straights instead of one per 6 m (1,100 static bodies on a 2.4 km lap slowed every
            physics step), still one per 6 m through the bends so the wall follows them */
@@ -7937,7 +7978,7 @@ updCircBtn();
   const MP=(function(){
     const CFG={ws:'wss://oceaylrebzflgyxfjqfb.supabase.co/realtime/v1/websocket',
       key:SUPA.key};
-    const MAXP=4,HZ=10,STALE=6500,PAL=[0x1f5fbf,0x2f9e5b,0xd9a12a,0x7a3fb0],HEX=c=>'#'+c.toString(16).padStart(6,'0');
+    const MAXP=4,HZ=20,STALE=6500,PAL=[0x1f5fbf,0x2f9e5b,0xd9a12a,0x7a3fb0],HEX=c=>'#'+c.toString(16).padStart(6,'0');
     const LOCAL=/[?&]net=local\b/.test(location.search);
     const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',rid=n=>{let s='';for(let i=0;i<n;i++)s+=ALPH[Math.random()*32|0];return s};
     const me={id:rid(8),n:'',j:0},LOG=[],lg=(...a)=>{LOG.push(Math.round(performance.now())+' '+a.join(' '));if(LOG.length>60)LOG.shift()};
@@ -8097,7 +8138,8 @@ updCircBtn();
             P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize();
             const G=P.gh||(P.gh=makeGhost(P.car,colorOf(P.id),P.n));G.g.position.copy(P.tp);G.g.quaternion.copy(P.tq);G.g.visible=true;G.tg.visible=true}
           else{const dt=Math.max(.04,Math.min(.5,(now-P.pt)/1000)),a=.6;
-            P.vx+=((x-P.tp.x)/dt-P.vx)*a;P.vy+=((y-P.tp.y)/dt-P.vy)*a;P.vz+=((z-P.tp.z)/dt-P.vz)*a;
+            if(Array.isArray(m.v)){P.vx=num(m.v[0],-200,200,0);P.vy=num(m.v[1],-200,200,0);P.vz=num(m.v[2],-200,200,0)}
+            else{P.vx+=((x-P.tp.x)/dt-P.vx)*a;P.vy+=((y-P.tp.y)/dt-P.vy)*a;P.vz+=((z-P.tp.z)/dt-P.vz)*a}
             P.tp.set(x,y,z);P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize()}
           if(m.h===1)peerHorn(P,true);else if(m.h===0&&P.horn)peerHorn(P,false);
           P.pt=now;P.st=num(m.st,-1,1,0);P.vf=num(m.vf,-80,120,0);P.d=num(m.d,-5,50,0);P.pl=typeof m.pl==='string'&&/^[a-z]{3,8}$/.test(m.pl)?m.pl:'earth';break}
@@ -8281,7 +8323,7 @@ updCircBtn();
           let q=car.quaternion,p=car.position,st=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0,pl='earth';
           if(SPACE.state!=='earth'){if(!SPACE.poseOut(plP,plQ))pl='transit';else{p=plP;q=plQ;pl=SPACE.planet;const S=SPACE.SURF;vf=S?Math.hypot(S.vel.x,S.vel.z):0;st=0}}   // in flight: hidden for everyone else
           const d=race.st===2||race.st===3?race.d0+race.rp:0;
-          send({k:'s',n:myName(),j:me.j,p:[+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2)],q:[+q.x.toFixed(3),+q.y.toFixed(3),+q.z.toFixed(3),+q.w.toFixed(3)],
+          send({k:'s',v:[+v.x.toFixed(2),+v.y.toFixed(2),+v.z.toFixed(2)],n:myName(),j:me.j,p:[+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2)],q:[+q.x.toFixed(3),+q.y.toFixed(3),+q.z.toFixed(3),+q.w.toFixed(3)],
             st:+st.toFixed(3),vf:+vf.toFixed(1),d:+d.toFixed(4),pl,h:myHorn?1:0})}
         if(now-lastHi>3000){lastHi=now;sendHi(true)}
         if(now-lastPing>1500&&peers.size){lastPing=now;
@@ -8294,9 +8336,11 @@ updCircBtn();
         // a friend is drawn only in the world they are actually driving in
         {const pl=P.pl||'earth',sc=pl==='earth'?(SPACE.state==='earth'?S:null):SPACE.sceneFor(pl);
          if(sc&&G.g.parent!==sc){sc.add(G.g);sc.add(G.tg)}G.away=!sc}
-        const ex=Math.min(.22,(now-P.pt)/1000);
+        // dead reckoning: move with the sent velocity every frame, then bleed off the error, so a friend glides instead of stepping 10x a second
+        const ex=Math.min(.35,(now-P.pt)/1000);
         tmpV.set(P.tp.x+P.vx*ex,P.tp.y+P.vy*ex,P.tp.z+P.vz*ex);
-        G.g.position.lerp(tmpV,k);G.g.quaternion.slerp(P.tq,k);
+        {const err=G.g.position.distanceTo(tmpV);if(err>25)G.g.position.copy(tmpV);else G.g.position.lerp(tmpV,1-Math.exp(-dt*(err>4?14:7)))}
+        G.g.quaternion.slerp(P.tq,1-Math.exp(-dt*9));
         P.wr-=P.vf/V.r*dt;   // this build turns its wheel angle the other way round: negative is forward
         for(let i=0;i<4;i++){const w=G.wl[i];w.spin.rotation.x=P.wr;if(i<2)w.w.rotation.y+=(P.st-w.w.rotation.y)*Math.min(1,dt*12)}
         G.tg.position.set(G.g.position.x,G.g.position.y+2.5,G.g.position.z);
