@@ -2522,7 +2522,10 @@ t.bd.position.set(x,y+.86,z);
       const bloom=new THREE.Sprite(new THREE.SpriteMaterial({map:bloomT,color:0xff1a10,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));bloom.scale.set(.75,.75,1);
       f.add(glow,outer,core,bloom);f.userData={outer,core,glow,bloom};g.add(f);flames.push(f)}
     g.visible=false;vis.car.add(g);let amt=0;
-    return {place(box,bike){const y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05,w=(box.max.x-box.min.x)*.24;
+    return {place(box,bike,lamps){let y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05,w=(box.max.x-box.min.x)*.24;
+        // out of the tail lamps when the body has them: the outermost lamp each side, at its height
+        if(lamps&&lamps.length&&!bike){let L=null,Rt=null;lamps.forEach(p=>{if(p.x>0&&(!L||p.x>L.x))L=p;if(p.x<0&&(!Rt||p.x<Rt.x))Rt=p});
+          if(L&&Rt){flames[0].position.set(L.x,L.y,Math.min(L.z,box.min.z+.4)-.02);flames[1].position.set(Rt.x,Rt.y,Math.min(Rt.z,box.min.z+.4)-.02);flames[1].visible=true;return}}
         flames[0].position.set(bike?0:w,y,z);flames[1].position.set(-w,y,z);flames[1].visible=!bike},
       /* short, fat and flickering at a standstill, stretched out behind the car at speed (it used to be a long thin
          spike either way, which read as a laser rather than a flame) */
@@ -2533,6 +2536,11 @@ t.bd.position.set(x,y+.86,z);
           u.outer.material.opacity=.8*amt;u.core.material.opacity=.75*amt;u.glow.material.opacity=.25*amt;
           u.bloom.material.opacity=.55*amt*(.8+Math.random()*.3);u.bloom.position.z=-.05}
         return amt},get amt(){return amt}}})();vis.body=new THREE.Group();vis.body.position.y=.55;vis.car.add(vis.body);vis.bodyIn=new THREE.Group();vis.bodyIn.position.y=-.55;vis.body.add(vis.bodyIn);
+  const NTANK={fuel:1,lock:false,on:false,idle:9,el:null,
+    draw(){if(!this.el){const e=document.createElement('div');e.id='dnitro';e.style.cssText='position:absolute;right:calc(var(--gut,16px) + 4px);bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:3;width:120px;pointer-events:none;font:600 10px var(--mono,monospace);letter-spacing:.14em;color:#c5c8cf';
+        e.innerHTML='<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>NITRO</span><span id="dnitrop"></span></div><div style="height:6px;border-radius:3px;background:rgba(238,240,243,.14);overflow:hidden"><i id="dnitrob" style="display:block;height:100%;width:100%;border-radius:3px;background:#4d8dff;transition:background .2s"></i></div>';
+        (document.getElementById('dhud')||document.body).appendChild(e);this.el=e;this.b=e.querySelector('#dnitrob');this.p=e.querySelector('#dnitrop')}
+      this.el.style.display=driving&&active?'block':'none';this.b.style.width=(this.fuel*100).toFixed(1)+'%';this.b.style.background=this.lock?'#ff6b5a':this.on?'#7cc4ff':'#4d8dff';this.p.textContent=this.lock?'EMPTY':Math.round(this.fuel*100)+'%'}};
   const SKN=420;let skI=0;const skLast=[null,null,null,null];
   const skid=new THREE.InstancedMesh(new THREE.PlaneGeometry(.32,.66).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x080808,transparent:true,opacity:.38,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),SKN);
   skid.count=0;skid.frustumCulled=false;if(skid.instanceMatrix.setUsage)skid.instanceMatrix.setUsage(THREE.DynamicDrawUsage);S.add(skid);
@@ -2721,7 +2729,9 @@ t.bd.position.set(x,y+.86,z);
     // measure the body in the car's own frame (car transform reset for a moment) and put the nitro on its tail
     {const p0=car.position.clone(),q0=car.quaternion.clone(),par=car.parent;car.position.set(0,0,0);car.quaternion.set(0,0,0,1);car.updateMatrixWorld(true);
      const bl=new THREE.Box3().setFromObject(PCAR.g),cw=new THREE.Vector3().setFromMatrixPosition(vis.car.matrixWorld);bl.min.sub(cw);bl.max.sub(cw);
-     car.position.copy(p0);car.quaternion.copy(q0);car.updateMatrixWorld(true);NITRO.place(bl,spec.type==='bike')}
+     const lamps=[];if(PCAR&&PCAR.tail){const t=new THREE.Vector3();PCAR.g.traverse(m=>{if(!m.isMesh)return;const ms=Array.isArray(m.material)?m.material:[m.material];if(!ms.includes(PCAR.tail))return;
+       m.geometry.computeBoundingBox();m.geometry.boundingBox.getCenter(t);t.applyMatrix4(m.matrixWorld).sub(cw);if(t.z<bl.min.z+(bl.max.z-bl.min.z)*.25)lamps.push(t.clone())})}
+     car.position.copy(p0);car.quaternion.copy(q0);car.updateMatrixWorld(true);NITRO.place(bl,spec.type==='bike',lamps)}
     // some generated panels come out with their faces wound inside-out; single-sided they vanish from above
     // or behind and the car reads as a see-through shell, so the solid body draws both faces
     PCAR.g.traverse(m=>{if(m.isMesh&&m.material){const ms=Array.isArray(m.material)?m.material:[m.material];ms.forEach(x=>{if(!x.transparent&&x.side!==THREE.DoubleSide){x.side=THREE.DoubleSide;x.needsUpdate=true}})}});
@@ -5529,7 +5539,13 @@ const PLANETS={
     AUTO.tick();
     if(active&&driving){
       const kv=v=>v===true?1:(+v>0?Math.min(1,+v):0);
-      let f=(key.f||key.boost&&!key.b)?1:0,b=key.b?1:0,l=kv(key.l),rr=kv(key.r);   // boost drives on its own: no need to hold gas too
+      /* nitro tank: ~4 s of full burn, refills in ~10 s once you let go (after a short pause); run it dry and it
+         locks until a quarter has come back. Boost pads are free. */
+      {const want=!!key.boost&&driving&&!key.b;
+       if(want&&!NTANK.lock&&NTANK.fuel>0){NTANK.on=true;NTANK.fuel=Math.max(0,NTANK.fuel-dt/4);NTANK.idle=0;if(NTANK.fuel<=0){NTANK.lock=true;toastMsg('Nitro empty · refilling')}}
+       else{NTANK.on=false;NTANK.idle+=dt;if(NTANK.idle>.6)NTANK.fuel=Math.min(1,NTANK.fuel+dt/10);if(NTANK.lock&&NTANK.fuel>=.25)NTANK.lock=false}
+       if(frameN%3===0)NTANK.draw()}
+      let f=(key.f||NTANK.on)?1:0,b=key.b?1:0,l=kv(key.l),rr=kv(key.r);   // boost drives on its own: no need to hold gas too
       if(raceHolding){ f=0; b=1; chassisB.velocity.set(0,0,0); chassisB.angularVelocity.set(0,0,0); }
       // water: how far the hull is under the waterline, 0 on dry land, 1 fully submerged
       {const pd=Math.hypot(chassisB.position.x-POND.x,chassisB.position.z-POND.z),pr=pondR(chassisB.position.x,chassisB.position.z);
@@ -5537,7 +5553,7 @@ const PLANETS={
       inPond=sub>.06;
       ZN=MODE==='circuit'?{drag:0,fog:1,tint:[1,1,1]}:zoneAt(progU);const zd=ZN.drag;
       if(NP&&frameN%10===0){NP.show(active&&driving);NP.paint(false);if(window.Radio&&Radio.setSpeed)Radio.setSpeed(chassisB.velocity.length()*3.6,dt*10)}
-      padT=Math.max(0,padT-dt);const boost=(key.boost||padT>0)?1:0;NITRO.tick(dt,!!boost&&driving,chassisB.velocity.length());
+      padT=Math.max(0,padT-dt);const boost=(NTANK.on||padT>0)?1:0;NITRO.tick(dt,!!boost&&driving,chassisB.velocity.length());
       const eMul=(1-sub*.66)*(1-zd*.52),vmax=V.max*(1+boost*.28)*(1-sub*.68)*(1-zd*.38);
       /* Tractive force used to be flat all the way to the cap, so the car pulled just as
          hard at 90 as it did from rest and then hit a wall. This is the shape a gearbox
