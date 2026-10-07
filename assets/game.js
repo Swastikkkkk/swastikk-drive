@@ -2392,6 +2392,7 @@ t.bd.position.set(x,y+.86,z);
   /* ---------- vehicle ---------- */
   const car=new THREE.Group();S.add(car);
   const GLUE={air:0};
+  const SINK={from:new CANNON.Vec3(),to:new CANNON.Vec3(),res:new CANNON.RaycastResult(),best:-1e9,n:0};
   const GROUNDFIX={lift:0,want:0,rc:new THREE.Raycaster(),o:new THREE.Vector3(),dn:new THREE.Vector3(0,-1,0),list:null,key:null};
   // the big drawn surfaces you drive on (road ribbons, decks, terrain): rebuilt when the venue changes
   function groundMeshes(){const key=MODE+'|'+(typeof circuit!=='undefined'&&circuit?circuit.seed:0);if(GROUNDFIX.key===key&&GROUNDFIX.list)return GROUNDFIX.list;
@@ -5806,6 +5807,15 @@ const PLANETS={
         // and kill the sideways slide a little when the wheels are pointing where you are going
         const rx=Math.cos(Math.atan2(fwd.x,fwd.z)),rz=-Math.sin(Math.atan2(fwd.x,fwd.z)),lat=chassisB.velocity.x*rx+chassisB.velocity.z*rz;
         if(Math.abs(steerIn)<.1){const k=Math.min(1,dt*1.8);chassisB.velocity.x-=rx*lat*k;chassisB.velocity.z-=rz*lat*k}}
+      /* anti-sink: whatever the reason (a hard landing that bottoms the springs, a seam the solver lets the body slip
+         through, a frame hitch), the body may never end up inside the ground. A physics ray finds the surface under
+         the car (ignoring anything overhead, like a bridge); if the floor of the body is below it, the car is put back
+         on top with its downward speed removed. */
+      if(frameN%2===0&&!inPond){const p=chassisB.position;SINK.from.set(p.x,p.y+1.2,p.z);SINK.to.set(p.x,p.y-4,p.z);SINK.res.reset();
+        world.raycastAll(SINK.from,SINK.to,{skipBackfaces:true},r=>{if(r.body===chassisB||r.body.mass>0||r.body.material===barM)return;const y=r.hitPointWorld.y;if(y>SINK.best)SINK.best=y});
+        if(SINK.best>-1e8){const up=new CANNON.Vec3(0,1,0);chassisB.quaternion.vmult(up,up);
+          if(up.y>.6){const floor=p.y-.12*up.y;if(floor<SINK.best-.02){p.y=SINK.best+.42;const v=chassisB.velocity;if(v.y<0)v.y=0;SINK.n++}}}
+        SINK.best=-1e9}
       /* glue: a small bump or a seam in the ground used to pop the car up for a moment, which reads as the car
          flying along the road. When all four tyres leave the ground with only a little upward speed (not a ramp jump,
          those leave much faster), extra downforce brings it straight back onto its tyres. */
@@ -8736,7 +8746,7 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get SINK(){return SINK},get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
