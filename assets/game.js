@@ -136,7 +136,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      and the second only slightly slower; the upgrade stays deliberately slow so quality
      can't oscillate. */
   let Q_UP_MS=4000;let qGoodT=0,qBadT=0;
-  const qDownMs=()=>qTier===0?450:900;
+  /* battery: unplugged laptops get their GPU throttled, so start a step lighter and react to dips sooner (and go back
+     up once the charger is in). Chrome/Edge expose the battery; elsewhere this stays off. */
+  let SAVE=false;
+  try{navigator.getBattery&&navigator.getBattery().then(b=>{const f=()=>{SAVE=!b.charging;if(SAVE&&typeof setTier==='function'&&qTier<1&&!(window.Settings&&Settings.v.quality!=='auto'))setTier(1)};f();b.addEventListener('chargingchange',f)}).catch(()=>{})}catch(e){}
+  const qDownMs=()=>SAVE?200:qTier===0?450:900;
   function tierCfg(t){
     return t===2?{dpr:HIDPI?1.1:.85,shadow:!LOW,shEvery:8}
          : t===1?{dpr:LOW?1.0:HIDPI?1.5:1.2,shadow:!LOW,shEvery:5}
@@ -583,7 +587,16 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       if(fw>0)h=h*(1-fw)+sp.h*fw}
     return h}
   const rockPts=[];
-  const terrainM=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(160,.07,Math.round(120*MK*LAND),.55)});
+  /* ground: per-pixel lit (Lambert lights per vertex, which is what made the hills look faceted and banded), a sharp
+     512 px grain and a fine relief map so the grass has texture up close. Low-end devices keep the cheap material. */
+  function reliefTex(px,rep){const c=document.createElement('canvas');c.width=c.height=px;const x=c.getContext('2d'),im=x.createImageData(px,px),h=new Float32Array(px*px);
+    for(let j=0;j<px;j++)for(let i=0;i<px;i++)h[j*px+i]=noise2(i*.11,j*.11)*.5+noise2(i*.37,j*.37)*.35+hash2(i*1.7,j*1.3)*.15;
+    for(let j=0;j<px;j++)for(let i=0;i<px;i++){const l=h[j*px+(i-1+px)%px],r=h[j*px+(i+1)%px],u=h[((j-1+px)%px)*px+i],d=h[((j+1)%px)*px+i],nx=(l-r)*2.2,ny=(u-d)*2.2,nz=1,L=Math.hypot(nx,ny,nz),k=(j*px+i)*4;
+      im.data[k]=(nx/L*.5+.5)*255;im.data[k+1]=(ny/L*.5+.5)*255;im.data[k+2]=(nz/L*.5+.5)*255;im.data[k+3]=255}
+    x.putImageData(im,0,0);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep,rep);t.anisotropy=16;return t}
+  const terrainM=LOW?new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(160,.07,Math.round(120*MK*LAND),.55)})
+    :new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.96,metalness:0,map:grainTex(512,.035,Math.round(120*MK*LAND),.6),normalMap:reliefTex(256,Math.round(480*MK*LAND)),normalScale:new THREE.Vector2(.55,.55)});
+  if(!LOW&&terrainM.map){terrainM.map.anisotropy=16;if('encoding' in terrainM.map)terrainM.map.encoding=THREE.LinearEncoding}
   const HF=(function(){
     const nx=Math.round(WS*2/ES)+1,nz=nx,minX=-WS,maxZ=WS;
     const data=[],slope=new Float32Array(nx*nz);
@@ -5710,7 +5723,7 @@ const PLANETS={
       /* Fixed 60 Hz physics with a real accumulator. cannon's own step(dt,t,n) spreads steps
          unevenly on 90-240 Hz screens, which reads as judder, so the car is stepped here and
          drawn interpolated between the last two physics states. */
-      physAcc+=dt;{let n=0;while(physAcc>=PSTEP&&n<4){world.step(PSTEP);physAcc-=PSTEP;n++}if(n>=4)physAcc=0}
+      physAcc+=Math.min(dt,.15);{let n=0;while(physAcc>=PSTEP&&n<8){world.step(PSTEP);physAcc-=PSTEP;n++}if(n>=8)physAcc=0}   // up to 8 steps: a slow frame (battery, throttled GPU) catches up instead of running the car in slow motion
       CABLE.tick(dt);   // the cable car carries the car after the physics has moved it
       /* typing race: the car rides the lap at the place your typing has reached, chasing it smoothly, so the
          lap ends exactly as the sentence does and the speed you see is the speed you are typing at */
@@ -6351,7 +6364,7 @@ const PLANETS={
     return out}
   // hide venue cells beyond their draw distance (called every few frames from the circuit loop)
   function lodTick(cells,cx,cz){const f=S.fog,hid=f?f.near+(f.far-f.near)*.94:1e9;   // 94% fogged: the cell is already a faint smudge when it goes
-    for(let i=0;i<cells.length;i++){const c=cells[i],lim=LOW?Math.min(c.d,hid):c.d<400?Math.min(hid,720):hid,v=Math.hypot(c.x-cx,c.z-cz)-c.r<lim;if(c.m.visible!==v)c.m.visible=v}}
+    for(let i=0;i<cells.length;i++){const c=cells[i],lim=LOW||SAVE?Math.min(c.d,hid):c.d<400?Math.min(hid,720):hid,v=Math.hypot(c.x-cx,c.z-cz)-c.r<lim;if(c.m.visible!==v)c.m.visible=v}}
   function buildCircuit(pts2D,theme,seed,venue){let buildPits=null;const BT0=performance.now(),BTL=[];let BTp=BT0;const BT=l=>{const t=performance.now();BTL.push(l+' '+(t-BTp).toFixed(0));BTp=t};window.__buildT=BTL; // pts2D: closed, already-scaled/centered world-unit points; .y stands in for world Z
     clearCircuit();
     venue=Object.assign({weather:'day',time:'day'},venue||{});
@@ -6511,7 +6524,7 @@ const PLANETS={
       const d=Math.min(DF(x,z),110),ramp=SM((d-70)/60),rr=Math.hypot(x-cx,z-cz);
       const bowl=SM((rr-r0)/60)*(1-SM((rr-r0-80)/60))*16;       // hills around the arena that settle back to the plain
       return ramp*((fbm2(x*.011+nOff,z*.011-nOff)-.86)*13+(fbm2(x*.04-nOff,z*.04+nOff)-.86)*3)+bowl*(.55+.9*noise2(x*.02+nOff,z*.02))};
-    const terrainMat=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(128,.08,1,.56)});ownedMats.push(terrainMat);
+    const terrainMat=LOW?new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(128,.08,1,.56)}):new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.96,metalness:0,map:grainTex(512,.04,1,.6),normalMap:terrainM.normalMap,normalScale:new THREE.Vector2(.5,.5)});if(!LOW)terrainMat.map.anisotropy=16;ownedMats.push(terrainMat);
     /* a distance-to-road field on a 6 m grid (exact near the road, chamfer-propagated outward) for the visual
        terrain's hills and colours: one lookup per vertex instead of two exact searches over 13x13 cells */
     const DF=(function(){const C6=6,half=r0+200,x0=cx-half,z0=cz-half,n=Math.ceil(half*2/C6)+1,F=new Float32Array(n*n).fill(1e9);
