@@ -78,10 +78,13 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      turned to sit on the same physics rig, and drives with the Outlaw's running gear. Kept in this browser. */
   const ALIAS={},CUSTOM={spec:null,model:null,flip:false};
   try{const c=JSON.parse(localStorage.getItem('sl_custom')||'null');
-    if(c&&c.base){const b=GARAGE.find(g=>g.id===c.base)||GARAGE[0],V2=Object.assign({},b.V,{engine:Math.round(b.V.engine*1.1),max:+(b.V.max*1.05).toFixed(1)});
+    if(c&&c.base){const b=GARAGE.find(g=>g.id===c.base)||GARAGE[0],tops=GARAGE.filter(g=>g.id==='f1apex'||g.id==='valkyrie'),cap=tops.length?Math.min(...tops.map(g=>g.V.max))*.95:b.V.max*1.2,
+        ecap=tops.length?Math.min(...tops.map(g=>g.V.engine))*.95:b.V.engine*1.2,sp=c.speed!=null?Math.max(0,Math.min(1,+c.speed)):.5,
+        V2=Object.assign({},b.V,{max:+(b.V.max*.85+(cap-b.V.max*.85)*sp).toFixed(1),engine:Math.round(b.V.engine*.85+(ecap-b.V.engine*.85)*sp)});
       const spec=Object.assign({},b,{id:'custom',label:(c.name||'My car').slice(0,18),blurb:c.kind==='model'?'Your 3D model':'Built from your photo',price:0,V:V2,
         paints:[c.paint!=null?c.paint:b.paints[0]].concat(b.paints.filter(x=>x!==c.paint)).slice(0,5),buildAs:b.id,kind:c.kind,ownWheels:c.kind==='model'});
       if(c.kind==='model'){spec.type='car';spec.F=c.F||2.45;spec.B=c.B||-2.45}
+      if(c.kind==='face'){spec.type='car';spec.blurb='Your friend, on wheels';spec.face=c.face||null;spec.paints=[c.paint!=null?c.paint:0x1c3f7a,0x111114,0x7a0d12,0xe8e4da,0x173224]}
       ALIAS.custom=b.id;CUSTOM.spec=spec;CUSTOM.flip=!!c.flip;GARAGE.push(spec)}}catch(e){}
   /* every car free for now: flip to false to bring prices back (nothing is saved, so nobody keeps them) */
   const FREE_CARS=true;
@@ -2689,7 +2692,35 @@ t.bd.position.set(x,y+.86,z);
     m.traverse(x=>{if(!x.isMesh)return;x.geometry=x.geometry.clone();const one=q=>q&&q.name==='red'?paint:q.clone();x.material=Array.isArray(x.material)?x.material.map(one):one(x.material)});
     body.add(m);const lm=c=>new THREE.MeshLambertMaterial({color:c});
     return {g,body,wheels:[],tail:new THREE.MeshLambertMaterial({color:0xff3b30,emissive:0xff2a20,emissiveIntensity:.5}),paint,rev:lm(0xdedede)}}
+  const FACETEX={src:null,tex:null};
+  function faceTex(src){if(FACETEX.src===src&&FACETEX.tex)return FACETEX.tex;const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');
+    const t=new THREE.CanvasTexture(c);if('encoding' in t)t.encoding=THREE.sRGBEncoding;t.anisotropy=8;FACETEX.src=src;FACETEX.tex=t;
+    const im=new Image();im.onload=()=>{const n=Math.min(im.width,im.height),sx=(im.width-n)/2,sy=(im.height-n)/2;x.drawImage(im,sx,sy,n,n,0,0,512,512);   // the photo exactly as sent, no edits
+      // skin tone from the cheeks; everything outside the face oval is painted in it, so no background shows round the head
+      const d=x.getImageData(0,0,512,512).data;let r=0,g=0,bb=0,k=0;for(const [cx,cy] of [[170,300],[342,300],[190,340],[322,340],[256,360]])for(let dy=-8;dy<=8;dy+=4)for(let dx=-8;dx<=8;dx+=4){const q=((cy+dy)*512+cx+dx)*4;r+=d[q];g+=d[q+1];bb+=d[q+2];k++}
+      const col='rgb('+Math.round(r/k)+','+Math.round(g/k)+','+Math.round(bb/k)+')';FACETEX.skin=col;
+      t.needsUpdate=true};im.src=src;return t}
+  function faceBody(o,spec){const g=new THREE.Group(),body=new THREE.Group();g.add(body);
+    const paint=new THREE.MeshStandardMaterial({color:o.paint!=null?o.paint:0x1c3f7a,metalness:.4,roughness:.35}),dark=new THREE.MeshStandardMaterial({color:0x141416,roughness:.6});
+    // kart tub between the wheels, sidepods, a seat back, nose and a little wing
+    const box=(w,h,d,m,x,y,z)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,y,z);b.castShadow=true;body.add(b);return b};
+    box(1.3,.22,3.6,paint,0,.34,0);box(.5,.3,1.3,paint,-.75,.42,-.1).rotation.z=.1;box(.5,.3,1.3,paint,.75,.42,-.1).rotation.z=-.1;
+    box(1.1,.16,.5,paint,0,.36,1.9);box(1.8,.06,.38,dark,0,.4,2.1);box(1.9,.06,.42,dark,0,.95,-1.9);[-1,1].forEach(s=>box(.05,.5,.42,dark,s*.92,.7,-1.9));
+    box(.9,.5,.16,dark,0,.75,-.7);
+    // the head: front cap textured with the photo (planar projection), the rest in skin tone from the photo's edge
+    const R=1.05,geo=new THREE.SphereGeometry(R,64,48),P=geo.attributes.position,uv=geo.attributes.uv;
+    for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i);uv.setXY(i,.5+x/(2*R)*.98,.5+y/(2*R)*.98)}uv.needsUpdate=true;
+    // front cap carries the photo exactly as sent; the rest of the head is plain skin (its own material, so the photo is never painted over)
+    {const ix=geo.index.array,fr=[],bk=[];for(let t=0;t<ix.length;t+=3){const a=ix[t],b=ix[t+1],c=ix[t+2];(P.getZ(a)>R*.12&&P.getZ(b)>R*.12&&P.getZ(c)>R*.12?fr:bk).push(a,b,c)}
+     geo.setIndex(fr.concat(bk));geo.clearGroups();geo.addGroup(0,fr.length,0);geo.addGroup(fr.length,bk.length,1)}
+    const tex=spec&&spec.face?faceTex(spec.face):null,skinM=new THREE.MeshStandardMaterial({color:0xd9b38c,roughness:.65}),head=new THREE.Mesh(geo,[new THREE.MeshStandardMaterial({map:tex,color:tex?0xffffff:0xd9b38c,roughness:.6,metalness:0}),skinM]);
+    head.scale.set(1,1.18,.92);head.position.set(0,1.62,.15);head.castShadow=true;body.add(head);
+    const neckM=new THREE.MeshStandardMaterial({color:0xd9b38c,roughness:.7});if(tex){const fix=()=>{if(FACETEX.skin){neckM.color.set(FACETEX.skin);skinM.color.set(FACETEX.skin)}else setTimeout(fix,200)};fix()}const neck=new THREE.Mesh(new THREE.CylinderGeometry(.32,.4,.45,20),neckM);neck.position.set(0,.62,.05);body.add(neck);
+    const lm=c=>new THREE.MeshLambertMaterial({color:c});const tail=new THREE.MeshLambertMaterial({color:0xff3b30,emissive:0xff2a20,emissiveIntensity:.55});
+    [-1,1].forEach(s=>box(.22,.08,.04,tail,s*.45,.42,-1.81));
+    return {g,body,wheels:[],tail,paint,rev:lm(0xdedede)}}
   function makeBody(spec,o){
+    if(spec.id==='custom'&&spec.kind==='face')return faceBody(o,spec);
     if(spec.type==='f1'&&F1M.tpl)return f1ModelBody(o);
     if(spec.id==='custom'){if(spec.kind==='model'&&CUSTOM.model)return customModelBody(o);spec=Object.assign({},spec,{id:spec.buildAs||'outlaw'})}
     // lofted bodies (assets/vehicles.js) for every model it knows; the EVs and the F1 keep their own builders
@@ -3119,20 +3150,28 @@ t.bd.position.set(x,y+.86,z);
   function openMaker(){let el=$('#dmaker');if(!el){el=document.createElement('div');el.id='dmaker';
       el.innerHTML='<div class="mk-in"><div class="mk-hd"><h3>Make your own car</h3><button class="dbtn mono mk-x" type="button">Close</button></div>'+
         '<label class="mono mk-l">Name</label><input id="dmkname" maxlength="18" placeholder="My car" autocomplete="off">'+
-        '<div class="mk-row"><button class="dbtn mono" id="dmkphoto" type="button">From a photo</button><button class="dbtn mono" id="dmkmodel" type="button">From a 3D model</button></div>'+
-        '<div class="mono mk-note" id="dmknote">Photo: a side or 3/4 shot of a car on a plain background works best. We match its colour and shape to the closest body and tune it.<br>3D model: .glb, .gltf (embedded) or .obj, up to 25 MB.</div>'+
+        '<label class="mono mk-l">Top speed <span id="dmkspv"></span></label><input id="dmkspeed" type="range" min="0" max="100" value="50" style="width:100%;margin:6px 0 12px;accent-color:#eef0f3">'+
+        '<div class="mk-row"><button class="dbtn mono" id="dmkface" type="button">Face car</button><button class="dbtn mono" id="dmkphoto" type="button">From a car photo</button><button class="dbtn mono" id="dmkmodel" type="button">From a 3D model</button></div>'+
+        '<div class="mono mk-note" id="dmknote">Face car: a photo of a face, it becomes a big 3D head on a kart. Car photo: a side or 3/4 shot on a plain background works best. We match its colour and shape to the closest body and tune it.<br>3D model: .glb, .gltf (embedded) or .obj, up to 25 MB.</div>'+
         (CUSTOM.spec?'<div class="mk-row"><button class="dbtn mono" id="dmkflip" type="button">Turn model round</button><button class="dbtn mono" id="dmkdel" type="button">Delete my car</button></div>':'')+
-        '<input type="file" id="dmkfp" accept="image/*" hidden><input type="file" id="dmkfm" accept=".glb,.gltf,.obj,model/gltf-binary,model/gltf+json" hidden></div>';
+        '<input type="file" id="dmkff" accept="image/*" hidden><input type="file" id="dmkfp" accept="image/*" hidden><input type="file" id="dmkfm" accept=".glb,.gltf,.obj,model/gltf-binary,model/gltf+json" hidden></div>';
       const st=document.createElement('style');st.textContent='#dmaker{position:absolute;inset:0;z-index:40;display:grid;place-items:center;background:rgba(6,7,9,.72);backdrop-filter:blur(8px);padding:20px}#dmaker .mk-in{width:min(460px,100%);background:linear-gradient(180deg,rgba(26,27,32,.96),rgba(13,14,17,.98));border:1px solid rgba(238,240,243,.12);border-radius:22px;padding:22px;color:#eef0f3}#dmaker .mk-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}#dmaker h3{margin:0;font-size:22px}#dmaker .mk-l{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#828a98}#dmaker input#dmkname{width:100%;box-sizing:border-box;margin:6px 0 14px;padding:10px 12px;border-radius:12px;border:1px solid rgba(238,240,243,.16);background:rgba(238,240,243,.06);color:inherit;font:inherit}#dmaker .mk-row{display:flex;gap:8px;margin:8px 0}#dmaker .mk-row .dbtn{flex:1;padding:12px}#dmaker .mk-note{font-size:12px;line-height:1.5;color:#9aa1ad;margin-top:6px}';
       document.head.appendChild(st);(document.getElementById('drive')||document.body).appendChild(el);
       const note=$('#dmknote'),nm=()=>($('#dmkname').value||'').trim()||'My car',save=c=>{localStorage.setItem('sl_custom',JSON.stringify(c));localStorage.setItem('sl_car',JSON.stringify({id:'custom',paint:c.paint}));note.textContent='Done. Loading your car...';setTimeout(()=>location.reload(),500)};
       el.querySelector('.mk-x').onclick=()=>el.remove();el.addEventListener('pointerdown',e=>{if(e.target===el)el.remove()});
+      {const prev=JSON.parse(localStorage.getItem('sl_custom')||'null'),sl=$('#dmkspeed'),sv=$('#dmkspv'),lab=()=>{sv.textContent=sl.value<34?'· cruiser':sl.value<67?'· quick':'· near F1 pace'};if(prev&&prev.speed!=null)sl.value=Math.round(prev.speed*100);if(prev&&prev.name)$('#dmkname').value=prev.name;lab();sl.oninput=lab;
+       if(prev){const ap=document.createElement('button');ap.className='dbtn mono';ap.type='button';ap.textContent='Save speed';ap.style.cssText='width:100%;margin:0 0 6px';ap.onclick=()=>{prev.speed=sl.value/100;prev.name=nm();save(prev)};sl.insertAdjacentElement('afterend',ap)}}
+      const spd=()=>$('#dmkspeed').value/100;
+      $('#dmkface').onclick=()=>$('#dmkff').click();
+      $('#dmkff').onchange=e=>{const f=e.target.files[0];if(!f)return;note.textContent='Making the face car...';const u=URL.createObjectURL(f),im=new Image();
+        im.onload=()=>{const c=document.createElement('canvas'),n=Math.min(im.width,im.height);c.width=c.height=512;c.getContext('2d').drawImage(im,(im.width-n)/2,(im.height-n)/2,n,n,0,0,512,512);URL.revokeObjectURL(u);
+          save({kind:'face',name:nm(),base:'outlaw',paint:0x1c3f7a,speed:spd(),face:c.toDataURL('image/jpeg',.86)})};im.onerror=()=>{note.textContent='That file is not an image.'};im.src=u};
       $('#dmkphoto').onclick=()=>$('#dmkfp').click();$('#dmkmodel').onclick=()=>$('#dmkfm').click();
       $('#dmkfp').onchange=e=>{const f=e.target.files[0];if(!f)return;note.textContent='Reading the photo...';const u=URL.createObjectURL(f),im=new Image();
-        im.onload=()=>{try{const r=analysePhoto(im);URL.revokeObjectURL(u);save({kind:'photo',name:nm(),base:r.base,paint:r.paint})}catch(err){note.textContent='Could not read that photo.'}};im.onerror=()=>{note.textContent='That file is not an image.'};im.src=u};
+        im.onload=()=>{try{const r=analysePhoto(im);URL.revokeObjectURL(u);save({kind:'photo',name:nm(),base:r.base,paint:r.paint,speed:spd()})}catch(err){note.textContent='Could not read that photo.'}};im.onerror=()=>{note.textContent='That file is not an image.'};im.src=u};
       $('#dmkfm').onchange=e=>{const f=e.target.files[0];if(!f)return;if(f.size>25e6){note.textContent='That model is over 25 MB.';return}
         const ext=(f.name.split('.').pop()||'').toLowerCase();note.textContent='Loading the model...';
-        f.arrayBuffer().then(buf=>parseModel({buf,ext}).then(m=>{const L=m.userData.len||4.9;return cdbPut({buf,ext}).then(()=>save({kind:'model',name:nm(),base:'outlaw',paint:0x777777,F:+(L/2).toFixed(2),B:+(-L/2).toFixed(2)}))}))
+        f.arrayBuffer().then(buf=>parseModel({buf,ext}).then(m=>{const L=m.userData.len||4.9;return cdbPut({buf,ext}).then(()=>save({kind:'model',name:nm(),base:'outlaw',paint:0x777777,speed:spd(),F:+(L/2).toFixed(2),B:+(-L/2).toFixed(2)}))}))
           .catch(err=>{note.textContent='Could not load that model'+(ext==='gltf'?' (a .gltf needs its textures embedded, or use .glb)':'')+'.'})};
       const fl=$('#dmkflip');if(fl)fl.onclick=()=>{const c=JSON.parse(localStorage.getItem('sl_custom')||'{}');c.flip=!c.flip;save(c)};
       const dl=$('#dmkdel');if(dl)dl.onclick=()=>{localStorage.removeItem('sl_custom');localStorage.removeItem('sl_car');CDB().then(db=>{db.transaction('f','readwrite').objectStore('f').delete('model')}).catch(()=>{});note.textContent='Deleted.';setTimeout(()=>location.reload(),400)}}}
