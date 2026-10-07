@@ -505,6 +505,14 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 #dmp .mono,#dmp [class*="mono"]{letter-spacing:0!important;text-transform:none!important;font-weight:500!important}
 #dmp .mono:not(button){font-size:13px!important;color:rgba(245,245,247,.62)!important}
 #dmp b,#dmp strong{letter-spacing:0!important;color:#f5f5f7}
+
+/* paint shop */
+#dglivery{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:10px;font:500 12px -apple-system,BlinkMacSystemFont,Arial,sans-serif;color:rgba(245,245,247,.75)}
+#dglivery label{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);cursor:pointer}
+#dglivery input[type=color]{width:22px;height:22px;border:0;padding:0;background:none;border-radius:50%;cursor:pointer}
+#dglivery input[type=text]{width:34px;background:transparent;border:0;color:#fff;font:600 13px -apple-system,Arial,sans-serif;text-align:center;outline:none}
+#dgpaints button.lock{opacity:.25;cursor:not-allowed;position:relative}
+#dgpaints .custom{background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)!important}
 </style>
 </head>
 <body class="locked">
@@ -614,7 +622,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
     </div>
     <div id="dgview"><canvas id="dgcanvas"></canvas><div class="mono gg-hint">Drag to turn 360° · swipe to change car</div></div>
     <div id="dgdots"></div>
-    <div id="dgpaints"></div>
+    <div id="dgpaints"></div><div id="dglivery"></div>
     <div id="dgstats"></div>
     <div class="mono bd-note" id="dgblurb">-</div>
     <button id="dgpick" class="dbtn mono">Drive this car</button>
@@ -758,25 +766,25 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 <script src="assets/vendor/cannon.min.js"></script>
 <script src="assets/vendor/GLTFLoader.js"></script>
 <script src="assets/vendor/OBJLoader.js"></script>
-<script src="assets/core-constants.js?v=1791412421"></script>
-<script src="assets/engine-audio.js?v=1791412421"></script>
-<script src="assets/radio.js?v=1791412421"></script>
-<script src="assets/settings.js?v=1791412421"></script>
-<script src="assets/car-builder.js?v=1791412421"></script>
-<script src="assets/vehicles.js?v=1791412421"></script>
-<script src="assets/track-drawer.js?v=1791412421"></script>
-<script src="assets/controller.js?v=1791412421"></script>
+<script src="assets/core-constants.js?v=1791412615"></script>
+<script src="assets/engine-audio.js?v=1791412615"></script>
+<script src="assets/radio.js?v=1791412615"></script>
+<script src="assets/settings.js?v=1791412615"></script>
+<script src="assets/car-builder.js?v=1791412615"></script>
+<script src="assets/vehicles.js?v=1791412615"></script>
+<script src="assets/track-drawer.js?v=1791412615"></script>
+<script src="assets/controller.js?v=1791412615"></script>
 <script src="assets/vendor/qrcode.js"></script>
-<script src="assets/qr.js?v=1791412421"></script>
-<script src="assets/race.js?v=1791412421"></script>
-<script src="assets/editor.js?v=1791412421"></script>
-<script src="assets/game.js?v=1791412421"></script>
-<script src="assets/typing-sentences.js?v=1791412421"></script>
-<script src="assets/typing-keyboard.js?v=1791412421"></script>
-<script src="assets/venue-decor.js?v=1791412421"></script>
-<script src="assets/typing-bank.js?v=1791412421"></script>
-<script src="assets/typing-race.js?v=1791412421"></script>
-<script src="assets/ui-motion.js?v=1791412421"></script>
+<script src="assets/qr.js?v=1791412615"></script>
+<script src="assets/race.js?v=1791412615"></script>
+<script src="assets/editor.js?v=1791412615"></script>
+<script src="assets/game.js?v=1791412615"></script>
+<script src="assets/typing-sentences.js?v=1791412615"></script>
+<script src="assets/typing-keyboard.js?v=1791412615"></script>
+<script src="assets/venue-decor.js?v=1791412615"></script>
+<script src="assets/typing-bank.js?v=1791412615"></script>
+<script src="assets/typing-race.js?v=1791412615"></script>
+<script src="assets/ui-motion.js?v=1791412615"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 <!-- Vercel Speed Insights (plain-HTML setup: there is no Next.js/npm build here, so the script tag replaces the <SpeedInsights/> component) -->
 <script>window.si=window.si||function(){(window.siq=window.siq||[]).push(arguments)};</script>

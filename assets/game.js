@@ -2824,7 +2824,7 @@ t.bd.position.set(x,y+.86,z);
     }
   }
   function wheelWdOf(spec){return spec.type==='bike'?.18:spec.type==='truck'?.5:spec.type==='f1'?.46:spec.type==='suv'?.42:.36}
-  function setCar(id,paint,quiet){if(window.__dmgClear)window.__dmgClear();
+  function setCar(id,paint,quiet){if(window.__dmgClear)window.__dmgClear();setTimeout(()=>{try{LIVERY.apply()}catch(e){}},0);
     const spec=garageOf(id);curCarId=spec.id;
     const paintHex=paint!=null?paint:spec.paints[0];
     try{if(CAMS[camMode].cock&&(spec.type==='bike'||spec.type==='f1'))camMode=0}catch(_){}   // no cabin on the bike or the open-wheeler (the camera list is not made yet when the saved car loads at start)
@@ -3291,6 +3291,33 @@ t.bd.position.set(x,y+.86,z);
      in the middle and its stats below. Swipe or use the arrows to move between cars, then
      pick one. The preview has its own small WebGL renderer, so it only runs while the garage
      is open and costs nothing while driving. */
+  const LIVERY=(function(){const DEF={stripes:false,stripeCol:'#f5f5f7',num:'',rim:'#c8ccd2'};let grp=null;
+    const get=()=>{try{return Object.assign({},DEF,JSON.parse(localStorage.getItem('sl_livery')||'{}'))}catch(e){return Object.assign({},DEF)}};
+    const set=L=>{try{localStorage.setItem('sl_livery',JSON.stringify(L))}catch(e){}};
+    function numTex(n){const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');x.fillStyle='#f5f5f7';x.beginPath();x.arc(64,64,60,0,6.283);x.fill();
+      x.fillStyle='#111';x.font='800 78px -apple-system,BlinkMacSystemFont,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(n,64,70);return new THREE.CanvasTexture(c)}
+    function apply(){if(grp){grp.parent&&grp.parent.remove(grp);grp=null}const L=get();
+      // rims: every light-coloured part of the wheels takes the colour (tyres stay black)
+      try{(wv&&wv.car||[]).forEach(k=>k.spin.traverse(o=>{if(!o.isMesh||!o.material||!o.material.color)return;if(!o.userData.rimBase){const c=o.material.color;if(c.r*.3+c.g*.59+c.b*.11<.3)return;o.material=o.material.clone();o.userData.rimBase=1}o.material.color.set(L.rim)}))}catch(e){}
+      if(!L.stripes&&!L.num)return;
+      const p0=car.position.clone(),q0=car.quaternion.clone();car.position.set(0,0,0);car.quaternion.set(0,0,0,1);car.updateMatrixWorld(true);
+      const meshes=[];vis.bodyIn.traverse(o=>{if(o.isMesh&&!(o.material&&o.material.transparent))meshes.push(o)});
+      grp=new THREE.Group();const rc=new THREE.Raycaster(),box=new THREE.Box3();meshes.forEach(m=>box.expandByObject(m));
+      if(meshes.length&&!box.isEmpty()){const z0=box.min.z+.15,z1=box.max.z-.15;
+        if(L.stripes){const m=new THREE.MeshBasicMaterial({color:L.stripeCol,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,side:THREE.DoubleSide});
+          for(const cx of[-.17,.17]){const pos=[],N=40;let ok=0;for(let i=0;i<=N;i++){const z=z0+(z1-z0)*i/N;rc.set(new THREE.Vector3(cx,box.max.y+2,z),new THREE.Vector3(0,-1,0));const h=rc.intersectObjects(meshes,false)[0];
+              const y=h?h.point.y+.012:null;if(y!=null)ok++;pos.push(y)}
+            if(ok<N*.6)continue;let last=null;for(let i=0;i<=N;i++)if(pos[i]==null)pos[i]=last;else last=pos[i];for(let i=N;i>=0;i--)if(pos[i]==null)pos[i]=pos[i+1];
+            const v=[],idx=[];for(let i=0;i<=N;i++){const z=z0+(z1-z0)*i/N;v.push(cx-.07,pos[i],z,cx+.07,pos[i],z);if(i){const k=(i-1)*2;idx.push(k,k+1,k+2,k+1,k+3,k+2)}}
+            const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));g.setIndex(idx);grp.add(new THREE.Mesh(g,m))}}
+        if(L.num){const t=numTex(L.num),m=new THREE.MeshBasicMaterial({map:t,transparent:true,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4});const yc=(box.min.y+box.max.y)/2,zc=(z0+z1)/2;
+          for(const sd of[-1,1]){rc.set(new THREE.Vector3(sd*(box.max.x+2),yc,zc),new THREE.Vector3(-sd,0,0));const h=rc.intersectObjects(meshes,false)[0];if(!h)continue;
+            const pl=new THREE.Mesh(new THREE.PlaneGeometry(.55,.55),m);pl.position.set(h.point.x+sd*.012,h.point.y,h.point.z);pl.rotation.y=sd*Math.PI/2;grp.add(pl)}}}
+      grp.children.forEach(o=>{o.position.applyMatrix4(new THREE.Matrix4().copy(vis.body.matrixWorld).invert())});
+      // stripe vertices are in car space already: bake them into the body's frame
+      grp.children.forEach(o=>{if(o.geometry&&o.geometry.type==='BufferGeometry'&&!o.geometry.parameters){o.geometry.applyMatrix4(new THREE.Matrix4().copy(vis.body.matrixWorld).invert());o.position.set(0,0,0)}});
+      vis.body.add(grp);car.position.copy(p0);car.quaternion.copy(q0);car.updateMatrixWorld(true)}
+    return {get,set,apply}})();
   {const gb=$('#dgarageb'),gp=$('#dgarage'),gx=$('#dgaragex'),gpaints=$('#dgpaints'),gname=$('#dgname'),gblurb=$('#dgblurb'),gcoins=$('#dgcoins'),
      gview=$('#dgview'),gcv=$('#dgcanvas'),gcname=$('#dgcname'),gcclass=$('#dgcclass'),gcount=$('#dgcount'),gdots=$('#dgdots'),gstats=$('#dgstats'),gpick=$('#dgpick');
    if(gb&&gp&&gview){
@@ -3364,7 +3391,20 @@ t.bd.position.set(x,y+.86,z);
      /* ---- the page around it ---- */
      const paintPaints=()=>{const spec=GARAGE[idx];gpaints.innerHTML='';spec.paints.forEach(c=>{const b=document.createElement('button');
          b.style.background='#'+c.toString(16).padStart(6,'0');b.dataset.p=c;b.setAttribute('aria-label','Paint');
-         b.classList.toggle('on',c===viewPaint);gpaints.appendChild(b)})};
+         b.classList.toggle('on',c===viewPaint);gpaints.appendChild(b)});
+       // token paints (found around the valley) and a free colour pick
+       const TP=window.TOKEN_PAINTS||[],got=window.tokenFound?window.tokenFound():[];
+       TP.forEach((c,i)=>{const b=document.createElement('button');b.style.background='#'+c.toString(16).padStart(6,'0');
+         if(got.includes(i)){b.dataset.p=c;b.title='Token paint';b.classList.toggle('on',c===viewPaint)}else{b.classList.add('lock');b.title='Find token '+(i+1)+' in the valley to unlock'}gpaints.appendChild(b)});
+       {const b=document.createElement('button');b.className='custom';b.title='Any colour';const inp=document.createElement('input');inp.type='color';inp.style.cssText='opacity:0;width:100%;height:100%;cursor:pointer';
+        inp.value='#'+(viewPaint||0).toString(16).padStart(6,'0');inp.oninput=()=>{const c=parseInt(inp.value.slice(1),16);b.dataset.p=c;b.click()};b.appendChild(inp);gpaints.appendChild(b)}
+       paintLivery()};
+     /* livery: racing stripes, a door number and rim colour on whatever car you drive (saved on this device) */
+     function paintLivery(){const el=$('#dglivery');if(!el)return;const L=LIVERY.get();
+       el.innerHTML='<label><input type="checkbox" data-l="stripes"'+(L.stripes?' checked':'')+'> Stripes <input type="color" data-l="stripeCol" value="'+L.stripeCol+'"></label>'+
+         '<label>No. <input type="text" maxlength="2" data-l="num" value="'+(L.num||'')+'" placeholder="–"></label>'+
+         '<label>Rims <input type="color" data-l="rim" value="'+L.rim+'"></label>';
+       el.querySelectorAll('[data-l]').forEach(i=>{const ev=i.type==='text'?'input':'change';i.addEventListener(ev,()=>{const L2=LIVERY.get();const k=i.dataset.l;L2[k]=i.type==='checkbox'?i.checked:k==='num'?i.value.replace(/[^0-9]/g,'').slice(0,2):i.value;LIVERY.set(L2);LIVERY.apply();if(PR)buildModel()})})}
      const refresh=()=>{const spec=GARAGE[idx],owned=unlocked.has(spec.id),r=raw(spec);
        gcname.textContent=spec.label;gcclass.textContent=classOf(spec);gcount.textContent=(idx+1)+' / '+GARAGE.length;
        [...gdots.children].forEach((d,i)=>{d.classList.toggle('on',i===idx);d.classList.toggle('own',GARAGE[i].id===curCarId)});
@@ -5784,7 +5824,7 @@ const PLANETS={
         if((t.x-cx)**2+(t.z-cz)**2<12&&driving){t.g.visible=false;found.push(t.id);try{localStorage.setItem('sl_tokens',JSON.stringify(found))}catch(e){}
           toastMsg('Token '+found.length+'/12 · new paint unlocked in the paint shop');blip(1200,.12,.12);setTimeout(()=>blip(1600,.16,.1),110)}}}
     return {tick,get wet(){return wet},get found(){return found.length}}})();
-  const SUPER=(function(){const DUR=5,RELOAD=20,GAP=180;
+  const SUPER=(function(){const DUR=5,RELOAD=45,GAP=750;
     const gemG=new THREE.OctahedronGeometry(.9,0),ringG=new THREE.TorusGeometry(1.5,.08,6,28);
     const gemM=new THREE.MeshBasicMaterial({color:0x9d3bff}),ringM=new THREE.MeshBasicMaterial({color:0xd9a6ff,transparent:true,opacity:.75,depthWrite:false}),
       glowM=new THREE.MeshBasicMaterial({color:0x8a2cff,transparent:true,opacity:.18,depthWrite:false,blending:THREE.AdditiveBlending});
@@ -5803,7 +5843,7 @@ const PLANETS={
         el.innerHTML='<div style="margin-bottom:4px">SUPER NITRO</div><div style="height:6px;border-radius:3px;background:rgba(180,92,255,.18);overflow:hidden"><i style="display:block;height:100%;width:100%;border-radius:3px;background:linear-gradient(90deg,#8a3dff,#d36bff);box-shadow:0 0 8px #b45cff"></i></div>';
         (document.getElementById('dhud')||document.body).appendChild(el);bar=el.querySelector('i')}
       el.style.display=t>0&&driving?'block':'none';if(t>0)bar.style.width=(t/DUR*100).toFixed(1)+'%'}
-    const ON=false;   // switched off for now; flip to bring the pickups back
+    const ON=true;   // rare now: a few per map, slow to grow back
     function tick(dt,now){if(!ON){t=0;return}
       let list=null;
       if(MODE==='world'){if(!worldSet){const grp=new THREE.Group();S.add(grp);worldSet={grp,list:make(grp,worldPts())}}worldSet.grp.visible=true;list=worldSet.list}
