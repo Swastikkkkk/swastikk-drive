@@ -8291,7 +8291,7 @@ updCircBtn();
       // the host can pick the next track and laps at any time, mid-race too; Restart race then starts that one
       {const host=!room||isHost();['#dmplaps','#dmpmap'].forEach(sel=>{const e=$(sel);if(e)e.disabled=!host});const dr=$('#dmpdrawrow');if(dr)dr.style.display=host?'flex':'none';const sp=$('#dmpsteps');if(sp)sp.innerHTML=host?'1 · Draw or pick a track &nbsp;→&nbsp; 2 · Everyone presses Ready &nbsp;→&nbsp; 3 · You press Start race':'The host picks the track · press Ready, the race starts when the host hits Start'}
       if(el.out)el.out.style.display=room?'none':'block';
-      if(el.inn)el.inn.style.display=room?'block':'none';
+      if(el.inn)el.inn.style.display=room?'grid':'none';
       if(el.codeOut)el.codeOut.textContent=room||'';
       if(el.race){const hst=isHost(),live=race.st===1||race.st===2||race.st===4;el.race.disabled=!room||status!=='up'||!hst;
         el.race.textContent=!hst?'Host starts the race':live?'Restart race':race.st===3?'Rematch':'Start race'}

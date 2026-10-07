@@ -480,6 +480,25 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 @media (orientation:landscape){#drive.touch #dtravel{bottom:calc(150px + env(safe-area-inset-bottom,0px))}}
 /* garage on a sideways phone: scrolls instead of cutting off the Drive button */
 @media (max-height:540px){#dgarage{place-items:start center}#dgarage .gg-in{padding:14px 18px!important;border-radius:18px}#dgarage .gg-in #dgview{height:calc(100dvh - 96px)}}
+
+/* ---- race lobby, redesigned: one wide card, room + track on the left, drivers + chat on the right ---- */
+#dmp{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}
+#dmp .bd-in{width:min(920px,100%)!important;background:none!important;border:0!important;box-shadow:none!important;padding:0!important}
+#dmp h3{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif!important;font-stretch:normal!important;font-weight:700!important;letter-spacing:-.03em!important;font-size:clamp(34px,4.6vw,52px)!important;margin:4px 0 18px!important}
+#dmp-out{background:rgba(28,28,30,.72);border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:22px;max-width:460px}
+#dmp-in{grid-template-columns:1.1fr .9fr;gap:22px;max-width:none!important;background:rgba(28,28,30,.72)!important;border:1px solid rgba(255,255,255,.1)!important;border-radius:24px!important;padding:26px!important}
+#dmp-in .mpc{min-width:0}
+#dmp-in .mpr{border-left:1px solid rgba(255,255,255,.08);padding-left:22px}
+#dmp .dmp-code{font-family:-apple-system,BlinkMacSystemFont,"SF Mono",Menlo,monospace!important;font-size:clamp(44px,6vw,64px)!important;letter-spacing:.12em;font-weight:600;margin:2px 0 10px!important}
+#dmp .room-status-badge{border-radius:12px!important;background:rgba(255,255,255,.05)!important;border:1px solid rgba(255,255,255,.08)!important;padding:10px 12px!important;font-size:11px!important;line-height:1.7}
+#dmp .dbtn{border-radius:12px!important;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Arial,sans-serif!important;letter-spacing:0!important;text-transform:none!important;font-size:14px!important;font-weight:600!important;padding:11px 16px!important}
+#dmp .mono{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Arial,sans-serif}
+#dmp #dmpsteps{font-size:13px!important;letter-spacing:0!important;color:rgba(245,245,247,.6)!important}
+#dmp .mp-list-label,#dmpchat>.mono{font-size:12px!important;letter-spacing:.02em!important;text-transform:none!important;color:rgba(245,245,247,.55)!important;margin-top:0!important}
+#dmp #dmpready{background:#30d158!important;color:#06200f!important;border-color:transparent!important}
+#dmp #dmprace{background:#f5f5f7!important;color:#1d1d1f!important;border-color:transparent!important}
+#dmp #dmpleave{margin-top:16px}
+@media (max-width:760px){#dmp-in{grid-template-columns:1fr!important;padding:18px!important}#dmp-in .mpr{border-left:0;padding-left:0;border-top:1px solid rgba(255,255,255,.08);padding-top:16px}}
 </style>
 </head>
 <body class="locked">
@@ -646,7 +665,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
       <div class="bd-me"><button id="dmpnew" class="dbtn mono">Create a room</button></div>
       <div class="mono bd-note">Create or join a room. Synchronized countdown, checkpoints, multi-lap racing, and real-time positioning.</div>
     </div>
-    <div id="dmp-in">
+    <div id="dmp-in"><div class="mpc mpl">
       <div class="mono" style="color:var(--mute);font-size:10px;letter-spacing:.12em">ROOM CODE</div>
       <div id="dmpcodeout" class="dmp-code"></div>
 
@@ -688,6 +707,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
       </div>
 
       <div id="dmpracestatus" aria-live="polite"></div>
+      </div><div class="mpc mpr">
       <div class="mp-list-label">Drivers &middot; Ready &middot; Ping</div>
       <ol id="dmplist"></ol>
       <div class="mono bd-note" id="dmpnote"></div>
@@ -700,7 +720,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
         </div>
       </div>
       <button id="dmpleave" class="dbtn mono bd-x">Leave room</button>
-    </div>
+    </div></div>
     <button id="dmpx" class="dbtn mono bd-x">Close &#10005;</button>
   </div></div>
 
