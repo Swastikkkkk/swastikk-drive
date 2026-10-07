@@ -6063,6 +6063,12 @@ const PLANETS={
     if(active)birds.forEach(b=>{b.a+=dt*b.sp;const x=POND.x+Math.cos(b.a)*b.r,z=POND.z+Math.sin(b.a)*b.r;b.g.position.set(x,b.y+Math.sin(tt*.6+b.a)*.6,z);b.g.rotation.y=-b.a+Math.PI/2;const fl=Math.sin(tt*9+b.a)*.9;b.wL.rotation.z=fl;b.wR.rotation.z=-fl});
     if(active)for(let ci=0;ci<critters.length;ci++){const c=critters[ci];
       const near2=active?Math.hypot(car.position.x-c.g.position.x,car.position.z-c.g.position.z):999;
+      /* a car that reaches a cow shoves it aside instead of driving through it (it used to vanish inside the car):
+         the cow is pushed clear of the car's body, stumbles off at a run, and the car loses a little speed */
+      if(near2<2.6){const ax=c.g.position.x-car.position.x,az=c.g.position.z-car.position.z,al=Math.hypot(ax,az)||1,push=2.6-near2;
+        const nx=c.g.position.x+ax/al*push,nz=c.g.position.z+az/al*push;c.g.position.set(nx,HF.h(nx,nz),nz);
+        c.state='flee';c.t=3;c.tgt.x=nx+ax/al*30;c.tgt.z=nz+az/al*30;c.spd=Math.max(c.spd,4);c.ry=Math.atan2(ax,az);c.g.rotation.y=c.ry;
+        if(sp>2){const v=chassisB.velocity;v.x*=.985;v.z*=.985}}
       if(near2<16&&c.state!=='flee'&&sp>3){c.state='flee';c.t=2.5+Math.random()*2;
         const ax=c.g.position.x-car.position.x,az=c.g.position.z-car.position.z,al=Math.hypot(ax,az)||1;
         c.tgt.x=c.g.position.x+ax/al*26;c.tgt.z=c.g.position.z+az/al*26}
