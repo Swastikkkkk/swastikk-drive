@@ -3347,7 +3347,7 @@ t.bd.position.set(x,y+.86,z);
        if(e.code==='ArrowLeft'||e.code==='KeyA'){go(-1,true);e.preventDefault();e.stopImmediatePropagation()}
        else if(e.code==='ArrowRight'||e.code==='KeyD'){go(1,true);e.preventDefault();e.stopImmediatePropagation()}
        else if(e.code==='Enter'){gpick.click();e.preventDefault();e.stopImmediatePropagation()}},true);
-     if(!hadSave)setTimeout(()=>setOpen(true),900)
+     window.__openGarage=()=>setOpen(true)
    }}
   /* ---------- input ---------- */
   /* Stretches of the loop that feel different. Each band has a drag figure (0 = free,
@@ -8557,4 +8557,46 @@ function carChanged(){if(room)sendHi(true)}
   const AUDIO_EVS=['pointerdown','pointerup','keydown','touchend','click'];
   AUDIO_EVS.forEach(ev=>addEventListener(ev,maybeInitAudio));
   enterDrive();
+  /* ---------- home screen ----------
+     First thing after loading: the valley seen from the summit (the live scene, a slow pan from above the lookout),
+     with the ways to play over it. Picking one drops you into it; Esc or Free drive just drives. */
+  {const HOME={on:true,cam:new THREE.PerspectiveCamera(46,W/H,.5,5000),a:0,el:null};const wasDriving=driving;driving=false;
+   const st=document.createElement('style');st.textContent=`
+#dstartscr{position:fixed;inset:0;z-index:2147482000;display:flex;align-items:flex-end;justify-content:flex-start;padding:clamp(20px,5vw,64px);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif;color:#f5f5f7;
+  background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.55) 100%);transition:opacity .45s ease}
+#dstartscr.out{opacity:0;pointer-events:none}
+#dstartscr .hm{width:min(560px,100%)}
+#dstartscr h1{margin:0 0 6px;font-size:clamp(40px,7vw,72px);font-weight:700;letter-spacing:-.03em;line-height:1}
+#dstartscr .sub{margin:0 0 28px;font-size:17px;color:rgba(245,245,247,.72);font-weight:400}
+#dstartscr .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+#dstartscr button.t{all:unset;box-sizing:border-box;cursor:pointer;padding:18px 18px 16px;border-radius:18px;background:rgba(28,28,30,.55);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);
+  border:1px solid rgba(255,255,255,.12);transition:transform .18s ease,background .18s ease,border-color .18s ease}
+#dstartscr button.t:hover,#dstartscr button.t:focus-visible{background:rgba(44,44,46,.7);border-color:rgba(255,255,255,.28);transform:translateY(-2px)}
+#dstartscr button.t b{display:block;font-size:17px;font-weight:600;letter-spacing:-.01em;margin-bottom:4px}
+#dstartscr button.t span{display:block;font-size:13px;color:rgba(245,245,247,.6);line-height:1.35}
+#dstartscr button.t.wide{grid-column:1/-1;background:rgba(245,245,247,.92);color:#1d1d1f;border-color:transparent}
+#dstartscr button.t.wide span{color:rgba(29,29,31,.6)}#dstartscr button.t.wide:hover{background:#fff}
+#dstartscr .back{all:unset;cursor:pointer;font-size:14px;color:rgba(245,245,247,.7);margin-bottom:14px;display:inline-block}
+#dstartscr .back:hover{color:#fff}
+body.homeon #drive>*:not(canvas){visibility:hidden!important}body.homeon #dlanding{display:none!important}
+@media (max-width:520px){#dstartscr .grid{grid-template-columns:1fr}#dstartscr .sub{margin-bottom:18px}}`;document.head.appendChild(st);
+   document.body.classList.add('homeon');const el=document.createElement('div');el.id='dstartscr';HOME.el=el;document.body.appendChild(el);
+   const T=(id,title,sub,wide)=>`<button class="t${wide?' wide':''}" data-go="${id}"><b>${title}</b><span>${sub}</span></button>`;
+   const main=()=>{el.innerHTML='<div class="hm"><h1>Swastikk Drive</h1><p class="sub">Pick how you want to play.</p><div class="grid">'+
+     T('free','Free drive','Open valley, ramps, the summit and the cable car',true)+T('mp','Multiplayer','Race up to 4 friends with a room code')+T('daily',"Daily track","Today's circuit and its leaderboard")+
+     T('typing','Typing','Type to drive: practice or the daily test')+T('draw','Draw a track','Sketch a circuit and race it')+T('garage','Garage','Pick a car or make your own')+T('settings','Settings','Sound, graphics, controls')+'</div></div>'};
+   const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
+     T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
+   const close=after=>{if(!HOME.on)return;HOME.on=false;el.classList.add('out');document.body.classList.remove('homeon');driving=wasDriving||true;setTimeout(()=>{el.remove()},500);if(after)setTimeout(after,120)};
+   const btn=id=>()=>{const b=document.getElementById(id);if(b)b.click()};
+   const ACT={free:()=>close(btn('dmfree')),mp:()=>close(btn('droom')),daily:()=>close(btn('dmdaily')),draw:()=>close(btn('dcircb')),garage:()=>close(()=>window.__openGarage&&window.__openGarage()),
+     settings:()=>close(()=>window.Settings&&Settings.open()),typing,home:main,tfast:()=>close(btn('dmtype')),tdaily:()=>close(()=>{try{audioInit()}catch(_){}if(window.TypingRace)TypingRace.start()})};
+   el.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;try{audioInit()}catch(_){}ACT[b.dataset.go]&&ACT[b.dataset.go]()});
+   addEventListener('keydown',e=>{if(HOME.on&&e.code==='Escape')close()},true);
+   main();
+   // the camera: high over the summit lookout, panning slowly across the valley, with the haze pulled back
+   const _r=R.render.bind(R);R.render=(sc,c)=>{if(HOME.on&&sc===S){HOME.a+=.0009;const P=PEAK,cx=P.x,cz=P.z,dir=Math.atan2(-cx,-cz)+Math.sin(HOME.a)*.9;
+       HOME.cam.aspect=W/H;HOME.cam.updateProjectionMatrix();HOME.cam.position.set(cx-Math.sin(dir)*30,PEAK_H+38,cz-Math.cos(dir)*30);HOME.cam.lookAt(cx+Math.sin(dir)*520,PEAK_H-150,cz+Math.cos(dir)*520);
+       if(S.fog){S.fog.near=Math.max(S.fog.near,260);S.fog.far=Math.max(S.fog.far,2600)}return _r(sc,HOME.cam)}return _r(sc,c)};
+   window.__home=HOME}
 })();
