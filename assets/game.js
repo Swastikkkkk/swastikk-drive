@@ -2809,7 +2809,7 @@ t.bd.position.set(x,y+.86,z);
     }
   }
   function wheelWdOf(spec){return spec.type==='bike'?.18:spec.type==='truck'?.5:spec.type==='f1'?.46:spec.type==='suv'?.42:.36}
-  function setCar(id,paint,quiet){
+  function setCar(id,paint,quiet){if(window.__dmgClear)window.__dmgClear();
     const spec=garageOf(id);curCarId=spec.id;
     const paintHex=paint!=null?paint:spec.paints[0];
     try{if(CAMS[camMode].cock&&(spec.type==='bike'||spec.type==='f1'))camMode=0}catch(_){}   // no cabin on the bike or the open-wheeler (the camera list is not made yet when the saved car loads at start)
@@ -3612,7 +3612,7 @@ t.bd.position.set(x,y+.86,z);
     veh.wheelInfos.forEach(w=>{w.suspensionLength=w.suspensionRestLength;w.deltaRotation=0});
     for(let i=0;i<4;i++){veh.applyEngineForce(0,i);veh.setBrake(0,i)}
     sub=0;inPond=false;steerActual=0;vehicleDamage=0;if(raceMode&&!lapArmed&&!lapVoid){lapVoid=true;lapEl.classList.add('void')}blip(330,.2)}
-  function resetCarTo(target){
+  function resetCarTo(target){if(window.__dmgClear)window.__dmgClear();
     const p=(target&&target.pos)?target.pos:((MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve).p:at(progU).p);
     const tg=(target&&target.tangent)?target.tangent:((MODE==='circuit'&&circuit)?circAt(circU0<0?0:circU0,circuit.curve).tg:at(progU).tg);
     PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
@@ -5636,6 +5636,67 @@ const PLANETS={
      A glowing purple crystal sits on the road every ~260 m (the valley loop, the summit road and every circuit).
      Driving through one gives 5 s of super boost on top of nitro: far more pull and a higher top speed. The crystal
      then goes dark and grows back after 20 s. */
+  /* ---------- best-lap ghost ----------
+     Every lap you drive on a circuit is recorded (a pose every 0.1 s). The fastest one is kept on this device for that
+     track (daily tracks by date, drawn tracks by their shape) and replayed as a see-through car from the start line,
+     so you race your own record. */
+  const GHOSTLAP=(function(){let rec=null,t0=0,best=null,key='',mesh=null,playT0=0;
+    const mat=new THREE.MeshBasicMaterial({color:0x8fc4ff,transparent:true,opacity:.32,depthWrite:false});
+    const keyOf=()=>circuit?('gl_'+(circuit.daily?'d'+circuit.daily:'s'+circuit.seed)+'_'+Math.round(circuit.TL||0)):'';
+    function build(){if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}const spec=garageOf(curCarId),sv=spec.V;
+      const o={paint:0x8fc4ff,r:sv.r,zf:sv.zf,zb:sv.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};let P=null;try{P=makeBody(spec,o)}catch(e){}
+      const g=new THREE.Group();if(P){P.g.position.y=.05-(sv.rest-.07)-sv.r+.55-.55;g.add(P.g)}else g.add(new THREE.Mesh(new THREE.BoxGeometry(1.8,.9,4.2),mat));
+      g.traverse(o=>{if(o.isMesh){o.material=mat;o.castShadow=false;o.receiveShadow=false}});g.visible=false;(circuit&&circuit.root||S).add(g);mesh=g}
+    function load(){key=keyOf();best=null;try{const j=JSON.parse(localStorage.getItem(key)||'null');if(j&&j.p&&j.p.length>10)best=j}catch(e){}if(best)build()}
+    function onLap(now,fresh){const lapMs=now-t0;
+      if(rec&&!fresh&&rec.length>20&&lapMs>8000&&(!best||lapMs<best.ms)){best={ms:lapMs,p:rec};try{localStorage.setItem(key,JSON.stringify(best))}catch(e){}if(!mesh)build();toastMsg('New best lap · ghost saved')}
+      rec=[];t0=now;playT0=now}
+    function tick(u,prevU,now){if(!circuit){if(mesh)mesh.visible=false;return}
+      if(keyOf()!==key)load();else if(best&&(!mesh||mesh.parent!==circuit.root))build();
+      if(prevU>.82&&u<.18)onLap(now,!rec);
+      if(rec&&now-t0>=rec.length*100){const p=chassisB.position,q=chassisB.quaternion,yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
+        if(rec.length<6000)rec.push([+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2),+yaw.toFixed(3)])}
+      if(best&&mesh&&rec){const f=(now-playT0)/100,i=Math.floor(f);if(i<best.p.length-1){const a=best.p[i],b=best.p[i+1],k=f-i;
+          mesh.visible=true;mesh.position.set(a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k-.55+.55,a[2]+(b[2]-a[2])*k);let dy=b[3]-a[3];dy=Math.atan2(Math.sin(dy),Math.cos(dy));mesh.rotation.set(0,a[3]+dy*k,0)}
+        else mesh.visible=false}}
+    return {tick,reset(){rec=null;key='';if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}},get best(){return best}}})();
+  /* ---------- slipstream ----------
+     Tuck in 4-25 m behind another car (a friend, a circuit rival or traffic), roughly in line with it, and the air it
+     punches through pulls you along: up to ~0.25 g extra, building in over a second. */
+  const SLIP=(function(){let k=0,el=null;const fw=new CANNON.Vec3();
+    function targets(){const out=[];if(typeof mpMapTags==='function'&&mpMapTags)mpMapTags().forEach(t=>out.push(t));
+      if(typeof CAI!=='undefined'&&CAI.on)CAI.bodies.forEach(b=>out.push({x:b.position.x,z:b.position.z}));
+      if(MODE==='world')traffic.forEach(t=>{if(t.bd)out.push({x:t.bd.position.x,z:t.bd.position.z})});return out}
+    function tick(dt,sp){let want=0;if(sp>14&&driving){fw.set(0,0,1);chassisB.quaternion.vmult(fw,fw);const hl=Math.hypot(fw.x,fw.z)||1,fx=fw.x/hl,fz=fw.z/hl,p=chassisB.position;
+        for(const t of targets()){const dx=t.x-p.x,dz=t.z-p.z,along=dx*fx+dz*fz;if(along<4||along>25)continue;const lat=Math.abs(dx*fz-dz*fx);if(lat>2.2)continue;want=Math.max(want,1-(along-4)/21)}}
+      k+=(want-k)*Math.min(1,dt*(want>k?1.2:3));
+      if(k>.02){fw.set(0,0,1);chassisB.quaternion.vmult(fw,fw);const a=2.4*k*dt;chassisB.velocity.x+=fw.x*a;chassisB.velocity.z+=fw.z*a}
+      if(!el){el=document.createElement('div');el.style.cssText='position:absolute;left:50%;top:calc(96px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3;pointer-events:none;font:600 12px -apple-system,BlinkMacSystemFont,Arial,sans-serif;letter-spacing:.06em;color:#bfe0ff;padding:6px 12px;border-radius:99px;background:rgba(20,40,70,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:opacity .25s;opacity:0';el.textContent='SLIPSTREAM';(document.getElementById('dhud')||document.body).appendChild(el)}
+      el.style.opacity=k>.25?Math.min(1,k*1.4).toFixed(2):'0'}
+    return {tick,get k(){return k}}})();
+  /* ---------- visual damage ----------
+     A hard hit (wall, another car, a tree) leaves a scuff and a dent mark on the side that took it. Purely cosmetic: the
+     car drives exactly the same. Up to 14 marks; a reset (R) or a car change cleans the car. */
+  const DAMAGE=(function(){const marks=[];let tex=null,dentTex=null,last=0;
+    function mk(dark){const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');
+      if(dark){const g=x.createRadialGradient(64,64,4,64,64,60);g.addColorStop(0,'rgba(0,0,0,.55)');g.addColorStop(.6,'rgba(0,0,0,.25)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,128,128)}
+      else{x.lineCap='round';for(let i=0;i<26;i++){const y=20+Math.random()*88,x0=8+Math.random()*30,len=40+Math.random()*70;x.strokeStyle='rgba('+(200+Math.random()*55|0)+','+(200+Math.random()*55|0)+','+(200+Math.random()*55|0)+','+(.35+Math.random()*.5).toFixed(2)+')';x.lineWidth=.6+Math.random()*1.6;x.beginPath();x.moveTo(x0,y);x.lineTo(Math.min(124,x0+len),y+(Math.random()-.5)*14);x.stroke()}}
+      const t=new THREE.CanvasTexture(c);return t}
+    function add(nLocal,strength){const now=performance.now();if(now-last<250)return;last=now;if(!tex){tex=mk(false);dentTex=mk(true)}
+      const spec=garageOf(curCarId),W=(spec.W||1.9)/2+.02,F=spec.F||2.2,B=spec.B||-2.2,ax=Math.abs(nLocal.x),az=Math.abs(nLocal.z);
+      const g=new THREE.Group(),sz=.5+Math.min(1,strength/20)*.7;
+      [dentTex,tex].forEach((t,i)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(sz*(i?1.5:1.1),sz*(i?.7:.8)),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}));m.position.z=i*.003;m.rotation.z=(Math.random()-.5)*.6;g.add(m)});
+      const y=.15+Math.random()*.25;
+      if(ax>az){const sd=nLocal.x>0?1:-1;g.position.set(sd*W,y,(B+(F-B)*(.2+Math.random()*.6)));g.rotation.y=sd*Math.PI/2}
+      else{const fr=nLocal.z>0;g.position.set((Math.random()-.5)*W,y,fr?F+.02:B-.02);g.rotation.y=fr?0:Math.PI}
+      vis.body.add(g);marks.push(g);if(marks.length>14){const o=marks.shift();o.parent&&o.parent.remove(o)}}
+    function clear(){marks.forEach(o=>o.parent&&o.parent.remove(o));marks.length=0}
+    window.__dmgClear=clear;
+    chassisB.addEventListener('collide',e=>{try{const c=e.contact,iv=Math.abs(c.getImpactVelocityAlongNormal());if(iv<7)return;const other=c.bi===chassisB?c.bj:c.bi;
+      if(other.mass===0&&other.shapes[0]&&other.shapes[0].type===CANNON.Shape.types.HEIGHTFIELD)return;   // the ground itself (landings) does not scratch the sides
+      const n=c.bi===chassisB?c.ni:c.ni.negate(new CANNON.Vec3()),wn=new THREE.Vector3(n.x,n.y,n.z);if(Math.abs(wn.y)>.7)return;
+      const q=new THREE.Quaternion(chassisB.quaternion.x,chassisB.quaternion.y,chassisB.quaternion.z,chassisB.quaternion.w).invert();wn.applyQuaternion(q);add(wn,iv)}catch(_){}});
+    return {add,clear,get n(){return marks.length}}})();
   const SUPER=(function(){const DUR=5,RELOAD=20,GAP=180;
     const gemG=new THREE.OctahedronGeometry(.9,0),ringG=new THREE.TorusGeometry(1.5,.08,6,28);
     const gemM=new THREE.MeshBasicMaterial({color:0x9d3bff}),ringM=new THREE.MeshBasicMaterial({color:0xd9a6ff,transparent:true,opacity:.75,depthWrite:false}),
@@ -5732,7 +5793,7 @@ const PLANETS={
       inPond=sub>.06;
       ZN=MODE==='circuit'?{drag:0,fog:1,tint:[1,1,1]}:zoneAt(progU);const zd=ZN.drag;
       if(NP&&frameN%10===0){NP.show(active&&driving);NP.paint(false);if(window.Radio&&Radio.setSpeed)Radio.setSpeed(chassisB.velocity.length()*3.6,dt*10)}
-      padT=Math.max(0,padT-dt);SUPER.tick(dt,performance.now());const boost=(NTANK.on||padT>0||SUPER.k)?1:0;NITRO.tick(dt,!!boost&&driving,chassisB.velocity.length());
+      padT=Math.max(0,padT-dt);SUPER.tick(dt,performance.now());SLIP.tick(dt,chassisB.velocity.length());const boost=(NTANK.on||padT>0||SUPER.k)?1:0;NITRO.tick(dt,!!boost&&driving,chassisB.velocity.length());
       const eMul=(1-sub*.66)*(1-zd*.52)*(1+SUPER.k*1.3),vmax=V.max*(1+boost*.28+SUPER.k*.32)*(1-sub*.68)*(1-zd*.38);
       /* Tractive force used to be flat all the way to the cap, so the car pulled just as
          hard at 90 as it did from rest and then hit a wall. This is the shape a gearbox
@@ -5898,6 +5959,7 @@ const PLANETS={
         const u=bi/CN;
         {const racing=window.RaceEngine&&window.RaceEngine.active;      // a race has its own respawn (RaceEngine.checkTrackBoundaries)
          if(!racing&&!inPitNow&&Math.sqrt(best)>CIRC_W/2+BARRIER_OFF+8){circOffT+=dt;if(circOffT>1.2){circOffT=0;const q=circAt(u,circuit.curve);resetCarTo({pos:q.p,tangent:q.tg});toastMsg('Back on track')}}else circOffT=0}
+        GHOSTLAP.tick(u,circU0,now);
         if(circU0<0){circU0=u;circLapT0=now}
         else{if(circU0>.82&&u<.18&&!TYPEF.on&&!(window.RaceEngine&&window.RaceEngine.active)&&!(typeof MP!=='undefined'&&MP.on)){circLap++;const t=now-circLapT0;circLapT0=now;
             if(!circBest||t<circBest)circBest=t;
@@ -8746,7 +8808,7 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={get SINK(){return SINK},get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get SINK(){return SINK},GHOSTLAP,SLIP,DAMAGE,get circU0(){return circU0},get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
