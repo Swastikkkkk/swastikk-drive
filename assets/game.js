@@ -2662,7 +2662,27 @@ t.bd.position.set(x,y+.86,z);
     m.traverse(x=>{if(x.isMesh){x.castShadow=true;x.receiveShadow=true;x.geometry=x.geometry.clone();x.material=Array.isArray(x.material)?x.material.map(q=>q.clone()):x.material.clone()}});body.add(w);
     const lm=c=>new THREE.MeshLambertMaterial({color:c});
     return {g,body,wheels:[],tail:lm(0xff3b30),paint:new THREE.MeshPhongMaterial({color:o.paint||0x777777}),rev:lm(0xdedede)}}
+  /* F1 Apex body: Kenney's CC0 racing-kit open-wheeler (assets/models/f1.glb). Only its body is used; the game's own
+     wheels spin and steer in its arches. Fitted so its axles sit exactly on the physics axles; the red panels take the paint. */
+  const F1M={tpl:null};
+  try{new THREE.GLTFLoader().load('assets/models/f1.glb',g=>{const sc=g.scene;sc.updateMatrixWorld(true);
+    const ctr=n=>{const o=sc.getObjectByName(n);return o?new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()):null};
+    const fl=ctr('wheelFrontLeft'),fr=ctr('wheelFrontRight'),bl=ctr('wheelBackLeft'),br=ctr('wheelBackRight'),body=sc.getObjectByName('body');if(!fl||!bl||!body)return;
+    const fw=fl.clone().add(fr).multiplyScalar(.5),bw=bl.clone().add(br).multiplyScalar(.5),wb=fw.distanceTo(bw),trk=fl.distanceTo(fr),wr=new THREE.Box3().setFromObject(sc.getObjectByName('wheelFrontLeft')).getSize(new THREE.Vector3()).y/2;
+    const spec=GARAGE.find(q=>q.type==='f1');if(!spec)return;const v=spec.V,k=(v.zf-v.zb)/wb;
+    const yaw=Math.atan2(fw.x-bw.x,fw.z-bw.z);   // turn the model so its nose points down +z
+    const mid=fw.clone().add(bw).multiplyScalar(.5),inner=new THREE.Group(),rot=new THREE.Group(),piv=new THREE.Group();inner.attach(body);   // keeps its world placement
+    inner.position.sub(mid);rot.add(inner);rot.rotation.y=-yaw;piv.add(rot);piv.scale.set(v.xw*.9*2/(trk*k)*k,k,k);piv.position.y=v.r-wr*k;   // axles on the physics axles, track width matched
+    piv.traverse(x=>{if(x.isMesh){x.castShadow=true;x.receiveShadow=true}});F1M.tpl=piv;
+    if(GARAGE.find(q=>q.id===curCarId&&q.type==='f1')){try{const s2=JSON.parse(localStorage.getItem('sl_car')||'null');setCar(curCarId,s2&&s2.paint,true)}catch(e){}}
+    if(window.__garageRefresh)window.__garageRefresh()},undefined,()=>{})}catch(e){}
+  function f1ModelBody(o){const g=new THREE.Group(),body=new THREE.Group();g.add(body);const m=F1M.tpl.clone(true);
+    const paint=new THREE.MeshStandardMaterial({color:o.paint!=null?o.paint:0xdc143c,metalness:.35,roughness:.35});
+    m.traverse(x=>{if(!x.isMesh)return;x.geometry=x.geometry.clone();const one=q=>q&&q.name==='red'?paint:q.clone();x.material=Array.isArray(x.material)?x.material.map(one):one(x.material)});
+    body.add(m);const lm=c=>new THREE.MeshLambertMaterial({color:c});
+    return {g,body,wheels:[],tail:new THREE.MeshLambertMaterial({color:0xff3b30,emissive:0xff2a20,emissiveIntensity:.5}),paint,rev:lm(0xdedede)}}
   function makeBody(spec,o){
+    if(spec.type==='f1'&&F1M.tpl)return f1ModelBody(o);
     if(spec.id==='custom'){if(spec.kind==='model'&&CUSTOM.model)return customModelBody(o);spec=Object.assign({},spec,{id:spec.buildAs||'outlaw'})}
     // lofted bodies (assets/vehicles.js) for every model it knows; the EVs and the F1 keep their own builders
     if (window.VehicleKit && window.VehicleKit.has(spec.id)) {
@@ -3148,7 +3168,7 @@ t.bd.position.set(x,y+.86,z);
        return true};
      const dropModel=()=>{if(!rig)return;PS.remove(rig);rig=null;
        ownMats.forEach(m=>m.dispose());ownGeos.forEach(g=>g.dispose());ownMats.length=0;ownGeos.length=0};
-     window.__garageRefresh=()=>{try{if(PR&&GARAGE[idx]&&GARAGE[idx].id==='custom')buildModel()}catch(e){}};
+     window.__garageRefresh=()=>{try{if(PR&&GARAGE[idx]&&(GARAGE[idx].id==='custom'||GARAGE[idx].type==='f1'))buildModel()}catch(e){}};
      const buildModel=()=>{if(!PR)return;dropModel();
        const spec=GARAGE[idx],v=spec.V,isBike=spec.type==='bike',isTruck=spec.type==='truck';
        rig=new THREE.Group();
