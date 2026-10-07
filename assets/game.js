@@ -3021,8 +3021,28 @@ t.bd.position.set(x,y+.86,z);
     #dnp.ext.apple [data-a]{display:none}
     #drive.touch #dnp{bottom:auto;top:calc(110px + env(safe-area-inset-top,0px));width:min(250px,48vw);padding:7px 9px}
     #drive.touch #dnp .np-art{display:none}
+
+    /* ---- head-unit look: gunmetal faceplate, amber backlit display, round knobs, a telescopic antenna ---- */
+    #dnp{background:linear-gradient(180deg,#25272c 0%,#16171a 55%,#101113 100%)!important;border:1px solid rgba(255,255,255,.09)!important;border-radius:12px!important;
+      box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 -1px 0 rgba(0,0,0,.6) inset,0 10px 30px rgba(0,0,0,.45)!important;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Arial,sans-serif!important;padding:10px 12px 11px!important;overflow:visible}
+    #dnp::before{content:'';position:absolute;right:22px;top:-46px;width:3px;height:52px;border-radius:2px;transform:rotate(14deg);transform-origin:bottom center;
+      background:linear-gradient(90deg,#6d7076,#e9ebee 45%,#7b7e84);box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+    #dnp::after{content:'';position:absolute;right:13px;top:-50px;width:8px;height:8px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#8c9096 60%,#3a3c40)}
+    #dnp .np-art{background:linear-gradient(180deg,#0c0d0f,#050506)!important;border:1px solid rgba(255,255,255,.08);border-radius:8px!important}
+    #dnp .np-art svg{opacity:.9}
+    #dnp .np-t{background:linear-gradient(180deg,#140d04,#0b0702);border:1px solid rgba(255,170,60,.18);border-radius:7px;padding:4px 8px;box-shadow:0 0 12px rgba(255,150,40,.08) inset}
+    #dnp .np-t b{color:#ffb54d!important;font:600 12px "SF Mono",Menlo,Consolas,monospace!important;letter-spacing:.02em;text-shadow:0 0 6px rgba(255,160,50,.45)}
+    #dnp .np-t span{color:rgba(255,190,110,.6)!important;font:500 10px "SF Mono",Menlo,Consolas,monospace!important}
+    #dnp .np-row>button{width:32px!important;height:32px!important;border-radius:50%!important;color:#eef0f3!important;border:1px solid rgba(0,0,0,.55)!important;
+      background:radial-gradient(circle at 50% 30%,#4a4d54,#26282d 60%,#18191c)!important;box-shadow:0 1px 0 rgba(255,255,255,.18) inset,0 2px 4px rgba(0,0,0,.5)!important}
+    #dnp .np-row>button:hover{background:radial-gradient(circle at 50% 30%,#5a5e66,#2e3036 60%,#1c1d20)!important}
+    #dnp .np-row>button:active{transform:translateY(1px)}
+    #dnp .np-bar{background:rgba(255,255,255,.07)!important;height:2px!important}#dnp .np-bar i{background:#ffb54d!important;box-shadow:0 0 6px rgba(255,170,60,.6)}
+    #dnp .np-src{background:rgba(0,0,0,.35)!important}#dnp .np-src button.on{background:#e9ebee!important;color:#111!important}
+    #dnp li.cur{color:#ffb54d!important}#dnp li.cur::before{background:#ffb54d!important}
+    #dnp .np-in input:focus{border-color:#ffb54d!important}
     #drive.typing #dnp{display:none!important}`;document.head.appendChild(css);
-    const el=document.createElement('div');el.id='dnp';el.innerHTML='<div class="np-row"><div class="np-art"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M4 9h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM6 9l11-5 .8 1.8L10.5 9z"/><circle cx="9" cy="15" r="2.6" fill="#0b0c10"/><rect x="13" y="12" width="5" height="1.6" rx=".8" fill="#0b0c10"/><rect x="13" y="15.5" width="5" height="1.6" rx=".8" fill="#0b0c10"/></svg></div><div class="np-t" title="Show the playlist"><b>—</b><span></span></div>'+
+    const el=document.createElement('div');el.id='dnp';el.innerHTML='<div class="np-row"><div class="np-art"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffb54d" stroke-width="1.8" stroke-linecap="round"><path d="M12 12v9M9 21h6"/><circle cx="12" cy="10" r="1.6" fill="#ffb54d" stroke="none"/><path d="M8.5 6.5a5 5 0 0 0 0 7M15.5 6.5a5 5 0 0 1 0 7M5.6 3.6a9 9 0 0 0 0 12.8M18.4 3.6a9 9 0 0 1 0 12.8"/></svg></div><div class="np-t" title="Show the playlist"><b>—</b><span></span></div>'+
       '<button data-a="prev" title="Back"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button><button data-a="toggle" title="Play / pause"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button><button data-a="next" title="Next"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button></div><div class="np-bar"><i></i></div>'+
       '<div class="np-frame"></div><div class="np-full"><b>Only a 30 s preview?</b> Spotify plays the whole song when it knows you are logged in.<br><a class="sp-app" target="_blank" rel="noopener">Play full song in Spotify</a><a class="alt sp-login" target="_blank" rel="noopener" href="https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F">Log in to Spotify</a></div>'+
       '<div class="np-x"><div class="np-src"><button data-s="radio">Game radio</button><button data-s="spotify">Spotify</button><button data-s="apple">Apple Music</button></div>'+
