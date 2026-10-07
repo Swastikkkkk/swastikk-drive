@@ -3000,7 +3000,8 @@ t.bd.position.set(x,y+.86,z);
   mute.onclick=()=>{muted=!muted;mute.textContent=muted?'Sound off':'Sound on';if(window.Radio)Radio.setMuted(muted);applyMix()};
   // FM radio (assets/radio.js): the button and T cycle off -> each station -> off
   const radioBtn=$('#dradio');
-  function radioCycle(){if(!window.Radio)return;Radio.cycle();try{localStorage.setItem('sl_radio_off',Radio.station()<0?'1':'0')}catch(e){}Radio.setMuted(muted);if(radioBtn)radioBtn.textContent=Radio.label();if(window.Settings)Settings.refreshRadio()}
+  function radioCycle(){if(!window.Radio)return;if(typeof NP!=='undefined'&&NP&&NP.ext&&NP.ext()){NP.toggleExt();return}   // on Spotify, T plays / pauses it
+    Radio.cycle();try{localStorage.setItem('sl_radio_off',Radio.station()<0?'1':'0')}catch(e){}Radio.setMuted(muted);if(radioBtn)radioBtn.textContent=Radio.label();if(window.Settings)Settings.refreshRadio()}
   /* ---------- settings (assets/settings.js): sound mix, graphics, display ---------- */
   const SET=window.Settings||{v:{master:80,engine:80,effects:70,music:60,quality:'auto',hints:true,units:'kmh'},on(){}};
   function VOL(k){const x=SET.v[k];return x==null?1:Math.max(0,Math.min(100,x))/100}
@@ -3159,15 +3160,13 @@ t.bd.position.set(x,y+.86,z);
     // one thing playing at a time, whichever way it starts: the radio coming on (T, the menu, Settings) takes over from Spotify / Apple Music
     Radio.onChange=()=>{if(src!=='radio'&&Radio.station()>=0)setSource('radio',false);paint(true)};
     Radio.onAuto=fast=>toastMsg(fast?'♪ Fast lane · '+(Radio.fastName?Radio.fastName():'Night Riff'):'♪ Back to your station');
-    // autoplay: on the first key or tap of the drive
-    const first=()=>{removeEventListener('keydown',first,true);removeEventListener('pointerdown',first,true);
-      if(src!=='radio'){if(spCtl&&spPaused)try{spCtl.play()}catch(_){}return}
-      if(wasOn&&Radio.station()<0){audioInit();Radio.tune(0);after()}};
-    addEventListener('keydown',first,true);addEventListener('pointerdown',first,true);
+    // no autoplay: music only starts when you ask for it (T, or the play button). A hint says so once per visit.
+    let hinted=false;const hint=()=>{if(hinted||!driving)return;hinted=true;setTimeout(()=>{try{if(Radio.station()<0&&(src==='radio'||spPaused))toastMsg('Press T to play music')}catch(_){}},1500)};
+    addEventListener('keydown',hint,true);addEventListener('pointerdown',hint,true);
     if(window.Settings&&Settings.v.fastSongs===false)Radio.setAuto(false);
     el.querySelectorAll('.np-src button').forEach(b=>b.classList.toggle('on',b.dataset.s===src));
     if(src!=='radio')setSource(src,false);
-    return {el,paint,show(v){el.classList.toggle('on',v)}}})();
+    return {el,paint,show(v){el.classList.toggle('on',v)},ext:()=>src!=='radio',toggleExt(){if(spCtl)try{spCtl.togglePlay()}catch(_){}}}})();
   {const nb=$('#dnight');if(nb)nb.onclick=()=>toggleNight()}
   /* ---------- weather picker ---------- */
   {const wb=$('#dweatherb'),wx=$('#dwx'),wl=$('#dwxl');
@@ -8122,6 +8121,8 @@ updCircBtn();
     function toast2(s){try{toastMsg(s)}catch(e){}}
     /* ----- messages ----- */
     function send(m){if(net&&status==='up'){m.id=me.id;net.send(m)}}
+    function chatLine(name,msg,col){const log=document.getElementById('dmpchatlog');if(!log)return;const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:13px;line-height:1.4';
+      line.innerHTML='<span style="color:'+col+';font-weight:600">'+esc(String(name).slice(0,20))+':</span> <span style="color:#f5f5f7">'+esc(String(msg).slice(0,120))+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}
     function sendHi(rep){send({k:'hi',n:myName(),j:me.j,r:rep?1:0,car:curCarId,rid:race.id,rs:race.st,startAt:race.startAt,fin:myFin,rdy:myReady?1:0,d:race.st>=2?race.d0+race.rp:0})}
     function syncRace(P,m){
       const remoteState=num(m.rs,0,4,0),rid=String(m.rid||'');
@@ -8167,7 +8168,7 @@ updCircBtn();
         case 'rdy':P.ready=!!m.val;paintReady();ui();break;
         case 'hn':if(typeof m.hk==='string')P.hk=m.hk.slice(0,80);peerHorn(P,!!m.on);break;
         case 'spec':P.watching=!!m.val;ui();break;
-        case 'chat':{if(!m.t||!m.n)return;const log=document.getElementById('dmpchatlog');if(log){const msg=String(m.t).slice(0,120);const name=String(m.n).slice(0,14);const line=document.createElement('div');line.style.cssText='margin:4px 0;font-size:11px;line-height:1.4;';line.innerHTML='<span style="color:#4d8dff;font-weight:600;">'+esc(name)+':</span> <span style="color:var(--paper);">'+esc(msg)+'</span>';log.appendChild(line);log.scrollTop=log.scrollHeight}}break;
+        case 'chat':{if(!m.t)return;chatLine(m.n||P.n||'Driver',m.t,'#4d8dff');if(!document.getElementById('dmp')||!document.getElementById('dmp').classList.contains('on'))toastMsg(String(m.n||P.n||'Driver').slice(0,14)+': '+String(m.t).slice(0,60))}break;
         case 's':{
           if(!Array.isArray(m.p)||!Array.isArray(m.q))return;
           const x=num(m.p[0],-1e4,1e4,0),y=num(m.p[1],-500,2000,0),z=num(m.p[2],-1e4,1e4,0);
@@ -8508,8 +8509,11 @@ function carChanged(){if(room)sendHi(true)}
   // Chat send
   const chatInput=$('#dmpchatinput'),chatSend=$('#dmpchatsend');
   if(chatInput&&chatSend){
-    chatSend.onclick=()=>{const t=chatInput.value.trim();if(t){send({k:'chat',t});chatInput.value=''}};
-    chatInput.addEventListener('keydown',e=>{if(e.key==='Enter')chatSend.onclick()});
+    // the message carries your name (receivers drop nameless ones) and shows in your own log too
+    chatSend.onclick=()=>{const t=chatInput.value.trim().slice(0,120);if(!t)return;if(!room||status!=='up'){toastMsg('Join a room to chat');return}
+      send({k:'chat',t,n:myName()});chatLine(myName()+' (you)',t,'#9aa0aa');chatInput.value=''};
+    chatInput.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')chatSend.onclick()});   // typing must not drive the car
+    chatInput.addEventListener('keyup',e=>e.stopPropagation());
   }
   /* ----- matchmaking ----- */
   let mmPool=null,mmTimer=null;
