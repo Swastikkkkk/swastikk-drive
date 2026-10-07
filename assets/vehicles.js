@@ -17,10 +17,10 @@
   'use strict';
   var CB = window.CarBuilder || {};
   var phong = CB.phong || function (c, o) { return new THREE.MeshPhongMaterial(Object.assign({ color: c, shininess: 80 }, o || {})); };
-  var glassM = phong(0x0a0e13, { specular: 0x8a949c, shininess: 120, reflectivity: 0.14, side: THREE.DoubleSide });
+  var glassM = new THREE.MeshPhysicalMaterial({ color: 0x0b1016, metalness: 0.1, roughness: 0.04, clearcoat: 1, clearcoatRoughness: 0.02, reflectivity: 0.6, side: THREE.DoubleSide });
   var trimM = new THREE.MeshPhongMaterial({ color: 0x15161a, specular: 0x2a2a2e, shininess: 20 });
   var darkM = new THREE.MeshLambertMaterial({ color: 0x0b0b0c });
-  var chromeM = phong(0xd8dce0, { specular: 0xffffff, shininess: 150, reflectivity: 0.8 });
+  var chromeM = new THREE.MeshStandardMaterial({ color: 0xe6e9ec, metalness: 1, roughness: 0.12 });chromeM.reflectivity = 1;if (CB.CARENV) { chromeM.envMap = CB.CARENV; glassM.envMap = CB.CARENV; }
   var greyM = new THREE.MeshPhongMaterial({ color: 0x3b3d42, specular: 0x333333, shininess: 30 });
   var rubberM = new THREE.MeshPhongMaterial({ color: 0x141414, specular: 0x222222, shininess: 8 });
   var revM = new THREE.MeshLambertMaterial({ color: 0xdedede, emissive: 0xffffff, emissiveIntensity: 0.15 });
@@ -169,18 +169,18 @@
       var inside = z >= o.zb && z <= o.zf ? 1 : Math.max(0, 1 - Math.min(Math.abs(z - o.zb), Math.abs(z - o.zf)) / 0.5);
       return Math.max(topRaw(z), fender(z), (spec.lowWaist ? 0 : 1) * waist * (inside > 0 ? (0.55 + 0.45 * inside) : 0));
     };
-    var shell = stations(B, F, 56, function (z) {
+    var shell = stations(B, F, 120, function (z) {
       var t = top(z);
       return { z: z, yb: bot(z, t), yt: t, hw: hw(z), n: nF(z), top: spec.waistTaper || 0.94, bot: spec.sillTaper || 0.93 };
     });
-    body.add(loft(shell, paint, 26));
+    body.add(loft(shell, paint, 48));
     if (spec.cabin) {
       var C = spec.cabin, roof = prof(C.roof), belt = C.belt || 0.0;
-      var cab = stations(C.z0, C.z1, 26, function (z, u) {
+      var cab = stations(C.z0, C.z1, 48, function (z, u) {
         var yb = top(z) - 0.03 - belt, yt = Math.max(yb + 0.02, roof(z));
         return { z: z, yb: yb, yt: yt, hw: hw(z) * (C.hwK || 0.9), n: C.n || 5, top: C.taper || 0.78, bot: 1 };
       });
-      body.add(loft(cab, glassM, 24));
+      body.add(loft(cab, glassM, 40));
       // painted roof panel over the glass (leaves the side windows and screens as glass)
       var rz0 = C.roofZ ? C.roofZ[0] : lerp(C.z0, C.z1, 0.26), rz1 = C.roofZ ? C.roofZ[1] : lerp(C.z0, C.z1, 0.86);
       var rp = stations(rz0, rz1, 16, function (z) {
@@ -721,7 +721,10 @@
     var g = new THREE.Group(), body = new THREE.Group();
     g.add(body);
     // body paint: glossy but its own colour, not a mirror of the sky
-    var paint = phong(o.paint, { reflectivity: 0.08, specular: 0x5a5a5a, shininess: 70 });
+    /* paint: metallic base under a glossy clear coat, the way real car paint is built; it picks up the scene's
+       reflection map (game.js gives every material with 'reflectivity' the live cube camera) */
+    var paint = new THREE.MeshPhysicalMaterial({ color: o.paint, metalness: 0.45, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.05, reflectivity: 0.5, envMapIntensity: 1.1 });
+    if (CB.CARENV) paint.envMap = CB.CARENV;
     // the body is at least as wide as the wheels it covers (game.js puts wheel centres at 0.9 * xw)
     o.Wb = Math.max(o.W / 2, (o.xw || 0) * 0.9 + 0.2);
     o.head = o.head || new THREE.MeshLambertMaterial({ color: 0xfff2c0, emissive: 0xfff2c0, emissiveIntensity: 1.2 });

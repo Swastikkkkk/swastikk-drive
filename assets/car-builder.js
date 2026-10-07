@@ -803,7 +803,7 @@
     return { g: g, body: body, wheels: [], tail: tailM2, paint: paint, vehicleType: 'truck' };
   }
 
-  window.CarBuilder = {
+  window.CarBuilder = { CARENV: CARENV,
     buildCar: buildCar,
     buildEV: buildEV,
     buildF1: buildF1,
