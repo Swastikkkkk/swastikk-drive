@@ -160,6 +160,7 @@
     // so the wheels sit under real wings instead of a thin lip
     var AR = o.r + (spec.archGap == null ? 0.07 : spec.archGap), fender = function (z) {
       var f = 0;
+      if (spec.fenderK === 0) return 0;
       [o.zf, o.zb].forEach(function (zw) { var d = Math.abs(z - zw) / (AR + 0.45); if (d < 1) f = Math.max(f, (o.r + AR + 0.13) * (0.5 + 0.5 * Math.cos(d * Math.PI)) ); });
       return f;
     };
@@ -312,10 +313,10 @@
   MODELS.mamba = function (o, paint, body) {
     var B = o.B - 0.03, F = o.F + 0.04, W = o.Wb, zf = o.zf, zb = o.zb;
     var s = sculpt(o, {
-      len: [B, F], sill: 0.29, n: 6, archGap: 0.05, waistTaper: 0.93,
-      top: [[B, 0.66], [B + 0.08, 0.98], [B + 0.3, 1.04], [zb + 0.3, 1.02], [zf - 0.9, 1.0], [zf - 0.2, 0.98], [F - 0.25, 0.92], [F - 0.05, 0.84], [F, 0.62]],
+      len: [B, F], sill: 0.29, n: 7, archGap: 0.05, waistTaper: 0.95, fenderK: 0, lowWaist: true,
+      top: [[B, 0.66], [B + 0.08, 0.98], [B + 0.3, 1.03], [zb + 0.3, 1.02], [zf - 0.9, 1.0], [zf - 0.2, 0.99], [F - 0.22, 0.95], [F - 0.05, 0.88], [F, 0.64]],
       hw: [[B, W * 0.88], [B + 0.3, W * 0.98], [zb, W], [0, W * 0.97], [zf, W * 0.99], [F - 0.3, W * 0.95], [F, W * 0.84]],
-      cabin: { z0: B + 0.32, z1: zf - 0.95, n: 6, taper: 0.8, hwK: 0.9, pillar: -0.25,
+      cabin: { z0: B + 0.32, z1: zf - 0.95, n: 7, taper: 0.86, hwK: 0.98, belt: -0.02, pillar: -0.25,
         roof: [[B + 0.32, 1.03], [B + 0.95, 1.33], [zb + 0.6, 1.43], [-0.3, 1.46], [zf - 1.45, 1.42], [zf - 0.95, 1.0]], roofZ: [B + 0.9, zf - 1.35] }
     }, paint, body);
     var gy = 0.62;
@@ -331,8 +332,8 @@
       box(0.03, 0.025, 0.14, chromeM, k * (s.hw(-0.6) * 0.96 + 0.01), s.top(-0.6) - 0.12, -0.6, body);
     });
     box(W * 1.2, 0.014, 0.04, o.tail, 0, 0.86, B + 0.07, body).castShadow = false;                 // light bar across the boot
-    box(W * 1.6, 0.06, 0.12, darkM, 0, 0.3, F - 0.05, body);                                       // splitter
-    box(W * 1.4, 0.08, 0.06, darkM, 0, 0.36, B + 0.04, body);                                      // diffuser
+    box(W * 1.5, 0.05, 0.1, darkM, 0, 0.3, F - 0.07, body);                                        // splitter
+    box(W * 1.2, 0.07, 0.06, darkM, 0, 0.36, B + 0.06, body);                                      // diffuser
     box(W * 1.5, 0.02, 0.12, paint, 0, s.top(B + 0.1) + 0.01, B + 0.1, body, 0.15);                 // boot lip
     mirrorPair(s.hw(zf - 0.95) * 0.9, 1.1, zf - 0.95, paint, body);
   };
@@ -343,10 +344,10 @@
   MODELS.skyline = function (o, paint, body) {
     var B = o.B - 0.02, F = o.F + 0.04, W = o.Wb + 0.02;
     var s = sculpt(o, {
-      len: [B, F], sill: 0.27, n: 7,
-      top: [[B, 0.66], [B + 0.08, 0.98], [B + 0.5, 1.0], [o.zb + 0.3, 0.99], [o.zf - 0.3, 0.98], [F - 0.2, 0.92], [F, 0.64]],
+      len: [B, F], sill: 0.27, n: 8, fenderK: 0, lowWaist: true, waistTaper: 0.96,
+      top: [[B, 0.66], [B + 0.08, 0.98], [B + 0.5, 1.0], [o.zb + 0.3, 0.99], [o.zf - 0.3, 0.98], [F - 0.2, 0.95], [F - 0.04, 0.88], [F, 0.64]],
       hw: [[B, W * 0.92], [o.zb, W], [0, W * 0.96], [o.zf, W], [F, W * 0.9]],
-      cabin: { z0: B + 0.55, z1: o.zf - 0.5, n: 6, taper: 0.8, roof: [[B + 0.55, 0.98], [B + 1.3, 1.38], [-0.1, 1.42], [o.zf - 1.0, 1.38], [o.zf - 0.5, 0.97]], pillar: -0.15 }
+      cabin: { z0: B + 0.55, z1: o.zf - 0.5, n: 7, taper: 0.86, hwK: 0.98, belt: -0.02, roof: [[B + 0.55, 0.98], [B + 1.3, 1.38], [-0.1, 1.42], [o.zf - 1.0, 1.38], [o.zf - 0.5, 0.97]], pillar: -0.15 }
     }, paint, body);
     lightPair(W * 0.66, 0.8, F - 0.04, 0.42, 0.1, o.head, body);
     box(W * 0.8, 0.18, 0.04, darkM, 0, 0.64, F + 0.005, body);
