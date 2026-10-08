@@ -5881,6 +5881,7 @@ const PLANETS={
       for(let i=a;i<b&&nc<cap;i+=2){const u=i/N;if(skip(u))continue;const {p,n,ry}=at(u),off=HALF+1.9,x=p.x+n.x*sd*off,z=p.z+n.z*sd*off;if(!clear(x,z,HALF+1))continue;const y=HF.h(x,z);
         o.position.set(x,y+.7,z);o.rotation.set(0,ry+(sd>0?-Math.PI/2:Math.PI/2),0);o.scale.set(1,1,1);o.updateMatrix();cpost.setMatrixAt(nc,o.matrix);
         o.position.y=y+1.25;o.translateZ(.05);o.rotation.y=ry+(sd>0?Math.PI/2:-Math.PI/2)+Math.PI;o.scale.set(sd>0?1:-1,1,1);o.updateMatrix();chev.setMatrixAt(nc,o.matrix);nc++}});   // the arrows point the way the road turns
+    nc=0;   // bend chevron boards removed (they looked cheap); the warning sign before each bend stays
     chev.count=cpost.count=nc;chev.instanceMatrix.needsUpdate=cpost.instanceMatrix.needsUpdate=true;root.add(chev,cpost);
     // 3. signs: a bend warning before each bend, speed limits along the straights, km posts
     const signs=[];
@@ -5891,7 +5892,7 @@ const PLANETS={
       const post=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,h,6),postM);post.position.y=h/2;g.add(post);
       const face=new THREE.Mesh(new THREE.PlaneGeometry(size,size),new THREE.MeshLambertMaterial({map:t,transparent:true,alphaTest:.5,side:THREE.DoubleSide}));face.position.y=h;g.add(face);
       g.position.set(x,y,z);g.rotation.y=ry+Math.PI;root.add(g);signs.push(g)};   // facing oncoming traffic on the right-hand side
-    const warn=warnT;bends.forEach(([a])=>{const u=(a-25+N)%N/N;if(!skip(u))mkSign(u,1,warn,.9,1.9)});
+    /* bend warning signs removed along with the chevrons */
     const lim=[limT('60'),limT('80')];for(let k=0;k<Math.round(L/420);k++){const u=(k+.3)/Math.round(L/420),i=Math.round(u*N)%N;if(K[i]>.008||skip(u))continue;mkSign(u,1,lim[k%2],.8,1.9)}
     {const kmM=new THREE.MeshLambertMaterial({map:kmT}),n=Math.round(L/100),km=new THREE.InstancedMesh(new THREE.BoxGeometry(.3,.55,.06),kmM,n);let nk=0;
       for(let i=0;i<n;i++){const u=i/n;if(skip(u))continue;const {p,n:nn,ry}=at(u),off=HALF+1.2,x=p.x-nn.x*off,z=p.z-nn.z*off;if(!clear(x,z,HALF+.8))continue;o.position.set(x,HF.h(x,z)+.4,z);o.rotation.set(0,ry,0);o.scale.set(1,1,1);o.updateMatrix();km.setMatrixAt(nk++,o.matrix)}
@@ -5903,7 +5904,7 @@ const PLANETS={
       const mk=(t,count,sx,sz)=>{const m=new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),im=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),m,count);let k=0;
         for(let i=0;i<count;i++){const u=rnd();if(skip(u))continue;const {p,n,ry}=at(u),off=(rnd()-.5)*(HALF*1.5),x=p.x+n.x*off,z=p.z+n.z*off;o.position.set(x,p.y+.105,z);o.rotation.set(0,ry+(rnd()-.5)*.8,0);const s2=.7+rnd()*.8;o.scale.set(sx*s2,1,sz*s2);o.updateMatrix();im.setMatrixAt(k++,o.matrix)}
         im.count=k;im.instanceMatrix.needsUpdate=true;im.renderOrder=1;root.add(im)};
-      mk(crackT,LOW?30:70,1.6,2.6);mk(patchT,LOW?20:50,2.4,1.8)}
+      /* cracks and patches removed: they read as scribbles on the road */}
     function tick(){const on=MODE==='world';root.visible=on;if(!on)return;const night=Math.min(1,lastNi||0);eyeM.emissiveIntensity=.1+night*1.6}
     return {tick}})();
   /* ---------- NFS-style: road ramps, air control, drift fills nitro ----------
