@@ -128,7 +128,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      render nine times the pixels for a picture the same size. Everything else is kept
      cheap by construction (Lambert materials, instanced scatter, a shadow map redrawn
      every third frame, boards culled by distance) rather than by asking the player. */
-  const HIDPI=(devicePixelRatio||1)>=1.5,ULTRA={dpr:HIDPI?2:1.5,dprLow:HIDPI?1.5:1.15,shEvery:2};   // sharp edges on Retina/4K: render at the screen's real resolution (auto quality still steps down if fps drops)
+  const HIDPI=(devicePixelRatio||1)>=1.5,ULTRA={dpr:HIDPI?1.75:1.25,dprLow:HIDPI?1.4:1.1,shEvery:2};   // sharp edges on Retina/4K: render at the screen's real resolution (auto quality still steps down if fps drops)
   /* Quality used to be decided once, from a coarse touch/mouse guess, and never
      revisited — so a weak laptop with a mouse got full shadows and 1.3 DPR for
      the entire drive regardless of actual frame rate. This instead watches the
@@ -145,7 +145,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   try{navigator.getBattery&&navigator.getBattery().then(b=>{const f=()=>{SAVE=!b.charging;if(SAVE&&typeof setTier==='function'&&qTier<1&&!(window.Settings&&Settings.v.quality!=='auto'))setTier(1)};f();b.addEventListener('chargingchange',f)}).catch(()=>{})}catch(e){}
   const qDownMs=()=>SAVE?200:qTier===0?450:900;
   function tierCfg(t){
-    return t===2?{dpr:HIDPI?1.1:.85,shadow:!LOW,shEvery:8}
+    return t===3?{dpr:HIDPI?.9:.75,shadow:false,shEvery:8,lite:true}   // last resort: no shadows, no grass tufts, lower resolution
+         : t===2?{dpr:HIDPI?1.1:.9,shadow:false,shEvery:8}
          : t===1?{dpr:LOW?1.0:HIDPI?1.5:1.2,shadow:!LOW,shEvery:5}
          :        {dpr:ULTRA.dpr,shadow:true,shEvery:2};
   }
@@ -155,12 +156,13 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     R.shadowMap.enabled=c.shadow;if(sun){sun.castShadow=c.shadow;sun.shadow.needsUpdate=true}
     if(carShadow)carShadow.visible=!c.shadow;
     ULTRA.shEvery=c.shEvery;
+    if(SCN.grass)SCN.grass.visible=!c.lite;if(SCN.dust)SCN.dust.visible=!c.lite;
   }
   function watchFps(dt){
     if(window.Settings&&Settings.v.quality!=='auto')return;   // a quality picked in Settings stays put
     if(!active||!driving||dt<=0)return;
     const fps=1/dt;
-    if(fps<42){qGoodT=0;qBadT+=dt*1000;if(qBadT>qDownMs()&&qTier<2){setTier(qTier+1);qBadT=0}}
+    if(fps<42){qGoodT=0;qBadT+=dt*1000;if(qBadT>qDownMs()&&qTier<3){setTier(qTier+1);qBadT=0}}
     else if(fps>56){qBadT=0;qGoodT+=dt*1000;if(qGoodT>Q_UP_MS&&qTier>0){setTier(qTier-1);qGoodT=0}}
     else{qGoodT=0;qBadT=0}
   }
@@ -172,8 +174,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     R.shadowMap.enabled=c.shadow;
     if(typeof sun!=='undefined'&&sun){sun.castShadow=c.shadow;sun.shadow.needsUpdate=true}
     try{if(carShadow)carShadow.visible=!c.shadow}catch(e){}   // may run before the contact blob exists
-    if(SCN.grass)SCN.grass.visible=true;
-    if(SCN.dust)SCN.dust.visible=true;
+    if(SCN.grass)SCN.grass.visible=!c.lite;
+    if(SCN.dust)SCN.dust.visible=!c.lite;
     if(SCN.stars)SCN.stars.visible=true;
     if(typeof pGeo!=='undefined'&&pGeo)pGeo.setDrawRange(0,PCOUNT);
   }
@@ -2269,9 +2271,23 @@ t.bd.position.set(x,y+.86,z);
      slid sideways). Rounded barrel, deep chest, hip bones, a head with a broad muzzle, horns, ears, an udder and a
      tufted tail; legs hang from hip and shoulder pivots with a knee and dark hooves, and swing fore-aft. Some coats
      get white patches. */
+  /* merge the meshes directly under one node that share a material into a single mesh (positions + normals baked),
+     so an animal is ~10 draw calls instead of ~30 */
+  // materials that look identical (same type, colours, maps, finish) share one key, unless they are 'live' ones the game changes later
+  function matSig(m,live){if(live&&live.has(m))return m.uuid;const h=c=>c&&c.getHex?c.getHex():'';return [m.type,h(m.color),h(m.emissive),m.emissiveIntensity,m.map&&m.map.uuid,m.emissiveMap&&m.emissiveMap.uuid,m.transparent,m.opacity,m.metalness,m.roughness,m.clearcoat,m.side,m.depthWrite,m.flatShading,m.vertexColors].join(',')}
+  function mergeKids(node,live){const by=new Map();node.children.slice().forEach(o=>{if(!o.isMesh||o.children.length||Array.isArray(o.material)||o.isInstancedMesh||o.isSkinnedMesh||o.userData.keep||o.geometry.attributes.uv2)return;const k=(live?matSig(o.material,live):o.material.uuid)+'|'+o.renderOrder+'|'+o.castShadow+'|'+!!o.geometry.attributes.uv+'|'+!!o.geometry.attributes.color;if(!by.has(k))by.set(k,[]);by.get(k).push(o)});
+    by.forEach(list=>{if(list.length<2)return;const pos=[],nor=[];
+      const uvs=[],cols=[],hasUV=!!list[0].geometry.attributes.uv,hasC=!!list[0].geometry.attributes.color;
+      list.forEach(o=>{o.updateMatrix();let g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();g.applyMatrix4(o.matrix);if(!g.attributes.normal)g.computeVertexNormals();
+        pos.push(g.attributes.position.array);nor.push(g.attributes.normal.array);if(hasUV)uvs.push(g.attributes.uv.array);if(hasC)cols.push(g.attributes.color.array);node.remove(o)});
+      const cat=(arr,n)=>{const out=new Float32Array(n);let off=0;arr.forEach(a=>{out.set(a,off);off+=a.length});return out};
+      const n=pos.reduce((a,b)=>a+b.length,0),P=cat(pos,n),N=cat(nor,n);
+      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setAttribute('normal',new THREE.BufferAttribute(N,3));
+      if(hasUV)g.setAttribute('uv',new THREE.BufferAttribute(cat(uvs,n/3*2),2));if(hasC){const cs=list[0].geometry.attributes.color.itemSize;g.setAttribute('color',new THREE.BufferAttribute(cat(cols,n/3*cs),cs))}g.computeBoundingSphere();
+      const m=new THREE.Mesh(g,list[0].material);m.castShadow=list[0].castShadow;m.receiveShadow=list[0].receiveShadow;m.renderOrder=list[0].renderOrder;node.add(m)})}
+  const GRZ_DARK=M(0x1d1a17,{roughness:.8}),GRZ_PINK=M(0xd9a090,{roughness:.8}),GRZ_HORN=M(0xe8dcc0,{roughness:.6}),GRZ_WHITE=M(0xece7dc,{roughness:.92});
   function grazer(hex,kind){kind=kind||'cow';const g=new THREE.Group(),m=new THREE.Group();m.rotation.y=-Math.PI/2;g.add(m);const isCow=kind==='cow',isHorse=kind==='horse',isDeer=kind==='deer';
-    const bm=M(hex,{roughness:.92}),dark=M(0x1d1a17,{roughness:.8}),pink=M(0xd9a090,{roughness:.8}),horn=M(0xe8dcc0,{roughness:.6}),
-      white=M(0xece7dc,{roughness:.92}),seg=LOW?8:12,sh=!LOW;
+    const bm=M(hex,{roughness:.92}),dark=GRZ_DARK,pink=GRZ_PINK,horn=GRZ_HORN,white=GRZ_WHITE,seg=LOW?6:9,sh=false;
     const ell=(rx,ry,rz,mat,x,y,z,parent)=>{const o=new THREE.Mesh(new THREE.SphereGeometry(1,seg,Math.max(6,seg-4)),mat);o.scale.set(rx,ry,rz);o.position.set(x,y,z);o.castShadow=sh;(parent||m).add(o);return o};
     // body: barrel + chest + hips, slightly sway-backed
     if(isCow){ell(.72,.36,.34,bm,0,.98,0);ell(.36,.38,.33,bm,.42,1.0,0);ell(.34,.36,.33,bm,-.46,1.02,0);
@@ -2300,6 +2316,9 @@ t.bd.position.set(x,y+.86,z);
       const lo=new THREE.Mesh(new THREE.CylinderGeometry(.05,.045,.42,seg),bm);lo.position.y=-.6;lo.castShadow=sh;piv.add(lo);
       const hf=new THREE.Mesh(new THREE.CylinderGeometry(.055,.065,.08,seg),dark);hf.position.y=-.85;piv.add(hf);legs.push(piv)}
     g.scale.setScalar(1.05);
+    // fewer draw calls: merge per node; only the biggest piece (the body) casts a shadow
+    [m,neck,head,tail].concat(legs).forEach(n=>mergeKids(n));
+    g.traverse(o=>{if(o.isMesh)o.castShadow=false});{let big=null,bv=0;m.children.forEach(o=>{if(o.isMesh){const r=(o.geometry.boundingSphere||(o.geometry.computeBoundingSphere(),o.geometry.boundingSphere)).radius;if(r>bv){bv=r;big=o}}});if(big)big.castShadow=!LOW}
     return {g,legs,neck,tail,kind}}
   const critters=[];const CRIT_COL=[0x6b4a30,0x8a7458,0x4c4842,0x715a3e,0x93785a];
   {let seed=311;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
@@ -2838,6 +2857,10 @@ t.bd.position.set(x,y+.86,z);
     if(PCAR)vis.bodyIn.remove(PCAR.g);
     const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,xw:V.xw,head:headM,tail:tailM};
     PCAR=makeBody(spec,o);FP=measureBody(PCAR.g,spec);
+    /* the lofted cars are 150-260 small meshes: merged per group and material they draw in ~30 calls, and only the
+       big panels cast a shadow (tiny trim pieces cost a shadow draw each and are invisible in the shadow anyway) */
+    try{const LIVE=new Set([headM,tailM,PCAR.tail,PCAR.rev,PCAR.paint].filter(Boolean));const st=[PCAR.g];while(st.length){const n=st.pop();n.children.forEach(c=>{if(!c.isMesh||c.children.length)st.push(c)});mergeKids(n,LIVE)}
+      PCAR.g.traverse(m=>{if(m.isMesh&&m.castShadow){if(!m.geometry.boundingSphere)m.geometry.computeBoundingSphere();if(m.geometry.boundingSphere.radius<.5)m.castShadow=false}})}catch(e){}
     PCAR.glass=[];PCAR.g.traverse(m=>{if(m.isMesh&&m.material&&m.material.transparent&&m.material.opacity<.8)PCAR.glass.push(m)});
     PCAR.g.position.y=.05-(V.rest-.07)-V.r;FP.off=PCAR.g.position.y;vis.bodyIn.add(PCAR.g);
     {const W=Math.max(.62,Math.min(1.05,(spec.W||1.9)/2-.12)),eyeY=(FP.off||0)+Math.max(.88,Math.min(2.05,(FP.top||1.3)*.82)),eyeZ=Math.max(spec.B+1.3,Math.min(spec.F-1.3,FP.bonnet.z-.9));
@@ -5818,7 +5841,7 @@ const PLANETS={
       for(let i=0;i<SPN;i++){if(spL[i]<=0){spP[i*3+1]=-999;continue}spL[i]-=dt;spV[i*3+1]-=9*dt;spP[i*3]+=spV[i*3]*dt;spP[i*3+1]+=spV[i*3+1]*dt;spP[i*3+2]+=spV[i*3+2]*dt}
       spG.attributes.position.needsUpdate=true;spray.material.opacity=.5*wet;
       // night glow
-      const night=Math.min(1,typeof lastNi==='number'?lastNi:0);glows.forEach(g=>g.material.opacity=.15+night*.85);winMats.forEach(m=>m.emissiveIntensity=.08+night*.8);neonMats.forEach(m=>m.opacity=.55+night*.45);
+      const night=Math.min(1,typeof lastNi==='number'?lastNi:0);glows.forEach(g=>{g.visible=night>.05;g.material.opacity=night*.9});winMats.forEach(m=>m.emissiveIntensity=.08+night*.8);neonMats.forEach(m=>m.opacity=.55+night*.45);
       // tokens
       const cx=car.position.x,cz=car.position.z;for(const t of tokens){if(!t.g.visible)continue;t.g.rotation.y+=dt*1.8;t.g.position.y=t.y+1.6+Math.sin(now*.003+t.id)*.2;
         if((t.x-cx)**2+(t.z-cz)**2<12&&driving){t.g.visible=false;found.push(t.id);try{localStorage.setItem('sl_tokens',JSON.stringify(found))}catch(e){}
@@ -6268,7 +6291,8 @@ const PLANETS={
     if(active)birds.forEach(b=>{const sc=b.sc>0?(b.sc-=dt,Math.min(1,b.sc/1.5)):0;b.lift=(b.lift||0)+((sc>0?14+b.r*.4:0)-(b.lift||0))*Math.min(1,dt*(sc>0?2.2:.4));
       b.a+=dt*b.sp*(1+sc*2.5);const rr=b.r*(1+(b.lift||0)/14*.9),x=POND.x+Math.cos(b.a)*rr,z=POND.z+Math.sin(b.a)*rr;b.g.position.set(x,b.y+(b.lift||0)+Math.sin(tt*.6+b.a)*.6,z);b.g.rotation.y=-b.a+Math.PI/2;
       const fl=Math.sin(tt*(9+sc*9)+b.a)*.9;b.wL.rotation.z=fl;b.wR.rotation.z=-fl});
-    if(active)for(let ci=0;ci<critters.length;ci++){const c=critters[ci];
+    if(active&&frameN%10===0)for(const c of critters){const dx=c.g.position.x-C.position.x,dz=c.g.position.z-C.position.z;c.g.visible=dx*dx+dz*dz<170*170}
+    if(active)for(let ci=0;ci<critters.length;ci++){const c=critters[ci];if(!c.g.visible&&c.state!=='flee'&&c.state!=='run')continue;   // out of sight: no animation work
       const near2=active?Math.hypot(car.position.x-c.g.position.x,car.position.z-c.g.position.z):999;
       /* a car that reaches a cow shoves it aside instead of driving through it (it used to vanish inside the car):
          the cow is pushed clear of the car's body, stumbles off at a run, and the car loses a little speed */

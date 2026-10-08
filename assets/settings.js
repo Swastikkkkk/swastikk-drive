@@ -85,7 +85,7 @@
     {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Fast songs (Indie Pop Rocks above 120 km/h)</span>';
      l.appendChild(seg([[true,'On'],[false,'Off']],v.fastSongs,x=>{const on=x===true||x==='true';set('fastSongs',on);if(window.Radio&&Radio.setAuto)Radio.setAuto(on)}));inn.appendChild(l)}
     inn.appendChild(h4('Graphics'));
-    inn.appendChild(seg([['auto','Auto'],[0,'High'],[1,'Medium'],[2,'Low']],v.quality,q=>set('quality',q==='auto'?'auto':+q)));
+    inn.appendChild(seg([['auto','Auto'],[0,'High'],[1,'Medium'],[2,'Low'],[3,'Lowest']],v.quality,q=>set('quality',q==='auto'?'auto':+q)));
     inn.appendChild(h4('Display'));
     {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Controls bar at the top</span>';l.appendChild(seg([[true,'On'],[false,'Off']],v.hints,x=>set('hints',x==='true'||x===true)));inn.appendChild(l)}
     {const l=document.createElement('div');l.className='st-line';l.innerHTML='<span>Controls layout</span>';l.appendChild(seg([['auto','Auto'],['keyboard','Keyboard'],['touch','Touch']],v.layout,x=>{if(x===v.layout)return;set('layout',x);setTimeout(()=>location.reload(),150)}));inn.appendChild(l)}
