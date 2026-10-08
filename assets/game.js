@@ -2429,7 +2429,7 @@ t.bd.position.set(x,y+.86,z);
     applyWx(wxT>=1)}
   /* ---------- vehicle ---------- */
   const car=new THREE.Group();S.add(car);
-  const GLUE={air:0};
+  const GLUE={air:0};const CAMHEAD={x:0,z:1,ok:false};
   const SINK={from:new CANNON.Vec3(),to:new CANNON.Vec3(),res:new CANNON.RaycastResult(),best:-1e9,n:0};
   const GROUNDFIX={lift:0,want:0,rc:new THREE.Raycaster(),o:new THREE.Vector3(),dn:new THREE.Vector3(0,-1,0),list:null,key:null};
   // the big drawn surfaces you drive on (road ribbons, decks, terrain): rebuilt when the venue changes
@@ -5926,19 +5926,25 @@ const PLANETS={
      const want=LOW?3:5;for(let k=0;k<want;k++){let u=(k+.5)/want;for(let t=0;t<120&&(!straight(u)||bad(u));t++)u=(u+.003)%1;if(!straight(u)||bad(u))continue;
        const {p,n,ry}=at(u),side=k%2?1:-1,off=2.9*side,x=p.x+n.x*off,z=p.z+n.z*off;
        {const rn=roadNear(x,z);if(rn.branch||rn.ring)continue}
-       wedge(x,z,ry,12,1.9,3.6,stuntRed);ramps.push({u,x,z})}}
-    const fwd=new CANNON.Vec3(),right=new CANNON.Vec3(),up=new CANNON.Vec3();let air=0;
-    function airTick(dt,airborne){if(!airborne||!driving){air=0;return}air+=dt;if(air<.18)return;
+       wedge(x,z,ry,14,3.2,3.8,stuntRed);ramps.push({u,x,z})}}
+    const fwd=new CANNON.Vec3(),right=new CANNON.Vec3(),up=new CANNON.Vec3();let air=0,inR=0,inP=0,inS=0;
+    const rc=new CANNON.RaycastResult(),from=new CANNON.Vec3(),to=new CANNON.Vec3();
+    function airTick(dt,airborne){if(!airborne||!driving){air=0;inR=inP=inS=0;return}air+=dt;if(air<.05)return;
       const q=chassisB.quaternion,av=chassisB.angularVelocity;q.vmult(fwd.set(0,0,1),fwd);q.vmult(right.set(1,0,0),right);q.vmult(up.set(0,1,0),up);
-      const roll=(key.r?1:0)-(key.l?1:0),pitch=(key.b?1:0)-(key.f?1:0),spin=key.h?roll:0,R=7.5*dt,MAX=6;
-      if(key.h){av.x+=up.x*spin*R;av.y+=up.y*spin*R;av.z+=up.z*spin*R}
-      else{av.x+=fwd.x*roll*R;av.y+=fwd.y*roll*R;av.z+=fwd.z*roll*R}
-      av.x+=right.x*pitch*R*.8;av.y+=right.y*pitch*R*.8;av.z+=right.z*pitch*R*.8;
+      // inputs ease in and out (no instant kick), so a roll starts and stops like a real car turning over
+      const roll=(key.r?1:0)-(key.l?1:0),pitch=(key.b?1:0)-(key.f?1:0),ez=t=>1-Math.exp(-dt*(t?9:14));   // eases in, lets go quickly
+      inR+=((key.h?0:roll)-inR)*ez(roll&&!key.h);inS+=((key.h?roll:0)-inS)*ez(roll&&key.h);inP+=(pitch-inP)*ez(pitch);
+      const R=14*dt,MAX=8.5;
+      av.x+=(fwd.x*inR+up.x*inS+right.x*inP*.8)*R;av.y+=(fwd.y*inR+up.y*inS+right.y*inP*.8)*R;av.z+=(fwd.z*inR+up.z*inS+right.z*inP*.8)*R;
       const m=Math.hypot(av.x,av.y,av.z);if(m>MAX){av.x*=MAX/m;av.y*=MAX/m;av.z*=MAX/m}
-      // hands off and falling: settle the spin and turn the wheels back toward the ground for the landing
-      if(!roll&&!pitch&&chassisB.velocity.y<0){const k=Math.min(1,dt*2.2);av.x-=av.x*k*.6;av.z-=av.z*k*.6;
-        const tx=up.z*1-up.y*0,tz=up.y*0-up.x*1;   // axis = up x worldUp, scaled: rotates 'up' toward +Y
-        const ax=-(up.z),az=up.x,gain=up.y<0?9:5;av.x+=ax*k*gain;av.z+=az*k*gain;if(up.y<.2){av.x+=right.x*k*gain*.6;av.z+=right.z*k*gain*.6}}}
+      // hands off: the spin dies away gently, and close to the ground the car eases its wheels back under it
+      const hm=Math.hypot(av.x,av.z),off=Math.abs(inR)<.15&&Math.abs(inP)<.15&&Math.abs(inS)<.15;
+      if(off){
+        // let go mid-trick: past sideways, the spin carries on round (never reverses); once the wheels are coming back
+        // underneath, the spin is caught and the car settles level for the landing
+        if(up.y<.15&&hm>1){const sc=Math.max(1,5.5/hm);av.x*=sc;av.z*=sc}
+        else{const k=Math.min(1,dt*(up.y>.6?11:6));av.x-=av.x*k;av.z-=av.z*k;
+          const g=(up.y<.5?14:8)*Math.min(1,dt*2.2);av.x+=-up.z*g;av.z+=up.x*g}}}
     function driftNitro(dt,slip){if(!DRIFT.on)return;const gain=Math.min(.12,slip*.18)*dt;if(NTANK.fuel<1){NTANK.fuel=Math.min(1,NTANK.fuel+gain);if(NTANK.lock&&NTANK.fuel>=.25)NTANK.lock=false}}
     return {airTick,driftNitro,ramps}})();
   function loop(now){requestAnimationFrame(loop);
@@ -6096,9 +6102,13 @@ const PLANETS={
          flying along the road. When all four tyres leave the ground with only a little upward speed (not a ramp jump,
          those leave much faster), extra downforce brings it straight back onto its tyres. */
       {let onG=0;for(let i=0;i<4;i++)if(veh.wheelInfos[i]&&veh.wheelInfos[i].isInContact)onG++;
-       if(onG){GLUE.air=0;GLUE.jump=false}else{if(GLUE.air===0)GLUE.jump=chassisB.velocity.y>3.2;GLUE.air+=dt}   // a real jump (ramp, crest at speed) is left alone all the way down
-       if(!onG&&!GLUE.jump&&GLUE.air<.7&&!inPond&&padT<=0){const v=chassisB.velocity;if(v.y<3.2)v.y-=30*dt*(v.y>0?1.6:1)}
-       else if(onG&&onG<4&&sp>8){const v=chassisB.velocity;if(v.y>0)v.y*=.85}}   // two wheels up on a kerb: settle, don't bounce
+       {const v=chassisB.velocity,hv=Math.hypot(v.x,v.z);
+        if(onG){if(GLUE.jump&&GLUE.air>.3&&GLUE.hv>4&&hv<GLUE.hv*.96){const k=GLUE.hv*.96/Math.max(.1,hv);v.x*=k;v.z*=k;if(v.y>1)v.y=1;chassisB.angularVelocity.x*=.4;chassisB.angularVelocity.z*=.4}   // a clean landing keeps its speed: no crunch, no bounce
+          GLUE.air=0;GLUE.jump=false}
+        else{if(GLUE.air===0){GLUE.jump=v.y>1.6;GLUE.hv=0}GLUE.air+=dt;if(GLUE.air<.4||v.y>-3)GLUE.hv=Math.max(GLUE.hv,hv)}}
+       if(!onG&&GLUE.jump&&!inPond&&MODE!=='surface'&&SPACE.state==='earth')chassisB.velocity.y+=11*dt;   // hang time: a launch floats (about 13 m/s2 net instead of 24) so there is time for a roll or a flip   // a real jump (ramp, crest at speed) is left alone all the way down
+       if(!onG&&!GLUE.jump&&GLUE.air<.35&&!inPond&&padT<=0){const v=chassisB.velocity;if(v.y<1.6)v.y-=18*dt}
+       }
       veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
       if(!inPond&&V.label!=='Phantom Bike')driftTick(dt,sp,vfw,fwd,steerIn,!!f);else if(DRIFT.on){DRIFT.on=false;driftEl.style.display='none'}
       tailM.emissiveIntensity=(b||key.h)?1.6:boost?1.2:.5;lookTick(b||key.h,boost);
@@ -6444,6 +6454,10 @@ const PLANETS={
       wrongEl.classList.toggle('on',wrongT>1)}
     stepWx(Math.min(.05,dt));
     fwd.set(0,0,1).applyQuaternion(car.quaternion);fwd.y=0;fwd.normalize();
+    {const v=chassisB.velocity,hv=Math.hypot(v.x,v.z);let air=true;for(const w of veh.wheelInfos)if(w.isInContact){air=false;break}
+     if(!CAMHEAD.ok||!isFinite(CAMHEAD.x)){CAMHEAD.x=fwd.x;CAMHEAD.z=fwd.z;CAMHEAD.ok=true}
+     const tx=air&&hv>3?v.x/hv:fwd.lengthSq()>.01?fwd.x:CAMHEAD.x,tz=air&&hv>3?v.z/hv:fwd.lengthSq()>.01?fwd.z:CAMHEAD.z,k=1-Math.exp(-dt*(air?3:10));
+     CAMHEAD.x+=(tx-CAMHEAD.x)*k;CAMHEAD.z+=(tz-CAMHEAD.z)*k;const l=Math.hypot(CAMHEAD.x,CAMHEAD.z)||1;CAMHEAD.x/=l;CAMHEAD.z/=l;fwd.set(CAMHEAD.x,0,CAMHEAD.z)}
     /* Camera. Every smoothing constant here is an exponential on dt rather than a fixed
        fraction per frame, so the follow feels identical at 30 fps and at 144 instead of
        snapping on fast machines and swimming on slow ones. The aim point is smoothed
@@ -7557,7 +7571,7 @@ const PLANETS={
        }else if(t==='ramp'){
          // a real jump: a 9 m deck tilted 13deg up from the road, leading edge flush with the asphalt
          const lane=sd*HALF*.5;g.position.set(a.p.x+a.n.x*lane,CIRC_Y,a.p.z+a.n.z*lane);
-         const ang=.23,len=9,th=.5,w=Math.min(5.5,CIRC_W*.42),deck=new THREE.Mesh(new THREE.BoxGeometry(w,th,len),rampM);
+         const ang=.27,len=11,th=.5,w=Math.min(5.5,CIRC_W*.42),deck=new THREE.Mesh(new THREE.BoxGeometry(w,th,len),rampM);
          deck.rotation.x=-ang;deck.position.set(0,.12+Math.sin(ang)*len/2-th/2*Math.cos(ang)+.02,0);deck.castShadow=!LOW;deck.receiveShadow=true;g.add(deck);deck.userData.solid=true;
          const lip=new THREE.Mesh(new THREE.BoxGeometry(w,.2,.6),yel);lip.position.set(0,.12+Math.sin(ang)*len+.02,len/2*Math.cos(ang));g.add(lip);
          for(const sx of [-1,1]){const side=new THREE.Mesh(new THREE.BoxGeometry(.25,Math.sin(ang)*len,len*.98),stripe);side.position.set(sx*(w/2+.12),.12+Math.sin(ang)*len/2,0);g.add(side)}
