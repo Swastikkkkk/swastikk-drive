@@ -5923,13 +5923,14 @@ const PLANETS={
     {const N=400,K=new Float32Array(N);for(let i=0;i<N;i++){const a=at(i/N).tg,b=at((i+2)/N).tg;K[i]=Math.acos(Math.max(-1,Math.min(1,a.x*b.x+a.z*b.z)))}
      const straight=u=>{const i0=Math.round(u*N);for(let k=-7;k<=7;k++)if(K[((i0+k)%N+N)%N]>.03)return false;return true};
      const bad=u=>Math.abs(u-.185)<.04||Math.abs(u-.545)<.04||(WORLDX_U&&u>WORLDX_U[0]-.03&&u<WORLDX_U[1]+.03)||Math.min(u,1-u)<.05;
-     const want=LOW?3:5;for(let k=0;k<want;k++){let u=(k+.5)/want;for(let t=0;t<120&&(!straight(u)||bad(u));t++)u=(u+.003)%1;if(!straight(u)||bad(u))continue;
+     const want=0;for(let k=0;k<want;k++){   // road ramps removedlet u=(k+.5)/want;for(let t=0;t<120&&(!straight(u)||bad(u));t++)u=(u+.003)%1;if(!straight(u)||bad(u))continue;
        const {p,n,ry}=at(u),side=k%2?1:-1,off=2.9*side,x=p.x+n.x*off,z=p.z+n.z*off;
        {const rn=roadNear(x,z);if(rn.branch||rn.ring)continue}
        wedge(x,z,ry,14,3.2,3.8,stuntRed);ramps.push({u,x,z})}}
     const fwd=new CANNON.Vec3(),right=new CANNON.Vec3(),up=new CANNON.Vec3();let air=0,inR=0,inP=0,inS=0;
     const rc=new CANNON.RaycastResult(),from=new CANNON.Vec3(),to=new CANNON.Vec3();
-    function airTick(dt,airborne){if(!airborne||!driving){air=0;inR=inP=inS=0;return}air+=dt;if(air<.05)return;
+    function airTick(dt,airborne){return;   // air control (barrel rolls / flips) removed
+      if(!airborne||!driving){air=0;inR=inP=inS=0;return}air+=dt;if(air<.05)return;
       const q=chassisB.quaternion,av=chassisB.angularVelocity;q.vmult(fwd.set(0,0,1),fwd);q.vmult(right.set(1,0,0),right);q.vmult(up.set(0,1,0),up);
       // inputs ease in and out (no instant kick), so a roll starts and stops like a real car turning over
       const roll=(key.r?1:0)-(key.l?1:0),pitch=(key.b?1:0)-(key.f?1:0),ez=t=>1-Math.exp(-dt*(t?9:14));   // eases in, lets go quickly
@@ -6106,7 +6107,7 @@ const PLANETS={
         if(onG){if(GLUE.jump&&GLUE.air>.3&&GLUE.hv>4&&hv<GLUE.hv*.96){const k=GLUE.hv*.96/Math.max(.1,hv);v.x*=k;v.z*=k;if(v.y>1)v.y=1;chassisB.angularVelocity.x*=.4;chassisB.angularVelocity.z*=.4}   // a clean landing keeps its speed: no crunch, no bounce
           GLUE.air=0;GLUE.jump=false}
         else{if(GLUE.air===0){GLUE.jump=v.y>1.6;GLUE.hv=0}GLUE.air+=dt;if(GLUE.air<.4||v.y>-3)GLUE.hv=Math.max(GLUE.hv,hv)}}
-       if(!onG&&GLUE.jump&&!inPond&&MODE!=='surface'&&SPACE.state==='earth')chassisB.velocity.y+=11*dt;   // hang time: a launch floats (about 13 m/s2 net instead of 24) so there is time for a roll or a flip   // a real jump (ramp, crest at speed) is left alone all the way down
+   // hang time: a launch floats (about 13 m/s2 net instead of 24) so there is time for a roll or a flip   // a real jump (ramp, crest at speed) is left alone all the way down
        if(!onG&&!GLUE.jump&&GLUE.air<.35&&!inPond&&padT<=0){const v=chassisB.velocity;if(v.y<1.6)v.y-=18*dt}
        }
       veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
@@ -7549,7 +7550,7 @@ const PLANETS={
     /* no ramps placed by hand: put two jump ramps in one lane on the longest straights (never on the start straight or
        a flyover), so every drawn track has somewhere to get air and throw a barrel roll. Same on every player's
        machine: it only depends on the track shape. */
-    if(!venue.typing&&!obsList.some(o=>(o.t||o.type)==='ramp')){const NN=240,K=[];for(let i=0;i<NN;i++){const a=curve.getTangentAt(i/NN),b=curve.getTangentAt(((i+3)%NN)/NN);K.push(Math.acos(Math.max(-1,Math.min(1,(a.x*b.x+a.z*b.z)/((Math.hypot(a.x,a.z)*Math.hypot(b.x,b.z))||1)))))}
+    if(false){   // automatic jump ramps removedconst NN=240,K=[];for(let i=0;i<NN;i++){const a=curve.getTangentAt(i/NN),b=curve.getTangentAt(((i+3)%NN)/NN);K.push(Math.acos(Math.max(-1,Math.min(1,(a.x*b.x+a.z*b.z)/((Math.hypot(a.x,a.z)*Math.hypot(b.x,b.z))||1)))))}
       const score=i=>{let m=0;for(let k=-8;k<=8;k++)m=Math.max(m,K[((i+k)%NN+NN)%NN]);return m};const picks=[];
       const cand=[];for(let i=0;i<NN;i++){const u=i/NN;if(u<.12||u>.9||liftAt(u)>.01)continue;cand.push([score(i),u])}cand.sort((x,y)=>x[0]-y[0]);
       for(const [sc,u] of cand){if(sc>.05)break;if(picks.every(q=>Math.min(Math.abs(q-u),1-Math.abs(q-u))>.25))picks.push(u);if(picks.length>=2)break}
