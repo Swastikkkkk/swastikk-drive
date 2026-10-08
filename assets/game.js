@@ -8498,7 +8498,7 @@ updCircBtn();
       const remoteState=num(m.rs,0,4,0),rid=String(m.rid||'');
       if(!rid||remoteState<1||((race.st===1||race.st===2||race.st===4)&&race.id!==rid))return;
       if(race.id!==rid){
-        race={id:rid,st:remoteState===3?3:4,startAt:num(m.startAt,0,1e15,0),t0:0,d0:0,rp:0,lastU:0,slot:0,ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0};
+        race={id:rid,st:remoteState===3?3:4,startAt:num(m.startAt,0,1e15,0)-(P.clk||0),t0:0,d0:0,rp:0,lastU:0,slot:0,ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0};
         myFin=0;
       }
       P.fin=num(m.fin,0,36e5,0);P.d=num(m.d,-5,50,0);
@@ -8559,18 +8559,21 @@ updCircBtn();
           {const B=P.buf||(P.buf=[]);if(B.length&&now-B[B.length-1].t>1500)B.length=0;   // a long gap (tab hidden, teleport): start the playback fresh
            B.push({t:now,x:P.tp.x,y:P.tp.y,z:P.tp.z,vx:P.vx,vy:P.vy,vz:P.vz,q:P.tq.clone()});if(B.length>14)B.shift()}
           P.pt=now;P.st=num(m.st,-1,1,0);P.vf=num(m.vf,-80,120,0);P.d=num(m.d,-5,50,0);P.pl=typeof m.pl==='string'&&/^[a-z]{3,8}$/.test(m.pl)?m.pl:'earth';break}
-        case 'race':beginCountdown(P.n,num(m.startAt,0,1e15,Date.now()+CD_LEAD),String(m.rid||''),num(m.laps,1,20,3),m.v&&typeof m.v==='object'?m.v:null);break;
+        case 'race':beginCountdown(P.n,num(m.startAt,0,1e15,Date.now()+CD_LEAD)-(P.clk||0),String(m.rid||''),num(m.laps,1,20,3),m.v&&typeof m.v==='object'?m.v:null);break;
         case 'fin':
           if(!m.rid||m.rid!==race.id||(race.st<2&&race.st!==4)||P.fin)return;
           P.fin=num(m.ms,1,36e5,0);race.fins++;
           if(!myFin&&!race.endAt)race.endAt=now+45000;
           toast2(P.n+' finished · '+fmtT(P.fin));ui();break;
-        case 'pg':if(String(m.target)===me.id)send({k:'pk',target:m.id,seq:num(m.seq,0,1e9,0)});break;
+        case 'pg':if(String(m.target)===me.id)send({k:'pk',target:m.id,seq:num(m.seq,0,1e9,0),t:Date.now()});break;
         case 'pk':{
           if(String(m.target)!==me.id)break;
           const pingKey=m.id+':'+num(m.seq,0,1e9,0),sentAt=pendingPings.get(pingKey);
           if(sentAt==null)break;
-          pendingPings.delete(pingKey);P.ping=Math.max(0,Math.min(9999,Math.round(performance.now()-sentAt)));break}
+          pendingPings.delete(pingKey);const rtt=performance.now()-sentAt;P.ping=Math.max(0,Math.min(9999,Math.round(rtt)));
+          /* clock sync: their clock minus ours, measured at the middle of the round trip. Kept from the fastest
+             pings (least network noise), so a race start sent in their clock lands at the same instant here */
+          if(typeof m.t==='number'&&isFinite(m.t)){const off=m.t+rtt/2-Date.now();if(P.clkRtt==null||rtt<=P.clkRtt*1.3){P.clk=P.clk==null?off:P.clk*.6+off*.4;P.clkRtt=Math.min(P.clkRtt==null?rtt:P.clkRtt,rtt)}}break}
         case 'kick':if(String(m.target)===me.id){leave('Removed from the room by the host');closePanel()}break;
         case 'bye':dropPeer(P.id,true);break}}
     /* ----- rooms ----- */
@@ -8597,7 +8600,7 @@ updCircBtn();
     function slotOf(){const a=sorted();const i=a.findIndex(m=>m.id===me.id);return i<0?0:i}
     function gridTo(slot,n){
       // on a custom venue, grid on the circuit's own start line instead of the Earth loop
-      if(MODE==='circuit'&&circuit){const sp=circuit.startP,back=8+slot*7,lat=(slot%2?1:-1)*(CIRC_W*0.26);
+      if(MODE==='circuit'&&circuit){const sp=circuit.startP,back=8,lat=(slot-(n-1)/2)*Math.min(3.4,(CIRC_W-3)/Math.max(1,n-1));   // everyone side by side on ONE line: nobody starts ahead
         const x=sp.p.x-sp.tg.x*back+sp.n.x*lat,z=sp.p.z-sp.tg.z*back+sp.n.z*lat;
         PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
         chassisB.position.set(x,sp.p.y+1.4,z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
@@ -8608,7 +8611,7 @@ updCircBtn();
         sub=0;inPond=false;steerActual=0;race.hold={x,z,q:chassisB.quaternion.clone()};
         C.position.set(x-sp.tg.x*10,sp.p.y+5,z-sp.tg.z*10);look.set(x+sp.tg.x*6,sp.p.y+1,z+sp.tg.z*6);return}
       const lat=(slot-(n-1)/2)*3.1,u=.985;
-      const q=at(u-(slot%2)*(6/LEN)),x=q.p.x+q.n.x*lat,z=q.p.z+q.n.z*lat;
+      const q=at(u),x=q.p.x+q.n.x*lat,z=q.p.z+q.n.z*lat;
       PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
       chassisB.position.set(x,q.p.y+1.4,z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
       chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0);chassisB.linearDamping=.01;chassisB.angularDamping=.4;
