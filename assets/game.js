@@ -5722,7 +5722,12 @@ const PLANETS={
   const GHOSTLAP=(function(){let rec=null,best=null,key='',mesh=null,clk=0,t0=0,parentNow=null;   // clk: game time (ms), so a slow frame never lets the ghost run ahead of you
     const mat=new THREE.MeshBasicMaterial({color:0x8fc4ff,transparent:true,opacity:.32,depthWrite:false});
     // which track: a circuit (daily by date, drawn by shape) or the valley loop
-    const keyOf=()=>MODE==='circuit'&&circuit?('gl_'+(circuit.daily?'d'+circuit.daily:'s'+circuit.seed)+'_'+Math.round(circuit.TL||0)):MODE==='world'?'gl_valley':'';
+    /* which track: daily by date, any other circuit by a hash of its exact shape (drawn tracks all share the default
+       seed and a fixed lap length, so seed + length made every drawn track look like the same one), or the valley */
+    try{Object.keys(localStorage).forEach(k=>{if(/^gl_s\d/.test(k))localStorage.removeItem(k)})}catch(e){}   // old shared slots: drop them
+    let shapeFor=null,shapeH='';
+    const shapeOf=c=>{if(shapeFor===c)return shapeH;let h=2166136261;const P=c.pts||[];for(const q of P){const v=Math.round(q.x*10)*31+Math.round(q.y*10);h=Math.imul(h^v,16777619)>>>0}shapeFor=c;shapeH=(h>>>0).toString(36)+P.length;return shapeH};
+    const keyOf=()=>MODE==='circuit'&&circuit?('gl_'+(circuit.daily?'d'+circuit.daily:'t'+shapeOf(circuit)+'_'+(circuit.seed|0))):MODE==='world'?'gl_valley':'';
     const parentOf=()=>MODE==='circuit'&&circuit?circuit.root:S;
     function build(){if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}const spec=garageOf(curCarId),sv=spec.V;
       const o={paint:0x8fc4ff,r:sv.r,zf:sv.zf,zb:sv.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};let P=null;try{P=makeBody(spec,o)}catch(e){}
