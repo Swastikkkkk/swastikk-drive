@@ -3035,7 +3035,7 @@ t.bd.position.set(x,y+.86,z);
     (document.getElementById('dhud')||document.body).appendChild(e);return e})();
   function driftTick(dt,sp,vfw,fwd,steerIn,thr){const v=chassisB.velocity,lx=v.x-fwd.x*vfw,lz=v.z-fwd.z*vfw,lat=Math.hypot(lx,lz),slip=Math.atan2(lat,Math.max(.5,Math.abs(vfw)));
     if(!DRIFT.on){if(sp>9&&vfw>4&&steerIn!==0&&(key.h||(slip>.3&&thr))){DRIFT.on=true;DRIFT.t=0;DRIFT.sc=0;DRIFT.off=0;DRIFT.mult=1}return}
-    DRIFT.t+=dt;DRIFT.off=slip>.13?0:DRIFT.off+dt;DRIFT.sc+=slip*sp*dt*14*DRIFT.mult;if(DRIFT.t>2)DRIFT.mult=Math.min(3,1+Math.floor(DRIFT.t/2)*.5);
+    DRIFT.t+=dt;DRIFT.off=slip>.13?0:DRIFT.off+dt;try{NFSX.driftNitro(dt,slip)}catch(_){}DRIFT.sc+=slip*sp*dt*14*DRIFT.mult;if(DRIFT.t>2)DRIFT.mult=Math.min(3,1+Math.floor(DRIFT.t/2)*.5);
     // steering steers the slide (counter-steer catches it), and a little throttle push keeps the momentum the sideways scrub eats
     const av=chassisB.angularVelocity;av.y+=steerIn*dt*(thr?1.1:.8);av.y=Math.max(-2.4,Math.min(2.4,av.y));
     if(thr&&sp>2){const k=chassisB.mass*3.2;fScratch.set(v.x/sp*k,0,v.z/sp*k);chassisB.applyForce(fScratch,chassisB.position)}
@@ -5591,6 +5591,7 @@ const PLANETS={
     function nearest(P,n,x,z,hint){let bi=hint,bd=1e18;const scan=(a,b)=>{for(let k=a;k<=b;k++){const i=((k%n)+n)%n,d=(P[i].x-x)**2+(P[i].z-z)**2;if(d<bd){bd=d;bi=i}}};
       scan(hint-40,hint+40);if(bd>900)scan(0,n-1);return bi}
     function tick(){
+      if(on&&lock&&MODE!=='circuit'){set(false,true);return}   // locked autodrive only exists for the typing / daily laps
       if(!on||!active||!driving)return;emerg=0;emergSteer=0;
       let x,z,h,sp,ahead,curve,vmax,lat;
       const path=samplePath();
@@ -5678,7 +5679,7 @@ const PLANETS={
       if(lock)return;
       if(e.code==='KeyP'&&active&&!e.repeat){set(!on);e.stopImmediatePropagation();return}
       if(on&&/^(Arrow|KeyW$|KeyA$|KeyS$|KeyD$|Space$)/.test(e.code))set(false)},true);
-    return {tick,set,get on(){return on},set lock(v){lock=!!v},set cap(v){vCap=v}}})();
+    return {tick,set,get on(){return on},set lock(v){lock=!!v},get lock(){return lock},set cap(v){vCap=v}}})();
   /* ---------- bridge for self-contained modes (assets/typing-race.js) ----------
      A mode outside this file drives the car only through these: put it on today's daily track,
      hand autodrive a speed ceiling, read the speedometer. Nothing else in the game changes for it. */
@@ -5700,7 +5701,7 @@ const PLANETS={
     typeTarget(f){TYPEF.target=Math.max(TYPEF.target,Math.min(1,f))},
     typePenalty(ms){TYPEF.penTill=performance.now()+ms},
     typeU:()=>TYPEF.u,typeSpeedKmh:()=>TYPEF.v*3.6,
-    typeEnd(){TYPEF.on=false;try{if(MODE==='circuit')leaveCircuit()}catch(e){}},
+    typeEnd(){TYPEF.on=false;try{AUTO.set(false,true)}catch(e){}try{if(MODE==='circuit')leaveCircuit()}catch(e){}},
     toDailyStart(){if(!active)enterDrive();try{if(SPACE.state!=='earth')SPACE.forceEarth()}catch(e){}
       try{if(window.RaceEngine&&window.RaceEngine.state!=='idle')window.RaceEngine.stopRace()}catch(e){}
       window.__buildDaily();try{CAI.clear()}catch(e){}resetCar();
@@ -5905,6 +5906,35 @@ const PLANETS={
       mk(crackT,LOW?30:70,1.6,2.6);mk(patchT,LOW?20:50,2.4,1.8)}
     function tick(){const on=MODE==='world';root.visible=on;if(!on)return;const night=Math.min(1,lastNi||0);eyeM.emissiveIntensity=.1+night*1.6}
     return {tick}})();
+  /* ---------- NFS-style: road ramps, air control, drift fills nitro ----------
+     RAMPS: kickers in one lane on the valley loop's straights, so you can line up a jump at speed (or dodge it).
+     AIR CONTROL: in the air, A/D barrel-roll, W/S flip nose down / up, Space + A/D spins flat. Let go and the car
+     rights itself on the way down so a clean landing is always possible; the existing stunt scorer counts the
+     rolls, flips and spins and banks them on a four-wheel landing.
+     DRIFT -> NITRO: the deeper and longer the slide, the faster the nitro tank refills, and nitro can be fired
+     mid-drift to power out of the corner. */
+  const NFSX=(function(){const L=curve.getLength(),ramps=[];
+    {const N=400,K=new Float32Array(N);for(let i=0;i<N;i++){const a=at(i/N).tg,b=at((i+2)/N).tg;K[i]=Math.acos(Math.max(-1,Math.min(1,a.x*b.x+a.z*b.z)))}
+     const straight=u=>{const i0=Math.round(u*N);for(let k=-7;k<=7;k++)if(K[((i0+k)%N+N)%N]>.03)return false;return true};
+     const bad=u=>Math.abs(u-.185)<.04||Math.abs(u-.545)<.04||(WORLDX_U&&u>WORLDX_U[0]-.03&&u<WORLDX_U[1]+.03)||Math.min(u,1-u)<.05;
+     const want=LOW?3:5;for(let k=0;k<want;k++){let u=(k+.5)/want;for(let t=0;t<120&&(!straight(u)||bad(u));t++)u=(u+.003)%1;if(!straight(u)||bad(u))continue;
+       const {p,n,ry}=at(u),side=k%2?1:-1,off=2.9*side,x=p.x+n.x*off,z=p.z+n.z*off;
+       {const rn=roadNear(x,z);if(rn.branch||rn.ring)continue}
+       wedge(x,z,ry,12,1.9,3.6,stuntRed);ramps.push({u,x,z})}}
+    const fwd=new CANNON.Vec3(),right=new CANNON.Vec3(),up=new CANNON.Vec3();let air=0;
+    function airTick(dt,airborne){if(!airborne||!driving){air=0;return}air+=dt;if(air<.18)return;
+      const q=chassisB.quaternion,av=chassisB.angularVelocity;q.vmult(fwd.set(0,0,1),fwd);q.vmult(right.set(1,0,0),right);q.vmult(up.set(0,1,0),up);
+      const roll=(key.r?1:0)-(key.l?1:0),pitch=(key.b?1:0)-(key.f?1:0),spin=key.h?roll:0,R=7.5*dt,MAX=6;
+      if(key.h){av.x+=up.x*spin*R;av.y+=up.y*spin*R;av.z+=up.z*spin*R}
+      else{av.x+=fwd.x*roll*R;av.y+=fwd.y*roll*R;av.z+=fwd.z*roll*R}
+      av.x+=right.x*pitch*R*.8;av.y+=right.y*pitch*R*.8;av.z+=right.z*pitch*R*.8;
+      const m=Math.hypot(av.x,av.y,av.z);if(m>MAX){av.x*=MAX/m;av.y*=MAX/m;av.z*=MAX/m}
+      // hands off and falling: settle the spin and turn the wheels back toward the ground for the landing
+      if(!roll&&!pitch&&chassisB.velocity.y<0){const k=Math.min(1,dt*2.2);av.x-=av.x*k*.6;av.z-=av.z*k*.6;
+        const tx=up.z*1-up.y*0,tz=up.y*0-up.x*1;   // axis = up x worldUp, scaled: rotates 'up' toward +Y
+        const ax=-(up.z),az=up.x,gain=up.y<0?9:5;av.x+=ax*k*gain;av.z+=az*k*gain;if(up.y<.2){av.x+=right.x*k*gain*.6;av.z+=right.z*k*gain*.6}}}
+    function driftNitro(dt,slip){if(!DRIFT.on)return;const gain=Math.min(.12,slip*.18)*dt;if(NTANK.fuel<1){NTANK.fuel=Math.min(1,NTANK.fuel+gain);if(NTANK.lock&&NTANK.fuel>=.25)NTANK.lock=false}}
+    return {airTick,driftNitro,ramps}})();
   function loop(now){requestAnimationFrame(loop);
     if(drawerOpen){last=now;return}
     /* the garage covers the screen and runs its own preview, so solo play holds still underneath it
@@ -6104,6 +6134,7 @@ const PLANETS={
        // airtime
        let airborne=true;for(let i=0;i<veh.wheelInfos.length;i++)if(veh.wheelInfos[i].isInContact){airborne=false;break}
        if(airborne&&sp>4&&sub<.1){airT+=dt;if(airT>1)missSet('air',1)}else airT=0;
+       NFSX.airTick(dt,airborne&&sub<.1);
        STUNT.tick(dt,now,airborne,sp);STUNT.rushTick(dt,now,airborne,sp);
        if(sp>6)for(const r of RAMPS)if(!rampHit.has(r.id)&&Math.hypot(r.x-car.position.x,r.z-car.position.z)<4){rampHit.add(r.id);missSet('ramps',rampHit.size)}}
       /* ---- circuit lap tracking ---- */
@@ -6311,7 +6342,7 @@ const PLANETS={
       const j=isBike?i*2:i<wi.length?i:2+(i%2),w=wi[j];if(!w)return;const c=w.chassisConnectionPointLocal,dz=isBike||i<wi.length?0:V.r*2.3;
       /* the wheel picture may rise only ~6 cm above its resting place: physics can compress the spring by up to the
          full rest length on bumps and landings, and drawn that far up the tyre comes out through the wing */
-      k.w.position.set(isBike?0:c.x*.9,.05-Math.max(w.suspensionLength,V.rest-.2),c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation;if(k.blur){const o=Math.max(0,Math.min(.72,(sp-7)/26));k.blur.visible=o>.02;k.blur.material.opacity=o}});
+      k.w.position.set(isBike?0:c.x*.9,.05-Math.max(w.suspensionLength,V.rest-.2),c.z+dz);k.w.rotation.set(0,j<2?w.steering:0,0);k.spin.rotation.x=w.rotation;if(k.blur){const o=isBike?0:Math.max(0,Math.min(.72,(sp-7)/26));k.blur.visible=o>.02;k.blur.material.opacity=o}});
     if(active&&MP.on)MP.tick(now,dt);
     if(frameN%10===0){
       const isNight=nightOn || (wxLock==='night') || (wxB.id==='night');
@@ -7652,7 +7683,8 @@ const PLANETS={
     C.far=1800;C.updateProjectionMatrix();                  // the venue's ground and mountains run out to the horizon
     if(circuit.hazeTo)circuit.hazeTo(S.fog.color);
     toastMsg('Venue · '+th.name+' · seed '+circuit.seed);updCircBtn()}
-  function leaveCircuit(){if(MODE!=='circuit')return;tyreEl.style.display='none';pitBan.style.display='none';pitBanTxt='';pitWasIn=false;TYRE.grip=1;pitStop=null;
+  function leaveCircuit(){if(MODE!=='circuit')return;try{if(AUTO.lock)AUTO.set(false,true)}catch(e){}   // a typing/daily lap's locked autodrive never follows you out
+   tyreEl.style.display='none';pitBan.style.display='none';pitBanTxt='';pitWasIn=false;TYRE.grip=1;pitStop=null;
     C.far=320;C.updateProjectionMatrix();
     MODE='world';
     if(window.RaceEngine)window.RaceEngine.stopRace();try{CAI.clear()}catch(e){}
@@ -9032,7 +9064,7 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={get SINK(){return SINK},get CIRC_LEVEL(){return CIRC_LEVEL},get PREVOK(){return PREV.ok},setWeather,WORLDX,get WXU(){return WORLDX_U},at,critters,GHOSTLAP,SLIP,DAMAGE,get circU0(){return circU0},get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get SINK(){return SINK},NFSX,get CIRC_LEVEL(){return CIRC_LEVEL},get PREVOK(){return PREV.ok},setWeather,WORLDX,get WXU(){return WORLDX_U},at,critters,GHOSTLAP,SLIP,DAMAGE,get circU0(){return circU0},get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
