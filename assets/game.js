@@ -1594,7 +1594,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     lapEl.classList.add('on');lapEl.classList.remove('void','best');raceBtn.textContent='Stop timing';
     lapT.textContent='--:--.--';lapN.textContent='Cross the line';lapB.textContent='Best '+fmtT(bestMs);
     toastMsg('Timing armed · cross the start gate to begin');blip(700,.14)}
-  function stopRace(){raceMode=false;lapArmed=false;lapEl.classList.remove('on');raceBtn.textContent='Time a lap'}
+  function stopRace(){GHOSTLAP.stop();raceMode=false;lapArmed=false;lapEl.classList.remove('on');raceBtn.textContent='Time a lap'}
   function lapRow(l,me){return '<li class="'+(me?'me pend':'')+'"><span class="p">'+l.p+'</span><span><span class="n">'+
     String(l.n||'Anon').replace(/[<>&]/g,'')+'</span> <span class="v">'+String(l.veh||'').replace(/[<>&]/g,'')+'</span></span><span class="t">'+fmtT(l.ms)+'</span></li>'}
   function renderBoard(){
@@ -5718,26 +5718,35 @@ const PLANETS={
      Every lap you drive on a circuit is recorded (a pose every 0.1 s). The fastest one is kept on this device for that
      track (daily tracks by date, drawn tracks by their shape) and replayed as a see-through car from the start line,
      so you race your own record. */
-  const GHOSTLAP=(function(){let rec=null,t0=0,best=null,key='',mesh=null,playT0=0,clk=0;   // clk: game time (ms), so a slow frame never lets the ghost run ahead of you
+  const GHOSTLAP=(function(){let rec=null,best=null,key='',mesh=null,clk=0,t0=0,parentNow=null;   // clk: game time (ms), so a slow frame never lets the ghost run ahead of you
     const mat=new THREE.MeshBasicMaterial({color:0x8fc4ff,transparent:true,opacity:.32,depthWrite:false});
-    const keyOf=()=>circuit?('gl_'+(circuit.daily?'d'+circuit.daily:'s'+circuit.seed)+'_'+Math.round(circuit.TL||0)):'';
+    // which track: a circuit (daily by date, drawn by shape) or the valley loop
+    const keyOf=()=>MODE==='circuit'&&circuit?('gl_'+(circuit.daily?'d'+circuit.daily:'s'+circuit.seed)+'_'+Math.round(circuit.TL||0)):MODE==='world'?'gl_valley':'';
+    const parentOf=()=>MODE==='circuit'&&circuit?circuit.root:S;
     function build(){if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}const spec=garageOf(curCarId),sv=spec.V;
       const o={paint:0x8fc4ff,r:sv.r,zf:sv.zf,zb:sv.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};let P=null;try{P=makeBody(spec,o)}catch(e){}
-      const g=new THREE.Group();if(P){P.g.position.y=.05-(sv.rest-.07)-sv.r+.55-.55;g.add(P.g)}else g.add(new THREE.Mesh(new THREE.BoxGeometry(1.8,.9,4.2),mat));
-      g.traverse(o=>{if(o.isMesh){o.material=mat;o.castShadow=false;o.receiveShadow=false}});g.visible=false;(circuit&&circuit.root||S).add(g);mesh=g}
-    function load(){key=keyOf();best=null;try{const j=JSON.parse(localStorage.getItem(key)||'null');if(j&&j.p&&j.p.length>10)best=j}catch(e){}if(best)build()}
-    function onLap(now,fresh){const lapMs=now-t0;
-      if(rec&&!fresh&&rec.length>20&&lapMs>8000&&(!best||lapMs<best.ms)){best={ms:lapMs,p:rec};try{localStorage.setItem(key,JSON.stringify(best))}catch(e){}if(!mesh)build();toastMsg('New best lap · ghost saved')}
-      rec=[];t0=now;playT0=now}
-    function tick(u,prevU,dt){clk+=Math.min(.1,Math.max(0,dt))*1000;const now=clk;if(!circuit){if(mesh)mesh.visible=false;return}
-      if(keyOf()!==key)load();else if(best&&(!mesh||mesh.parent!==circuit.root))build();
-      if(prevU>.82&&u<.18)onLap(now,!rec);
-      if(rec&&now-t0>=rec.length*100){const p=chassisB.position,q=chassisB.quaternion,yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
-        if(rec.length<6000)rec.push([+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2),+yaw.toFixed(3)])}
-      if(best&&mesh&&rec){const f=(now-playT0)/100,i=Math.floor(f);if(i<best.p.length-1){const a=best.p[i],b=best.p[i+1],k=f-i;
-          mesh.visible=true;mesh.position.set(a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k-.55+.55,a[2]+(b[2]-a[2])*k);let dy=b[3]-a[3];dy=Math.atan2(Math.sin(dy),Math.cos(dy));mesh.rotation.set(0,a[3]+dy*k,0)}
+      const g=new THREE.Group();if(P){P.g.position.y=.05-(sv.rest-.07)-sv.r;g.add(P.g)}else g.add(new THREE.Mesh(new THREE.BoxGeometry(1.8,.9,4.2),mat));
+      g.traverse(o=>{if(o.isMesh){o.material=mat;o.castShadow=false;o.receiveShadow=false}});g.visible=false;parentNow=parentOf();parentNow.add(g);mesh=g}
+    function load(){key=keyOf();best=null;rec=null;try{const j=JSON.parse(localStorage.getItem(key)||'null');if(j&&j.p&&j.p.length>10)best=j}catch(e){}if(best)build();else if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}}
+    // a lap starts: start recording and start the ghost from the line
+    function begin(){if(keyOf()!==key)load();rec=[];t0=clk}
+    // a lap ends: keep it if it is valid and the fastest so far
+    function finish(valid){if(!rec)return;const ms=clk-t0;
+      if(valid&&rec.length>20&&ms>8000&&(!best||ms<best.ms)){best={ms,p:rec};try{localStorage.setItem(key,JSON.stringify(best))}catch(e){}build();toastMsg('New best lap · ghost saved')}
+      rec=null}
+    function stop(){rec=null;if(mesh)mesh.visible=false}
+    function frame(dt){clk+=Math.min(.1,Math.max(0,dt))*1000;
+      if(keyOf()!==key){load();return}
+      if(best&&(!mesh||mesh.parent!==parentOf()))build();
+      if(!rec){if(mesh)mesh.visible=false;return}
+      const now=clk-t0;
+      if(now>=rec.length*100&&rec.length<6000){const p=chassisB.position,q=chassisB.quaternion,yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));rec.push([+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2),+yaw.toFixed(3)])}
+      if(best&&mesh){const f=now/100,i=Math.floor(f);if(i<best.p.length-1){const a=best.p[i],b=best.p[i+1],k=f-i;
+          mesh.visible=true;mesh.position.set(a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k);let dy=b[3]-a[3];dy=Math.atan2(Math.sin(dy),Math.cos(dy));mesh.rotation.set(0,a[3]+dy*k,0)}
         else mesh.visible=false}}
-    return {tick,reset(){rec=null;key='';if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}},get best(){return best}}})();
+    // circuits: a lap is every pass of the start line
+    function tick(u,prevU,dt){if(prevU>.82&&u<.18){if(rec)finish(true);begin()}frame(dt)}
+    return {tick,frame,begin,finish,stop,reset(){rec=null;key='';if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}},get best(){return best}}})();
   /* ---------- slipstream ----------
      Tuck in 4-25 m behind another car (a friend, a circuit rival or traffic), roughly in line with it, and the air it
      punches through pulls you along: up to ~0.25 g extra, building in over a second. */
@@ -5847,6 +5856,55 @@ const PLANETS={
         if((t.x-cx)**2+(t.z-cz)**2<12&&driving){t.g.visible=false;found.push(t.id);try{localStorage.setItem('sl_tokens',JSON.stringify(found))}catch(e){}
           toastMsg('Token '+found.length+'/12 · new paint unlocked in the paint shop');blip(1200,.12,.12);setTimeout(()=>blip(1600,.16,.1),110)}}}
     return {tick,get wet(){return wet},get found(){return found.length}}})();
+  /* ---------- road furniture on the valley loop ----------
+     Cat's-eye studs down the centre line (they light up in your headlights after dark), black-and-yellow chevron
+     boards round the outside of every sharp bend with a warning sign before it, speed limit signs, small kilometre
+     posts, and tar seams / patched cracks in the asphalt. All instanced, so the whole lot is a dozen draw calls. */
+  const ROADX=(function(){const root=new THREE.Group();S.add(root);let seed=4421;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+    const L=curve.getLength(),HALF=(7+RWX*1.6)/2,o=new THREE.Object3D(),skip=u=>{if(Math.abs(u-.185)<.012||Math.abs(u-.545)<.012)return true;if(WORLDX_U&&u>WORLDX_U[0]-.005&&u<WORLDX_U[1]+.005)return true;return false};
+    const clear=(x,z,need)=>{const rn=roadNear(x,z);if(rn.branch||rn.ring)return rn.d>need;const sp=spurAt(x,z);if(sp&&sp.d<need)return false;return true};
+    const tex=(w,h,draw)=>{const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t};
+    // 1. cat's eyes
+    const eyeM=new THREE.MeshLambertMaterial({color:0xeeeeee,emissive:0xfff2c0,emissiveIntensity:.1});const NE=Math.round(L/10);
+    const eyes=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,.05,.1),eyeM,NE);let ne=0;
+    for(let i=0;i<NE;i++){const u=i/NE;if(skip(u))continue;const {p,ry}=at(u);o.position.set(p.x,p.y+.115,p.z);o.rotation.set(0,ry,0);o.scale.set(1,1,1);o.updateMatrix();eyes.setMatrixAt(ne++,o.matrix)}
+    eyes.count=ne;eyes.instanceMatrix.needsUpdate=true;root.add(eyes);
+    // curvature along the loop, to find the sharp bends and which side is the outside
+    const N=600,K=new Float32Array(N),SG=new Int8Array(N);for(let i=0;i<N;i++){const a=at(i/N).tg,b=at((i+3)/N).tg,cr=a.x*b.z-a.z*b.x;K[i]=Math.acos(Math.max(-1,Math.min(1,a.x*b.x+a.z*b.z)))/(3*L/N);SG[i]=cr>0?1:-1}
+    // 2. chevrons on the outside of sharp bends
+    const chevT=tex(128,128,(x,w,h)=>{x.fillStyle='#ffd21f';x.fillRect(0,0,w,h);x.fillStyle='#111';x.beginPath();x.moveTo(30,14);x.lineTo(78,64);x.lineTo(30,114);x.lineTo(56,114);x.lineTo(104,64);x.lineTo(56,14);x.closePath();x.fill();x.strokeStyle='#111';x.lineWidth=6;x.strokeRect(3,3,w-6,h-6)});
+    const chevM=new THREE.MeshLambertMaterial({map:chevT,side:THREE.DoubleSide}),postM=new THREE.MeshLambertMaterial({color:0x3a3c40});
+    const cap=400,chev=new THREE.InstancedMesh(new THREE.PlaneGeometry(.9,.9),chevM,cap),cpost=new THREE.InstancedMesh(new THREE.BoxGeometry(.08,1.4,.08),postM,cap);let nc=0;
+    const bends=[];{let inB=false,st=0;for(let i=0;i<=N;i++){const k=i<N?K[i]:0,on=k>.013;if(on&&!inB){inB=true;st=i}if(!on&&inB){inB=false;if(i-st>=3)bends.push([st,i])}}}
+    bends.forEach(([a,b])=>{const mid=Math.round((a+b)/2),sd=-SG[mid];   // outside of the bend
+      for(let i=a;i<b&&nc<cap;i+=2){const u=i/N;if(skip(u))continue;const {p,n,ry}=at(u),off=HALF+1.9,x=p.x+n.x*sd*off,z=p.z+n.z*sd*off;if(!clear(x,z,HALF+1))continue;const y=HF.h(x,z);
+        o.position.set(x,y+.7,z);o.rotation.set(0,ry+(sd>0?-Math.PI/2:Math.PI/2),0);o.scale.set(1,1,1);o.updateMatrix();cpost.setMatrixAt(nc,o.matrix);
+        o.position.y=y+1.25;o.translateZ(.05);o.rotation.y=ry+(sd>0?Math.PI/2:-Math.PI/2)+Math.PI;o.scale.set(sd>0?1:-1,1,1);o.updateMatrix();chev.setMatrixAt(nc,o.matrix);nc++}});   // the arrows point the way the road turns
+    chev.count=cpost.count=nc;chev.instanceMatrix.needsUpdate=cpost.instanceMatrix.needsUpdate=true;root.add(chev,cpost);
+    // 3. signs: a bend warning before each bend, speed limits along the straights, km posts
+    const signs=[];
+    const warnT=tex(128,128,(x,w,h)=>{x.fillStyle='#fff';x.beginPath();x.moveTo(64,6);x.lineTo(122,116);x.lineTo(6,116);x.closePath();x.fill();x.strokeStyle='#d8322f';x.lineWidth=12;x.stroke();x.strokeStyle='#111';x.lineWidth=9;x.lineCap='round';x.beginPath();x.moveTo(52,100);x.quadraticCurveTo(52,58,80,52);x.stroke();x.fillStyle='#111';x.beginPath();x.moveTo(78,40);x.lineTo(94,52);x.lineTo(78,64);x.fill()});
+    const limT=v=>tex(128,128,(x,w,h)=>{x.fillStyle='#fff';x.beginPath();x.arc(64,64,60,0,6.283);x.fill();x.strokeStyle='#d8322f';x.lineWidth=12;x.stroke();x.fillStyle='#111';x.font='800 52px -apple-system,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(v,64,68)});
+    const kmT=tex(64,96,(x,w,h)=>{x.fillStyle='#1f6f3f';x.fillRect(0,0,w,h);x.strokeStyle='#fff';x.lineWidth=4;x.strokeRect(4,4,w-8,h-8)});
+    const mkSign=(u,side,t,size,h)=>{const {p,n,ry}=at(u),off=HALF+2.4,x=p.x+n.x*side*off,z=p.z+n.z*side*off;if(!clear(x,z,HALF+1.5))return;const y=HF.h(x,z),g=new THREE.Group();
+      const post=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,h,6),postM);post.position.y=h/2;g.add(post);
+      const face=new THREE.Mesh(new THREE.PlaneGeometry(size,size),new THREE.MeshLambertMaterial({map:t,transparent:true,alphaTest:.5,side:THREE.DoubleSide}));face.position.y=h;g.add(face);
+      g.position.set(x,y,z);g.rotation.y=ry+Math.PI;root.add(g);signs.push(g)};   // facing oncoming traffic on the right-hand side
+    const warn=warnT;bends.forEach(([a])=>{const u=(a-25+N)%N/N;if(!skip(u))mkSign(u,1,warn,.9,1.9)});
+    const lim=[limT('60'),limT('80')];for(let k=0;k<Math.round(L/420);k++){const u=(k+.3)/Math.round(L/420),i=Math.round(u*N)%N;if(K[i]>.008||skip(u))continue;mkSign(u,1,lim[k%2],.8,1.9)}
+    {const kmM=new THREE.MeshLambertMaterial({map:kmT}),n=Math.round(L/100),km=new THREE.InstancedMesh(new THREE.BoxGeometry(.3,.55,.06),kmM,n);let nk=0;
+      for(let i=0;i<n;i++){const u=i/n;if(skip(u))continue;const {p,n:nn,ry}=at(u),off=HALF+1.2,x=p.x-nn.x*off,z=p.z-nn.z*off;if(!clear(x,z,HALF+.8))continue;o.position.set(x,HF.h(x,z)+.4,z);o.rotation.set(0,ry,0);o.scale.set(1,1,1);o.updateMatrix();km.setMatrixAt(nk++,o.matrix)}
+      km.count=nk;km.instanceMatrix.needsUpdate=true;root.add(km)}
+    // 4. tar seams and patched cracks in the asphalt
+    {const crackT=tex(256,256,(x,w,h)=>{x.clearRect(0,0,w,h);x.strokeStyle='rgba(12,12,12,.38)';x.lineCap='round';x.lineJoin='round';
+        for(let k=0;k<5;k++){let px=20+Math.random()*216,py=10;x.lineWidth=1+Math.random()*1.5;x.beginPath();x.moveTo(px,py);while(py<246){px+=(Math.random()-.5)*28;py+=10+Math.random()*18;x.lineTo(px,py)}x.stroke()}});
+      const patchT=tex(128,128,(x,w,h)=>{x.fillStyle='rgba(18,18,20,.55)';x.beginPath();x.moveTo(10,20);x.lineTo(118,8);x.lineTo(124,110);x.lineTo(6,120);x.closePath();x.fill();x.strokeStyle='rgba(0,0,0,.6)';x.lineWidth=3;x.stroke()});
+      const mk=(t,count,sx,sz)=>{const m=new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),im=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),m,count);let k=0;
+        for(let i=0;i<count;i++){const u=rnd();if(skip(u))continue;const {p,n,ry}=at(u),off=(rnd()-.5)*(HALF*1.5),x=p.x+n.x*off,z=p.z+n.z*off;o.position.set(x,p.y+.105,z);o.rotation.set(0,ry+(rnd()-.5)*.8,0);const s2=.7+rnd()*.8;o.scale.set(sx*s2,1,sz*s2);o.updateMatrix();im.setMatrixAt(k++,o.matrix)}
+        im.count=k;im.instanceMatrix.needsUpdate=true;im.renderOrder=1;root.add(im)};
+      mk(crackT,LOW?30:70,1.6,2.6);mk(patchT,LOW?20:50,2.4,1.8)}
+    function tick(){const on=MODE==='world';root.visible=on;if(!on)return;const night=Math.min(1,lastNi||0);eyeM.emissiveIntensity=.1+night*1.6}
+    return {tick}})();
   function loop(now){requestAnimationFrame(loop);
     if(drawerOpen){last=now;return}
     /* the garage covers the screen and runs its own preview, so solo play holds still underneath it
@@ -5911,7 +5969,7 @@ const PLANETS={
       inPond=sub>.06;
       ZN=MODE==='circuit'?{drag:0,fog:1,tint:[1,1,1]}:zoneAt(progU);const zd=ZN.drag;
       if(NP&&frameN%10===0){NP.show(active&&driving);NP.paint(false);if(window.Radio&&Radio.setSpeed)Radio.setSpeed(chassisB.velocity.length()*3.6,dt*10)}
-      padT=Math.max(0,padT-dt);WORLDX.tick(dt,performance.now());SLIP.tick(dt,chassisB.velocity.length());const boost=(NTANK.on||padT>0)?1:0;NITRO.tick(dt,!!boost&&driving,chassisB.velocity.length());
+      padT=Math.max(0,padT-dt);WORLDX.tick(dt,performance.now());ROADX.tick();SLIP.tick(dt,chassisB.velocity.length());const boost=(NTANK.on||padT>0)?1:0;NITRO.tick(dt,!!boost&&driving,chassisB.velocity.length());
       const eMul=(1-sub*.66)*(1-zd*.52),vmax=V.max*(1+boost*.28)*(1-sub*.68)*(1-zd*.38);
       /* Tractive force used to be flat all the way to the cap, so the car pulled just as
          hard at 90 as it did from rest and then hit a wall. This is the shape a gearbox
@@ -6112,13 +6170,14 @@ const PLANETS={
         if(rn.d>18+RWX*1.5){offT+=dt;if(offT>2&&!lapVoid&&!lapArmed){lapVoid=true;lapEl.classList.add('void');toastMsg('Lap scrubbed · stay on the road')}}
         else offT=Math.max(0,offT-dt*.6);
         if(wrapFwd){
-          if(lapArmed){lapArmed=false;lapStart=now;lapNo=1;lapProg=0;lapVoid=false;offT=0;lapEl.classList.remove('void');blip(820,.2);toastMsg('Go')}
+          if(lapArmed){lapArmed=false;lapStart=now;lapNo=1;lapProg=0;lapVoid=false;offT=0;lapEl.classList.remove('void');blip(820,.2);toastMsg('Go');GHOSTLAP.begin()}
           else{const ms=now-lapStart;
-            if(!lapVoid&&lapProg>.88&&ms>12000)lapDone(ms);
+            const okLap=!lapVoid&&lapProg>.88&&ms>12000;GHOSTLAP.finish(okLap);GHOSTLAP.begin();
+            if(okLap)lapDone(ms);
             else if(lapVoid)toastMsg('Lap scrubbed · going again');
             lapStart=now;lapNo++;lapProg=0;lapVoid=false;offT=0;lapEl.classList.remove('void')}}
         // checkpoint validation
-        checkCheckpoints(wrapFwd);
+        checkCheckpoints(wrapFwd);GHOSTLAP.frame(dt);
         if(frameN%4===0&&!lapArmed){lapT.textContent=fmtT(now-lapStart);lapN.textContent='Lap '+lapNo;
           for(let i=0;i<lapSecs.length;i++)lapSecs[i].classList.toggle('on',lapProg>(i+1)*.25-.25)}}
       if(AC&&SND){
