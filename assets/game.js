@@ -6047,8 +6047,11 @@ const PLANETS={
       const svc=Math.max(coast,gradeBrake,govBrake,braking?brakeImp:0);
       /* handbrake: the rear wheels drag at about 0.8 g and lose their side grip (rearGrip), so the
          tail swings round instead of the car stopping dead the way the old fixed clamp made it */
-      const hbImp=chassisB.mass*8*PSTEP/2;
+      /* Space while turning at speed is a drift, NFS style: the rear lets go with only a light drag, so the car swings
+         round and keeps its speed. Space going straight (or slow) is still a proper handbrake stop. */
+      const steerIn0=(l-rr)||(typeof tiltOn!=="undefined"&&tiltOn?tiltSteer:0),hbDrift=sp>11&&Math.abs(steerIn0)>.2,hbImp=chassisB.mass*(hbDrift?1.6:8)*PSTEP/2;
       for(let i=0;i<4;i++){const fr=i<2;veh.setBrake(Math.max(svc*(fr?1.25:.75),key.h&&!fr&&(!DRIFT.on||DRIFT.t<.3)?hbImp:0),i)}
+      if(hbDrift&&key.h&&!DRIFT.on){const av=chassisB.angularVelocity;av.y+=steerIn0*dt*2.2}   // a flick of yaw to break the rear loose
       // hard ceiling: if it is still climbing past the cap, damp the velocity directly
       if(sp>vmax*1.18&&!inPond){const s=vmax*1.18/sp;chassisB.velocity.x*=s;chassisB.velocity.z*=s}
       // steeper ground => more angular damping, which is what kills the hillside wobble
@@ -7523,6 +7526,14 @@ const PLANETS={
        Built along the real road (heading + slope), tagged as on-track so the clearance pass keeps
        them, and given solid boxes below. u is position round the lap, s is -1 left / 0 middle / 1 right. */
     const obsList=Array.isArray(venue.obstacles)?venue.obstacles.slice(0,60):[];
+    /* no ramps placed by hand: put two jump ramps in one lane on the longest straights (never on the start straight or
+       a flyover), so every drawn track has somewhere to get air and throw a barrel roll. Same on every player's
+       machine: it only depends on the track shape. */
+    if(!venue.typing&&!obsList.some(o=>(o.t||o.type)==='ramp')){const NN=240,K=[];for(let i=0;i<NN;i++){const a=curve.getTangentAt(i/NN),b=curve.getTangentAt(((i+3)%NN)/NN);K.push(Math.acos(Math.max(-1,Math.min(1,(a.x*b.x+a.z*b.z)/((Math.hypot(a.x,a.z)*Math.hypot(b.x,b.z))||1)))))}
+      const score=i=>{let m=0;for(let k=-8;k<=8;k++)m=Math.max(m,K[((i+k)%NN+NN)%NN]);return m};const picks=[];
+      const cand=[];for(let i=0;i<NN;i++){const u=i/NN;if(u<.12||u>.9||liftAt(u)>.01)continue;cand.push([score(i),u])}cand.sort((x,y)=>x[0]-y[0]);
+      for(const [sc,u] of cand){if(sc>.05)break;if(picks.every(q=>Math.min(Math.abs(q-u),1-Math.abs(q-u))>.25))picks.push(u);if(picks.length>=2)break}
+      picks.forEach((u,i)=>obsList.push({t:'ramp',u,s:i%2?1:-1}))}
     {const HALF=CIRC_W/2,yel=M(0xd4a83a,{roughness:.6}),blk=M(0x1b1a18,{roughness:.8}),conc=M(0xd9d4c6,{roughness:.85}),stripe=M(0xb8322f,{roughness:.6}),rampM=M(0x6e6a62,{roughness:.7});
      ownedMats.push(yel,blk,conc,stripe,rampM);
      obsList.forEach(o=>{const t=o.t||o.type,u=((+o.u%1)+1)%1,sd=Math.max(-1,Math.min(1,Math.round(+(o.s!=null?o.s:o.side)||0)));
@@ -8856,7 +8867,7 @@ updCircBtn();
     addEventListener('pagehide',()=>{if(net)send({k:'bye'})});
     // a friend's invite link opens straight into the room
     {const m=/[?&]room=([A-Za-z0-9]{4,6})/.exec(location.search)||/^\/room\/([A-Za-z0-9]{4,6})\/?$/.exec(location.pathname);
-     if(m)setTimeout(()=>{me.n=savedName();join(m[1])},300)}
+     if(m)setTimeout(()=>{me.n=savedName();join(m[1]);openPanel()},300)}   // an invite opens the lobby: room code, drivers, chat
     // config sync & ready
     function syncCfg(force){
       if(!isHost()||!room||status!=='up')return;
@@ -9142,5 +9153,8 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
    /* the summit lookout view: just behind and above the summit road, looking out over the valley, the volcano and the
       mountains, panning slowly from side to side */
    // background: a still of the summit road, the car and the valley (assets/home-bg.jpg), slowly drifting
-   window.__home=HOME}
+   window.__home=HOME;
+   /* an invite link (/room/CODE) or any other deep link (/multiplayer, /draw, /play...) goes straight to what it links
+      to: the home screen is skipped, so a friend lands in the room lobby with the code and the chat */
+   try{const pth=location.pathname.replace(/\/+$/,'');if(/^\/(room|multiplayer|play|draw|type|garage|daily|track)(\/|$)/.test(pth)||new URLSearchParams(location.search).has('room'))close()}catch(_){}}
 })();
