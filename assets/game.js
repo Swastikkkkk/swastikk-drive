@@ -5718,7 +5718,7 @@ const PLANETS={
      Every lap you drive on a circuit is recorded (a pose every 0.1 s). The fastest one is kept on this device for that
      track (daily tracks by date, drawn tracks by their shape) and replayed as a see-through car from the start line,
      so you race your own record. */
-  const GHOSTLAP=(function(){let rec=null,t0=0,best=null,key='',mesh=null,playT0=0;
+  const GHOSTLAP=(function(){let rec=null,t0=0,best=null,key='',mesh=null,playT0=0,clk=0;   // clk: game time (ms), so a slow frame never lets the ghost run ahead of you
     const mat=new THREE.MeshBasicMaterial({color:0x8fc4ff,transparent:true,opacity:.32,depthWrite:false});
     const keyOf=()=>circuit?('gl_'+(circuit.daily?'d'+circuit.daily:'s'+circuit.seed)+'_'+Math.round(circuit.TL||0)):'';
     function build(){if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}const spec=garageOf(curCarId),sv=spec.V;
@@ -5729,7 +5729,7 @@ const PLANETS={
     function onLap(now,fresh){const lapMs=now-t0;
       if(rec&&!fresh&&rec.length>20&&lapMs>8000&&(!best||lapMs<best.ms)){best={ms:lapMs,p:rec};try{localStorage.setItem(key,JSON.stringify(best))}catch(e){}if(!mesh)build();toastMsg('New best lap · ghost saved')}
       rec=[];t0=now;playT0=now}
-    function tick(u,prevU,now){if(!circuit){if(mesh)mesh.visible=false;return}
+    function tick(u,prevU,dt){clk+=Math.min(.1,Math.max(0,dt))*1000;const now=clk;if(!circuit){if(mesh)mesh.visible=false;return}
       if(keyOf()!==key)load();else if(best&&(!mesh||mesh.parent!==circuit.root))build();
       if(prevU>.82&&u<.18)onLap(now,!rec);
       if(rec&&now-t0>=rec.length*100){const p=chassisB.position,q=chassisB.quaternion,yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
@@ -6077,7 +6077,7 @@ const PLANETS={
         const u=bi/CN;
         {const racing=window.RaceEngine&&window.RaceEngine.active;      // a race has its own respawn (RaceEngine.checkTrackBoundaries)
          if(!racing&&!inPitNow&&Math.sqrt(best)>CIRC_W/2+BARRIER_OFF+8){circOffT+=dt;if(circOffT>1.2){circOffT=0;const q=circAt(u,circuit.curve);resetCarTo({pos:q.p,tangent:q.tg});toastMsg('Back on track')}}else circOffT=0}
-        GHOSTLAP.tick(u,circU0,now);
+        GHOSTLAP.tick(u,circU0,dt);
         if(circU0<0){circU0=u;circLapT0=now}
         else{if(circU0>.82&&u<.18&&!TYPEF.on&&!(window.RaceEngine&&window.RaceEngine.active)&&!(typeof MP!=='undefined'&&MP.on)){circLap++;const t=now-circLapT0;circLapT0=now;
             if(!circBest||t<circBest)circBest=t;
