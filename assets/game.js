@@ -6615,7 +6615,7 @@ const PLANETS={
   /* drawn-track options. Sizes are lap lengths: the old fixed 420 m made every drawing a go-kart loop. */
   const CIRC_SIZES={medium:1600,large:2400,huge:3600};
   const CIRC_ELEV={flat:0,rolling:5,hilly:12,mountain:22};   // peak height change around the lap, metres
-  let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null,worldFogSave=null,worldGSave=null,worldWeatherSave=null;
+  let CIRC_LEVEL=[];let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null,worldFogSave=null,worldGSave=null,worldWeatherSave=null;
   function circAt(u,curve){u=((u%1)+1)%1;const p=curve.getPointAt(u).clone();const tg=curve.getTangentAt(u);const hl=Math.hypot(tg.x,tg.z)||1;return {p,tg,n:new THREE.Vector3(-tg.z/hl,0,tg.x/hl)}}
   let circRoadM=null;
   function f1Road(){if(circRoadM)return circRoadM;const W=256,H=512,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
@@ -6793,10 +6793,17 @@ const PLANETS={
        if(BRIDGES.some(B=>arc(B.u,u)<B.flat+B.ramp+flat+ramp)){f.ok=0;f.skip=1;return}
        BRIDGES.push({u,flat,ramp:Math.max(ramp,h*9),h,x:f.x,z:f.z,low:u===f.ub?f.ua:f.ub})});
      {const bad=found.filter(f=>f.skip||f.sin<.22).length;if(bad)setTimeout(()=>toastMsg(bad+' crossing'+(bad>1?'s are':' is')+' too tight for a flyover · spread them out a bit'),1200)}
+     /* a crossing that did not get a flyover becomes a level junction: on a hilly venue the two passes used to meet at
+        different heights, which left a concrete step across the road. Both passes ease to their shared middle height
+        over ~60 m either side, so the roads meet flush. */
+     const LEVEL=found.filter(f=>!f.ok).map(f=>{const ya=base.getPointAt(f.ua).y,yb=base.getPointAt(f.ub).y,m=(ya+yb)/2;return {ua:f.ua,ub:f.ub,da:m-ya,db:m-yb}}).filter(l=>Math.abs(l.da)>.05);
+     const levelAt=u=>{let o=0;for(const l of LEVEL){const R=60,a=arc(u,l.ua),b=arc(u,l.ub);if(a<R)o+=l.da*SM(1-a/R);if(b<R)o+=l.db*SM(1-b/R)}return o};
+     if(LEVEL.length&&!BRIDGES.length){const M2=Math.max(80,Math.round(BL/5));pts3=[];for(let k=0;k<M2;k++){const u=k/M2,q=base.getPointAt(u);pts3.push(new THREE.Vector3(q.x,q.y+levelAt(u),q.z))}}
      if(BRIDGES.length){
        // the lift needs dense control points to be exact, so the curve is rebuilt from the base one
        const M2=Math.max(80,Math.round(BL/5));pts3=[];
-       for(let k=0;k<M2;k++){const u=k/M2,q=base.getPointAt(u);pts3.push(new THREE.Vector3(q.x,q.y+BRIDGES.reduce((m,B)=>{const d=arc(u,B.u);return Math.max(m,d<B.flat?B.h:d<B.flat+B.ramp?B.h*SM(1-(d-B.flat)/B.ramp):0)},0),q.z))}}
+       for(let k=0;k<M2;k++){const u=k/M2,q=base.getPointAt(u);pts3.push(new THREE.Vector3(q.x,q.y+levelAt(u)+BRIDGES.reduce((m,B)=>{const d=arc(u,B.u);return Math.max(m,d<B.flat?B.h:d<B.flat+B.ramp?B.h*SM(1-(d-B.flat)/B.ramp):0)},0),q.z))}}
+     CIRC_LEVEL=LEVEL;
      var liftAt=u=>{if(!BRIDGES.length)return 0;u=((u%1)+1)%1;let m=0;for(const B of BRIDGES){const d=arc(u,B.u);m=Math.max(m,d<B.flat?B.h:d<B.flat+B.ramp?B.h*SM(1-(d-B.flat)/B.ramp):0)}return m}}
     const curve=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);
     const CN=Math.max(60,Math.min(480,Math.round(curve.getLength()/6)));
@@ -6834,7 +6841,11 @@ const PLANETS={
       {const seg=(a,b)=>{const ax=DX[a],az=DZ[a],ex=DX[b]-ax,ez=DZ[b]-az,L2=ex*ex+ez*ez||1,t=Math.max(0,Math.min(1,((x-ax)*ex+(z-az)*ez)/L2)),px=ax+ex*t-x,pz=az+ez*t-z;return [px*px+pz*pz,DY[a]+(DY[b]-DY[a])*t]};
        const A=seg(bi,(bi+1)%DN),B=seg((bi-1+DN)%DN,bi),C=A[0]<=B[0]?A:B;by=C[1];bq=C[0]+1}const d=Math.sqrt(bq-1);if(d<=CUT)return by;if(d<CUT+CUTF){const k=SM((d-CUT)/CUTF);return by*(1-k)+g*k}return g};   // a bridge in the air shapes no ground   // a bridge in the air shapes no ground
     /* the road's surface: the ground on hills, except where a bridge lifts it, which follows its own planned line */
-    const roadY=(u,x,z)=>{const lf=liftAt(u);if(!ELEV)return CIRC_Y+lf;const g=groundAt(x,z)+lf;if(lf<.01)return g;const k=SM(lf/1.5);return g*(1-k)+curve.getPointAt(((u%1)+1)%1).y*k};
+    /* on a flyover (any lift at all) the road height is the track's own smooth curve, never the ground below: near the
+       crossing that ground belongs to the OTHER, lower road, and on hilly venues reading it made the ramp drop and then
+       jump up to the deck (a step you could hit). The ramps start ~50 m out, where the ground still follows this road,
+       so the hand-over at the foot of the ramp is seamless. */
+    const roadY=(u,x,z)=>{const lf=liftAt(u);if(!ELEV)return CIRC_Y+lf;const g=groundAt(x,z)+lf;if(lf<.01)return g;const k=SM(Math.min(1,lf/.4));return g*(1-k)+curve.getPointAt(((u%1)+1)%1).y*k};
     const hFn=ELEV?groundAt:null,hRoad=ELEV||BRIDGES.length?(x,z,u)=>roadY(u,x,z):null,liftEff=(u,x,z)=>roadY(u,x,z)-(ELEV?groundAt(x,z):CIRC_Y);
     let minY=CIRC_Y;for(let i=0;i<DN;i++)minY=Math.min(minY,DY[i]);
     BT('path+index');
@@ -8372,8 +8383,10 @@ updCircBtn();
       const o={paint:col,r:sv.r,zf:sv.zf,zb:sv.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};
       const P=makeBody(spec,o);   // their real car, solid, the same model you see in the garage
       P.g.position.y=.05-(sv.rest-.07)-sv.r;bi.add(P.g);
-      const wl=[0,1,2,3].map(i=>{const k=makeWheel(sv.r,.36,i%2?-1:1,true,true);
-        k.w.position.set((i%2?-1:1)*sv.xw*.9,.05-sv.rest,i<2?sv.zf:sv.zb);vg.add(k.w);return k});
+      // a bike is two wheels in line (it used to get four, which made a friend's bike look like a quad)
+      const bike=spec.type==='bike'||sv.label==='Phantom Bike'||spec.id==='phantombike';
+      const wl=(bike?[0,2]:[0,1,2,3]).map(i=>{const k=makeWheel(sv.r,bike?.22:.36,i%2?-1:1,true,true);
+        k.w.position.set(bike?0:(i%2?-1:1)*sv.xw*.9,.05-sv.rest,i<2?sv.zf:sv.zb);vg.add(k.w);return k});
       const sh=new THREE.Mesh(new THREE.PlaneGeometry(2.9,5.4).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:blob(),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,opacity:.7}));
       sh.position.y=.05-(sv.rest-.07)-.02;sh.renderOrder=1;vg.add(sh);
       // solid: private material copies (so recolouring never touches your own car), casting shadows like any car
@@ -8721,7 +8734,7 @@ updCircBtn();
          const err=G.g.position.distanceTo(tmpV);if(err>25)G.g.position.copy(tmpV);else G.g.position.lerp(tmpV,1-Math.exp(-dt*30));
          if(qa){tmpQ.copy(qa).slerp(qb,f);G.g.quaternion.slerp(tmpQ,1-Math.exp(-dt*30))}else G.g.quaternion.slerp(P.tq,1-Math.exp(-dt*12))}
         P.wr-=P.vf/V.r*dt;   // this build turns its wheel angle the other way round: negative is forward
-        for(let i=0;i<4;i++){const w=G.wl[i];w.spin.rotation.x=P.wr;if(i<2)w.w.rotation.y+=(P.st-w.w.rotation.y)*Math.min(1,dt*12)}
+        for(let i=0;i<G.wl.length;i++){const w=G.wl[i];w.spin.rotation.x=P.wr;if(i<(G.wl.length>2?2:1))w.w.rotation.y+=(P.st-w.w.rotation.y)*Math.min(1,dt*12)}
         G.tg.position.set(G.g.position.x,G.g.position.y+2.5,G.g.position.z);
         const dd=C.position.distanceTo(G.tg.position),s=Math.max(1,Math.min(8,dd*.032));G.tg.scale.set(s*4,s,1);
         G.g.visible=!G.away;G.tg.visible=dd<520&&!G.away;
@@ -9019,7 +9032,7 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
     try{S.traverse(o=>{if(o.isMesh||o.isPoints||o.isLine)o.frustumCulled&&(o.__fc=1,o.frustumCulled=false)});R.compile(S,C);S.traverse(o=>{if(o.__fc){o.frustumCulled=true;delete o.__fc}})}catch(e){}}
   /* ?dev=1 only: handles for the handling test script (scripts/handling-test.js). It adds a flat
      test pad far from the world and can put the car on it; nothing here exists in normal play. */
-  if(/[?&]dev=1\b/.test(location.search))window.__dev={get SINK(){return SINK},get PREVOK(){return PREV.ok},setWeather,WORLDX,get WXU(){return WORLDX_U},at,critters,GHOSTLAP,SLIP,DAMAGE,get circU0(){return circU0},get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
+  if(/[?&]dev=1\b/.test(location.search))window.__dev={get SINK(){return SINK},get CIRC_LEVEL(){return CIRC_LEVEL},get PREVOK(){return PREV.ok},setWeather,WORLDX,get WXU(){return WORLDX_U},at,critters,GHOSTLAP,SLIP,DAMAGE,get circU0(){return circU0},get MODE(){return MODE},get wxLock(){return wxLock},get wxDbg(){return [wxB.id,+wxT.toFixed(2),wxDur,nightOn,+sun.intensity.toFixed(2)]},COCK,TYRE,NITRO,AUTO,traffic,HF,brCurve,U_CLIMB,U_TOP,roadNear,PADS,RING,RAMPYARD,at,hAt,SAMP,N,SPURS,BOWL,FIRE,RAMPS,STUNT,SAX,bAt,U_YARD,leaveCircuit,vis,car,PEAK,PEAK_H,BR_OUT,PEAK_SIDE,VZ,S,chassisB,veh,V,key,world,GARAGE,setCar,enterDrive,wx,R,SPACE,AUTO,SAMP,MP,traffic,buildCircuit,enterCircuit,THEMES,get circuit(){return circuit},get dbg(){return {sub,ZN,progU,MODE,boost:key.boost,grade:gradeNow,engF:veh.wheelInfos[2].engineForce,br:veh.wheelInfos.map(w=>+w.brake.toFixed(1)),slip:veh.wheelInfos.map(w=>+w.frictionSlip.toFixed(2)),contact:veh.wheelInfos.map(w=>w.isInContact)}},C,CAMS,CABLE,PLAY,get camMode(){return camMode},set camMode(v){camMode=v},get photo(){return PHOTO},set photo(v){PHOTO=v},
     pad(){if(!this._pad){const b=new CANNON.Body({mass:0});b.addShape(new CANNON.Box(new CANNON.Vec3(1500,1,1500)));b.position.set(0,999,-30000);world.addBody(b);this._pad=b}
       PREV.ok=false;physAcc=0;steerActual=0;progU=.5;chassisB.position.set(0,1001.2,-30000-1300);chassisB.quaternion.set(0,0,0,1);
       chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0)}};
