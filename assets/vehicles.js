@@ -688,17 +688,38 @@
     body.add(loft(seat, rubberM, 14));
     var tail = stations(zb - 0.08, swingPivot[2] - 0.15, 12, function (z, u) { return { z: z, yb: r + 0.42 + u * 0.05, yt: r + 0.64 + (1 - u) * 0.12, hw: lerp(0.05, 0.13, u), n: 3 }; });
     body.add(loft(tail, paint, 14));
-    box(0.12, 0.05, 0.03, o.tail, 0, r + 0.58, zb - 0.09, body);
+    [-1, 1].forEach(function (k) { box(0.075, 0.05, 0.03, o.tail, k * 0.075, r + 0.58, zb - 0.09, body); });
     // front fairing with screen and headlight
     var fair = stations(head[2] - 0.12, zf - 0.02, 14, function (z, u) {
       return { z: z, yb: lerp(r + 0.25, r + 0.42, u), yt: lerp(r + 0.92, r + 0.62, u * u), hw: lerp(0.26, 0.1, u), n: 2.6, top: 0.55 };
     });
     body.add(loft(fair, paint, 18));
     box(0.26, 0.2, 0.02, glassM, 0, r + 0.95, head[2] - 0.05, body, -0.6);
-    blob(0.1, 0.05, 0.03, o.head, 0, r + 0.6, zf, body);
+    // twin LED eyes and a sharp centre nose, rather than a single round lamp
+    [-1, 1].forEach(function (k) {
+      box(0.09, 0.08, 0.025, o.head, k * 0.075, r + 0.67, zf + 0.015, body, -0.08);
+      box(0.07, 0.025, 0.012, revM, k * 0.075, r + 0.64, zf + 0.03, body, -0.08);
+    });
+    box(0.035, 0.05, 0.025, darkM, 0, r + 0.66, zf + 0.028, body, -0.08);
     // belly pan and side panels
     var belly = stations(swingPivot[2] + 0.05, head[2] - 0.1, 10, function (z) { return { z: z, yb: r - 0.04, yt: r + 0.36, hw: 0.2, n: 3 }; });
     body.add(loft(belly, paint, 14));
+    [-1, 1].forEach(function (k) {
+      var side = stations(swingPivot[2] + 0.08, head[2] + 0.04, 16, function (z, u) {
+        return { z: z, yb: r + 0.16, yt: r + 0.48 + Math.sin(u * Math.PI) * 0.13, hw: 0.15 + Math.sin(u * Math.PI) * 0.11, n: 4, top: 0.62 };
+      });
+      var panel = loft(side, paint, 16); panel.position.x = k * 0.18; body.add(panel);
+      box(0.025, 0.18, 0.42, carbonM, k * 0.38, r + 0.37, 0.34, body, 0, k * 0.14);
+      box(0.025, 0.025, 0.3, accentOf(paint), k * 0.39, r + 0.47, 0.4, body, 0, k * 0.14);
+      // aerodynamic winglet on each side of the nose
+      box(0.18, 0.025, 0.28, paint, k * 0.25, r + 0.48, 0.68, body, -0.08, k * 0.2);
+      box(0.03, 0.09, 0.22, carbonM, k * 0.36, r + 0.45, 0.68, body, -0.08, k * 0.2);
+    });
+    // visible brake discs and calipers beside the in-line wheels
+    [zf, zb].forEach(function (ax, i) {
+      cyl(r * (i ? 0.42 : 0.5), r * (i ? 0.42 : 0.5), 0.018, discM2, 0.105, r, ax, body, 0, 0, Math.PI / 2, 24);
+      box(0.055, 0.16, 0.08, calM, 0.115, r + 0.03, ax + (i ? -0.04 : 0.05), body);
+    });
     // exhaust under the tail
     tube([0.14, r + 0.05, swingPivot[2] + 0.3], [0.18, r + 0.3, zb + 0.25], 0.045, greyM, body);
     cyl(0.07, 0.07, 0.38, chromeM, 0.19, r + 0.32, zb + 0.12, body, Math.PI / 2 + 0.25);
@@ -710,7 +731,7 @@
     var suitM = phong(0x1c1d22, { shininess: 30, specular: 0x333333 }), bootM = phong(0x101013, { shininess: 50 }),
         visorM = phong(0x0a0c11, { shininess: 160, specular: 0x8899aa });
     var seatZ = (zb + 0.12 + swingPivot[2] + 0.18) / 2, seatY = r + 0.66, gripY = head[1] + 0.08, gripZ = head[2] - 0.08;
-    var hip = [0, seatY + 0.12, seatZ - 0.04], chest = [0, gripY + 0.2, lerp(seatZ, gripZ, 0.62)], hd = [0, gripY + 0.36, lerp(seatZ, gripZ, 0.8)];
+    var hip = [0, seatY + 0.12, seatZ - 0.04], chest = [0, gripY + 0.12, lerp(seatZ, gripZ, 0.72)], hd = [0, gripY + 0.29, lerp(seatZ, gripZ, 0.88)];
     blob(0.2, 0.15, 0.22, suitM, hip[0], hip[1], hip[2], body);                                    // seat of the leathers
     tube(hip, chest, 0.17, suitM, body);                                                          // back, low over the tank
     tube([0, hip[1] + 0.12, hip[2] + 0.05], [0, chest[1] + 0.13, chest[2] - 0.02], 0.045, paint, body);   // the stripe down the spine
