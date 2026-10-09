@@ -313,6 +313,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* ---------- physics ---------- */
   const world=new CANNON.World();world.gravity.set(0,-24,0);world.broadphase=new CANNON.SAPBroadphase(world);world.allowSleep=true;world.defaultContactMaterial.friction=.3;
   const gM=new CANNON.Material('g'),oM=new CANNON.Material('o');world.addContactMaterial(new CANNON.ContactMaterial(gM,oM,{friction:.5,restitution:.1}));
+  const rampPM=new CANNON.Material('ramp');world.addContactMaterial(new CANNON.ContactMaterial(rampPM,oM,{friction:.5,restitution:0}));
   const barM=new CANNON.Material('barrier');world.addContactMaterial(new CANNON.ContactMaterial(barM,oM,{friction:0,restitution:0,contactEquationStiffness:4e6,contactEquationRelaxation:4}));   // track barriers: glance off and keep going
   /* scraping along a barrier keeps your speed: after each step, if the car touched a barrier, only the part of its
      velocity going INTO the wall is taken away; the speed along the wall is restored to what it was before the touch
@@ -860,7 +861,25 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   signPost(BR_START.x-BR_OUT.x*9,BR_START.z-BR_OUT.z*9,BR_H,'Ramp yard →','off the main road',false,Math.atan2(BR_OUT.x,BR_OUT.z));
   signPost(PEAK.x-BR_OUT.x*14+PEAK_SIDE.x*9,PEAK.z-BR_OUT.z*14+PEAK_SIDE.z*9,PEAK_H,'The summit','stop for the view',false,Math.atan2(BR_OUT.x,BR_OUT.z));
   const CULL=[];
-  function ramp(x,z,ry,ang=.2,base=0){const y=base+.5;const m=new THREE.Mesh(new THREE.BoxGeometry(4,.5,7),M(0x8f2a2a));m.position.set(x,y,z);m.rotation.set(-ang,ry,0,'YXZ');m.castShadow=true;m.receiveShadow=true;S.add(m);const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(2,.25,3.5)));b.position.set(x,y,z);const q1=new CANNON.Quaternion();q1.setFromAxisAngle(new CANNON.Vec3(0,1,0),ry);const q2=new CANNON.Quaternion();q2.setFromAxisAngle(new CANNON.Vec3(1,0,0),-ang);b.quaternion=q1.mult(q2);world.addBody(b)}
+  function ramp(x,z,ry,ang=.2,base=0){
+    // A flush toe eases into the incline; retain the old slab's lip height and +Z launch direction.
+    // Each convex prism and its visible triangles use exactly the same vertices (no buried driving surface).
+    const L=7,entry=1.4,rise=.5+.25*Math.cos(ang)+3.5*Math.sin(ang),slope=rise/(L-entry/2);
+    const height=t=>t<entry?slope*t*t/(2*entry):slope*(t-entry/2);
+    const cuts=[0,entry/4,entry/2,entry*3/4,entry,L],faces=[[0,1,2,3],[4,7,6,5],[0,4,5,1],[3,2,6,7],[0,3,7,4],[1,5,6,2]],pos=[];
+    const b=new CANNON.Body({mass:0,material:rampPM});
+    for(let i=0;i<cuts.length-1;i++){
+      const t0=cuts[i],t1=cuts[i+1],z0=t0-L/2,z1=t1-L/2,h0=height(t0),h1=height(t1);
+      const v=[[-2,-.15,z0],[2,-.15,z0],[2,-.15,z1],[-2,-.15,z1],[-2,h0,z0],[2,h0,z0],[2,h1,z1],[-2,h1,z1]];
+      // Center the local hull inside its volume so Cannon's face-normal checks remain well-defined.
+      const cy=(h0+h1)/4-.075,cz=(z0+z1)/2;
+      b.addShape(new CANNON.ConvexPolyhedron(v.map(p=>new CANNON.Vec3(p[0],p[1]-cy,p[2]-cz)),faces.map(f=>f.slice())),new CANNON.Vec3(0,cy,cz));
+      faces.forEach(f=>{for(let k=1;k<f.length-1;k++)[f[0],f[k],f[k+1]].forEach(j=>pos.push(...v[j]))});
+    }
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.computeVertexNormals();
+    const m=new THREE.Mesh(g,M(0x8f2a2a));m.position.set(x,base,z);m.rotation.y=ry;m.castShadow=true;m.receiveShadow=true;S.add(m);
+    b.position.set(x,base,z);b.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),ry);world.addBody(b);
+  }
   /* ---------- the outer valley, built ---------- */
   const SWAY={value:0};
   /* wind: foliage sways a little, per tree, in the vertex shader, so it costs nothing on the CPU */
@@ -2435,7 +2454,7 @@ t.bd.position.set(x,y+.86,z);
   /* ---------- vehicle ---------- */
   const car=new THREE.Group();S.add(car);
   const GLUE={air:0};const CAMHEAD={x:0,z:1,ok:false};
-  const SINK={from:new CANNON.Vec3(),to:new CANNON.Vec3(),res:new CANNON.RaycastResult(),best:-1e9,n:0};
+  const SINK={from:new CANNON.Vec3(),to:new CANNON.Vec3(),normal:new CANNON.Vec3(),up:new CANNON.Vec3(),res:new CANNON.RaycastResult(),best:-1e9,n:0};
   const GROUNDFIX={lift:0,want:0,rc:new THREE.Raycaster(),o:new THREE.Vector3(),dn:new THREE.Vector3(0,-1,0),list:null,key:null};
   // the big drawn surfaces you drive on (road ribbons, decks, terrain): rebuilt when the venue changes
   function groundMeshes(){const key=MODE+'|'+(typeof circuit!=='undefined'&&circuit?circuit.seed:0);if(GROUNDFIX.key===key&&GROUNDFIX.list)return GROUNDFIX.list;
@@ -2472,7 +2491,7 @@ t.bd.position.set(x,y+.86,z);
      through the centre of mass, or the actual contact point to apply it at a wheel. */
   const bodyUp=new CANNON.Vec3(),UPV=new CANNON.Vec3(0,1,0),fScratch=new CANNON.Vec3(),
         lvScratch=new CANNON.Vec3(),qScratch=new CANNON.Quaternion(),fwdScratch=new CANNON.Vec3(),
-        wComp=[0,0,0,0],wLoad=[0,0,0,0];
+        wComp=[0,0,0,0],wLoad=[0,0,0,0],arbContact=[0,0];
   // visuals
   const vis={car:new THREE.Group()};car.add(vis.car);
   /* ---------- the Cockpit camera ----------
@@ -4151,11 +4170,15 @@ t.bd.position.set(x,y+.86,z);
          wLoad[i]=w.isInContact&&isFinite(sf)?Math.max(0,sf):0;
          wComp[i]=w.isInContact?Math.max(0,Math.min(1,w.suspensionLength/rest)):1}
 // anti-roll bars — front axle is wheels 0/1, rear is 2/3. Unrolled, so no closure per frame.
-        if(!inPond && !isBike)for(let ax=0;ax<2;ax++){
+        for(let ax=0;ax<2;ax++){
           const l=ax*2,r=l+1,k=ax?ARB_R:ARB_F;
           // both wheels on the axle have to be down, or landing off a ramp gets jumpy
-          if(!wi[l].isInContact||!wi[r].isInContact||!wi[l].raycastResult||!wi[r].raycastResult)continue;
-          const fN=(wComp[l]-wComp[r])*k;if(!isFinite(fN)||Math.abs(fN)<1)continue;
+          if(inPond||isBike||!wi[l].isInContact||!wi[r].isInContact||!wi[l].raycastResult||!wi[r].raycastResult){arbContact[ax]=0;continue}
+          // Ease load transfer back in over 150 ms after touchdown, rather than
+          // applying full bar force to the first unequal suspension samples.
+          arbContact[ax]=Math.min(1,arbContact[ax]+h/.15);
+          const blend=arbContact[ax]*arbContact[ax]*(3-2*arbContact[ax]);
+          const fN=(wComp[l]-wComp[r])*k*blend;if(!isFinite(fN)||Math.abs(fN)<1)continue;
           bodyUp.scale(-fN,fScratch);chassisB.applyForce(fScratch,wi[l].raycastResult.hitPointWorld);
           bodyUp.scale(fN,fScratch);chassisB.applyForce(fScratch,wi[r].raycastResult.hitPointWorld)}
        /* Aero is drag only, applied at the centre of mass so it cannot pitch the car.
@@ -6099,25 +6122,29 @@ const PLANETS={
         // and kill the sideways slide a little when the wheels are pointing where you are going
         const rx=Math.cos(Math.atan2(fwd.x,fwd.z)),rz=-Math.sin(Math.atan2(fwd.x,fwd.z)),lat=chassisB.velocity.x*rx+chassisB.velocity.z*rz;
         if(Math.abs(steerIn)<.1){const k=Math.min(1,dt*1.8);chassisB.velocity.x-=rx*lat*k;chassisB.velocity.z-=rz*lat*k}}
-      /* anti-sink: whatever the reason (a hard landing that bottoms the springs, a seam the solver lets the body slip
-         through, a frame hitch), the body may never end up inside the ground. A physics ray finds the surface under
-         the car (ignoring anything overhead, like a bridge); if the floor of the body is below it, the car is put back
-         on top with its downward speed removed. */
-      if(frameN%2===0&&!inPond){const p=chassisB.position;SINK.from.set(p.x,p.y+1.2,p.z);SINK.to.set(p.x,p.y-4,p.z);SINK.res.reset();
-        world.raycastAll(SINK.from,SINK.to,{skipBackfaces:true},r=>{if(r.body===chassisB||r.body.mass>0||r.body.material===barM)return;const y=r.hitPointWorld.y;if(y>SINK.best)SINK.best=y});
-        if(SINK.best>-1e8){const up=new CANNON.Vec3(0,1,0);chassisB.quaternion.vmult(up,up);
-          if(up.y>.6){const floor=p.y-.12*up.y;if(floor<SINK.best-.02){p.y=SINK.best+.42;const v=chassisB.velocity;if(v.y<0)v.y=0;SINK.n++}}}
+      /* Anti-sink is a fallback for penetration, not a landing impulse. Correct
+         only the missing clearance, smoothly for shallow errors; retain ramp-
+         tangent velocity rather than flattening every landing into world Y. */
+      if(!inPond){const p=chassisB.position;SINK.from.set(p.x,p.y+1.2,p.z);SINK.to.set(p.x,p.y-4,p.z);SINK.best=-1e9;
+        world.raycastAll(SINK.from,SINK.to,{skipBackfaces:true},r=>{if(r.body===chassisB||r.body.mass>0||r.body.material===barM||r.hitNormalWorld.y<.35)return;const y=r.hitPointWorld.y;if(y>SINK.best){SINK.best=y;SINK.normal.copy(r.hitNormalWorld)}});
+        if(SINK.best>-1e8){const up=SINK.up;up.set(0,1,0);chassisB.quaternion.vmult(up,up);
+          if(up.y>.6){const depth=SINK.best+.12*up.y-p.y;
+            if(depth>.02){const a=depth>.6?1:1-Math.exp(-12*dt),lift=(depth-.02)*a;
+              p.y+=lift;chassisB.aabbNeedsUpdate=true;
+              const v=chassisB.velocity,n=SINK.normal,vn=v.dot(n);
+              if(vn<0){v.x-=n.x*vn*a;v.y-=n.y*vn*a;v.z-=n.z*vn*a}SINK.n++}}}
         SINK.best=-1e9}
       /* glue: a small bump or a seam in the ground used to pop the car up for a moment, which reads as the car
          flying along the road. When all four tyres leave the ground with only a little upward speed (not a ramp jump,
          those leave much faster), extra downforce brings it straight back onto its tyres. */
       {let onG=0;for(let i=0;i<4;i++)if(veh.wheelInfos[i]&&veh.wheelInfos[i].isInContact)onG++;
-       {const v=chassisB.velocity,hv=Math.hypot(v.x,v.z);
-        if(onG){if(GLUE.jump&&GLUE.air>.3&&GLUE.hv>4&&hv<GLUE.hv*.96){const k=GLUE.hv*.96/Math.max(.1,hv);v.x*=k;v.z*=k;if(v.y>1)v.y=1;chassisB.angularVelocity.x*=.4;chassisB.angularVelocity.z*=.4}   // a clean landing keeps its speed: no crunch, no bounce
-          GLUE.air=0;GLUE.jump=false}
-        else{if(GLUE.air===0){GLUE.jump=v.y>1.6;GLUE.hv=0}GLUE.air+=dt;if(GLUE.air<.4||v.y>-3)GLUE.hv=Math.max(GLUE.hv,hv)}}
+       {const v=chassisB.velocity;
+        // Suspension and contact friction handle touchdown. Restoring an airborne
+        // speed peak here injected energy and snapped pitch/roll on first contact.
+        if(onG){GLUE.air=0;GLUE.jump=false}
+        else{if(GLUE.air===0)GLUE.jump=v.y>1.6;GLUE.air+=dt}}
    // hang time: a launch floats (about 13 m/s2 net instead of 24) so there is time for a roll or a flip   // a real jump (ramp, crest at speed) is left alone all the way down
-       if(!onG&&!GLUE.jump&&GLUE.air<.35&&!inPond&&padT<=0){const v=chassisB.velocity;if(v.y<1.6)v.y-=18*dt}
+       if(!onG&&!GLUE.jump&&GLUE.air<.35&&!inPond&&padT<=0){const v=chassisB.velocity;if(v.y<1.6){const blend=Math.min(1,GLUE.air/.08,(.35-GLUE.air)/.08);v.y-=18*dt*blend}}
        }
       veh.setSteeringValue(steerActual,0);veh.setSteeringValue(steerActual,1);
       if(!inPond&&V.label!=='Phantom Bike')driftTick(dt,sp,vfw,fwd,steerIn,!!f);else if(DRIFT.on){DRIFT.on=false;driftEl.style.display='none'}
