@@ -2650,14 +2650,14 @@ t.bd.position.set(x,y+.86,z);
     // a soft red bloom round each pipe, so the flame sits in its own light
     const bloomT=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),gr=x.createRadialGradient(32,32,0,32,32,32);
       gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.25,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=gr;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
-    for(let i=0;i<2;i++){const f=new THREE.Group(),outer=mk(.17,0xe00010,.85,true),core=mk(.08,0xff3a2a,.95),glow=mk(.32,0xff0010,.3);
+     for(let i=0;i<1;i++){const f=new THREE.Group(),outer=mk(.17,0xe00010,.85,true),core=mk(.08,0xff3a2a,.95),glow=mk(.32,0xff0010,.3);
       const bloom=new THREE.Sprite(new THREE.SpriteMaterial({map:bloomT,color:0xff1a10,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));bloom.scale.set(.75,.75,1);
       f.add(glow,outer,core,bloom);f.userData={outer,core,glow,bloom};g.add(f);flames.push(f)}
     g.visible=false;vis.car.add(g);let amt=0;
      return {place(box,bike,lamps,centered){const y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05;
          // Keep the boost plume on the vehicle centreline. Tail-light placement made it
          // appear split to the sides on wide/imported bodies.
-         flames[0].position.set(0,y,z);flames[1].visible=false},
+         flames[0].position.set(0,y,z)},
       /* short, fat and flickering at a standstill, stretched out behind the car at speed (it used to be a long thin
          spike either way, which read as a laser rather than a flame) */
       tick(dt,on,sp){amt+=((on?1:0)-amt)*Math.min(1,dt*(on?10:6));g.visible=amt>.02;if(!g.visible)return amt;
@@ -3499,7 +3499,9 @@ t.bd.position.set(x,y+.86,z);
        if(!same){curPaint=viewPaint;setCar(spec.id,curPaint)}
        setOpen(false)};
      gpaints.addEventListener('click',e=>{const b=e.target.closest('button[data-p]');if(!b)return;
-       viewPaint=+b.dataset.p;
+        viewPaint=+b.dataset.p;
+        if(GARAGE[idx].id==='custom'){try{const c=JSON.parse(localStorage.getItem('sl_custom')||'{}');c.paint=viewPaint;localStorage.setItem('sl_custom',JSON.stringify(c))}catch(_){}
+        }
        // repainting the car you already drive applies straight away
        if(GARAGE[idx].id===curCarId&&unlocked.has(curCarId)){curPaint=viewPaint;setCar(curCarId,curPaint,true)}
        refresh();if(PR)buildModel()});
