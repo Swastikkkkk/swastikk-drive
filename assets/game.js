@@ -2903,8 +2903,8 @@ t.bd.position.set(x,y+.86,z);
     // measure the body in the car's own frame (car transform reset for a moment) and put the nitro on its tail
     {const p0=car.position.clone(),q0=car.quaternion.clone(),par=car.parent;car.position.set(0,0,0);car.quaternion.set(0,0,0,1);car.updateMatrixWorld(true);
      const bl=new THREE.Box3().setFromObject(PCAR.g),cw=new THREE.Vector3().setFromMatrixPosition(vis.car.matrixWorld);bl.min.sub(cw);bl.max.sub(cw);
-     const lamps=[];if(PCAR&&PCAR.tail){const t=new THREE.Vector3();PCAR.g.traverse(m=>{if(!m.isMesh)return;const ms=Array.isArray(m.material)?m.material:[m.material];if(!ms.includes(PCAR.tail))return;
-       m.geometry.computeBoundingBox();m.geometry.boundingBox.getCenter(t);t.applyMatrix4(m.matrixWorld).sub(cw);if(t.z<bl.min.z+(bl.max.z-bl.min.z)*.25)lamps.push(t.clone())})}
+      const lamps=[];if(PCAR&&PCAR.tail){PCAR.g.traverse(m=>{if(!m.isMesh)return;const ms=Array.isArray(m.material)?m.material:[m.material];if(!ms.includes(PCAR.tail))return;
+        const mb=new THREE.Box3().setFromObject(m),my=(mb.min.y+mb.max.y)/2,mz=(mb.min.z+mb.max.z)/2-cw.z;if(mz<bl.min.z+(bl.max.z-bl.min.z)*.25){lamps.push(new THREE.Vector3(mb.min.x-cw.x,my-cw.y,mz));lamps.push(new THREE.Vector3(mb.max.x-cw.x,my-cw.y,mz))}})}
       car.position.copy(p0);car.quaternion.copy(q0);car.updateMatrixWorld(true);NITRO.place(bl,spec.type==='bike',lamps,spec.id==='custom')}
     // some generated panels come out with their faces wound inside-out; single-sided they vanish from above
     // or behind and the car reads as a see-through shell, so the solid body draws both faces
