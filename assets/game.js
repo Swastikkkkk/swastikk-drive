@@ -2635,12 +2635,10 @@ t.bd.position.set(x,y+.86,z);
       const bloom=new THREE.Sprite(new THREE.SpriteMaterial({map:bloomT,color:0xff1a10,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));bloom.scale.set(.75,.75,1);
       f.add(glow,outer,core,bloom);f.userData={outer,core,glow,bloom};g.add(f);flames.push(f)}
     g.visible=false;vis.car.add(g);let amt=0;
-     return {place(box,bike,lamps,centered){let y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05,w=(box.max.x-box.min.x)*.24;
-         if(centered){flames[0].position.set(0,y,z);flames[1].visible=false;return}
-        // out of the tail lamps when the body has them: the outermost lamp each side, at its height
-        if(lamps&&lamps.length&&!bike){let L=null,Rt=null;lamps.forEach(p=>{if(p.x>0&&(!L||p.x>L.x))L=p;if(p.x<0&&(!Rt||p.x<Rt.x))Rt=p});
-          if(L&&Rt){flames[0].position.set(L.x,L.y,Math.min(L.z,box.min.z+.4)-.02);flames[1].position.set(Rt.x,Rt.y,Math.min(Rt.z,box.min.z+.4)-.02);flames[1].visible=true;return}}
-        flames[0].position.set(bike?0:w,y,z);flames[1].position.set(-w,y,z);flames[1].visible=!bike},
+     return {place(box,bike,lamps,centered){const y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05;
+         // Keep the boost plume on the vehicle centreline. Tail-light placement made it
+         // appear split to the sides on wide/imported bodies.
+         flames[0].position.set(0,y,z);flames[1].visible=false},
       /* short, fat and flickering at a standstill, stretched out behind the car at speed (it used to be a long thin
          spike either way, which read as a laser rather than a flame) */
       tick(dt,on,sp){amt+=((on?1:0)-amt)*Math.min(1,dt*(on?10:6));g.visible=amt>.02;if(!g.visible)return amt;
