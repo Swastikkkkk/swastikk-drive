@@ -1866,7 +1866,7 @@ async function submitToLeaderboard(ms,vehicle){
   const evGlassM=phong(0x040506,{specular:0x9a9a9a,shininess:120,reflectivity:.1});
   const npcHeadM=new THREE.MeshLambertMaterial({color:0xfff2c0,emissive:0xfff2c0,emissiveIntensity:1});
   /* bake a group's meshes into one mesh per material, so a car is a handful of draw calls */
-  function bakeGroup(root){root.updateMatrixWorld(true);const inv=new THREE.Matrix4().copy(root.matrixWorld).invert(),byM=new Map(),kill=[],mx=new THREE.Matrix4();
+   function bakeGroup(root){root.updateMatrixWorld(true);const inv=new THREE.Matrix4().copy(root.matrixWorld).invert(),byM=new Map(),kill=[],mx=new THREE.Matrix4();
     root.traverse(o=>{if(!o.isMesh||o.userData.keep)return;const g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();
       mx.multiplyMatrices(inv,o.matrixWorld);g.applyMatrix4(mx);
       if(mx.determinant()<0){const p=g.attributes.position.array,n=g.attributes.normal.array;for(let i=0;i<p.length;i+=9)for(let k=0;k<3;k++){let t=p[i+3+k];p[i+3+k]=p[i+6+k];p[i+6+k]=t;t=n[i+3+k];n[i+3+k]=n[i+6+k];n[i+6+k]=t}}
@@ -1875,8 +1875,13 @@ async function submitToLeaderboard(ms,vehicle){
     byM.forEach((gs,m)=>{let n=0;gs.forEach(g=>n+=g.attributes.position.count);const P=new Float32Array(n*3),N=new Float32Array(n*3);let off=0;
       gs.forEach(g=>{P.set(g.attributes.position.array,off*3);N.set(g.attributes.normal.array,off*3);off+=g.attributes.position.count;g.dispose()});
       const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.BufferAttribute(P,3));bg.setAttribute('normal',new THREE.BufferAttribute(N,3));bg.computeBoundingSphere();
-      const me=new THREE.Mesh(bg,m);me.userData.keep=true;me.castShadow=!LOW&&m!==carGlassM;me.receiveShadow=false;root.add(me)})}
-  /* smooth the panels but keep real creases: normals are averaged only across faces within 38 degrees */
+       const me=new THREE.Mesh(bg,m);me.userData.keep=true;me.castShadow=!LOW&&m!==carGlassM;me.receiveShadow=false;root.add(me)})}
+   /* Imported web models often use unlit or standard materials. Give them the same
+      reflections as the built-in cars without destroying their textures. */
+   function enhanceVehicleMaterials(root,env){const e=env||(cubeRT?cubeRT.texture:CARENV);root.traverse(o=>{if(!o.isMesh||!o.material)return;
+     const fix=m=>{if(!m)return m;if(m.type==='MeshBasicMaterial'&&!m.emissive){return new THREE.MeshStandardMaterial({color:m.color?m.color.clone():new THREE.Color(0xffffff),map:m.map||null,transparent:m.transparent,opacity:m.opacity,alphaTest:m.alphaTest,side:m.side,metalness:.05,roughness:.38,envMap:e,envMapIntensity:.75})}
+       if('envMap' in m&&e){m.envMap=e;m.envMapIntensity=m.envMapIntensity==null?.75:m.envMapIntensity;m.needsUpdate=true}return m};o.material=Array.isArray(o.material)?o.material.map(fix):fix(o.material);o.castShadow=true;o.receiveShadow=true})}
+   /* smooth the panels but keep real creases: normals are averaged only across faces within 38 degrees */
   function crease(g,deg){g=g.index?g.toNonIndexed():g;const p=g.attributes.position.array,cnt=p.length/9,fn=[],map=new Map(),
       K=i=>Math.round(p[i]*500)+'_'+Math.round(p[i+1]*500)+'_'+Math.round(p[i+2]*500),a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3();
     for(let f=0;f<cnt;f++){a.fromArray(p,f*9);b.fromArray(p,f*9+3);c.fromArray(p,f*9+6);const n=c.clone().sub(b).cross(a.clone().sub(b)).normalize();fn.push(n);
@@ -2688,7 +2693,10 @@ t.bd.position.set(x,y+.86,z);
           else if(m.isMeshPhongMaterial&&lum<.08&&m.shininess>=100)n=new THREE.MeshStandardMaterial(Object.assign(base,{color:new THREE.Color(0x05080c),metalness:.35,roughness:.06,envMap:env,envMapIntensity:1.1}));   // glass: dark, the sky only at a glance
           else if(m.isMeshPhongMaterial&&m.reflectivity>=.6)n=new THREE.MeshStandardMaterial(Object.assign(base,{metalness:1,roughness:.12,envMap:env,envMapIntensity:1.2}));   // chrome
           else if(m.isMeshPhongMaterial&&m.reflectivity>=.25)n=new THREE.MeshStandardMaterial(Object.assign(base,{metalness:.9,roughness:.28,envMap:env,envMapIntensity:1}));   // alloy, gunmetal
-          else if(m.isMeshPhongMaterial&&lum<.05)n=new THREE.MeshStandardMaterial(Object.assign(base,{metalness:.2,roughness:.55,envMap:env,envMapIntensity:.45}))}   // satin trim
+           else if(m.isMeshPhongMaterial&&lum<.05)n=new THREE.MeshStandardMaterial(Object.assign(base,{metalness:.2,roughness:.55,envMap:env,envMapIntensity:.45}))}   // satin trim
+         if(n!==m&&n.envMap===undefined&&env)n.envMap=env;
+         if(n!==m&&n.envMapIntensity==null)n.envMapIntensity=.8;
+         if(n===m&&!lit(m)&&'envMap' in m&&env){m.envMap=env;m.envMapIntensity=m.envMapIntensity==null?.8:m.envMapIntensity;m.needsUpdate=true}
         swap.set(m,n);return n};
       const pass=o=>{if(o.isMesh&&o.material)o.material=Array.isArray(o.material)?o.material.map(conv):conv(o.material)};
       PCAR.g.traverse(pass);if(wv)wv.car.forEach(k=>k.w.traverse(pass));
@@ -2855,8 +2863,9 @@ t.bd.position.set(x,y+.86,z);
     applyVehicle();
     chassisB.mass=spec.mass;chassisB.updateMassProperties();
     if(PCAR)vis.bodyIn.remove(PCAR.g);
-    const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,xw:V.xw,head:headM,tail:tailM};
-    PCAR=makeBody(spec,o);FP=measureBody(PCAR.g,spec);
+     const o={paint:paintHex,r:V.r,zf:V.zf,zb:V.zb,F:spec.F,B:spec.B,W:spec.W,xw:V.xw,head:headM,tail:tailM};
+     PCAR=makeBody(spec,o);FP=measureBody(PCAR.g,spec);
+     enhanceVehicleMaterials(PCAR.g);
     /* the lofted cars are 150-260 small meshes: merged per group and material they draw in ~30 calls, and only the
        big panels cast a shadow (tiny trim pieces cost a shadow draw each and are invisible in the shadow anyway) */
     try{const LIVE=new Set([headM,tailM,PCAR.tail,PCAR.rev,PCAR.paint].filter(Boolean));const st=[PCAR.g];while(st.length){const n=st.pop();n.children.forEach(c=>{if(!c.isMesh||c.children.length)st.push(c)});mergeKids(n,LIVE)}
@@ -2874,8 +2883,7 @@ t.bd.position.set(x,y+.86,z);
     // some generated panels come out with their faces wound inside-out; single-sided they vanish from above
     // or behind and the car reads as a see-through shell, so the solid body draws both faces
     PCAR.g.traverse(m=>{if(m.isMesh&&m.material){const ms=Array.isArray(m.material)?m.material:[m.material];ms.forEach(x=>{if(!x.transparent&&x.side!==THREE.DoubleSide){x.side=THREE.DoubleSide;x.needsUpdate=true}})}});
-    if(cubeRT)PCAR.g.traverse(m=>{if(m.material&&m.material.reflectivity!==undefined){m.material.envMap=cubeRT.texture;m.material.needsUpdate=true}});
-    if(wv)wv.car.forEach(k=>vis.car.remove(k.w));
+     if(wv)wv.car.forEach(k=>vis.car.remove(k.w));
     const nW=spec.type==='bike'?2:spec.type==='truck'?6:4,wheelWd=wheelWdOf(spec);
     wv={car:Array.from({length:nW},(_,i)=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
     wv.car.forEach(k=>vis.car.add(k.w));
@@ -3240,14 +3248,14 @@ t.bd.position.set(x,y+.86,z);
   const cdbPut=v=>CDB().then(db=>new Promise((ok,no)=>{const t=db.transaction('f','readwrite');t.objectStore('f').put(v,'model');t.oncomplete=ok;t.onerror=()=>no(t.error)}));
   const cdbGet=()=>CDB().then(db=>new Promise(ok=>{const q=db.transaction('f').objectStore('f').get('model');q.onsuccess=()=>ok(q.result||null);q.onerror=()=>ok(null)}));
   /* parse + fit: longest ground axis becomes the car's length, scaled to 4.9 m, centred, wheels on the ground */
-  function parseModel(rec){return new Promise((ok,no)=>{try{
+   function parseModel(rec){return new Promise((ok,no)=>{try{
       const done=root=>{const box=new THREE.Box3().setFromObject(root),sz=box.getSize(new THREE.Vector3());if(!isFinite(sz.x)||sz.length()<1e-6)return no(new Error('empty model'));
         const holder=new THREE.Group();holder.add(root);if(sz.x>sz.z)root.rotation.y=Math.PI/2;holder.updateMatrixWorld(true);
         const b2=new THREE.Box3().setFromObject(holder),s2=b2.getSize(new THREE.Vector3()),k=4.9/Math.max(s2.z,1e-6);
         holder.scale.setScalar(k);holder.updateMatrixWorld(true);const b3=new THREE.Box3().setFromObject(holder),c3=b3.getCenter(new THREE.Vector3());
         holder.position.set(-c3.x,-b3.min.y+.02,-c3.z);const out=new THREE.Group();out.add(holder);out.userData.len=s2.z*k;ok(out)};
-      if(rec.ext==='obj'){const t=new TextDecoder().decode(rec.buf),o=new THREE.OBJLoader().parse(t);o.traverse(x=>{if(x.isMesh&&(!x.material||x.material.type==='MeshPhongMaterial'&&!x.material.map))x.material=new THREE.MeshStandardMaterial({color:0x9aa0a8,metalness:.3,roughness:.5})});done(o)}
-      else new THREE.GLTFLoader().parse(rec.buf,'',g=>done(g.scene),e=>no(e||new Error('could not read the model')))}catch(e){no(e)}})}
+       if(rec.ext==='obj'){const t=new TextDecoder().decode(rec.buf),o=new THREE.OBJLoader().parse(t);o.traverse(x=>{if(x.isMesh&&(!x.material||x.material.type==='MeshPhongMaterial'&&!x.material.map))x.material=new THREE.MeshStandardMaterial({color:0x9aa0a8,metalness:.3,roughness:.5})});done(o)}
+       else {const files=rec.resources||[],byName=new Map();files.forEach(f=>{const u=URL.createObjectURL(new Blob([f.buf]));const n=decodeURIComponent(String(f.name||'')).replace(/\\/g,'/');byName.set(n,u);byName.set(n.split('/').pop(),u)});const manager=new THREE.LoadingManager();manager.setURLModifier(url=>{const n=decodeURIComponent(String(url||'')).replace(/\\/g,'/'),u=byName.get(n)||byName.get(n.split('/').pop());return u||url});new THREE.GLTFLoader(manager).parse(rec.buf,'',g=>done(g.scene),e=>no(e||new Error('could not read the model')))} }catch(e){no(e)}})}
   if(CUSTOM.spec&&CUSTOM.spec.kind==='model')cdbGet().then(rec=>rec?parseModel(rec):null).then(m=>{if(!m)return;CUSTOM.model=m;
       if(curCarId==='custom'){try{const s=JSON.parse(localStorage.getItem('sl_car')||'null');setCar('custom',s&&s.paint,true)}catch(e){setCar('custom',null,true)}}
       if(window.__garageRefresh)window.__garageRefresh()}).catch(()=>{});
@@ -3276,9 +3284,9 @@ t.bd.position.set(x,y+.86,z);
         '<label class="mono mk-l">Name</label><input id="dmkname" maxlength="18" placeholder="My car" autocomplete="off">'+
         '<label class="mono mk-l">Top speed <span id="dmkspv"></span></label><input id="dmkspeed" type="range" min="0" max="100" value="50" style="width:100%;margin:6px 0 12px;accent-color:#eef0f3">'+
         '<div class="mk-row"><button class="dbtn mono" id="dmkface" type="button">Face car</button><button class="dbtn mono" id="dmkphoto" type="button">From a car photo</button><button class="dbtn mono" id="dmkmodel" type="button">From a 3D model</button></div>'+
-        '<div class="mono mk-note" id="dmknote">Face car: a photo of a face, it becomes a big 3D head on a kart. Car photo: a side or 3/4 shot on a plain background works best. We match its colour and shape to the closest body and tune it.<br>3D model: .glb, .gltf (embedded) or .obj, up to 25 MB.</div>'+
+         '<div class="mono mk-note" id="dmknote">Face car: a photo of a face, it becomes a big 3D head on a kart. Car photo: a side or 3/4 shot on a plain background works best. We match its colour and shape to the closest body and tune it.<br>3D model: .glb, .gltf (embedded or with its .bin/images) or .obj, up to 25 MB. For a web download, select the .gltf and all files it came with together.</div>'+
         (CUSTOM.spec?'<div class="mk-row"><button class="dbtn mono" id="dmkflip" type="button">Turn model round</button><button class="dbtn mono" id="dmkdel" type="button">Delete my car</button></div>':'')+
-        '<input type="file" id="dmkff" accept="image/*" hidden><input type="file" id="dmkfp" accept="image/*" hidden><input type="file" id="dmkfm" accept=".glb,.gltf,.obj,model/gltf-binary,model/gltf+json" hidden></div>';
+         '<input type="file" id="dmkff" accept="image/*" hidden><input type="file" id="dmkfp" accept="image/*" hidden><input type="file" id="dmkfm" accept=".glb,.gltf,.obj,.bin,.png,.jpg,.jpeg,.webp,model/gltf-binary,model/gltf+json" multiple hidden></div>';
       const st=document.createElement('style');st.textContent='#dmaker{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgba(6,7,9,.72);backdrop-filter:blur(8px);padding:20px}#dmaker .mk-in{width:min(460px,100%);background:linear-gradient(180deg,rgba(26,27,32,.96),rgba(13,14,17,.98));border:1px solid rgba(238,240,243,.12);border-radius:22px;padding:22px;color:#eef0f3}#dmaker .mk-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}#dmaker h3{margin:0;font-size:22px}#dmaker .mk-l{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#828a98}#dmaker input#dmkname{width:100%;box-sizing:border-box;margin:6px 0 14px;padding:10px 12px;border-radius:12px;border:1px solid rgba(238,240,243,.16);background:rgba(238,240,243,.06);color:inherit;font:inherit}#dmaker .mk-row{display:flex;gap:8px;margin:8px 0}#dmaker .mk-row .dbtn{flex:1;padding:12px}#dmaker .mk-note{font-size:12px;line-height:1.5;color:#9aa1ad;margin-top:6px}';
       document.head.appendChild(st);document.body.appendChild(el);
       const note=$('#dmknote'),nm=()=>($('#dmkname').value||'').trim()||'My car',save=c=>{localStorage.setItem('sl_custom',JSON.stringify(c));localStorage.setItem('sl_car',JSON.stringify({id:'custom',paint:c.paint}));note.textContent='Done. Loading your car...';setTimeout(()=>location.reload(),500)};
@@ -3306,9 +3314,9 @@ t.bd.position.set(x,y+.86,z);
       $('#dmkphoto').onclick=()=>$('#dmkfp').click();$('#dmkmodel').onclick=()=>$('#dmkfm').click();
       $('#dmkfp').onchange=e=>{const f=e.target.files[0];if(!f)return;note.textContent='Reading the photo...';const u=URL.createObjectURL(f),im=new Image();
         im.onload=()=>{try{const r=analysePhoto(im);URL.revokeObjectURL(u);save({kind:'photo',name:nm(),base:r.base,paint:r.paint,speed:spd()})}catch(err){note.textContent='Could not read that photo.'}};im.onerror=()=>{note.textContent='That file is not an image.'};im.src=u};
-      $('#dmkfm').onchange=e=>{const f=e.target.files[0];if(!f)return;if(f.size>25e6){note.textContent='That model is over 25 MB.';return}
-        const ext=(f.name.split('.').pop()||'').toLowerCase();note.textContent='Loading the model...';
-        f.arrayBuffer().then(buf=>parseModel({buf,ext}).then(m=>{const L=m.userData.len||4.9;return cdbPut({buf,ext}).then(()=>save({kind:'model',name:nm(),base:'outlaw',paint:0x777777,speed:spd(),F:+(L/2).toFixed(2),B:+(-L/2).toFixed(2)}))}))
+       $('#dmkfm').onchange=e=>{const fs=Array.from(e.target.files||[]),mi=fs.findIndex(x=>/\.(glb|gltf|obj)$/i.test(x.name)),f=mi<0?null:fs[mi];if(!f)return;if(fs.reduce((n,x)=>n+x.size,0)>25e6){note.textContent='That model and its web assets are over 25 MB.';return}
+         const ext=(f.name.split('.').pop()||'').toLowerCase();note.textContent=ext==='gltf'&&fs.length>1?'Loading the model and its web assets...':'Loading the model...';
+         Promise.all(fs.map(x=>x.arrayBuffer().then(buf=>({name:x.name,buf})))).then(all=>{const main=all[mi],buf=main.buf,resources=ext==='gltf'?all.filter((_,i)=>i!==mi):[];return parseModel({buf,ext,resources}).then(m=>{const L=m.userData.len||4.9;return cdbPut({buf,ext,resources}).then(()=>save({kind:'model',name:nm(),base:'outlaw',paint:0x777777,speed:spd(),F:+(L/2).toFixed(2),B:+(-L/2).toFixed(2)}))})})
           .catch(err=>{note.textContent='Could not load that model'+(ext==='gltf'?' (a .gltf needs its textures embedded, or use .glb)':'')+'.'})};
       const fl=$('#dmkflip');if(fl)fl.onclick=()=>{const c=JSON.parse(localStorage.getItem('sl_custom')||'{}');c.flip=!c.flip;save(c)};
       const dl=$('#dmkdel');if(dl)dl.onclick=()=>{localStorage.removeItem('sl_custom');localStorage.removeItem('sl_car');CDB().then(db=>{db.transaction('f','readwrite').objectStore('f').delete('model')}).catch(()=>{});note.textContent='Deleted.';setTimeout(()=>location.reload(),400)}}}
@@ -3394,8 +3402,9 @@ t.bd.position.set(x,y+.86,z);
          k.w.position.set(isBike?0:(i%2?-1:1)*v.xw*.9,v.r,z);if(front)k.w.rotation.y=.28;rig.add(k.w)}
        const seen=new Map();
        rig.traverse(m=>{if(!m.isMesh)return;m.castShadow=true;if(m.geometry&&!ownGeos.includes(m.geometry))ownGeos.push(m.geometry);
-         const swap=mt=>{if(!mt)return mt;if(seen.has(mt))return seen.get(mt);const c=mt.clone();
-           if('envMap' in c)c.envMap=('reflectivity' in c)?PM:null;ownMats.push(c);seen.set(mt,c);return c};
+          const swap=mt=>{if(!mt)return mt;if(seen.has(mt))return seen.get(mt);let c=mt.clone();
+            if(c.type==='MeshBasicMaterial'&&!c.emissive)c=new THREE.MeshStandardMaterial({color:c.color?c.color.clone():new THREE.Color(0xffffff),map:c.map||null,transparent:c.transparent,opacity:c.opacity,alphaTest:c.alphaTest,side:c.side,metalness:.05,roughness:.38,envMap:PM,envMapIntensity:.75});
+            else if('envMap' in c){c.envMap=PM;c.envMapIntensity=c.envMapIntensity==null?.75:c.envMapIntensity;c.needsUpdate=true}ownMats.push(c);seen.set(mt,c);return c};
          m.material=Array.isArray(m.material)?m.material.map(swap):swap(m.material)});
        CARMATS.length=Math.min(CARMATS.length,cm0);   // the preview works on clones; the originals must not join the drive car's reflection list
        // centre it on the turntable and frame the camera to its size
