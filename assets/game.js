@@ -2635,7 +2635,8 @@ t.bd.position.set(x,y+.86,z);
       const bloom=new THREE.Sprite(new THREE.SpriteMaterial({map:bloomT,color:0xff1a10,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));bloom.scale.set(.75,.75,1);
       f.add(glow,outer,core,bloom);f.userData={outer,core,glow,bloom};g.add(f);flames.push(f)}
     g.visible=false;vis.car.add(g);let amt=0;
-    return {place(box,bike,lamps){let y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05,w=(box.max.x-box.min.x)*.24;
+     return {place(box,bike,lamps,centered){let y=box.min.y+(box.max.y-box.min.y)*.3,z=box.min.z+.05,w=(box.max.x-box.min.x)*.24;
+         if(centered){flames[0].position.set(0,y,z);flames[1].visible=false;return}
         // out of the tail lamps when the body has them: the outermost lamp each side, at its height
         if(lamps&&lamps.length&&!bike){let L=null,Rt=null;lamps.forEach(p=>{if(p.x>0&&(!L||p.x>L.x))L=p;if(p.x<0&&(!Rt||p.x<Rt.x))Rt=p});
           if(L&&Rt){flames[0].position.set(L.x,L.y,Math.min(L.z,box.min.z+.4)-.02);flames[1].position.set(Rt.x,Rt.y,Math.min(Rt.z,box.min.z+.4)-.02);flames[1].visible=true;return}}
@@ -2781,11 +2782,12 @@ t.bd.position.set(x,y+.86,z);
   const GARAGE_BASE_LEN=2.42-(-2.36);
   function garageOf(id){return GARAGE.find(g=>g.id===id)||GARAGE[0]}
   /* the body mesh for one garage entry; shared by the car you drive and the garage preview */
-  function customModelBody(o){const g=new THREE.Group(),body=new THREE.Group();g.add(body);
-    const m=CUSTOM.model.clone(true);if(CUSTOM.flip)m.rotation.y+=Math.PI;const w=new THREE.Group();w.add(m);
-    m.traverse(x=>{if(x.isMesh){x.castShadow=true;x.receiveShadow=true;x.geometry=x.geometry.clone();x.material=Array.isArray(x.material)?x.material.map(q=>q.clone()):x.material.clone()}});body.add(w);
-    const lm=c=>new THREE.MeshLambertMaterial({color:c});
-    return {g,body,wheels:[],tail:lm(0xff3b30),paint:new THREE.MeshPhongMaterial({color:o.paint||0x777777}),rev:lm(0xdedede)}}
+   function customModelBody(o){const g=new THREE.Group(),body=new THREE.Group();g.add(body);
+     const m=CUSTOM.model.clone(true);if(CUSTOM.flip)m.rotation.y+=Math.PI;const w=new THREE.Group();w.add(m);
+     const paint=new THREE.Color(o.paint||0x777777),skip=/glass|window|windshield|tire|tyre|rubber|wheel|brake|lamp|light|chrome|metal|carbon/i;
+     m.traverse(x=>{if(x.isMesh){x.castShadow=true;x.receiveShadow=true;x.geometry=x.geometry.clone();const tint=q=>{const n=(q.name||x.name||'');const c=q.clone();if(c.color&&!c.transparent&&!c.emissive?.getHex()&&!skip.test(n))c.color.copy(paint);return c};x.material=Array.isArray(x.material)?x.material.map(tint):tint(x.material)}});body.add(w);
+     const lm=c=>new THREE.MeshLambertMaterial({color:c});
+     return {g,body,wheels:[],tail:lm(0xff3b30),paint:new THREE.MeshPhongMaterial({color:o.paint||0x777777}),rev:lm(0xdedede)}}
   /* F1 Apex body: Kenney's CC0 racing-kit open-wheeler (assets/models/f1.glb). Only its body is used; the game's own
      wheels spin and steer in its arches. Fitted so its axles sit exactly on the physics axles; the red panels take the paint. */
   const F1M={tpl:null};
@@ -2879,7 +2881,7 @@ t.bd.position.set(x,y+.86,z);
      const bl=new THREE.Box3().setFromObject(PCAR.g),cw=new THREE.Vector3().setFromMatrixPosition(vis.car.matrixWorld);bl.min.sub(cw);bl.max.sub(cw);
      const lamps=[];if(PCAR&&PCAR.tail){const t=new THREE.Vector3();PCAR.g.traverse(m=>{if(!m.isMesh)return;const ms=Array.isArray(m.material)?m.material:[m.material];if(!ms.includes(PCAR.tail))return;
        m.geometry.computeBoundingBox();m.geometry.boundingBox.getCenter(t);t.applyMatrix4(m.matrixWorld).sub(cw);if(t.z<bl.min.z+(bl.max.z-bl.min.z)*.25)lamps.push(t.clone())})}
-     car.position.copy(p0);car.quaternion.copy(q0);car.updateMatrixWorld(true);NITRO.place(bl,spec.type==='bike',lamps)}
+      car.position.copy(p0);car.quaternion.copy(q0);car.updateMatrixWorld(true);NITRO.place(bl,spec.type==='bike',lamps,spec.id==='custom')}
     // some generated panels come out with their faces wound inside-out; single-sided they vanish from above
     // or behind and the car reads as a see-through shell, so the solid body draws both faces
     PCAR.g.traverse(m=>{if(m.isMesh&&m.material){const ms=Array.isArray(m.material)?m.material:[m.material];ms.forEach(x=>{if(!x.transparent&&x.side!==THREE.DoubleSide){x.side=THREE.DoubleSide;x.needsUpdate=true}})}});
