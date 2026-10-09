@@ -53,6 +53,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {id:'mamba',label:'Mamba',type:'car',blurb:'Sedan, quick, loose',mass:175,F:2.1,B:-2.1,W:1.95,wagon:false,price:220,
      V:{engine:700,max:31.5,slip:2.15,xw:.95,zf:1.2,zb:-1.2,r:.4,rest:.36,steer:.6,roll:.016},
      paints:[0xb33a1e,0x14161b,0xd9d4c6,0x27476b]},
+     {id:'cinder',label:'Cinder RS',type:'car',blurb:'Lightweight coupe, eager and precise',mass:142,F:2.18,B:-2.12,W:1.88,wagon:false,price:350,
+      V:{engine:735,max:33.2,slip:2.35,xw:.94,zf:1.22,zb:-1.22,r:.41,rest:.35,steer:.64,roll:.014},
+      paints:[0x8f2d1f,0x17191d,0xd7d9d6,0xc47f2a,0x294b63]},
     {id:'f1apex',label:'F1 Apex',type:'f1',blurb:'Formula 1 Single-Seater',mass:135,F:1.8,B:-1.7,W:1.6,price:800,
      V:{engine:900,max:44,slip:3.6,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.8,roll:.01},
      paints:[0xdc143c,0x1a1a2e,0xf0e68c,0x00ffff]},
@@ -3303,7 +3306,7 @@ t.bd.position.set(x,y+.86,z);
         '<label class="mono mk-l">Name</label><input id="dmkname" maxlength="18" placeholder="My car" autocomplete="off">'+
         '<label class="mono mk-l">Top speed <span id="dmkspv"></span></label><input id="dmkspeed" type="range" min="0" max="100" value="50" style="width:100%;margin:6px 0 12px;accent-color:#eef0f3">'+
         '<div class="mk-row"><button class="dbtn mono" id="dmkface" type="button">Face car</button><button class="dbtn mono" id="dmkphoto" type="button">From a car photo</button><button class="dbtn mono" id="dmkmodel" type="button">From a 3D model</button></div>'+
-         '<div class="mono mk-note" id="dmknote">Face car: a photo of a face, it becomes a big 3D head on a kart. Car photo: a side or 3/4 shot on a plain background works best. We match its colour and shape to the closest body and tune it.<br>3D model: .glb, .gltf (embedded or with its .bin/images) or .obj, up to 25 MB. For a web download, select the .gltf and all files it came with together.</div>'+
+        '<div class="mono mk-note" id="dmknote">Face car: a photo of a face, it becomes a big 3D head on a kart. Car photo: a side or 3/4 shot on a plain background works best. We match its colour and shape to the closest body and tune it.<br>3D model: .glb, .gltf (embedded or with its .bin/images) or .obj, up to 25 MB. For a web download, select the .gltf and all files it came with together.</div>'+
         (CUSTOM.spec?'<div class="mk-row"><button class="dbtn mono" id="dmkflip" type="button">Turn model round</button><button class="dbtn mono" id="dmkdel" type="button">Delete my car</button></div>':'')+
          '<input type="file" id="dmkff" accept="image/*" hidden><input type="file" id="dmkfp" accept="image/*" hidden><input type="file" id="dmkfm" accept=".glb,.gltf,.obj,.bin,.png,.jpg,.jpeg,.webp,model/gltf-binary,model/gltf+json" multiple hidden></div>';
       const st=document.createElement('style');st.textContent='#dmaker{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgba(6,7,9,.72);backdrop-filter:blur(8px);padding:20px}#dmaker .mk-in{width:min(460px,100%);background:linear-gradient(180deg,rgba(26,27,32,.96),rgba(13,14,17,.98));border:1px solid rgba(238,240,243,.12);border-radius:22px;padding:22px;color:#eef0f3}#dmaker .mk-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}#dmaker h3{margin:0;font-size:22px}#dmaker .mk-l{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#828a98}#dmaker input#dmkname{width:100%;box-sizing:border-box;margin:6px 0 14px;padding:10px 12px;border-radius:12px;border:1px solid rgba(238,240,243,.16);background:rgba(238,240,243,.06);color:inherit;font:inherit}#dmaker .mk-row{display:flex;gap:8px;margin:8px 0}#dmaker .mk-row .dbtn{flex:1;padding:12px}#dmaker .mk-note{font-size:12px;line-height:1.5;color:#9aa1ad;margin-top:6px}';
@@ -3333,7 +3336,7 @@ t.bd.position.set(x,y+.86,z);
       $('#dmkphoto').onclick=()=>$('#dmkfp').click();$('#dmkmodel').onclick=()=>$('#dmkfm').click();
       $('#dmkfp').onchange=e=>{const f=e.target.files[0];if(!f)return;note.textContent='Reading the photo...';const u=URL.createObjectURL(f),im=new Image();
         im.onload=()=>{try{const r=analysePhoto(im);URL.revokeObjectURL(u);save({kind:'photo',name:nm(),base:r.base,paint:r.paint,speed:spd()})}catch(err){note.textContent='Could not read that photo.'}};im.onerror=()=>{note.textContent='That file is not an image.'};im.src=u};
-       $('#dmkfm').onchange=e=>{const fs=Array.from(e.target.files||[]),mi=fs.findIndex(x=>/\.(glb|gltf|obj)$/i.test(x.name)),f=mi<0?null:fs[mi];if(!f)return;if(fs.reduce((n,x)=>n+x.size,0)>25e6){note.textContent='That model and its web assets are over 25 MB.';return}
+       $('#dmkfm').onchange=e=>{const fs=Array.from(e.target.files||[]),mi=fs.findIndex(x=>/\.(glb|gltf|obj)$/i.test(x.name)),f=mi<0?null:fs[mi];if(!f){if(fs.length)note.textContent='That model format is not supported yet.';return}if(fs.reduce((n,x)=>n+x.size,0)>25e6){note.textContent='That model and its web assets are over 25 MB.';return}
          const ext=(f.name.split('.').pop()||'').toLowerCase();note.textContent=ext==='gltf'&&fs.length>1?'Loading the model and its web assets...':'Loading the model...';
          Promise.all(fs.map(x=>x.arrayBuffer().then(buf=>({name:x.name,buf})))).then(all=>{const main=all[mi],buf=main.buf,resources=ext==='gltf'?all.filter((_,i)=>i!==mi):[];return parseModel({buf,ext,resources}).then(m=>{const L=m.userData.len||4.9;return cdbPut({buf,ext,resources}).then(()=>save({kind:'model',name:nm(),base:'outlaw',paint:0x777777,speed:spd(),F:+(L/2).toFixed(2),B:+(-L/2).toFixed(2)}))})})
           .catch(err=>{note.textContent='Could not load that model'+(ext==='gltf'?' (a .gltf needs its textures embedded, or use .glb)':'')+'.'})};
@@ -3431,7 +3434,8 @@ t.bd.position.set(x,y+.86,z);
        rig.children.forEach(ch=>{ch.position.x-=c.x;ch.position.z-=c.z});rig.position.y=-bb.min.y;
        const holder=new THREE.Group();holder.add(rig);PS.add(holder);rig=holder;
        const L=Math.max(sz.x,sz.z,sz.y*1.6);PC.userData.d=L*1.55+1.2;PC.userData.h=sz.y*.45;
-       rig.rotation.y=yaw};
+        rig.rotation.y=yaw;
+        gview.classList.remove('swap');void gview.offsetWidth;gview.classList.add('swap');setTimeout(()=>gview.classList.remove('swap'),520)};
      const sizePreview=()=>{if(!PR)return;const w=gview.clientWidth||300,h=gview.clientHeight||200;PR.setSize(w,h,false);PC.aspect=w/h;PC.updateProjectionMatrix()};
      const frame=t=>{raf=0;if(!gp.classList.contains('on')){stopPreview();return}
        const dt=Math.min(.05,lastT?(t-lastT)/1000:.016);lastT=t;
