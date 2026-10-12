@@ -1,0 +1,2198 @@
+[
+ {
+  "id": "mc",
+  "geo": "mc-1929",
+  "name": "Circuit de Monaco",
+  "country": "Monaco",
+  "lengthKm": 3.337,
+  "turns": 19,
+  "dir": "cw",
+  "width": 10,
+  "raceTime": "day",
+  "type": "street",
+  "theme": "coastal",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.03,
+    6
+   ],
+   [
+    0.1,
+    22
+   ],
+   [
+    0.2,
+    36
+   ],
+   [
+    0.27,
+    42
+   ],
+   [
+    0.333,
+    36
+   ],
+   [
+    0.39,
+    30
+   ],
+   [
+    0.47,
+    22
+   ],
+   [
+    0.55,
+    12
+   ],
+   [
+    0.6,
+    8
+   ],
+   [
+    0.66,
+    6
+   ],
+   [
+    0.76,
+    4
+   ],
+   [
+    0.84,
+    3
+   ],
+   [
+    0.9,
+    1.5
+   ],
+   [
+    0.944,
+    0
+   ],
+   [
+    0.98,
+    0.5
+   ]
+  ],
+  "elevQ": "interpolated",
+  "tunnels": [
+   [
+    0.48,
+    0.59,
+    "Fairmont tunnel"
+   ]
+  ],
+  "corners": [
+   [
+    "Sainte Devote",
+    1,
+    0.03
+   ],
+   [
+    "Casino Square",
+    4,
+    0.27
+   ],
+   [
+    "Mirabeau Haute",
+    5,
+    0.333
+   ],
+   [
+    "Grand Hotel Hairpin",
+    6,
+    0.39
+   ],
+   [
+    "Portier",
+    8,
+    0.47
+   ],
+   [
+    "Nouvelle Chicane",
+    10,
+    0.6
+   ],
+   [
+    "Tabac",
+    12,
+    0.66
+   ],
+   [
+    "Piscine",
+    15,
+    0.84
+   ],
+   [
+    "La Rascasse",
+    18,
+    0.944
+   ],
+   [
+    "Antony Noghes",
+    19,
+    0.983
+   ]
+  ],
+  "landmarks": [
+   "Monte Carlo Casino",
+   "harbour with yachts",
+   "Fairmont Hotel above the tunnel",
+   "swimming pool complex",
+   "La Rascasse restaurant",
+   "Sainte-Devote chapel",
+   "hillside apartment blocks"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Circuit_de_Monaco",
+   "https://www.formula1.com/en/latest/article/highs-and-lows-which-f1-track-has-the-most-elevation-changes-.7I9JEcBw3R2AqXbnJ6hyvc",
+   "https://www.fia.com/system/files/decision-document/2026_monaco_event_-_circuit_map_-_monaco_2026.pdf"
+  ]
+ },
+ {
+  "id": "sg",
+  "geo": "sg-2008",
+  "name": "Marina Bay Street Circuit",
+  "country": "Singapore",
+  "lengthKm": 4.927,
+  "turns": 19,
+  "dir": "acw",
+  "width": 12,
+  "raceTime": "night",
+  "type": "street",
+  "theme": "city",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.1,
+    1
+   ],
+   [
+    0.25,
+    3
+   ],
+   [
+    0.4,
+    4.3
+   ],
+   [
+    0.5,
+    5.3
+   ],
+   [
+    0.6,
+    4.6
+   ],
+   [
+    0.75,
+    2.4
+   ],
+   [
+    0.9,
+    1
+   ],
+   [
+    0.96,
+    0.4
+   ]
+  ],
+  "elevQ": "placeholder",
+  "corners": [
+   [
+    "Sheares",
+    1,
+    0.02
+   ],
+   [
+    "Memorial",
+    7,
+    0.28
+   ],
+   [
+    "Turn 10",
+    10,
+    0.37
+   ],
+   [
+    "Fullerton hairpin",
+    13,
+    0.48
+   ],
+   [
+    "Turn 16",
+    16,
+    0.66
+   ],
+   [
+    "Turn 18",
+    18,
+    0.91
+   ]
+  ],
+  "landmarks": [
+   "Singapore Flyer",
+   "Marina Bay Sands towers",
+   "Fullerton Hotel",
+   "Esplanade domes",
+   "Anderson Bridge",
+   "city towers lit at night"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Marina_Bay_Street_Circuit",
+   "https://oversteer48.com/singapore-gp-layout-route-marina-bay-street-circuit/"
+  ]
+ },
+ {
+  "id": "az",
+  "geo": "az-2016",
+  "name": "Baku City Circuit",
+  "country": "Azerbaijan",
+  "lengthKm": 6.003,
+  "turns": 20,
+  "dir": "acw",
+  "width": 12,
+  "raceTime": "day",
+  "type": "street",
+  "theme": "city",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.034,
+    0.5
+   ],
+   [
+    0.1,
+    7
+   ],
+   [
+    0.2,
+    16
+   ],
+   [
+    0.27,
+    22
+   ],
+   [
+    0.33,
+    26.8
+   ],
+   [
+    0.4,
+    19
+   ],
+   [
+    0.45,
+    10
+   ],
+   [
+    0.5,
+    2
+   ],
+   [
+    0.52,
+    0
+   ],
+   [
+    0.58,
+    0.5
+   ],
+   [
+    0.634,
+    0
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.034
+   ],
+   [
+    "Castle section",
+    8,
+    0.22
+   ],
+   [
+    "Turn 13 (high point)",
+    13,
+    0.33
+   ],
+   [
+    "Turn 15",
+    15,
+    0.49
+   ],
+   [
+    "Turn 16",
+    16,
+    0.52
+   ],
+   [
+    "Turn 20",
+    20,
+    0.634
+   ]
+  ],
+  "landmarks": [
+   "Old City stone walls",
+   "Maiden Tower",
+   "Flame Towers",
+   "Government House",
+   "Caspian Sea promenade"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Baku_City_Circuit",
+   "https://www.formula1.com/en/latest/article/circuit-guide-everything-you-need-to-know-about-the-baku-city-circuit.320UGBNQu2ALdgAtax1gRn"
+  ]
+ },
+ {
+  "id": "bh",
+  "geo": "bh-2002",
+  "name": "Bahrain International Circuit",
+  "country": "Bahrain",
+  "lengthKm": 5.412,
+  "turns": 15,
+  "dir": "cw",
+  "width": 14,
+  "raceTime": "night",
+  "type": "permanent",
+  "theme": "desert",
+  "elev": null,
+  "elevRange": 18,
+  "elevQ": "none",
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.201
+   ]
+  ],
+  "straightToT1": 1090,
+  "landmarks": [
+   "Sakhir Tower",
+   "floodlights",
+   "desert dunes"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Bahrain_International_Circuit",
+   "https://www.crash.net/f1/news/48131/1/what-you-may-not-know-about-the-bahrain-circuit"
+  ]
+ },
+ {
+  "id": "sa",
+  "geo": "sa-2021",
+  "name": "Jeddah Corniche Circuit",
+  "country": "Saudi Arabia",
+  "lengthKm": 6.174,
+  "turns": 27,
+  "dir": "acw",
+  "width": 12,
+  "raceTime": "night",
+  "type": "semi-street",
+  "theme": "coastal",
+  "elev": null,
+  "elevRange": 8,
+  "elevQ": "none",
+  "corners": [],
+  "landmarks": [
+   "Red Sea waterfront",
+   "lagoon",
+   "floodlights",
+   "grandstand bridge"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Jeddah_Corniche_Circuit",
+   "https://raceprogramme.formula1.com/2025/saudi-arabia/the-circuit"
+  ]
+ },
+ {
+  "id": "qa",
+  "geo": "qa-2004",
+  "name": "Lusail International Circuit",
+  "country": "Qatar",
+  "lengthKm": 5.419,
+  "turns": 16,
+  "dir": "cw",
+  "width": 12,
+  "raceTime": "night",
+  "type": "permanent",
+  "theme": "desert",
+  "elev": null,
+  "elevRange": 5,
+  "elevQ": "none",
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.197
+   ]
+  ],
+  "straightToT1": 1068,
+  "landmarks": [
+   "floodlights",
+   "desert",
+   "pit building"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Lusail_International_Circuit",
+   "https://oversteer48.com/lusail-international-circuit-layout/"
+  ]
+ },
+ {
+  "id": "au",
+  "geo": "au-1953",
+  "name": "Albert Park Circuit",
+  "country": "Australia",
+  "lengthKm": 5.278,
+  "turns": 14,
+  "dir": "cw",
+  "width": 13,
+  "raceTime": "day",
+  "type": "semi-street",
+  "theme": "meadow",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.1,
+    0.5
+   ],
+   [
+    0.2,
+    0.9
+   ],
+   [
+    0.35,
+    1.3
+   ],
+   [
+    0.5,
+    1.7
+   ],
+   [
+    0.65,
+    2
+   ],
+   [
+    0.78,
+    2.3
+   ],
+   [
+    0.9,
+    2.6
+   ],
+   [
+    0.95,
+    1.4
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [],
+  "landmarks": [
+   "Albert Park Lake",
+   "parkland trees",
+   "Melbourne skyline",
+   "golf course"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Albert_Park_Circuit"
+  ]
+ },
+ {
+  "id": "cn",
+  "geo": "cn-2004",
+  "name": "Shanghai International Circuit",
+  "country": "China",
+  "lengthKm": 5.451,
+  "turns": 16,
+  "dir": "cw",
+  "width": 14,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "meadow",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.03,
+    3.5
+   ],
+   [
+    0.07,
+    7.4
+   ],
+   [
+    0.12,
+    6.5
+   ],
+   [
+    0.2,
+    5
+   ],
+   [
+    0.35,
+    3.5
+   ],
+   [
+    0.5,
+    2.5
+   ],
+   [
+    0.62,
+    1.5
+   ],
+   [
+    0.72,
+    0.6
+   ],
+   [
+    0.8,
+    0
+   ],
+   [
+    0.9,
+    0.2
+   ],
+   [
+    0.97,
+    0.1
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.06
+   ]
+  ],
+  "landmarks": [
+   "main grandstand with wing-shaped pavilions over the track",
+   "pit complex"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Shanghai_International_Circuit",
+   "https://tilke.de/portfolio/shanghai-international-circuit/"
+  ]
+ },
+ {
+  "id": "jp",
+  "geo": "jp-1962",
+  "name": "Suzuka Circuit",
+  "country": "Japan",
+  "lengthKm": 5.807,
+  "turns": 18,
+  "dir": "fig8",
+  "width": 12,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "meadow",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.03,
+    -6
+   ],
+   [
+    0.06,
+    -12
+   ],
+   [
+    0.12,
+    6
+   ],
+   [
+    0.2,
+    28
+   ],
+   [
+    0.28,
+    20
+   ],
+   [
+    0.36,
+    10
+   ],
+   [
+    0.48,
+    4
+   ],
+   [
+    0.62,
+    0
+   ],
+   [
+    0.75,
+    -8
+   ],
+   [
+    0.88,
+    -4
+   ],
+   [
+    0.95,
+    -6
+   ]
+  ],
+  "elevQ": "interpolated",
+  "bridgeU": 0.77,
+  "corners": [
+   [
+    "First Curve",
+    1,
+    0.01
+   ],
+   [
+    "Dunlop",
+    7,
+    0.22
+   ],
+   [
+    "Degner 1",
+    8,
+    0.3
+   ],
+   [
+    "Hairpin",
+    10,
+    0.41
+   ],
+   [
+    "Spoon",
+    13,
+    0.66
+   ],
+   [
+    "130R",
+    15,
+    0.9
+   ],
+   [
+    "Casio Triangle",
+    16,
+    0.95
+   ]
+  ],
+  "landmarks": [
+   "Ferris wheel",
+   "roller coaster",
+   "crossover bridge"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Suzuka_Circuit",
+   "https://www.f1-fansite.com/f1-circuits/suzuka-circuit/"
+  ]
+ },
+ {
+  "id": "im",
+  "geo": "it-1953",
+  "name": "Imola (Enzo e Dino Ferrari)",
+  "country": "Italy",
+  "lengthKm": 4.909,
+  "turns": 19,
+  "dir": "acw",
+  "width": 12,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "autumn",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.1,
+    -2
+   ],
+   [
+    0.2,
+    -6
+   ],
+   [
+    0.3,
+    -14
+   ],
+   [
+    0.4,
+    -30
+   ],
+   [
+    0.5,
+    -40
+   ],
+   [
+    0.58,
+    -25
+   ],
+   [
+    0.66,
+    17
+   ],
+   [
+    0.75,
+    5
+   ],
+   [
+    0.85,
+    -5
+   ],
+   [
+    0.93,
+    -3
+   ]
+  ],
+  "elevQ": "interpolated",
+  "overheads": [
+   [
+    0.67,
+    "sponsor bridge"
+   ]
+  ],
+  "corners": [
+   [
+    "Tamburello",
+    2,
+    0.05
+   ],
+   [
+    "Villeneuve",
+    5,
+    0.13
+   ],
+   [
+    "Tosa",
+    7,
+    0.22
+   ],
+   [
+    "Acque Minerali",
+    10,
+    0.42
+   ],
+   [
+    "Variante Alta",
+    14,
+    0.65
+   ],
+   [
+    "Rivazza",
+    17,
+    0.82
+   ]
+  ],
+  "landmarks": [
+   "Santerno river",
+   "wooded hills",
+   "Acque Minerali park"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Autodromo_Enzo_e_Dino_Ferrari",
+   "https://coachdaveacademy.com/tutorials/autodromo-enzo-e-dino-ferrari-track-guide/"
+  ]
+ },
+ {
+  "id": "mi",
+  "geo": "us-2022",
+  "name": "Miami International Autodrome",
+  "country": "USA",
+  "lengthKm": 5.412,
+  "turns": 19,
+  "dir": "acw",
+  "width": 15,
+  "raceTime": "day",
+  "type": "semi-street",
+  "theme": "tropical",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.1,
+    0.4
+   ],
+   [
+    0.2,
+    0.6
+   ],
+   [
+    0.3,
+    0.4
+   ],
+   [
+    0.4,
+    0.2
+   ],
+   [
+    0.5,
+    0
+   ],
+   [
+    0.6,
+    0.5
+   ],
+   [
+    0.66,
+    0.2
+   ],
+   [
+    0.72,
+    1.5
+   ],
+   [
+    0.76,
+    1.2
+   ],
+   [
+    0.85,
+    0.2
+   ],
+   [
+    0.93,
+    -0.6
+   ],
+   [
+    0.98,
+    -1.5
+   ]
+  ],
+  "elevQ": "interpolated",
+  "overheads": [
+   [
+    0.7,
+    "motorway flyover"
+   ],
+   [
+    0.74,
+    "motorway flyover"
+   ]
+  ],
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.03
+   ],
+   [
+    "Turn 11",
+    11,
+    0.61
+   ],
+   [
+    "Turn 14-15 chicane",
+    14,
+    0.715
+   ],
+   [
+    "Turn 16",
+    16,
+    0.757
+   ],
+   [
+    "Turn 17",
+    17,
+    0.979
+   ]
+  ],
+  "landmarks": [
+   "Hard Rock Stadium",
+   "palm trees",
+   "fake marina",
+   "motorway flyovers"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Miami_International_Autodrome",
+   "https://oversteer48.com/miami-grand-prix-layout/"
+  ]
+ },
+ {
+  "id": "lv",
+  "geo": "us-2023",
+  "name": "Las Vegas Strip Circuit",
+  "country": "USA",
+  "lengthKm": 6.201,
+  "turns": 17,
+  "dir": "acw",
+  "width": 13,
+  "raceTime": "night",
+  "type": "street",
+  "theme": "night",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.05,
+    -1.5
+   ],
+   [
+    0.1,
+    -3
+   ],
+   [
+    0.2,
+    -4.5
+   ],
+   [
+    0.25,
+    -5
+   ],
+   [
+    0.35,
+    -4
+   ],
+   [
+    0.45,
+    -3
+   ],
+   [
+    0.6,
+    -2.5
+   ],
+   [
+    0.76,
+    -2
+   ],
+   [
+    0.87,
+    -1
+   ],
+   [
+    0.95,
+    -0.5
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.024
+   ],
+   [
+    "Turn 5",
+    5,
+    0.25
+   ],
+   [
+    "Turn 9 (Sphere)",
+    9,
+    0.363
+   ],
+   [
+    "Turn 12",
+    12,
+    0.452
+   ],
+   [
+    "Turn 14",
+    14,
+    0.761
+   ],
+   [
+    "Turn 17",
+    17,
+    0.967
+   ]
+  ],
+  "landmarks": [
+   "Sphere",
+   "casino hotels",
+   "neon facades",
+   "monorail",
+   "pedestrian bridges"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Las_Vegas_Strip_Circuit",
+   "https://www.gpfans.com/en/f1-news/1007712/f1-las-vegas-grand-prix-track-details/"
+  ]
+ },
+ {
+  "id": "es",
+  "geo": "es-1991",
+  "name": "Circuit de Barcelona-Catalunya",
+  "country": "Spain",
+  "lengthKm": 4.657,
+  "turns": 14,
+  "dir": "cw",
+  "width": 13,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "sunset",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.1,
+    1
+   ],
+   [
+    0.225,
+    0
+   ],
+   [
+    0.3,
+    10
+   ],
+   [
+    0.358,
+    14
+   ],
+   [
+    0.39,
+    -4
+   ],
+   [
+    0.46,
+    -8
+   ],
+   [
+    0.52,
+    4
+   ],
+   [
+    0.62,
+    22
+   ],
+   [
+    0.746,
+    12
+   ],
+   [
+    0.85,
+    6
+   ],
+   [
+    0.95,
+    2
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [
+   [
+    "Elf",
+    1,
+    0.225
+   ],
+   [
+    "Renault",
+    3,
+    0.3
+   ],
+   [
+    "Repsol",
+    4,
+    0.358
+   ],
+   [
+    "Seat",
+    5,
+    0.39
+   ],
+   [
+    "Campsa",
+    9,
+    0.62
+   ],
+   [
+    "La Caixa",
+    10,
+    0.746
+   ]
+  ],
+  "landmarks": [
+   "main grandstand",
+   "hills"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Circuit_de_Barcelona-Catalunya",
+   "https://www.fia.com/system/files/decision-document/2026_barcelona_event_-_circuit_map_-_barcelona_2026.pdf"
+  ]
+ },
+ {
+  "id": "md",
+  "geo": "es-2026",
+  "name": "Madring",
+  "country": "Spain",
+  "lengthKm": 5.414,
+  "turns": 22,
+  "dir": "cw",
+  "width": 12,
+  "raceTime": "day",
+  "type": "semi-street",
+  "theme": "city",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.054,
+    -2
+   ],
+   [
+    0.078,
+    0
+   ],
+   [
+    0.15,
+    6
+   ],
+   [
+    0.232,
+    12
+   ],
+   [
+    0.238,
+    13.65
+   ],
+   [
+    0.259,
+    23.65
+   ],
+   [
+    0.27,
+    21
+   ],
+   [
+    0.284,
+    17.5
+   ],
+   [
+    0.307,
+    14
+   ],
+   [
+    0.322,
+    12
+   ],
+   [
+    0.373,
+    17
+   ],
+   [
+    0.424,
+    22
+   ],
+   [
+    0.447,
+    14
+   ],
+   [
+    0.6,
+    6
+   ],
+   [
+    0.8,
+    3
+   ],
+   [
+    0.887,
+    1
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.047
+   ],
+   [
+    "Turn 5",
+    5,
+    0.232
+   ],
+   [
+    "Turn 7",
+    7,
+    0.259
+   ],
+   [
+    "La Monumental",
+    12,
+    0.373
+   ],
+   [
+    "El Parque",
+    22,
+    0.887
+   ]
+  ],
+  "landmarks": [
+   "IFEMA pavilions",
+   "giant Spanish flag",
+   "La Monumental banking"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Madring",
+   "https://es.motorsport.com/f1/news/circuito-madring-caracteristicas-curvas/10853604/"
+  ]
+ },
+ {
+  "id": "ca",
+  "geo": "ca-1978",
+  "name": "Circuit Gilles Villeneuve",
+  "country": "Canada",
+  "lengthKm": 4.361,
+  "turns": 14,
+  "dir": "acw",
+  "width": 12,
+  "raceTime": "day",
+  "type": "semi-street",
+  "theme": "meadow",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.03,
+    -1.5
+   ],
+   [
+    0.05,
+    -2
+   ],
+   [
+    0.13,
+    -2.5
+   ],
+   [
+    0.2,
+    -1
+   ],
+   [
+    0.245,
+    -0.5
+   ],
+   [
+    0.36,
+    -2.5
+   ],
+   [
+    0.5,
+    -4
+   ],
+   [
+    0.605,
+    -5
+   ],
+   [
+    0.66,
+    -4.5
+   ],
+   [
+    0.73,
+    -3
+   ],
+   [
+    0.8,
+    -2
+   ],
+   [
+    0.876,
+    -1.5
+   ],
+   [
+    0.91,
+    -0.8
+   ],
+   [
+    0.95,
+    -0.3
+   ]
+  ],
+  "elevQ": "interpolated",
+  "overheads": [
+   [
+    0.235,
+    "Pont de la Concorde"
+   ]
+  ],
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.03
+   ],
+   [
+    "Senna S",
+    2,
+    0.05
+   ],
+   [
+    "Pont de la Concorde",
+    8,
+    0.25
+   ],
+   [
+    "Hairpin",
+    10,
+    0.605
+   ],
+   [
+    "Wall of Champions",
+    14,
+    0.91
+   ]
+  ],
+  "landmarks": [
+   "Olympic rowing basin",
+   "Saint Lawrence river",
+   "Montreal skyline",
+   "Biosphere dome"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Circuit_Gilles_Villeneuve",
+   "https://oversteer48.com/montreal-grand-prix-track-layout/"
+  ]
+ },
+ {
+  "id": "at",
+  "geo": "at-1969",
+  "name": "Red Bull Ring",
+  "country": "Austria",
+  "lengthKm": 4.326,
+  "turns": 10,
+  "dir": "cw",
+  "width": 13,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "alpine",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.1,
+    2
+   ],
+   [
+    0.145,
+    5
+   ],
+   [
+    0.2,
+    40
+   ],
+   [
+    0.25,
+    64
+   ],
+   [
+    0.31,
+    56
+   ],
+   [
+    0.4,
+    40
+   ],
+   [
+    0.5,
+    28
+   ],
+   [
+    0.6,
+    19
+   ],
+   [
+    0.7,
+    12
+   ],
+   [
+    0.8,
+    6
+   ],
+   [
+    0.9,
+    2
+   ],
+   [
+    0.97,
+    1
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [
+   [
+    "Niki Lauda",
+    1,
+    0.15
+   ],
+   [
+    "Munzer",
+    2,
+    0.19
+   ],
+   [
+    "Turn 3",
+    3,
+    0.25
+   ],
+   [
+    "Rauch",
+    4,
+    0.31
+   ],
+   [
+    "Turn 7",
+    7,
+    0.47
+   ],
+   [
+    "Jochen Rindt",
+    9,
+    0.86
+   ]
+  ],
+  "straightToT1": 626,
+  "landmarks": [
+   "Styrian mountains",
+   "bull statue",
+   "wing-shaped pit building"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Red_Bull_Ring",
+   "https://global.honda/en/F1/circuit/red-bull-ring/"
+  ]
+ },
+ {
+  "id": "gb",
+  "geo": "gb-1948",
+  "name": "Silverstone Circuit",
+  "country": "United Kingdom",
+  "lengthKm": 5.891,
+  "turns": 18,
+  "dir": "cw",
+  "width": 15,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "meadow",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.1,
+    4
+   ],
+   [
+    0.2,
+    6
+   ],
+   [
+    0.3,
+    10
+   ],
+   [
+    0.4,
+    14
+   ],
+   [
+    0.5,
+    18
+   ],
+   [
+    0.56,
+    21
+   ],
+   [
+    0.64,
+    25
+   ],
+   [
+    0.75,
+    18
+   ],
+   [
+    0.85,
+    10
+   ],
+   [
+    0.92,
+    4
+   ],
+   [
+    0.97,
+    1
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [
+   [
+    "Abbey",
+    1,
+    0.03
+   ],
+   [
+    "The Loop",
+    4,
+    0.1
+   ],
+   [
+    "Brooklands",
+    6,
+    0.2
+   ],
+   [
+    "Copse",
+    9,
+    0.37
+   ],
+   [
+    "Maggotts",
+    10,
+    0.44
+   ],
+   [
+    "Stowe",
+    15,
+    0.67
+   ],
+   [
+    "Vale",
+    16,
+    0.8
+   ],
+   [
+    "Club",
+    17,
+    0.93
+   ]
+  ],
+  "landmarks": [
+   "The Wing pit building",
+   "airfield flatlands",
+   "countryside"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Silverstone_Circuit",
+   "https://www.f1-fansite.com/f1-circuits/silverstone-circuit/"
+  ]
+ },
+ {
+  "id": "be",
+  "geo": "be-1925",
+  "name": "Circuit de Spa-Francorchamps",
+  "country": "Belgium",
+  "lengthKm": 7.004,
+  "turns": 19,
+  "dir": "cw",
+  "width": 14,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "forest",
+  "elev": null,
+  "elevRange": 102.2,
+  "elevQ": "anchors",
+  "corners": [],
+  "landmarks": [
+   "Ardennes forest",
+   "Eau Rouge climb",
+   "grandstands at La Source"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Circuit_de_Spa-Francorchamps",
+   "https://www.formula1.com/en/latest/article/highs-and-lows-which-f1-track-has-the-most-elevation-changes-.7I9JEcBw3R2AqXbnJ6hyvc"
+  ]
+ },
+ {
+  "id": "nl",
+  "geo": "nl-1948",
+  "name": "Circuit Zandvoort",
+  "country": "Netherlands",
+  "lengthKm": 4.259,
+  "turns": 14,
+  "dir": "cw",
+  "width": 12,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "coastal",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.1,
+    1.5
+   ],
+   [
+    0.15,
+    4
+   ],
+   [
+    0.2,
+    8.9
+   ],
+   [
+    0.3,
+    6
+   ],
+   [
+    0.4,
+    4
+   ],
+   [
+    0.5,
+    3
+   ],
+   [
+    0.6,
+    2
+   ],
+   [
+    0.7,
+    0
+   ],
+   [
+    0.8,
+    1
+   ],
+   [
+    0.9,
+    0.5
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [],
+  "straightToT1": 690,
+  "banking": [
+   [
+    "Hugenholtzbocht",
+    3,
+    18
+   ],
+   [
+    "Arie Luyendijkbocht",
+    14,
+    18
+   ]
+  ],
+  "landmarks": [
+   "sand dunes",
+   "North Sea beach",
+   "orange grandstands"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Circuit_Zandvoort",
+   "https://topgear.nl/autonieuws/graden-zijn-de-arie-luyendijkbocht-en-hugenholtz"
+  ]
+ },
+ {
+  "id": "hu",
+  "geo": "hu-1986",
+  "name": "Hungaroring",
+  "country": "Hungary",
+  "lengthKm": 4.381,
+  "turns": 14,
+  "dir": "cw",
+  "width": 12,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "meadow",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.141,
+    -2
+   ],
+   [
+    0.25,
+    -4
+   ],
+   [
+    0.33,
+    -35
+   ],
+   [
+    0.42,
+    -20
+   ],
+   [
+    0.6,
+    -22
+   ],
+   [
+    0.8,
+    -12
+   ],
+   [
+    0.934,
+    -3
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.141
+   ],
+   [
+    "Turn 14",
+    14,
+    0.93
+   ]
+  ],
+  "landmarks": [
+   "valley amphitheatre",
+   "hillside grandstands"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Hungaroring",
+   "https://www.racefans.net/f1-information/going-to-a-race/hungaroring-circuit-information/"
+  ]
+ },
+ {
+  "id": "it",
+  "geo": "it-1922",
+  "name": "Autodromo Nazionale Monza",
+  "country": "Italy",
+  "lengthKm": 5.793,
+  "turns": 11,
+  "dir": "cw",
+  "width": 11,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "forest",
+  "elev": null,
+  "elevRange": 0,
+  "elevQ": "none",
+  "corners": [
+   [
+    "Prima Variante",
+    1,
+    0.206
+   ]
+  ],
+  "straightToT1": 1194,
+  "landmarks": [
+   "royal park trees",
+   "old banking ruins",
+   "Parabolica grandstand"
+  ],
+  "sources": [
+   "https://www.monzanet.it/en/?p=4265",
+   "https://en.wikipedia.org/wiki/Monza_Circuit"
+  ]
+ },
+ {
+  "id": "mx",
+  "geo": "mx-1962",
+  "name": "Autodromo Hermanos Rodriguez",
+  "country": "Mexico",
+  "lengthKm": 4.304,
+  "turns": 17,
+  "dir": "cw",
+  "width": 13,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "city",
+  "elev": null,
+  "elevRange": 3,
+  "elevQ": "none",
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.207
+   ],
+   [
+    "Peraltada",
+    17,
+    0.9
+   ]
+  ],
+  "straightToT1": 890,
+  "landmarks": [
+   "Foro Sol stadium",
+   "city park",
+   "Mexico City"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Aut%C3%B3dromo_Hermanos_Rodr%C3%ADguez",
+   "https://www.racefans.net/f1-information/going-to-a-race/autodromo-hermanos-rodriguez-circuit-information/"
+  ]
+ },
+ {
+  "id": "us",
+  "geo": "us-2012",
+  "name": "Circuit of the Americas",
+  "country": "USA",
+  "lengthKm": 5.513,
+  "turns": 20,
+  "dir": "acw",
+  "width": 15,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "sunset",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.035,
+    20
+   ],
+   [
+    0.07,
+    40
+   ],
+   [
+    0.1,
+    34
+   ],
+   [
+    0.14,
+    30
+   ],
+   [
+    0.22,
+    25
+   ],
+   [
+    0.3,
+    20
+   ],
+   [
+    0.4,
+    14
+   ],
+   [
+    0.5,
+    12
+   ],
+   [
+    0.6,
+    10
+   ],
+   [
+    0.7,
+    8
+   ],
+   [
+    0.8,
+    5
+   ],
+   [
+    0.9,
+    2
+   ],
+   [
+    0.95,
+    -1
+   ]
+  ],
+  "elevQ": "interpolated",
+  "overheads": [
+   [
+    0.14,
+    "pedestrian bridge"
+   ],
+   [
+    0.8,
+    "pedestrian bridge"
+   ]
+  ],
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.07
+   ],
+   [
+    "Turn 2",
+    2,
+    0.1
+   ],
+   [
+    "Turn 11",
+    11,
+    0.42
+   ],
+   [
+    "Turn 16",
+    16,
+    0.8
+   ],
+   [
+    "Turn 19",
+    19,
+    0.91
+   ],
+   [
+    "Turn 20",
+    20,
+    0.96
+   ]
+  ],
+  "landmarks": [
+   "observation tower",
+   "Texas hills",
+   "main grandstand"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Circuit_of_the_Americas",
+   "https://jalopnik.com/circuit-of-the-americas-a-turn-by-turn-guide-5856083"
+  ]
+ },
+ {
+  "id": "br",
+  "geo": "br-1940",
+  "name": "Interlagos (Jose Carlos Pace)",
+  "country": "Brazil",
+  "lengthKm": 4.309,
+  "turns": 15,
+  "dir": "acw",
+  "width": 12,
+  "raceTime": "day",
+  "type": "permanent",
+  "theme": "tropical",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.02,
+    4
+   ],
+   [
+    0.06,
+    -4
+   ],
+   [
+    0.14,
+    -14
+   ],
+   [
+    0.22,
+    -28
+   ],
+   [
+    0.3,
+    -38
+   ],
+   [
+    0.38,
+    -32
+   ],
+   [
+    0.46,
+    -24
+   ],
+   [
+    0.54,
+    -22
+   ],
+   [
+    0.62,
+    -26
+   ],
+   [
+    0.68,
+    -18
+   ],
+   [
+    0.74,
+    -10
+   ],
+   [
+    0.82,
+    -6
+   ],
+   [
+    0.9,
+    -3
+   ]
+  ],
+  "elevQ": "interpolated",
+  "corners": [
+   [
+    "Senna S",
+    1,
+    0.03
+   ],
+   [
+    "Curva do Sol",
+    3,
+    0.14
+   ],
+   [
+    "Descida do Lago",
+    4,
+    0.25
+   ],
+   [
+    "Ferradura",
+    6,
+    0.34
+   ],
+   [
+    "Laranjinha",
+    8,
+    0.4
+   ],
+   [
+    "Bico de Pato",
+    10,
+    0.5
+   ],
+   [
+    "Juncao",
+    12,
+    0.59
+   ],
+   [
+    "Subida dos Boxes",
+    14,
+    0.74
+   ]
+  ],
+  "landmarks": [
+   "Sao Paulo hillside city",
+   "reservoirs",
+   "grandstands"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Interlagos_Circuit",
+   "https://www.f1-fansite.com/?p=6731"
+  ]
+ },
+ {
+  "id": "ae",
+  "geo": "ae-2009",
+  "name": "Yas Marina Circuit",
+  "country": "Abu Dhabi",
+  "lengthKm": 5.281,
+  "turns": 16,
+  "dir": "acw",
+  "width": 13,
+  "raceTime": "dusk",
+  "type": "permanent",
+  "theme": "desert",
+  "elev": [
+   [
+    0,
+    0
+   ],
+   [
+    0.06,
+    6
+   ],
+   [
+    0.11,
+    10.7
+   ],
+   [
+    0.14,
+    6
+   ],
+   [
+    0.17,
+    2
+   ],
+   [
+    0.39,
+    1
+   ],
+   [
+    0.48,
+    1
+   ],
+   [
+    0.6,
+    0.5
+   ],
+   [
+    0.72,
+    0.5
+   ],
+   [
+    0.84,
+    1
+   ],
+   [
+    0.94,
+    1.5
+   ]
+  ],
+  "elevQ": "interpolated",
+  "tunnels": [
+   [
+    0.69,
+    0.73,
+    "under the W hotel"
+   ]
+  ],
+  "corners": [
+   [
+    "Turn 1",
+    1,
+    0.06
+   ],
+   [
+    "Turn 3",
+    3,
+    0.11
+   ],
+   [
+    "Turn 5",
+    5,
+    0.17
+   ],
+   [
+    "Turn 9",
+    9,
+    0.52
+   ],
+   [
+    "Turn 14",
+    14,
+    0.72
+   ],
+   [
+    "Turn 16",
+    16,
+    0.94
+   ]
+  ],
+  "landmarks": [
+   "W hotel with LED grid shell",
+   "marina with yachts",
+   "Ferrari World red roof"
+  ],
+  "sources": [
+   "https://en.wikipedia.org/wiki/Yas_Marina_Circuit",
+   "https://www.si.com/onsi/f1/guides/f1-abu-dhabi-grand-prix-yas-marina-circuit-track-guide"
+  ]
+ }
+]
