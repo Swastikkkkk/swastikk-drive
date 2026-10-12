@@ -590,6 +590,43 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
     </div>
   </div>
 
+  <!-- Daily Track: map preview and streak (filled by assets/daily-extras.js) -->
+  <style>
+    #ddaily-modal{overflow-y:auto}
+    #ddaily-modal .bd-in{margin:auto}
+    #ddaily-extras{margin:-4px 0 16px}
+    .dx-top{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:center}
+    .dx-map{width:150px;height:118px;display:block;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+    .dx-fam{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#4d8dff;margin-bottom:2px}
+    .dx-name{font-size:19px;font-weight:700;color:#eef0f3;line-height:1.2;margin-bottom:8px}
+    .dx-chips{display:flex;flex-wrap:wrap;gap:5px}
+    .dx-chips span{font-size:11.5px;color:var(--bone);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:3px 8px;white-space:nowrap}
+    .dx-prof{margin-top:12px}
+    .dx-prof canvas{width:100%;height:44px;display:block}
+    .dx-cap{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mute);margin-top:3px}
+    .dx-streak{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;margin-top:14px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+    .dx-big{display:flex;flex-direction:column;align-items:center;min-width:54px}
+    .dx-big b{font-size:30px;line-height:1;color:#ffb02e;font-variant-numeric:tabular-nums}
+    .dx-big span{font-size:10.5px;color:var(--mute);margin-top:3px;white-space:nowrap}
+    .dx-week{display:flex;justify-content:space-between;gap:4px}
+    .dx-dot{display:flex;flex-direction:column;align-items:center;gap:4px}
+    .dx-dot i{width:16px;height:16px;border-radius:50%;border:1.5px solid rgba(255,255,255,.18);box-sizing:border-box}
+    .dx-dot.on i{background:#ffb02e;border-color:#ffb02e}
+    .dx-dot.today i{outline:2px solid rgba(77,141,255,.6);outline-offset:2px}
+    .dx-dot em{font-style:normal;font-size:10px;color:var(--mute)}
+    .dx-side{font-size:11.5px;color:var(--mute);text-align:right;line-height:1.6;white-space:nowrap}
+    .dx-side b{color:#eef0f3;font-variant-numeric:tabular-nums}
+    .dx-line{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--bone);margin-top:8px}
+    .dx-line.warn{color:#ffb02e}
+    .dx-next{color:var(--mute)}
+    @media (max-width:480px){
+      .dx-top{grid-template-columns:110px 1fr;gap:10px}
+      .dx-map{width:110px;height:92px}
+      .dx-name{font-size:16px}
+      .dx-streak{grid-template-columns:auto 1fr;gap:10px}
+      .dx-side{grid-column:1/-1;text-align:left;display:flex;gap:14px}
+    }
+  </style>
   <!-- Daily Track Conqueror Modal & Leaderboard -->
   <div id="ddaily-modal" style="position:fixed;inset:0;background:rgba(8,8,7,.88);backdrop-filter:blur(10px);z-index:98;display:none;place-items:center;padding:24px;">
     <div class="bd-in" style="max-width:540px;">
@@ -597,9 +634,10 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
       <h3 class="disp" style="font-size:36px;margin:4px 0 10px;">Track of the Day</h3>
       <div id="ddaily-info" style="font-size:13px;color:var(--bone);margin-bottom:16px;background:rgba(255,255,255,.05);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.1);">
         <div><strong>Date:</strong> <span id="ddaily-date">Today</span></div>
-        <div><strong>Venue:</strong> <span id="ddaily-theme">Grand Meadow Circuit</span></div>
+        <div class="dx-venue"><strong>Venue:</strong> <span id="ddaily-theme">Grand Meadow Circuit</span></div>
         <div><strong>Rule:</strong> 1 lap · Valid times verified by anti-cheat</div>
       </div>
+      <div id="ddaily-extras" style="display:none"></div>
       <div class="mono" style="color:var(--bone);margin-bottom:6px;">Daily Leaderboard</div>
       <ol id="ddaily-list" style="list-style:none;margin:0 0 18px;padding:0;border-top:1px solid var(--line);max-height:220px;overflow-y:auto;"></ol>
       <div style="display:flex;gap:10px;">
@@ -777,26 +815,27 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 <script src="assets/vendor/cannon.min.js"></script>
 <script src="assets/vendor/GLTFLoader.js"></script>
 <script src="assets/vendor/OBJLoader.js"></script>
-<script src="assets/core-constants.js?v=1791811871"></script>
-<script src="assets/engine-audio.js?v=1791811871"></script>
-<script src="assets/radio.js?v=1791811871"></script>
-<script src="assets/settings.js?v=1791811871"></script>
-<script src="assets/car-builder.js?v=1791811871"></script>
-<script src="assets/vehicles.js?v=1791811871"></script>
-<script src="assets/track-drawer.js?v=1791811871"></script>
-<script src="assets/controller.js?v=1791811871"></script>
+<script src="assets/core-constants.js?v=1791815232"></script>
+<script src="assets/engine-audio.js?v=1791815232"></script>
+<script src="assets/radio.js?v=1791815232"></script>
+<script src="assets/settings.js?v=1791815232"></script>
+<script src="assets/car-builder.js?v=1791815232"></script>
+<script src="assets/vehicles.js?v=1791815232"></script>
+<script src="assets/track-drawer.js?v=1791815232"></script>
+<script src="assets/controller.js?v=1791815232"></script>
 <script src="assets/vendor/qrcode.js"></script>
-<script src="assets/qr.js?v=1791811871"></script>
-<script src="assets/race.js?v=1791811871"></script>
-<script src="assets/editor.js?v=1791811871"></script>
-<script src="assets/daily-maps.js?v=1791811871"></script>
-<script src="assets/game.js?v=1791811871"></script>
-<script src="assets/typing-sentences.js?v=1791811871"></script>
-<script src="assets/typing-keyboard.js?v=1791811871"></script>
-<script src="assets/venue-decor.js?v=1791811871"></script>
-<script src="assets/typing-bank.js?v=1791811871"></script>
-<script src="assets/typing-race.js?v=1791811871"></script>
-<script src="assets/ui-motion.js?v=1791811871"></script>
+<script src="assets/qr.js?v=1791815232"></script>
+<script src="assets/race.js?v=1791815232"></script>
+<script src="assets/editor.js?v=1791815232"></script>
+<script src="assets/daily-maps.js?v=1791815232"></script>
+<script src="assets/daily-extras.js?v=1791815232"></script>
+<script src="assets/game.js?v=1791815232"></script>
+<script src="assets/typing-sentences.js?v=1791815232"></script>
+<script src="assets/typing-keyboard.js?v=1791815232"></script>
+<script src="assets/venue-decor.js?v=1791815232"></script>
+<script src="assets/typing-bank.js?v=1791815232"></script>
+<script src="assets/typing-race.js?v=1791815232"></script>
+<script src="assets/ui-motion.js?v=1791815232"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 <!-- Vercel Speed Insights (plain-HTML setup: there is no Next.js/npm build here, so the script tag replaces the <SpeedInsights/> component) -->
 <script>window.si=window.si||function(){(window.siq=window.siq||[]).push(arguments)};</script>
