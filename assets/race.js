@@ -341,10 +341,13 @@
           localStorage.setItem(key, JSON.stringify(records.slice(0, 50)));
         } catch(e) {}
         if (window.DailyBoard) window.DailyBoard.submit(rec).then(function(ok) { if (ok && window.toastMsg) window.toastMsg('Daily time posted to the global board'); });
+        // streak + personal best for this day (assets/daily-extras.js), shown with the finish time
+        var dailyNote = '';
+        try { if (window.DailyExtras) dailyNote = window.DailyExtras.finishNote(window.DailyExtras.record(day, this.totalRaceTime), window.DailyExtras.fmt); } catch (e) {}
       }
 
       if (window.toastMsg) {
-        window.toastMsg('RACE FINISHED! Final Time: ' + this.formatTime(this.totalRaceTime));
+        window.toastMsg('RACE FINISHED! Final Time: ' + this.formatTime(this.totalRaceTime) + (this.isDaily && dailyNote ? ' · ' + dailyNote : ''));
       }
       if (window.soundBlip) {
         window.soundBlip(1040, 0.4, 0.15);

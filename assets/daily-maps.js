@@ -376,7 +376,9 @@
 
   function placeObstacles(r, p, W) {
     var n = p.length, k = Math.max(2, Math.round(10 / (perim(p) / n))), cand = [], i, out = [];
-    var wanted = wpick(r, [[0, 3], [1, 3], [2, 3], [3, 2]]), ramps = r() < .3 ? (r() < .5 ? 1 : 2) : 0;
+    // no jump ramps on the daily: it is a timed lap for a leaderboard, and a ramp on the racing line just costs time.
+    // The random draws stay so the rest of every map is unchanged.
+    var wanted = wpick(r, [[0, 3], [1, 3], [2, 3], [3, 2]]), ramps = r() < .3 ? (r() < .5 ? 1 : 2) * 0 : 0;
     for (i = 0; i < n; i++) {
       var u = i / n;
       if (u < .1 || u > .9) continue;

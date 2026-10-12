@@ -3378,7 +3378,10 @@ t.bd.position.set(x,y+.86,z);
       // stripe vertices are in car space already: bake them into the body's frame
       grp.children.forEach(o=>{if(o.geometry&&o.geometry.type==='BufferGeometry'&&!o.geometry.parameters){o.geometry.applyMatrix4(new THREE.Matrix4().copy(vis.body.matrixWorld).invert());o.position.set(0,0,0)}});
       vis.body.add(grp);car.position.copy(p0);car.quaternion.copy(q0);car.updateMatrixWorld(true)}
-    return {get,set,apply}})();
+    // the livery hangs off vis.body, beside the car body rather than inside it, so whatever hides the body (the cockpit
+    // camera) has to hide this too, or the stripes and door number float in front of the driver's eyes
+    const show=on=>{if(grp&&grp.visible!==on)grp.visible=on};
+    return {get,set,apply,show}})();
   {const gb=$('#dgarageb'),gp=$('#dgarage'),gx=$('#dgaragex'),gpaints=$('#dgpaints'),gname=$('#dgname'),gblurb=$('#dgblurb'),gcoins=$('#dgcoins'),
      gview=$('#dgview'),gcv=$('#dgcanvas'),gcname=$('#dgcname'),gcclass=$('#dgcclass'),gcount=$('#dgcount'),gdots=$('#dgdots'),gstats=$('#dgstats'),gpick=$('#dgpick');
    if(gb&&gp&&gview){
@@ -6152,7 +6155,13 @@ const PLANETS={
         // Suspension and contact friction handle touchdown. Restoring an airborne
         // speed peak here injected energy and snapped pitch/roll on first contact.
         if(onG){GLUE.air=0;GLUE.jump=false}
-        else{if(GLUE.air===0)GLUE.jump=v.y>1.6;GLUE.air+=dt}}
+        else{if(GLUE.air===0)GLUE.jump=v.y>1.6;GLUE.air+=dt}
+        /* a real jump on a circuit (a kicker, a crest at speed): ease pitch and roll back toward level while airborne,
+           so the nose-up rotation a ramp gives the car settles instead of carrying on into a backflip on landing.
+           Yaw is left alone. Air control (rolls/flips) was removed, so nothing here fights the player. */
+        if(!onG&&GLUE.jump&&GLUE.air>.1&&MODE==='circuit'){const q=chassisB.quaternion,w=chassisB.angularVelocity;
+          const ux=2*(q.x*q.y-q.w*q.z),uz=2*(q.y*q.z+q.w*q.x),k=Math.min(1,dt*3.2);   // the car's up vector (x and z parts)
+          w.x+=(-uz*2.4-w.x)*k;w.z+=(ux*2.4-w.z)*k}}
    // hang time: a launch floats (about 13 m/s2 net instead of 24) so there is time for a roll or a flip   // a real jump (ramp, crest at speed) is left alone all the way down
        if(!onG&&!GLUE.jump&&GLUE.air<.35&&!inPond&&padT<=0){const v=chassisB.velocity;if(v.y<1.6){const blend=Math.min(1,GLUE.air/.08,(.35-GLUE.air)/.08);v.y-=18*dt*blend}}
        }
@@ -6519,7 +6528,7 @@ const PLANETS={
       const CM=CAMS[effCamMode],pf=W<H?1.5:1;
       const camDir = lookBehind ? tmp.copy(fwd).negate() : fwd;
       if(PCAR&&PCAR.glass&&PCAR.glassOff!==!!CM.fp){PCAR.glassOff=!!CM.fp;PCAR.glass.forEach(m=>m.visible=!CM.fp)}   // no tinted screen in front of a cockpit view
-      {const ck=!!CM.cock&&!lookBehind&&!(MODE==='world'&&CABLE.cine);if(COCK.g.visible!==ck&&spd.parentNode)spd.parentNode.style.visibility=ck?'hidden':'';COCK.g.visible=ck;if(PCAR&&PCAR.g.visible===ck)PCAR.g.visible=!ck;if(wv&&wv.car[0]&&wv.car[0].w.visible===ck)wv.car.forEach(k=>k.w.visible=!ck)}   // body and wheels would sit across the view   // every frame: a car change mid-cockpit brings a fresh, visible body
+      {const ck=!!CM.cock&&!lookBehind&&!(MODE==='world'&&CABLE.cine);if(COCK.g.visible!==ck&&spd.parentNode)spd.parentNode.style.visibility=ck?'hidden':'';COCK.g.visible=ck;if(PCAR&&PCAR.g.visible===ck)PCAR.g.visible=!ck;LIVERY.show(!ck);if(wv&&wv.car[0]&&wv.car[0].w.visible===ck)wv.car.forEach(k=>k.w.visible=!ck)}   // body and wheels would sit across the view   // every frame: a car change mid-cockpit brings a fresh, visible body
       if(CM.cock&&!lookBehind&&!(MODE==='world'&&CABLE.cine)){/* the driver's seat: the eye, a touch of head movement with the road, looking down the road */
         COCK.g.updateMatrixWorld(true);COCK.eye.getWorldPosition(camT);
         /* the driver's head: thrown to the outside in a corner, forward under braking, back when accelerating,
@@ -6542,6 +6551,10 @@ const PLANETS={
       else{const ty=TYPEF.on?1:0,dist=(CM.d+Math.min(5,sp*.2)*CM.k+ce*1.9+ty*3)*pf,hgt=(CM.h+Math.min(2,sp*.07)*CM.k+ce*.7+ty*1.4)*pf;   // typing race: a step back so the whole car clears the panel
         camT.copy(car.position).addScaledVector(fwd,-dist).add(tmp.set(0,hgt,0));
         C.position.lerp(camT,1-Math.exp(-dt*(active?CM.lag:3.2)));
+        // driving under a flyover: keep the camera below the deck, or it rises through it and the deck hides the car
+        if(MODE==='circuit'&&circuit&&circuit.decks&&circuit.decks.length){const fl=car.position.y+.8;
+          let c=deckCeil(camT.x,camT.z,car.position.y);if(c<camT.y)camT.y=Math.max(fl,c);
+          c=deckCeil(C.position.x,C.position.z,car.position.y);if(c<C.position.y)C.position.y=Math.max(fl,c)}
         lookT.copy(car.position).addScaledVector(fwd,CM.ahead).add(tmp.set(0,CM.ly,0))}
       if(!PHOTO&&CABLE.cam(camT,lookT,dt)){if(!CABLE.cine0){CABLE.cp.copy(C.position);CABLE.cine0=true}CABLE.cp.lerp(camT,1-Math.exp(-dt*2.5));C.position.copy(CABLE.cp)}else CABLE.cine0=false;
       if(PHOTO){/* dev only (?dev=1): a fixed shot of the car from its own frame, for checking the models */
@@ -6718,6 +6731,10 @@ const PLANETS={
   const CIRC_ELEV={flat:0,rolling:5,hilly:12,mountain:22};   // peak height change around the lap, metres
   let CIRC_LEVEL=[];let circuit=null,worldSave=null,circU0=-1,circLap=0,circLapT0=0,circBest=null,worldFogSave=null,worldGSave=null,worldWeatherSave=null;
   function circAt(u,curve){u=((u%1)+1)%1;const p=curve.getPointAt(u).clone();const tg=curve.getTangentAt(u);const hl=Math.hypot(tg.x,tg.z)||1;return {p,tg,n:new THREE.Vector3(-tg.z/hl,0,tg.x/hl)}}
+  /* the lowest flyover deck overhead at (x,z) that is well above a car at height carY, minus clearance for the slab;
+     Infinity when there is none. Used to keep the chase camera under a bridge the car is driving beneath. */
+  function deckCeil(x,z,carY){const D=circuit&&circuit.decks;if(!D||!D.length)return Infinity;const R=CIRC_W/2+BARRIER_OFF+2,R2=R*R;let c=Infinity;
+    for(let i=0;i<D.length;i++){const d=D[i],dx=d.x-x,dz=d.z-z;if(dx*dx+dz*dz<R2&&d.y>carY+2.5&&d.y-2<c)c=d.y-2}return c}
   let circRoadM=null;
   function f1Road(){if(circRoadM)return circRoadM;const W=256,H=512,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
     x.fillStyle='#2e2f32';x.fillRect(0,0,W,H);const im=x.getImageData(0,0,W,H),d=im.data;
@@ -6947,6 +6964,8 @@ const PLANETS={
        jump up to the deck (a step you could hit). The ramps start ~50 m out, where the ground still follows this road,
        so the hand-over at the foot of the ramp is seamless. */
     const roadY=(u,x,z)=>{const lf=liftAt(u);if(!ELEV)return CIRC_Y+lf;const g=groundAt(x,z)+lf;if(lf<.01)return g;const k=SM(Math.min(1,lf/.4));return g*(1-k)+curve.getPointAt(((u%1)+1)%1).y*k};
+    // flyover decks as points every ~3 m, so the chase camera can stay under a bridge you are driving beneath (deckCeil)
+    const DECKS=[];if(BRIDGES.length){const n=Math.ceil(curve.getLength()/3);for(let i=0;i<n;i++){const u=i/n;if(liftAt(u)<.5)continue;const p=curve.getPointAt(u);DECKS.push({x:p.x,z:p.z,y:roadY(u,p.x,p.z)})}}
     const hFn=ELEV?groundAt:null,hRoad=ELEV||BRIDGES.length?(x,z,u)=>roadY(u,x,z):null,liftEff=(u,x,z)=>roadY(u,x,z)-(ELEV?groundAt(x,z):CIRC_Y);
     let minY=CIRC_Y;for(let i=0;i<DN;i++)minY=Math.min(minY,DY[i]);
     BT('path+index');
@@ -7117,7 +7136,7 @@ const PLANETS={
           const ax=A.p.x+A.n.x*sd*oa,az=A.p.z+A.n.z*sd*oa,bx=B.p.x+B.n.x*sd*ob,bz=B.p.z+B.n.z*sd*ob,L=Math.hypot(bx-ax,bz-az);if(L<.5)continue;
           const y=roadY((ua+ub)/2,(A.p.x+B.p.x)/2,(A.p.z+B.p.z)/2),yaw=Math.atan2(bx-ax,bz-az);tq.setFromAxisAngle(UPv,yaw);
           tp.set((ax+bx)/2,y+.55,(az+bz)/2);ts.set(1,1,L+.1);tm.compose(tp,tq,ts);if(wn<400){wallIM.setMatrixAt(wn,tm);tp.y=y+1.1;tm.compose(tp,tq,ts);strIM.setMatrixAt(wn,tm);wn++}
-          const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(.4,2.2,L/2+.6)));b.position.set((ax+bx)/2,y-.6,(az+bz)/2);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);barrierBodies.push(b)}};
+          const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(.4,2.2,L/2+.6)));b.__ov=.45;b.position.set((ax+bx)/2,y-.6,(az+bz)/2);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);barrierBodies.push(b);bridgeBodies.push(b)}};   // bridgeBodies: the pits are built after barrierBodies was copied into it, so pit walls were never removed with the track and stayed behind as invisible walls
       wallRun(PIT.w0,PIT.w1,()=>EDGE-.6);                                  // pit wall: openings at both ends
       wallRun(PIT.d0-6,PIT.d1+6,d=>Math.max(EDGE,offAt(d)+PIT.half+1.2));    // outer wall, following the taper
       wallIM.count=strIM.count=wn;wallIM.instanceMatrix.needsUpdate=strIM.instanceMatrix.needsUpdate=true;
@@ -7170,7 +7189,7 @@ const PLANETS={
           /* 3.2 m thick, grown outward so the face the car meets stays where it was: at 140 km/h a car moves ~0.6 m
              per physics step, and a 0.7 m wall let the solver resolve the overlap out the far side */
           const nX=dz/L*side,nZ=-dx/L*side,o2=1.6*(nX*(x-cp.x)+nZ*(z-cp.z)>0?1:-1);
-          const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(1.6,(top-bot)/2,L/2+1.5)));   /* long overlaps: no seam to slip through between pieces on a bend */
+          const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(1.6,(top-bot)/2,L/2+1.5)));b.__ov=1.35;   /* long overlaps: no seam to slip through between pieces on a bend */
           b.position.set(x+nX*o2,(top+bot)/2,z+nZ*o2);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);barrierBodies.push(b);
           const vis=Math.max(gb,ry)-gb;   // the rail is drawn at road level (the settle pass adds the ground height on hills)
           if(lf<=.22&&nr<railIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,CIRC_Y+.66+vis,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);sc.set(1,1,1);pp.set(x,CIRC_Y+.4+vis,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}
@@ -7515,7 +7534,8 @@ const PLANETS={
         const rubber=addMat(M(0x1b1a18)),cap=corners.length*22;if(!cap)return;
         const tyreGeo=new THREE.CylinderGeometry(.75,.75,.55,10).rotateX(Math.PI/2);  // lay the tyre flat-faced toward the track
         const im=new THREE.InstancedMesh(tyreGeo,rubber,cap);im.castShadow=!LOW;root.add(im);let k=0;
-        corners.forEach(ci=>{for(let d=-4;d<=4;d+=2){const i=(ci+d+SN)%SN,a=SA[i],s=outSide(i),off=HALF+BARRIER_OFF+1.6;
+        corners.forEach(ci=>{for(let d=-4;d<=4;d+=2){const i=(ci+d+SN)%SN;if(liftAt(i/SN)>.3)continue;   // a corner on a flyover: beyond the deck edge there is nothing under them, so they floated
+          const a=SA[i],s=outSide(i),off=HALF+BARRIER_OFF+1.6;
           const bx=a.p.x+a.n.x*s*off,bz=a.p.z+a.n.z*s*off,yaw=Math.atan2(a.tg.x,a.tg.z);Q.setFromAxisAngle(up,yaw);
           for(let row=0;row<2&&k<cap;row++){P.set(bx,GY+.4+row*.58,bz);MX.compose(P,Q,SC);im.setMatrixAt(k++,MX)}}});
         im.count=k;im.instanceMatrix.needsUpdate=true}));
@@ -7605,7 +7625,7 @@ const PLANETS={
      ownedMats.push(yel,blk,conc,stripe,rampM);
      obsList.forEach(o=>{const t=o.t||o.type,u=((+o.u%1)+1)%1,sd=Math.max(-1,Math.min(1,Math.round(+(o.s!=null?o.s:o.side)||0)));
        if(!isFinite(u))return;const a=circAt(u,curve),yaw=Math.atan2(a.tg.x,a.tg.z),slope=Math.atan2(a.tg.y,Math.hypot(a.tg.x,a.tg.z));
-       const g=new THREE.Group();g.rotation.order='YXZ';g.rotation.set(-slope,yaw,0);g.userData.onTrack=true;root.add(g);
+       const g=new THREE.Group();g.rotation.order='YXZ';g.rotation.set(-slope,yaw,0);g.userData.onTrack=true;g.userData.obstacle=true;root.add(g);   // obstacle: meant to be on the road (see onRoad)
        if(t==='speed_breaker'){
          g.position.set(a.p.x,CIRC_Y,a.p.z);
          // full-width hump, painted in alternating bands so it reads from a distance
@@ -7618,10 +7638,21 @@ const PLANETS={
        }else if(t==='ramp'){
          // a real jump: a 9 m deck tilted 13deg up from the road, leading edge flush with the asphalt
          const lane=sd*HALF*.5;g.position.set(a.p.x+a.n.x*lane,CIRC_Y,a.p.z+a.n.z*lane);
-         const ang=.27,len=11,th=.5,w=Math.min(5.5,CIRC_W*.42),deck=new THREE.Mesh(new THREE.BoxGeometry(w,th,len),rampM);
-         deck.rotation.x=-ang;deck.position.set(0,.12+Math.sin(ang)*len/2-th/2*Math.cos(ang)+.02,0);deck.castShadow=!LOW;deck.receiveShadow=true;g.add(deck);deck.userData.solid=true;
-         const lip=new THREE.Mesh(new THREE.BoxGeometry(w,.2,.6),yel);lip.position.set(0,.12+Math.sin(ang)*len+.02,len/2*Math.cos(ang));g.add(lip);
-         for(const sx of [-1,1]){const side=new THREE.Mesh(new THREE.BoxGeometry(.25,Math.sin(ang)*len,len*.98),stripe);side.position.set(sx*(w/2+.12),.12+Math.sin(ang)*len/2,0);g.add(side)}
+         /* a curved kicker: height follows H*(s/len)^2, so it starts flat (no bump as the front wheels meet it) and bends
+            up to ~15 degrees at the lip. Built from short solid segments along that curve (each a ~2.7 degree change
+            from the last) instead of one slab tilted 13 degrees from its very first centimetre, which the car hit
+            like a kerb. Same length and lip height as before, so jumps still clear. */
+         const len=11,w=Math.min(5.5,CIRC_W*.42),H=1.47,SEG=6,t=.25,y0=.14,z0=-len/2,hAt=s=>H*(s/len)*(s/len);
+         for(let k=0;k<SEG;k++){const s0=len*k/SEG,s1=len*(k+1)/SEG,ya=y0+hAt(s0),yb=y0+hAt(s1),dz=s1-s0,ang=Math.atan2(yb-ya,dz),cl=Math.hypot(dz,yb-ya);
+           const seg=new THREE.Mesh(new THREE.BoxGeometry(w,t*2,cl+.06),rampM);seg.rotation.x=-ang;
+           seg.position.set(0,(ya+yb)/2-t*Math.cos(ang),z0+(s0+s1)/2+t*Math.sin(ang));seg.castShadow=!LOW;seg.receiveShadow=true;g.add(seg);seg.userData.solid=true}
+         // a thin tapered lead-in plate so the front edge is flush with the asphalt rather than a 14 cm step
+         {const lead=new THREE.Mesh(new THREE.BoxGeometry(w,.06,1.6),rampM);lead.rotation.x=-Math.atan2(y0-.1,1.6);lead.position.set(0,.13+(y0-.1)/2,z0-.8);lead.receiveShadow=true;g.add(lead)}
+         const lip=new THREE.Mesh(new THREE.BoxGeometry(w,.2,.5),yel);lip.position.set(0,y0+H-.08,z0+len-.25);lip.rotation.x=-Math.atan(2*H/len);g.add(lip);
+         // side cheeks that follow the curve
+         for(const sx of [-1,1]){const pos=[],idx=[],N=12;for(let i=0;i<=N;i++){const s=len*i/N;pos.push(sx*(w/2+.13),.12,z0+s,sx*(w/2+.13),y0+hAt(s)+.04,z0+s);if(i){const a=(i-1)*2;idx.push(a,a+2,a+1,a+1,a+2,a+3)}}
+           const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));sg.setIndex(idx);sg.computeVertexNormals();
+           const side=new THREE.Mesh(sg,stripe);side.material.side=THREE.DoubleSide;g.add(side)}
        }});
     }
     BT('obstacles');
@@ -7649,6 +7680,20 @@ const PLANETS={
     const addSolid=(mw,hx0,hy0,hz0,center)=>{mw.decompose(sbP,sbQ,sbS);const c=center?center.clone().applyMatrix4(mw):sbP;
       const hxs=hx0*Math.abs(sbS.x),hys=hy0*Math.abs(sbS.y),hzs=hz0*Math.abs(sbS.z);if(!(hxs>0&&hys>0&&hzs>0))return null;
       const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(hxs,hys,hzs)));b.position.set(c.x,c.y,c.z);b.quaternion.set(sbQ.x,sbQ.y,sbQ.z,sbQ.w);world.addBody(b);solidBodies.push(b);return b};
+    /* does a solid box stand on drivable road at car height? Trackside structures (start gantry, pits, towers, bridge
+       legs) are tagged onTrack, so the clearance pass above never looks at them, yet each was placed against ONE
+       point of the lap; on a twisty or self-crossing track it can land on another stretch and become a wall you crash
+       into in the middle of the road. Samples the box's footprint every ~1.5 m against the dense road samples. */
+    const obV=new THREE.Vector3(),obQ=new THREE.Quaternion();
+    const onRoad=b=>{const s=b.shapes[0];if(!s||!s.halfExtents)return false;const h=s.halfExtents;obQ.set(b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w);
+      const nx=Math.max(2,Math.ceil(h.x*2/1.5)+1),nz=Math.max(2,Math.ceil(h.z*2/1.5)+1),reach=HALFW+Math.max(h.x,h.z)+2;
+      if(trackDist(b.position.x,b.position.z,reach+4)>reach)return false;
+      for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){obV.set(-h.x+2*h.x*i/(nx-1),0,-h.z+2*h.z*j/(nz-1)).applyQuaternion(obQ);
+        const x=b.position.x+obV.x,z=b.position.z+obV.z,lo=b.position.y-h.y,hi=b.position.y+h.y;let hit=false;
+        nearIdx(x,z,HALFW,k=>{if(hit)return;const dx=DX[k]-x,dz=DZ[k]-z;if(dx*dx+dz*dz>(HALFW-.3)*(HALFW-.3))return;const ry=roadY(k/DN,DX[k],DZ[k]);if(hi>ry+.15&&lo<ry+2)hit=true});
+        if(hit)return true}
+      return false};
+    const dropSolid=b=>{try{world.removeBody(b)}catch(e){}const k=solidBodies.indexOf(b);if(k>=0)solidBodies.splice(k,1)};
     function passes(){
       const fresh=[];
       root.updateMatrixWorld(true);
@@ -7671,17 +7716,31 @@ const PLANETS={
         root.updateMatrixWorld(true)}
       root.traverse(o=>{
         if(!o.isMesh||o.userData.sb)return;o.userData.sb=true;if(!o.visible)return;for(let q=o;q&&q!==root;q=q.parent)if(!q.visible)return;
-        const add=b=>{if(b)fresh.push(b)};
+        const obs=isTagged(o,'obstacle');
+        // a solid that ended up on the road goes, mesh and all (the obstacles placed ON the road on purpose stay)
+        const add=(b,inst)=>{if(!b)return;if(!obs&&onRoad(b)){dropSolid(b);removed++;
+            if(inst==null){o.visible=false;o.userData.cleared=true}else{o.setMatrixAt(inst,ZERO);o.instanceMatrix.needsUpdate=true}return}
+          fresh.push(b)};
         if(o.userData.solid){if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const bb=o.geometry.boundingBox;bb.getCenter(sbC);add(addSolid(o.matrixWorld,(bb.max.x-bb.min.x)/2,(bb.max.y-bb.min.y)/2,(bb.max.z-bb.min.z)/2,sbC))}
         if(o.userData.solidSpan){const sp=o.userData.solidSpan,m=o.matrixWorld.clone().multiply(new THREE.Matrix4().makeTranslation(sp.ox,0,0));add(addSolid(m,sp.hx,sp.hy,sp.hz))}
         if(o.isInstancedMesh&&o.userData.solidInst){const si=o.userData.solidInst;for(let i=0;i<o.count;i++){o.getMatrixAt(i,fpI);const e=fpI.elements;if(e[0]===0&&e[5]===0&&e[10]===0)continue;
-          fpM.multiplyMatrices(o.matrixWorld,fpI).multiply(new THREE.Matrix4().makeTranslation(0,si.yo,0));add(addSolid(fpM,si.hx,si.hy,si.hz))}}});
+          fpM.multiplyMatrices(o.matrixWorld,fpI).multiply(new THREE.Matrix4().makeTranslation(0,si.yo,0));add(addSolid(fpM,si.hx,si.hy,si.hz),i)}}});
       return fresh}
     // the walls were laid at the base height too
     if(ELEV)wallBodies.forEach(b=>{b.position.y+=groundAt(b.position.x,b.position.z)-CIRC_Y});
+    /* barrier and pit-wall colliders that reach onto the road: on a tight bend the 1.5 m end overlap of a straight piece
+       swings in past the rail you can see; trim it back to the rail. A piece still on the road after that (another
+       stretch of the lap passing close) goes: a wall you cannot see in the middle of the road is the worst kind. */
+    {const shrink=b=>{const s=b.shapes[0];if(!s||!s.halfExtents||!b.__ov)return false;s.halfExtents.z=Math.max(.3,s.halfExtents.z-b.__ov);b.__ov=0;
+        if(s.updateConvexPolyhedronRepresentation)s.updateConvexPolyhedronRepresentation();if(s.updateBoundingSphereRadius)s.updateBoundingSphereRadius();
+        if(b.updateBoundingRadius)b.updateBoundingRadius();b.aabbNeedsUpdate=true;return true};
+      let trimmed=0,dropped=0;
+      barrierBodies.slice().forEach(b=>{if(!onRoad(b))return;if(shrink(b)&&!onRoad(b)){trimmed++;return}
+        try{world.removeBody(b)}catch(e){}let k=bridgeBodies.indexOf(b);if(k>=0)bridgeBodies.splice(k,1);k=barrierBodies.indexOf(b);if(k>=0)barrierBodies.splice(k,1);dropped++});
+      window.__barrierFix={trimmed,dropped}}
     passes();
     BT('passes');
-    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,BRIDGES,TL,pit:PIT,pitPts,TL,inPit:(x,z)=>{if(!PIT)return false;if(trackDist(x,z,CIRC_W)<CIRC_W/2+1)return false;for(let i=0;i<pitPts.length;i+=2){const q=pitPts[i];if(Math.abs(q.x-x)<PIT.half+1.5&&Math.abs(q.z-z)<PIT.half+1.5&&Math.hypot(q.x-x,q.z-z)<PIT.half+1)return true}return false},lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
+    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,BRIDGES,decks:DECKS,TL,pit:PIT,pitPts,TL,inPit:(x,z)=>{if(!PIT)return false;if(trackDist(x,z,CIRC_W)<CIRC_W/2+1)return false;for(let i=0;i<pitPts.length;i+=2){const q=pitPts[i];if(Math.abs(q.x-x)<PIT.half+1.5&&Math.abs(q.z-z)<PIT.half+1.5&&Math.hypot(q.x-x,q.z-z)<PIT.half+1)return true}return false},lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
     if(window.RaceEngine){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
     /* the rest streams in: a few milliseconds of jobs per frame, each batch run through the passes as it lands;
        when the queue is empty every prop set is cut into culled, distance-limited cells. Leaving (or rebuilding)
@@ -8295,6 +8354,7 @@ updCircBtn();
       const dStr = dailyDay(),seed=getDailySeed(),ms=msToMidnightUTC();
       if(dailyDateEl) dailyDateEl.textContent = dStr+' (UTC) · next track in '+Math.floor(ms/3600000)+'h '+String(Math.floor(ms/60000)%60).padStart(2,'0')+'m';
       {const th=document.getElementById('ddaily-theme');if(th)th.textContent=dailyTitle(seed)}
+      try{if(window.DailyExtras)window.DailyExtras.render(dStr)}catch(e){}   // map preview + streak (assets/daily-extras.js)
       renderDailyBoard();
       if(dailyModal) dailyModal.style.display = 'grid';
     };
