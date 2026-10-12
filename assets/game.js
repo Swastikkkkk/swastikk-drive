@@ -5769,7 +5769,7 @@ const PLANETS={
     try{Object.keys(localStorage).forEach(k=>{if(/^gl_s\d/.test(k))localStorage.removeItem(k)})}catch(e){}   // old shared slots: drop them
     let shapeFor=null,shapeH='';
     const shapeOf=c=>{if(shapeFor===c)return shapeH;let h=2166136261;const P=c.pts||[];for(const q of P){const v=Math.round(q.x*10)*31+Math.round(q.y*10);h=Math.imul(h^v,16777619)>>>0}shapeFor=c;shapeH=(h>>>0).toString(36)+P.length;return shapeH};
-    const keyOf=()=>MODE==='circuit'&&circuit?('gl_'+(circuit.daily?'d'+circuit.daily:'t'+shapeOf(circuit)+'_'+(circuit.seed|0))):MODE==='world'?'gl_valley':'';
+    const keyOf=()=>MODE==='circuit'&&circuit?('gl_'+(circuit.daily?'d'+(circuit.dailyDate||circuit.daily):'t'+shapeOf(circuit)+'_'+(circuit.seed|0))):MODE==='world'?'gl_valley':'';
     const parentOf=()=>MODE==='circuit'&&circuit?circuit.root:S;
     function build(){if(mesh){mesh.parent&&mesh.parent.remove(mesh);mesh=null}const spec=garageOf(curCarId),sv=spec.V;
       const o={paint:0x8fc4ff,r:sv.r,zf:sv.zf,zb:sv.zb,F:spec.F,B:spec.B,W:spec.W,head:headM,tail:tailM};let P=null;try{P=makeBody(spec,o)}catch(e){}
@@ -8258,6 +8258,12 @@ updCircBtn();
     }
     function dailyName(seed){const A=['Granite','Sunrise','Cobalt','Meridian','Saffron','Falcon','Copper','Ember','Silver','Juniper','Harbor','Summit'],B=['Ring','Circuit','Raceway','Loop','Speedway','Park'];
       return A[seed%A.length]+' '+B[Math.floor(seed/7)%B.length]}
+    // today's catalogue map (null if assets/daily-maps.js did not load) and the one-line description shown in the menu and toast
+    function dailyMap(){try{return window.DailyMaps?window.DailyMaps.forDate(dailyDay()):null}catch(e){return null}}
+    function dailyTitle(seed){const dm=dailyMap(),laps=DAILY_LAPS+' lap'+(DAILY_LAPS>1?'s':'');
+      if(!dm){const themes=['meadow','mountain','desert','alpine','volcanic'],t=THEMES.find(x=>x.id===themes[seed%themes.length]);return dailyName(seed)+' · '+(t?t.name:'Meadow')+' · '+laps}
+      const t=THEMES.find(x=>x.id===dm.theme),w=WEATHERS.find(x=>x.id===dm.weather),tm=dm.time!==dm.weather&&dm.time!=='day'?WEATHERS.find(x=>x.id===dm.time):null;
+      return dm.name+' · '+dm.familyLabel+' · '+(t?t.name:'')+' · '+dm.elevLabel+' · '+(w?w.label:'')+(tm?' at '+tm.label.toLowerCase():'')+' · '+(dm.lengthM/1000).toFixed(1)+' km · '+laps+' · map '+dm.no+'/'+window.DailyMaps.COUNT}
     function msToMidnightUTC(){const n=new Date();return Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate()+1)-n.getTime()}
 
     function buildDailyPoints(seed){
@@ -8288,7 +8294,7 @@ updCircBtn();
     if(dailyBtn) dailyBtn.onclick=()=>{ try{audioInit();}catch(_){}
       const dStr = dailyDay(),seed=getDailySeed(),ms=msToMidnightUTC();
       if(dailyDateEl) dailyDateEl.textContent = dStr+' (UTC) · next track in '+Math.floor(ms/3600000)+'h '+String(Math.floor(ms/60000)%60).padStart(2,'0')+'m';
-      {const th=document.getElementById('ddaily-theme');if(th){const themes=['meadow','mountain','desert','alpine','volcanic'],t=THEMES.find(x=>x.id===themes[seed%themes.length]);th.textContent=dailyName(seed)+' · '+(t?t.name:'Meadow')+' · '+DAILY_LAPS+' lap'+(DAILY_LAPS>1?'s':'')}}
+      {const th=document.getElementById('ddaily-theme');if(th)th.textContent=dailyTitle(seed)}
       renderDailyBoard();
       if(dailyModal) dailyModal.style.display = 'grid';
     };
@@ -8370,18 +8376,25 @@ updCircBtn();
       if(dailyModal) dailyModal.style.display = 'none';
       if(landing) landing.style.display = 'none';
       if(!active) try{enterDrive();}catch(_){}
-      const seed = getDailySeed();
-      const pts = buildDailyPoints(seed);
+      const seed = getDailySeed(), dm = dailyMap();
+      let pts, theme, venue;
+      if (dm) {   // one of the 1000 catalogued maps (assets/daily-maps.js): its own shape, scenery, weather, hills and width
+        pts = dm.pts;
+        theme = THEMES.find(t=>t.id===dm.theme) || THEME_DEFAULT;
+        venue = {weather:dm.weather, time:dm.time, width:dm.width, elev:dm.elev, obstacles:dm.obstacles, daily:true};
+      } else {    // catalogue script missing: the old fixed-style loop, so the daily track still works
+        pts = buildDailyPoints(seed);
+        const themes = ['meadow', 'mountain', 'desert', 'alpine', 'volcanic'];
+        theme = THEMES.find(t=>t.id===themes[seed % themes.length]) || THEME_DEFAULT;
+        venue = {weather:'day', time:'day', width:16, elev:'rolling', daily:true};
+      }
       drawPts = pts;
-      const themes = ['meadow', 'mountain', 'desert', 'alpine', 'volcanic'];
-      const themeId = themes[seed % themes.length];
-      const theme = THEMES.find(t=>t.id===themeId) || THEME_DEFAULT;
-      buildCircuit(pts, theme, seed, {weather:'day', time:'day', width:16, elev:'rolling', daily:true});
+      buildCircuit(pts, theme, dm ? dm.seed : seed, venue);
       if(circuit){circuit.daily=true;circuit.dailyDate=dailyDay();}
       enterCircuit();
       if(window.__updModes)window.__updModes();
       if(window.__dailyHold)return;
-      toastMsg('Daily Track · '+dailyName(seed)+' · '+DAILY_LAPS+' lap'+(DAILY_LAPS>1?'s':''));
+      toastMsg('Daily Track · '+dailyTitle(seed));
       restartSoloRace();
     };
   }
