@@ -32,8 +32,7 @@
     var q = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), B.clone().sub(A).normalize());
     g.applyMatrix4(new T.Matrix4().compose(A.clone().add(B).multiplyScalar(.5), q, new T.Vector3(1, 1, 1))); return g; }
   function wing(span, chord, thick, x, y, z, aoa, sweepUp) {   // an aerofoil-ish slab: thick leading edge, thin trailing edge, tips curling up
-    var n = 10, S = []; for (var i = 0; i <= n; i++) { var t = i / n; S.push([z - chord / 2 + chord * t, 0, 0, 0, 0]); }
-    var pos = [], idx = [], seg = 14;
+    var n = 5, i, pos = [], idx = [], seg = 8;
     for (var j = 0; j <= seg; j++) { var u = j / seg * 2 - 1, xx = x + u * span / 2, lift = sweepUp ? Math.pow(Math.abs(u), 6) * sweepUp : 0;
       for (var i2 = 0; i2 <= n; i2++) { var t2 = i2 / n, zz = z + chord / 2 - chord * t2, th = thick * (1 - t2 * .8) * Math.sin(Math.PI * Math.min(1, t2 * 1.4 + .15));
         var yy = y + lift + (t2 * chord) * Math.sin(aoa); pos.push(xx, yy + th / 2, zz, xx, yy - th / 2, zz); } }
@@ -58,16 +57,16 @@
     var parts = [];
     // nose + monocoque, tip at the front wing to the cockpit
     parts.push(loft([[2.98, 0, .27, .05, .04, 2.4], [2.75, 0, .29, .10, .07, 2.6], [2.3, 0, .34, .15, .11, 2.8], [1.8, 0, .40, .21, .15, 3], [1.3, 0, .46, .26, .19, 3.2],
-      [.8, 0, .50, .31, .21, 3.6], [.35, 0, .52, .35, .22, 4], [-.25, 0, .53, .37, .24, 4]], 20, true));
+      [.8, 0, .50, .31, .21, 3.6], [.35, 0, .52, .35, .22, 4], [-.25, 0, .53, .37, .24, 4]], 14, true));
     // engine cover rising into the airbox behind the driver and tapering down to the gearbox
     parts.push(loft([[-.2, 0, .58, .33, .27, 3.4], [-.45, 0, .70, .27, .36, 3], [-.8, 0, .66, .27, .31, 3], [-1.25, 0, .56, .24, .23, 3], [-1.7, 0, .47, .17, .16, 3],
-      [-2.1, 0, .41, .09, .10, 2.6], [-2.3, 0, .38, .04, .05, 2.4]], 20, true));
+      [-2.1, 0, .41, .09, .10, 2.6], [-2.3, 0, .38, .04, .05, 2.4]], 14, true));
     // shark fin
     parts.push(box(.02, .22, .9, 0, .86, -1.25, .18, 0, 0));
     // sidepods with the undercut (narrow at the bottom), each side
     [-1, 1].forEach(function (s) {
       parts.push(loft([[.5, s * .5, .43, .05, .08, 3], [.38, s * .55, .44, .22, .15, 4], [-.1, s * .56, .44, .26, .16, 4], [-.75, s * .5, .40, .21, .14, 3.5],
-        [-1.35, s * .37, .35, .12, .10, 3], [-1.75, s * .27, .32, .05, .06, 2.6]], 16, true)); });
+        [-1.35, s * .37, .35, .12, .10, 3], [-1.75, s * .27, .32, .05, .06, 2.6]], 10, true)); });
     // rear wing main plane, front wing upper flap and nose pylons in body colour
     parts.push(wing(1.0, .3, .05, 0, .82, -2.5, -.08, 0));
     parts.push(wing(1.86, .1, .015, 0, .24, 2.62, -.55, .1));
@@ -98,13 +97,13 @@
     // cockpit opening, headrest, halo, helmet and visor, steering wheel hint
     add(loft([[.35, 0, .69, .19, .02, 2.4], [-.15, 0, .73, .21, .02, 2.4]], 14, true), D);
     add(box(.5, .12, .2, 0, .72, -.2), sec);
-    var halo = new T.TorusGeometry(.36, .035, 6, 20, Math.PI); place(halo, 0, .86, .02, Math.PI / 2, 0, Math.PI / 2); add(halo, K);
+    var halo = new T.TorusGeometry(.36, .035, 4, 12, Math.PI); place(halo, 0, .86, .02, Math.PI / 2, 0, Math.PI / 2); add(halo, K);
     add(rod([0, .9, .38], [0, .66, .62], .03), K);
     [-1, 1].forEach(function (s) { add(rod([s * .36, .86, .02], [s * .34, .66, -.12], .03), K); });
-    var helmet = new T.SphereGeometry(.13, 12, 9); place(helmet, 0, .82, -.02); add(helmet, acc);
+    var helmet = new T.SphereGeometry(.13, 8, 6); place(helmet, 0, .82, -.02); add(helmet, acc);
     add(box(.2, .045, .1, 0, .84, .07), D);
     // airbox intake, T-camera, mirrors, sidepod inlets
-    var intake = new T.CylinderGeometry(.11, .13, .06, 12); place(intake, 0, 1.0, -.3, Math.PI / 2 - .2, 0, 0); add(intake, D);
+    var intake = new T.CylinderGeometry(.11, .13, .06, 8); place(intake, 0, 1.0, -.3, Math.PI / 2 - .2, 0, 0); add(intake, D);
     add(box(.08, .04, .12, 0, 1.08, -.48), 0x1a1a1a);
     [-1, 1].forEach(function (s) { add(rod([s * .28, .66, .48], [s * .44, .74, .44], .012), K); add(box(.12, .055, .03, s * .47, .76, .44), K); add(box(.03, .18, .18, s * .56, .44, .4), D); });
     // suspension: wishbones, push / pull rods, track rods (front and rear)
@@ -121,12 +120,12 @@
   function wheel(front, compound) {
     var key = (front ? 'f' : 'r') + compound; if (WHEEL[key]) return WHEEL[key];
     var w = front ? .3 : .38, r = RR, rim = .23, prof = [];
-    for (var i = 0; i <= 10; i++) { var a = -Math.PI / 2 + Math.PI * i / 10; prof.push(new T.Vector2(rim + (r - rim) * (.55 + .45 * Math.cos(a)) + .02 * Math.cos(a), w / 2 * Math.sin(a) * 1.02)); }
-    var tyre = new T.LatheGeometry(prof, 28); tyre.rotateZ(Math.PI / 2);
+    for (var i = 0; i <= 6; i++) { var a = -Math.PI / 2 + Math.PI * i / 6; prof.push(new T.Vector2(rim + (r - rim) * (.55 + .45 * Math.cos(a)) + .02 * Math.cos(a), w / 2 * Math.sin(a) * 1.02)); }
+    var tyre = new T.LatheGeometry(prof, 16); tyre.rotateZ(Math.PI / 2);
     var stripeC = { soft: 0xe10600, medium: 0xffd12e, hard: 0xf2f2f2, inter: 0x2fb34a, wet: 0x1f7ae0 }[compound] || 0xffd12e;
     var parts = [tint(tyre, 0x161616)];
-    [-1, 1].forEach(function (s) { var st = new T.TorusGeometry(.29, .011, 4, 28); st.rotateY(Math.PI / 2); st.translate(s * (w / 2 + .004), 0, 0); parts.push(tint(st, stripeC)); });
-    var cover = new T.CylinderGeometry(rim, rim, w * .82, 20); cover.rotateZ(Math.PI / 2); parts.push(tint(cover, 0x1d1e21));
+    [-1, 1].forEach(function (s) { var st = new T.TorusGeometry(.29, .011, 3, 16); st.rotateY(Math.PI / 2); st.translate(s * (w / 2 + .004), 0, 0); parts.push(tint(st, stripeC)); });
+    var cover = new T.CylinderGeometry(rim, rim, w * .82, 12); cover.rotateZ(Math.PI / 2); parts.push(tint(cover, 0x1d1e21));
     var hub = new T.CylinderGeometry(.06, .06, w + .02, 8); hub.rotateZ(Math.PI / 2); parts.push(tint(hub, 0x8a8d92));
     for (var k = 0; k < 5; k++) { var sp = new T.BoxGeometry(.012, .2, .03); sp.translate(0, .11, 0); sp.rotateX(k / 5 * Math.PI * 2); sp.translate(w * .42, 0, 0); parts.push(tint(sp, 0x3a3c40)); }
     WHEEL[key] = merge(parts); return WHEEL[key];
@@ -153,7 +152,7 @@
       var w = new T.Group(); w.position.set(W[1], RR, W[0]); var spin = new T.Mesh(wheel(W[2], o.compound || 'medium'), TYRE); spin.castShadow = false; w.add(spin); model.add(w); wheels.push({ w: w, spin: spin }); });
     // ride height: tyres on the ground at the asked-for wheel radius (the game's r) when given
     if (o.r) model.position.y = o.r - RR * k;
-    return { g: g, body: body, wheels: wheels, tail: tail, paint: paintV, f1: true };
+    return { g: g, body: body, wheels: wheels, tail: tail, paint: paintV, f1: true, shell: a, detail: b };
   }
 
   // 2026 liveries, by team (primary body, secondary flaps, accent endplates / helmet)

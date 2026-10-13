@@ -106,9 +106,9 @@
 
     // ---------- trees in the real woods and parks: one instanced set per ~300 m chunk, culled off screen ----------
     (function () {
-      var Tt = R.t, cnt = Math.min(Tt.length / 3, low ? 2000 : 6000); if (!cnt) return;
+      var Tt = R.t, cnt = Math.min(Tt.length / 3, low ? 1500 : 4000); if (!cnt) return;
       var crownM = new T.MeshStandardMaterial({ color: 0xffffff, roughness: .9, flatShading: true }), trunkM = new T.MeshLambertMaterial({ color: 0x5a4632 }); ctx.own(crownM); ctx.own(trunkM);
-      var cone = new T.ConeGeometry(1, 1, 6).translate(0, .5, 0), cyl = new T.CylinderGeometry(.12, .16, 1, 4).translate(0, .5, 0);
+      var cone = new T.ConeGeometry(1, 1, 5).translate(0, .5, 0), cyl = new T.CylinderGeometry(.12, .16, 1, 3).translate(0, .5, 0);
       var M4 = new T.Matrix4(), Q = new T.Quaternion(), P = new T.Vector3(), Sx = new T.Vector3(), c = new T.Color(), up = new T.Vector3(0, 1, 0), seed = 11, CH = 300, groups = {};
       var rnd = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
       for (var i = 0; i < cnt; i++) { var x = ox + Tt[i * 3] / 10, z = oz + Tt[i * 3 + 1] / 10, k = Math.floor(x / CH) + ',' + Math.floor(z / CH); (groups[k] || (groups[k] = [])).push(i); }

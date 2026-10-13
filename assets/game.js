@@ -174,11 +174,19 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     ULTRA.shEvery=c.shEvery;
     if(SCN.grass)SCN.grass.visible=!c.lite;if(SCN.dust)SCN.dust.visible=!c.lite;
   }
+  /* performance readout: the backquote key (left of 1) shows fps, the quality tier and what the frame draws */
+  const PERF={on:false,el:null,t:0,n:0};
+  addEventListener('keydown',e=>{if(e.code!=='Backquote')return;PERF.on=!PERF.on;
+    if(!PERF.el){PERF.el=document.createElement('div');PERF.el.style.cssText='position:fixed;left:12px;top:12px;z-index:2147483000;font:600 12px/1.45 ui-monospace,Menlo,Consolas,monospace;color:#e8ffe8;background:rgba(0,0,0,.62);padding:7px 10px;border-radius:8px;pointer-events:none;white-space:pre';document.body.appendChild(PERF.el)}
+    PERF.el.style.display=PERF.on?'block':'none'});
+  function perfHud(dt){if(!PERF.on||!PERF.el)return;PERF.t+=dt;PERF.n++;if(PERF.t<.5)return;
+    const i=R.info.render,fps=PERF.n/PERF.t;PERF.t=0;PERF.n=0;
+    PERF.el.textContent=Math.round(fps)+' fps  ·  quality '+['high','medium','low','lowest'][qTier]+'\n'+i.calls+' draws  ·  '+Math.round(i.triangles/1000)+'k triangles\nresolution x'+R.getPixelRatio().toFixed(2)+'  ·  shadows '+(R.shadowMap.enabled?'on':'off')}
   function watchFps(dt){
     if(window.Settings&&Settings.v.quality!=='auto')return;   // a quality picked in Settings stays put
     if(!active||!driving||dt<=0)return;
     const fps=1/dt;
-    if(fps<42){qGoodT=0;qBadT+=dt*1000;if(qBadT>qDownMs()&&qTier<3){setTier(qTier+1);qBadT=0}}
+    if(fps<50){qGoodT=0;qBadT+=dt*1000;if(qBadT>qDownMs()&&qTier<3){setTier(qTier+1);qBadT=0}}
     else if(fps>56){qBadT=0;qGoodT+=dt*1000;if(qGoodT>Q_UP_MS&&qTier>0){setTier(qTier-1);qGoodT=0}}
     else{qGoodT=0;qBadT=0}
   }
@@ -6052,7 +6060,7 @@ const PLANETS={
     if(SPACE.state==='surface')AUTO.tick();
     if(SPACE.state!=='earth'&&active&&MP.on)try{MP.tick(now,dt)}catch(e){}   // a room keeps talking while you are off-world
     if(SPACE.state!=='earth'){ try{SPACE.frame(dt,now);}catch(e){console.error('[space]',e);try{var b=document.getElementById('dspaceerr');if(!b){b=document.createElement('div');b.id='dspaceerr';b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:rgba(150,20,20,.96);color:#fff;font:600 12px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px 12px;white-space:pre-wrap;max-height:46vh;overflow:auto';document.body.appendChild(b);}b.textContent='SURFACE/SPACE ERROR @ state='+SPACE.state+String.fromCharCode(10)+((e&&e.stack)||(e&&e.message)||e);}catch(_){}} return; }   // space/moon takes over the frame; Earth paused
-    watchFps(dt);
+    watchFps(dt);perfHud(dt);
     /* watchdog: a countdown with no start lights to end it (or lights that never ran) must not hold the car forever */
     try{NAV.tick(dt,now)}catch(e){}
     if(window.RaceEngine&&window.RaceEngine.state==='countdown'){if(!rcSince)rcSince=now;
@@ -7141,14 +7149,14 @@ const PLANETS={
        the outer hills. (The old hilly-venue ground mesh was wound upside-down and culled, so what you actually saw
        was the flat plane below it.) The physics slab / heightfield stays the collision body. */
     {
-      const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:REAL?256:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=new Uint32Array((n2-1)*(n2-1)*6);let ii=0;
+      const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:REAL?200:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=new Uint32Array((n2-1)*(n2-1)*6);let ii=0;
       for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;{const dd=DF(x,z),sink=dd<CIRC_W/2+BARRIER_OFF+10?.35*(1-SM((dd-CIRC_W/2-BARRIER_OFF)/10)):0;pos[k+1]=(ELEV?(hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03-sink+visH(x,z)}pos[k+2]=z}
       for(let i=0;i<n2-1;i++)for(let j=0;j<n2-1;j++){const a=i*n2+j,b=(i+1)*n2+j;idx[ii++]=a;idx[ii++]=a+1;idx[ii++]=b;idx[ii++]=b;idx[ii++]=a+1;idx[ii++]=b+1}
       const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(new THREE.BufferAttribute(idx,1));decorate(tg);
       const terrainMesh=new THREE.Mesh(tg,terrainMat);terrainMesh.name='terrain';terrainMesh.receiveShadow=true;terrainMesh.userData.fixedY=terrainMesh.userData.onTrack=true;root.add(terrainMesh);
       /* real circuits: the rest of the measured terrain out to ~1 km past the track and a skirt beyond it, coarser,
          leaving out the square the near terrain already covers (sunk a hair so the two never fight) */
-      if(REAL){const D=REAL,OS=LOW?40:24,ax0=CIRC_X+D.x0-1500,az0=CIRC_Z+D.z0-1500,ax1=CIRC_X+D.x0+(D.nx-1)*D.cell+1500,az1=CIRC_Z+D.z0+(D.nz-1)*D.cell+1500;
+      if(REAL){const D=REAL,OS=LOW?44:32,ax0=CIRC_X+D.x0-1500,az0=CIRC_Z+D.z0-1500,ax1=CIRC_X+D.x0+(D.nx-1)*D.cell+1500,az1=CIRC_Z+D.z0+(D.nz-1)*D.cell+1500;
         const nx=Math.ceil((ax1-ax0)/OS)+1,nz=Math.ceil((az1-az0)/OS)+1,P=new Float32Array(nx*nz*3),I=[];
         for(let a=0;a<nx;a++)for(let b=0;b<nz;b++){const x=ax0+a*OS,z=az0+b*OS,k=(a*nz+b)*3;P[k]=x;P[k+1]=BASE(x,z)-.25;P[k+2]=z}
         const inIn=(x,z)=>x>cx-half2&&x<cx+half2&&z>cz-half2&&z<cz+half2;
@@ -8020,6 +8028,7 @@ const PLANETS={
         const P=circAt(a.u,Cc.curve),x=P.p.x+P.n.x*a.lane,z=P.p.z+P.n.z*a.lane,y=Cc.roadY?Cc.roadY(a.u,x,z):Cc.groundAt?Cc.groundAt(x,z):P.p.y;   // the road's own surface, so over a flyover, not under it
         const yaw=Math.atan2(P.tg.x,P.tg.z),pitch=Math.atan2(P.tg.y,Math.hypot(P.tg.x,P.tg.z));
         const G=a.car.g;G.position.set(x,y+.02,z);G.rotation.set(-pitch,yaw,0);
+        if(a.car.shell){const dc=Math.hypot(x-C.position.x,z-C.position.z);a.car.shell.castShadow=dc<60;a.car.detail.visible=dc<140}   // far rivals: no shadow, no small parts
         const acc=dt>0?(a.spd-a.pv)/dt:0;a.pv=a.spd;a.dive+=(Math.max(-.03,Math.min(.03,acc*.012))-a.dive)*Math.min(1,dt*5);a.car.body.rotation.x=a.dive;
         a.car.tail.emissiveIntensity=(acc<-.6||a.spd<.4)?1.9:.55;
         let dy=a.py==null?0:yaw-a.py;if(dy>Math.PI)dy-=Math.PI*2;if(dy<-Math.PI)dy+=Math.PI*2;a.py=yaw;
