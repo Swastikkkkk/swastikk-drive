@@ -8371,6 +8371,18 @@ updCircBtn();
     const mpBtn = document.getElementById('dlnd-mp');
     const dailyBtn = document.getElementById('dlnd-daily');
     const editorBtn = document.getElementById('dlnd-editor');
+    const f1Sel = document.getElementById('dlnd-f1-sel');
+    const f1Go = document.getElementById('dlnd-f1-go');
+    if(f1Sel && window.F1 && window.F1.list){
+      window.F1.list().forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.name+' · '+c.country;f1Sel.appendChild(o)});
+    }
+    if(f1Go) f1Go.onclick=()=>{ try{audioInit();}catch(_){}
+      if(!f1Sel||!f1Sel.value) return;
+      if(landing) landing.style.display='none';
+      if(!active) try{enterDrive();}catch(_){}
+      try{ if(!window.F1.build(f1Sel.value,{race:false,share:false})) toastMsg('Could not load that circuit'); }
+      catch(e){ console.error('F1 build failed',e); toastMsg('Could not load that circuit'); }
+    };
 
     if(minBtn && boxEl){
       minBtn.onclick = () => {
@@ -9373,14 +9385,16 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
    const T=(id,title,sub,wide)=>`<button class="t${wide?' wide':''}" data-go="${id}"><b>${title}</b><span>${sub}</span></button>`;
    const main=()=>{el.innerHTML='<div class="hm"><h1>SketchRacer</h1><p class="sub">Pick how you want to play.</p><div class="grid">'+
      T('free','Free drive','Open valley, ramps, the summit and the cable car',true)+T('chill','Chillout room','Your crew\'s saved room · no link needed')+T('mp','Multiplayer','Race up to 4 friends with a room code')+T('daily',"Daily track","Today's circuit and its leaderboard")+
-     T('typing','Typing','Type to drive: practice or the daily test')+T('draw','Draw a track','Sketch a circuit and race it')+T('garage','Garage','Pick a car or make your own')+T('settings','Settings','Sound, graphics, controls')+'</div></div>'};
+     T('typing','Typing','Type to drive: practice or the daily test')+T('draw','Draw a track','Sketch a circuit and race it')+T('f1','F1 circuits','25 real tracks at real size, with landmarks')+T('garage','Garage','Pick a car or make your own')+T('settings','Settings','Sound, graphics, controls')+'</div></div>'};
    const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
      T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
+   const f1=()=>{const L=(window.F1&&F1.list())||[];el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>F1 circuits</h1><p class="sub">Real layouts from GPS, at real size.</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+
+     L.map(c=>T('f1:'+c.id,c.name,c.country+' · '+(c.lengthM/1000).toFixed(3)+' km'+(c.raceTime==='night'?' · night':c.raceTime==='dusk'?' · dusk':''))).join('')+'</div></div>'};
    const close=after=>{if(!HOME.on)return;HOME.on=false;try{HOME.putAway&&HOME.putAway(false)}catch(_){}el.classList.add('out');document.body.classList.remove('homeon');driving=wasDriving||true;setTimeout(()=>{el.remove()},500);if(after)setTimeout(after,120)};
    const btn=id=>()=>{const b=document.getElementById(id);if(b)b.click()};
    const ACT={free:()=>close(btn('dmfree')),mp:()=>close(btn('droom')),chill:()=>close(()=>{btn('droom')();setTimeout(()=>{const c=document.getElementById('dmpchill');if(c)c.click()},250)}),daily:()=>close(btn('dmdaily')),draw:()=>close(btn('dcircb')),garage:()=>close(()=>window.__openGarage&&window.__openGarage()),
-     settings:()=>close(()=>window.Settings&&Settings.open()),typing,home:main,tfast:()=>close(btn('dmtype')),tdaily:()=>close(()=>{try{audioInit()}catch(_){}if(window.TypingRace)TypingRace.start()})};
-   el.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;try{audioInit()}catch(_){}ACT[b.dataset.go]&&ACT[b.dataset.go]()});
+     settings:()=>close(()=>window.Settings&&Settings.open()),typing,f1,home:main,tfast:()=>close(btn('dmtype')),tdaily:()=>close(()=>{try{audioInit()}catch(_){}if(window.TypingRace)TypingRace.start()})};
+   el.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;try{audioInit()}catch(_){}const g=b.dataset.go;if(g.startsWith('f1:')){const id=g.slice(3);close(()=>{try{if(!window.F1.build(id,{race:false,share:false}))(typeof toastMsg==='function'&&toastMsg('Could not load that circuit'))}catch(err){console.error('F1 build failed',err);(typeof toastMsg==='function'&&toastMsg('Could not load that circuit'))}});return}ACT[g]&&ACT[g]()});
    addEventListener('keydown',e=>{if(HOME.on&&e.code==='Escape')close()},true);
    main();
    // the camera: high over the summit lookout, panning slowly across the valley, with the haze pulled back
