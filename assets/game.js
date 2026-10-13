@@ -6625,7 +6625,7 @@ const PLANETS={
     {const z=ZN,e=.08;
      // a custom venue is open ground out to the mountains, so clear weather there gets a much longer view than the tight valley map
      // and the summit lookout pulls the haze back so the whole valley shows below
-     const fk=MODE==='circuit'?(fogFar0>=200?3.6:Math.max(1,420/Math.max(1,fogFar0))):CABLE.high()?Math.max(9,2600/Math.max(1,fogFar0)):recapCam?3.8:1,fn=fk>1?2.4:1;   // on a venue even snow / fog keeps ~400 m of view, or the scenery is a white-out
+     const fk=MODE==='circuit'?(fogFar0>=200?3.6:Math.max(1,420/Math.max(1,fogFar0)))*(circuit&&circuit.real?3.6:1):CABLE.high()?Math.max(9,2600/Math.max(1,fogFar0)):recapCam?3.8:1,fn=fk>1?2.4:1;   // on a venue even snow / fog keeps ~400 m of view, or the scenery is a white-out
      // phones: the valley's darker bands no longer close the haze in to ~100 m, and the view runs further out
      const zf=TOUCH&&MODE!=='circuit'?Math.max(.85,z.fog)*1.35:z.fog;
      S.fog.far+=(fogFar0*zf*fk-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,zf)*fn-S.fog.near)*e;
@@ -6864,6 +6864,13 @@ const PLANETS={
     CIRC_W=Math.max(8,Math.min(30,+venue.width||(window.TrackEditor&&window.TrackEditor.roadWidth)||16));venue.width=CIRC_W;
     /* a real circuit brings its own height profile ([lap fraction, metres] from the start line) or just a height range;
        otherwise the named setting (flat / rolling / hilly / mountain) drives the seeded hills as before */
+    /* real circuits: the measured terrain around the track (assets/real/<id>.json via F1Real), heights in metres relative
+       to the road at the start line, on a grid in the same centred coordinates as pts2D. BASE is the ground height
+       away from the road; near it groundAt still follows the road (the cuttings and embankments come from that) */
+    const REAL=venue.dem&&venue.dem.h?venue.dem:null;
+    const demRel=REAL?((x,z)=>{const D=REAL,fi=(x-CIRC_X-D.x0)/D.cell,fj=(z-CIRC_Z-D.z0)/D.cell,i=Math.max(0,Math.min(D.nx-2,Math.floor(fi))),j=Math.max(0,Math.min(D.nz-2,Math.floor(fj))),
+      tx=Math.max(0,Math.min(1,fi-i)),tz=Math.max(0,Math.min(1,fj-j)),H=D.h,n=D.nx;return (H[j*n+i]*(1-tx)+H[j*n+i+1]*tx)*(1-tz)+(H[(j+1)*n+i]*(1-tx)+H[(j+1)*n+i+1]*tx)*tz}):null;
+    const BASE=REAL?((x,z)=>CIRC_Y+demRel(x,z)):(()=>CIRC_Y);
     const PROF=Array.isArray(venue.elevProfile)&&venue.elevProfile.length>=3?venue.elevProfile.map(a=>[((+a[0]%1)+1)%1,+a[1]||0]).sort((a,b)=>a[0]-b[0]):null;
     const ELEV=PROF?Math.max(1,...PROF.map(a=>Math.abs(a[1]))):(+venue.elevM>0?+venue.elevM:(CIRC_ELEV[venue.elev]||0));venue.elev=CIRC_ELEV[venue.elev]!=null?venue.elev:'flat';
     theme=theme||THEME_DEFAULT;
@@ -6964,9 +6971,9 @@ const PLANETS={
     for(let a=0;a<GNX;a++)for(let b=0;b<GNZ;b++){if(!GRID[a*GNZ+b])continue;for(let da=-3;da<=3;da++)for(let db=-3;db<=3;db++){const aa=a+da,bb=b+db;if(aa>=0&&aa<GNX&&bb>=0&&bb<GNZ)NEAR[aa*GNZ+bb]=1}}
     const nearTrack=(x,z)=>{const gx=Math.floor(x/CELL)-GX0,gz=Math.floor(z/CELL)-GZ0;return gx>=0&&gx<GNX&&gz>=0&&gz<GNZ&&NEAR[gx*GNZ+gz]===1};
     const CUT=CIRC_W/2+BARRIER_OFF+1.5,CUTF=16;
-    const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;if(!nearTrack(x,z))return CIRC_Y;let ws=H0W,hs=H0W*CIRC_Y,bq=1e9,by=0,bi=-1;
+    const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;if(!nearTrack(x,z))return BASE(x,z);let ws=H0W,hs=H0W*(REAL?BASE(x,z):CIRC_Y),bq=1e9,by=0,bi=-1;
       nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,fw=1-SM(DL[i]/1.5),w=1/(q*q)*fw;ws+=w;hs+=w*DY[i];if(fw>.5&&q<bq){bq=q;bi=i}});
-      const g=hs/ws;if(bq>=1e9)return g;
+      const g=REAL?BASE(x,z):hs/ws;if(bq>=1e9)return g;
       {const seg=(a,b)=>{const ax=DX[a],az=DZ[a],ex=DX[b]-ax,ez=DZ[b]-az,L2=ex*ex+ez*ez||1,t=Math.max(0,Math.min(1,((x-ax)*ex+(z-az)*ez)/L2)),px=ax+ex*t-x,pz=az+ez*t-z;return [px*px+pz*pz,DY[a]+(DY[b]-DY[a])*t]};
        const A=seg(bi,(bi+1)%DN),B=seg((bi-1+DN)%DN,bi),C=A[0]<=B[0]?A:B;by=C[1];bq=C[0]+1}const d=Math.sqrt(bq-1);if(d<=CUT)return by;if(d<CUT+CUTF){const k=SM((d-CUT)/CUTF);return by*(1-k)+g*k}return g};   // a bridge in the air shapes no ground   // a bridge in the air shapes no ground
     /* the road's surface: the ground on hills, except where a bridge lifts it, which follows its own planned line */
@@ -7024,7 +7031,7 @@ const PLANETS={
       // no render mesh for the physics ground: the visual terrain below draws the ground (this one was built and hidden)
       groundMesh=new THREE.Mesh(new THREE.BufferGeometry(),groundMat);root.add(groundMesh);
       field=new THREE.Mesh(new THREE.PlaneGeometry((half+2600)*2,(half+2600)*2).rotateX(-Math.PI/2),fieldMat);
-      field.position.set(cx,lo-.6,cz);field.receiveShadow=true;root.add(field);
+      field.position.set(cx,REAL?CIRC_Y+Math.min(REAL.min,REAL.sea!=null?REAL.sea:1e9)-8:lo-.6,cz);field.receiveShadow=true;root.add(field);
     }
     BT('ground+physics');
     groundMesh.userData.fixedY=field.userData.fixedY=true;groundMesh.userData.onTrack=field.userData.onTrack=true;
@@ -7035,7 +7042,7 @@ const PLANETS={
        Everything is seeded by the venue seed, so every driver in a room sees the same landscape. */
     const nOff=(seed%997)*.37,ctr=new THREE.Color(theme.ground),cfl=new THREE.Color(theme.field),cdirt=new THREE.Color(theme.trunk).lerp(new THREE.Color(0x8a7656),.55),crock=new THREE.Color(0x77736c);
     const paleTheme=theme.id==='snow'||theme.id==='alpine';
-    const visH=(x,z)=>{
+    const visH=(x,z)=>{if(REAL)return 0;
       const d=Math.min(DF(x,z),110),ramp=SM((d-70)/60),rr=Math.hypot(x-cx,z-cz);
       const bowl=SM((rr-r0)/60)*(1-SM((rr-r0-80)/60))*16;       // hills around the arena that settle back to the plain
       return ramp*((fbm2(x*.011+nOff,z*.011-nOff)-.86)*13+(fbm2(x*.04-nOff,z*.04+nOff)-.86)*3)+bowl*(.55+.9*noise2(x*.02+nOff,z*.02))};
@@ -7067,11 +7074,22 @@ const PLANETS={
        the outer hills. (The old hilly-venue ground mesh was wound upside-down and culled, so what you actually saw
        was the flat plane below it.) The physics slab / heightfield stays the collision body. */
     {
-      const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=new Uint32Array((n2-1)*(n2-1)*6);let ii=0;
+      const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:REAL?320:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=new Uint32Array((n2-1)*(n2-1)*6);let ii=0;
       for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;{const dd=DF(x,z),sink=dd<CIRC_W/2+BARRIER_OFF+10?.35*(1-SM((dd-CIRC_W/2-BARRIER_OFF)/10)):0;pos[k+1]=(ELEV?(hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03-sink+visH(x,z)}pos[k+2]=z}
       for(let i=0;i<n2-1;i++)for(let j=0;j<n2-1;j++){const a=i*n2+j,b=(i+1)*n2+j;idx[ii++]=a;idx[ii++]=a+1;idx[ii++]=b;idx[ii++]=b;idx[ii++]=a+1;idx[ii++]=b+1}
       const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(new THREE.BufferAttribute(idx,1));decorate(tg);
       const terrainMesh=new THREE.Mesh(tg,terrainMat);terrainMesh.name='terrain';terrainMesh.receiveShadow=true;terrainMesh.userData.fixedY=terrainMesh.userData.onTrack=true;root.add(terrainMesh);
+      /* real circuits: the rest of the measured terrain out to ~1 km past the track and a skirt beyond it, coarser,
+         leaving out the square the near terrain already covers (sunk a hair so the two never fight) */
+      if(REAL){const D=REAL,OS=LOW?30:15,ax0=CIRC_X+D.x0-1500,az0=CIRC_Z+D.z0-1500,ax1=CIRC_X+D.x0+(D.nx-1)*D.cell+1500,az1=CIRC_Z+D.z0+(D.nz-1)*D.cell+1500;
+        const nx=Math.ceil((ax1-ax0)/OS)+1,nz=Math.ceil((az1-az0)/OS)+1,P=new Float32Array(nx*nz*3),I=[];
+        for(let a=0;a<nx;a++)for(let b=0;b<nz;b++){const x=ax0+a*OS,z=az0+b*OS,k=(a*nz+b)*3;P[k]=x;P[k+1]=BASE(x,z)-.25;P[k+2]=z}
+        const inIn=(x,z)=>x>cx-half2&&x<cx+half2&&z>cz-half2&&z<cz+half2;
+        for(let a=0;a<nx-1;a++)for(let b=0;b<nz-1;b++){const x=ax0+a*OS,z=az0+b*OS;if(inIn(x,z)&&inIn(x+OS,z)&&inIn(x,z+OS)&&inIn(x+OS,z+OS))continue;const q=a*nz+b,r=(a+1)*nz+b;I.push(q,q+1,r,r,q+1,r+1)}
+        const og=new THREE.BufferGeometry();og.setAttribute('position',new THREE.BufferAttribute(P,3));og.setIndex(I);decorate(og);
+        const om=new THREE.Mesh(og,terrainMat);om.name='terrain-real';om.receiveShadow=true;om.userData.fixedY=om.userData.onTrack=true;root.add(om);
+        if(D.sea!=null){const wm=M(0x2c6d8c,{roughness:.25,metalness:.15});ownedMats.push(wm);const sea=new THREE.Mesh(new THREE.PlaneGeometry(40000,40000).rotateX(-Math.PI/2),wm);
+          sea.position.set(cx,CIRC_Y+D.sea-.05,cz);sea.name='sea';sea.userData.fixedY=sea.userData.onTrack=true;root.add(sea)}}
       groundMesh.visible=false}
     BT('terrain');
     const gy=(x,z)=>CIRC_Y+visH(x,z);                 // where props sit: the visual ground (ELEV venues are lifted by the settle pass later)
@@ -7095,7 +7113,7 @@ const PLANETS={
           if((i+(side>0?1:0))%2===0)curbRedIM.setMatrixAt(redN++,mx0);else curbWhiteIM.setMatrixAt(whiteN++,mx0)}}
       curbRedIM.count=redN;curbWhiteIM.count=whiteN;curbRedIM.instanceMatrix.needsUpdate=true;curbWhiteIM.instanceMatrix.needsUpdate=true}
 // perimeter barrier wall: one continuous strip just outside the paved plate, all the way round
-    {const wallMat=M(0xd9d4c6,{roughness:.7});ownedMats.push(wallMat);
+    if(!REAL){const wallMat=M(0xd9d4c6,{roughness:.7});ownedMats.push(wallMat);
       /* a true ring at the arena's edge. It used to be the track's own points pushed out radially, which on a
          figure-8 (or any lap that passes the middle) folded the 7 m wall straight across the road */
       const wallCurve=new THREE.CatmullRomCurve3(Array.from({length:96},(_,k)=>{const a=k/96*Math.PI*2;
@@ -7370,7 +7388,7 @@ const PLANETS={
     if(theme.tree!=='none'){
       const kind=theme.tree,isRock=kind==='rock',isPalm=kind==='palm';
       const trunkMat=M(theme.trunk,{roughness:.9}),leafMat=M(0xffffff,{roughness:.95});ownedMats.push(trunkMat,leafMat);
-      const maxN=LOW?110:300,spots=[];
+      const maxN=REAL?0:LOW?110:300,spots=[];
       for(let tries=0;spots.length<maxN&&tries<maxN*60;tries++){
         let x,z;
         if(seeded()<.7){                       // groves in the fields beside the track, 30+ m off the pavement and inside the wall
@@ -7407,7 +7425,7 @@ const PLANETS={
           if(r2>.45){const bs=.6+r3*.9;put(bushIM,x+Math.cos(yaw)*(1.6+r1),y0+bs*.3,z+Math.sin(yaw)*(1.6+r1),bs*1.3,bs*.8,bs*1.1,yaw,0,leafCol(r3,r1,r2).multiplyScalar(.9))}});
         [trunkIM,bushIM,crown].concat(tiers).forEach(fin)}
       // scattered boulders in every venue so the ground is not just trees
-      {const rN=LOW?18:46,rIM=mk(new THREE.IcosahedronGeometry(1,1),M(0xffffff,{roughness:.98}),rN,true);
+      {const rN=REAL?0:LOW?18:46,rIM=mk(new THREE.IcosahedronGeometry(1,1),M(0xffffff,{roughness:.98}),rN,true);
         for(let i=0,tries=0;i<rN&&tries<rN*30;tries++){const x=cx+(seeded()-.5)*2*(r0+120),z=cz+(seeded()-.5)*2*(r0+120),d=trackDist(x,z,110);
           const rr=seeded(),r2=seeded();if(Math.hypot(x-cx,z-cz)<r0+8&&(d<CIRC_W/2+18||d>105)){continue}
           const sc=.5+rr*rr*2.6;col.setHex(0x77736c).multiplyScalar(.75+r2*.45);put(rIM,x,gy(x,z)+sc*.2,z,sc*1.2,sc*.65,sc,seeded()*6.28,.15,col);i++}
@@ -7419,7 +7437,7 @@ const PLANETS={
        Two layered rings of ridged peaks well beyond the arena, shaded rock to snow and hazed toward the fog colour
        with distance; the nearer one is darker and sharper. Unlit and fog-free (pre-hazed), because they sit past the
        fog distance; hazeTo() re-tints them whenever the weather changes the fog colour. */
-    {const layers=[{R:r0+380,H:LOW?60:78,haze:.5,rows:3},{R:r0+700,H:LOW?110:150,haze:.74,rows:3}],SEG=LOW?72:132,mtn=[];
+    if(!REAL){const layers=[{R:r0+380,H:LOW?60:78,haze:.5,rows:3},{R:r0+700,H:LOW?110:150,haze:.74,rows:3}],SEG=LOW?72:132,mtn=[];
       layers.forEach((L,li)=>{const rows=L.rows,pos=[],cl=[],idx=[],bc=[],snowLine=theme.id==='desert'||theme.id==='tropical'||theme.id==='coastal'?9:.62;
         for(let i=0;i<=SEG;i++){const a=i/SEG*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a);
           const ridge=1-Math.abs(fbm2(ca*5+li*9+nOff,sa*5-nOff)/1.72*2-1),h=L.H*(.35+ridge*.9)*(.8+.4*noise2(ca*13+li*3,sa*13)),r=L.R+noise2(ca*3+li,sa*3)*40;
@@ -7627,7 +7645,7 @@ const PLANETS={
 
       // --- advertising hoardings around the barrier ring + on the main straight edge ---
       JOB(()=>safe(()=>{
-        const adN=LOW?8:14;
+        const adN=REAL?0:LOW?8:14;
         for(let i=0;i<adN;i++){safe(()=>{const w=ADCOL[(seeded()*ADCOL.length)|0],word=WORDS[(seeded()*WORDS.length)|0];
           const mat=addMat(new THREE.MeshBasicMaterial({map:signTex(word,'#'+w[0].toString(16).padStart(6,'0'),'#'+w[1].toString(16).padStart(6,'0')),side:THREE.DoubleSide}));
           const ang=i/adN*Math.PI*2,rr=r0-2,bx=cx+Math.cos(ang)*rr,bz=cz+Math.sin(ang)*rr;
@@ -7644,7 +7662,7 @@ const PLANETS={
           const b=new THREE.Mesh(new THREE.PlaneGeometry(2*s+2,1.8),mat);b.position.set(0,9.5,1.35);g.add(b)})}));
 
       // --- outer car park: an asphalt apron dotted with parked cars, out past the stands ---
-      JOB(()=>safe(()=>{
+      JOB(()=>safe(()=>{if(REAL)return;
         const n=startP.n,base=r0+34,px=cx+n.x*base,pz=cz+n.z*base;
         const lotMat=addMat(M(0x2b2a27)),lot=new THREE.Mesh(new THREE.PlaneGeometry(70,46).rotateX(-Math.PI/2),lotMat);lot.position.set(px,GY+.02,pz);lot.receiveShadow=true;root.add(lot);
         const CARS=LOW?28:54,carMat=addMat(M(0xffffff)),carIM=new THREE.InstancedMesh(new THREE.BoxGeometry(2,1.3,4.3),carMat,CARS);carIM.castShadow=!LOW;root.add(carIM);
@@ -7796,7 +7814,7 @@ const PLANETS={
        when the queue is empty every prop set is cut into culled, distance-limited cells. Leaving (or rebuilding)
        before it finishes simply stops it: the jobs check that this is still the live circuit. */
     const me=circuit,haze0=new THREE.Color(theme.fog);
-    if(window.VenueDecor)JOBS.push(...window.VenueDecor.jobs({THREE,root,theme,seeded,M,addMat:m=>{ownedMats.push(m);return m},LOW,CIRC_W,BARRIER_OFF,CIRC_Y,TL,cx,cz,r0,
+    if(window.VenueDecor&&!REAL)JOBS.push(...window.VenueDecor.jobs({THREE,root,theme,seeded,M,addMat:m=>{ownedMats.push(m);return m},LOW,CIRC_W,BARRIER_OFF,CIRC_Y,TL,cx,cz,r0,
       alongT,trackDist,blocked:pitNear,gy:(x,z)=>CIRC_Y+visH(x,z),ground:(x,z)=>(ELEV?groundAt(x,z):CIRC_Y)+visH(x,z),noise2,startP}));
     let ji=0;
     const pumpJobs=()=>{
@@ -7981,7 +7999,7 @@ const PLANETS={
     const list=()=>window.F1_CIRCUITS||[],get=id=>list().find(c=>c.id===id)||null;
     const TIME={night:'night',dusk:'sunset',day:'day'};
     function seedOf(id){let h=2166136261;for(const ch of String(id))h=Math.imul(h^ch.charCodeAt(0),16777619);return (h>>>1)%2147483646+1}
-    function landmarks(c){const L=window.F1Landmarks&&window.F1Landmarks[c.id];if(!L||!circuit)return;
+    function landmarks(c){const L=window.F1Landmarks&&window.F1Landmarks[c.id];if(!circuit)return;
       const C=circuit,cv=C.curve,TLc=cv.getLength(),seedR=(()=>{let a=seedOf(c.id);return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}})();
       const mats=[],box=new THREE.Box3(),tq=new THREE.Quaternion(),tp=new THREE.Vector3(),ts=new THREE.Vector3(),tc=new THREE.Vector3();
       const ctx={THREE,root:C.root,lengthM:TLc,roadHalf:CIRC_W/2,clear:CIRC_W/2+BARRIER_OFF+2,night:c.raceTime==='night',dusk:c.raceTime==='dusk',theme:C.theme&&C.theme.id,
@@ -7993,11 +8011,14 @@ const PLANETS={
         mat(color,o){const m=new THREE.MeshStandardMaterial(Object.assign({color,roughness:.8,metalness:0},o||{}));mats.push(m);return m},
         basic(color,o){const m=new THREE.MeshBasicMaterial(Object.assign({color},o||{}));mats.push(m);return m},
         add(o){o.userData.fixedY=true;o.userData.landmark=true;C.root.add(o);return o},
+        own(m){mats.push(m);return m},ox:CIRC_X,oz:CIRC_Z,low:LOW,
         // a static collision box matching a mesh (its own geometry box, rotated with it), removed with the track
         solid(mesh){try{mesh.updateMatrixWorld(true);const g=mesh.geometry;if(!g)return;if(!g.boundingBox)g.computeBoundingBox();g.boundingBox.getCenter(tc);g.boundingBox.getSize(ts);
           mesh.matrixWorld.decompose(tp,tq,box.min);const sx=Math.abs(box.min.x),sy=Math.abs(box.min.y),sz=Math.abs(box.min.z);tc.applyMatrix4(mesh.matrixWorld);
           const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(ts.x*sx/2,ts.y*sy/2,ts.z*sz/2)));b.position.set(tc.x,tc.y,tc.z);b.quaternion.set(tq.x,tq.y,tq.z,tq.w);world.addBody(b);C.bodies.push(b)}catch(e){}}};
-      try{L(ctx)}catch(e){console.warn('F1 landmarks',c.id,e)}
+      const RW=window.F1Real&&F1Real.get(c.id);
+      if(RW){try{const t0=performance.now(),m=F1Real.build(RW,ctx);console.log('real surroundings',c.id,m,Math.round(performance.now()-t0)+' ms')}catch(e){console.warn('F1 real surroundings',c.id,e)}}
+      else if(L)try{L(ctx)}catch(e){console.warn('F1 landmarks',c.id,e)}
       C.ownedMats=(C.ownedMats||[]).concat(mats)}
     function build(id,o){o=o||{};const c=get(id);if(!c)return false;
       try{audioInit()}catch(_){}if(!active)try{enterDrive()}catch(_){}try{if(SPACE.state!=='earth')SPACE.forceEarth()}catch(e){}
@@ -8006,14 +8027,18 @@ const PLANETS={
       const pts=c.pts.map(a=>({x:a[0]-cx,y:a[1]-cz}));drawPts=pts;
       const theme=THEMES.find(t=>t.id===c.theme)||THEME_DEFAULT,time=TIME[c.raceTime]||'day';
       const venue={weather:'day',time,width:c.width||14,f1:c.id,tunnels:c.tunnels||[],overheads:c.overheads||[],bridgeU:c.bridgeU};
-      if(c.elev&&c.elev.length>=3){venue.elev='hilly';venue.elevProfile=c.elev}else if(c.elevRange>0){venue.elev='rolling';venue.elevM=c.elevRange/2}else venue.elev='flat';
-      buildCircuit(pts,theme,seedOf(c.id),venue);if(!circuit)return false;circuit.f1=c.id;landmarks(c);
+      const RW=window.F1Real&&F1Real.get(c.id);
+      if(RW){venue.elev='hilly';venue.elevProfile=RW.prof;venue.dem=RW.dem}   // real terrain and the road's measured/researched profile
+      else if(c.elev&&c.elev.length>=3){venue.elev='hilly';venue.elevProfile=c.elev}else if(c.elevRange>0){venue.elev='rolling';venue.elevM=c.elevRange/2}else venue.elev='flat';
+      buildCircuit(pts,theme,seedOf(c.id),venue);if(!circuit)return false;circuit.f1=c.id;circuit.real=!!RW;landmarks(c);
       enterCircuit();if(window.__updModes)window.__updModes();
       if(o.laps)raceCfg.laps=Math.max(1,Math.min(50,o.laps|0));
-      toastMsg(c.name+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns');
+      toastMsg(c.name+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns'+(RW?' · map data © OpenStreetMap contributors':''));
       try{if(o.share!==false&&MP&&MP.shareVenue)MP.shareVenue({pts,seed:seedOf(c.id),scenery:theme.id,weather:'day',time,width:venue.width,elev:venue.elev,f1:c.id})}catch(e){}
       if(o.race!==false)restartSoloRace();return true}
-    return {list,get,build,has:id=>!!get(id)}})();
+    function ready(id,fn){if(!window.F1Real||F1Real.get(id)){fn();return}let done=false;const t=setTimeout(()=>{if(!done)try{toastMsg('Loading the real surroundings…')}catch(_){}},250);
+      F1Real.load(id).then(()=>{done=true;clearTimeout(t);fn()})}
+    return {list,get,build,ready,has:id=>!!get(id)}})();
   const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
   const circCx=circCv?circCv.getContext('2d'):null;
   let drawPts=[],drawingNow=false,pendingTrack=null,drawRS=[],drawObs=[],drawTool='draw';
@@ -9225,7 +9250,7 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
     // received someone else's venue: build the identical circuit and drop into it
     function adoptVenue(m){try{
       // an F1 circuit: build it from the shared catalogue by id (identical for everyone, and its 1000+ points never travel)
-      if(m.f1&&window.F1&&window.F1.has(m.f1)){const key='f1:'+m.f1;if(key===mpVenueKey&&MODE==='circuit')return;mpVenueKey=key;lastVenue=m;window.F1.build(m.f1,{race:false,share:false});toast2('Joined the room venue');return}
+      if(m.f1&&window.F1&&window.F1.has(m.f1)){const key='f1:'+m.f1;if(key===mpVenueKey&&MODE==='circuit')return;mpVenueKey=key;lastVenue=m;window.F1.ready(m.f1,()=>{window.F1.build(m.f1,{race:false,share:false});toast2('Joined the room venue')});return}
       if(!Array.isArray(m.pts)||m.pts.length<8||m.pts.length>400)return;
       const pts=m.pts.map(a=>({x:num(a&&a[0],-1e4,1e4,0),y:num(a&&a[1],-1e4,1e4,0)}));
       const seed=num(m.seed,1,2147483647,271828),key=venueKey(pts,seed,JSON.stringify([+m.w||16,m.el||'flat',m.ob||[]]));
@@ -9402,8 +9427,8 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
      '<div class="pair">'+S('mp','Multiplayer','Up to 4 friends')+S('daily','Daily track',"Today's leaderboard")+S('chill','Chillout room',"Your crew's room")+S('typing','Typing','Type to drive')+S('draw','Draw a track','Sketch it, race it')+S('garage','Garage','Pick or build a car')+'</div></div></div>'};
    const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
      T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
-   const f1c=id=>{const c=window.F1&&F1.get(id);if(!c)return f1();el.innerHTML='<div class="hm"><button class="back" data-go="f1">‹ Back</button><h1>'+c.name+'</h1><p class="sub">'+c.country+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+T('f1p:'+id,'Practice','Drive the circuit on your own')+T('f1m:'+id,'Race a friend','Open a room on this circuit')+T('f1g:'+id,'Grand Prix','5 laps against the 2026 F1 grid')+'</div></div>'};
-   const f1=()=>{const L=(window.F1&&F1.list())||[];el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>F1 circuits</h1><p class="sub">Real layouts from GPS, at real size.</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+
+   const f1c=id=>{const c=window.F1&&F1.get(id);if(!c)return f1();if(window.F1Real)F1Real.load(id);el.innerHTML='<div class="hm"><button class="back" data-go="f1">‹ Back</button><h1>'+c.name+'</h1><p class="sub">'+c.country+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+T('f1p:'+id,'Practice','Drive the circuit on your own')+T('f1m:'+id,'Race a friend','Open a room on this circuit')+T('f1g:'+id,'Grand Prix','5 laps against the 2026 F1 grid')+'</div></div>'};
+   const f1=()=>{const L=(window.F1&&F1.list())||[];el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>F1 circuits</h1><p class="sub">Real layouts, terrain and surroundings. Map data © OpenStreetMap contributors.</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+
      L.map(c=>T('f1:'+c.id,c.name,c.country+' · '+(c.lengthM/1000).toFixed(3)+' km'+(c.raceTime==='night'?' · night':c.raceTime==='dusk'?' · dusk':''))).join('')+'</div></div>'};
    const close=after=>{if(!HOME.on)return;HOME.on=false;try{HOME.putAway&&HOME.putAway(false)}catch(_){}el.classList.add('out');document.body.classList.remove('homeon');driving=wasDriving||true;setTimeout(()=>{el.remove()},500);if(after)setTimeout(after,120)};
    window.__homeClose=close;
@@ -9411,9 +9436,9 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
    const ACT={free:()=>close(btn('dmfree')),mp:()=>close(btn('droom')),chill:()=>close(()=>{btn('droom')();setTimeout(()=>{const c=document.getElementById('dmpchill');if(c)c.click()},250)}),daily:()=>close(btn('dmdaily')),draw:()=>close(btn('dcircb')),garage:()=>close(()=>window.__openGarage&&window.__openGarage()),
      settings:()=>close(()=>window.Settings&&Settings.open()),typing,f1,story:()=>window.Story&&window.Story.open(el),home:main,tfast:()=>close(btn('dmtype')),tdaily:()=>close(()=>{try{audioInit()}catch(_){}if(window.TypingRace)TypingRace.start()})};
    el.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;try{audioInit()}catch(_){}const g=b.dataset.go;if(g.startsWith('f1:')){f1c(g.slice(3));return}
-     if(/^f1[pmg]:/.test(g)){const mode=g[2],id=g.slice(4),fail=()=>(typeof toastMsg==='function'&&toastMsg('Could not load that circuit'));close(()=>{try{if(mode==='p'){if(!window.F1.build(id,{race:false,share:false}))fail();return}
+     if(/^f1[pmg]:/.test(g)){const mode=g[2],id=g.slice(4),fail=()=>(typeof toastMsg==='function'&&toastMsg('Could not load that circuit'));close(()=>F1.ready(id,()=>{try{if(mode==='p'){if(!window.F1.build(id,{race:false,share:false}))fail();return}
        if(mode==='m'){if(!window.F1.build(id,{race:false,share:true}))fail();btn('droom')();return}
-       window.__f1GP=true;const ok=window.F1.build(id,{race:true,laps:5});window.__f1GP=false;if(!ok)fail()}catch(err){window.__f1GP=false;console.error('F1 build failed',err);fail()}});return}ACT[g]&&ACT[g]()});
+       window.__f1GP=true;const ok=window.F1.build(id,{race:true,laps:5});window.__f1GP=false;if(!ok)fail()}catch(err){window.__f1GP=false;console.error('F1 build failed',err);fail()}}));return}ACT[g]&&ACT[g]()});
    addEventListener('keydown',e=>{if(HOME.on&&e.code==='Escape')close()},true);
    main();
    // the camera: high over the summit lookout, panning slowly across the valley, with the haze pulled back

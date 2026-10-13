@@ -56,8 +56,9 @@
         toast('Level ' + lv.n + ' · ' + lv.name + ' · finish P' + lv.target + ' or better against ' + lv.rivals + ' rivals');
       } catch (e) { window.__raceGrid = null; window.__onRaceFinish = null; console.error('Story level failed', e); }
     };
+    var ready = function () { if (window.F1 && F1.ready) F1.ready(lv.circuit, go); else go(); };
     var close = window.__homeClose;
-    if (typeof close === 'function') close(go); else go();
+    if (typeof close === 'function') close(ready); else ready();
   }
 
   function open(container) {
