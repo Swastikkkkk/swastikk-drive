@@ -6774,6 +6774,44 @@ const PLANETS={
     x.putImageData(im,0,0);x.fillStyle='rgba(240,238,232,.95)';x.fillRect(W*.012,0,W*.022,H);x.fillRect(W*(1-.012-.022),0,W*.022,H);
     const t=new THREE.CanvasTexture(c);t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;t.__shared=true;
     circRoadM=M(0xffffff,{roughness:.86});circRoadM.map=t;return circRoadM}
+  /* ---------- trackside textures (small canvases, tiled; built once per circuit) ---------- */
+  const hexCss=h=>'#'+new THREE.Color(h).getHexString();
+  function texFinish(c,rx,ry,srgb){const t=new THREE.CanvasTexture(c);t.wrapS=rx?THREE.RepeatWrapping:THREE.ClampToEdgeWrapping;t.wrapT=ry?THREE.RepeatWrapping:THREE.ClampToEdgeWrapping;
+    t.anisotropy=R.capabilities&&R.capabilities.getMaxAnisotropy?Math.min(8,R.capabilities.getMaxAnisotropy()):4;
+    if(srgb&&'encoding' in t&&THREE.sRGBEncoding)t.encoding=THREE.sRGBEncoding;return t}
+  /* 16 m of painted concrete barrier: sponsor panels (invented names), accent and white bands, panel joints, a little grime.
+     The top row of the canvas is plain concrete: the wall's top face samples it. */
+  function wallTex(accent){const W=2048,H=128,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+    const acc=hexCss(accent),names=['VELOCITA','NOVA OIL','AEROTEK','ZENITH','TURBOLINE','APEX CAPITAL','HELIX','MERIDIAN'],
+      bgs=['#f1f0ec',acc,'#1c3f8e','#f1f0ec','#d92b2b','#f1f0ec','#14161a','#f1f0ec'],fgs=['#c4161c','#ffffff','#ffffff','#1c3f8e','#ffffff','#14161a','#f5c400','#d92b2b'];
+    x.fillStyle='#cfcec8';x.fillRect(0,0,W,H);
+    for(let i=0;i<8;i++){const px=i*256;
+      x.fillStyle=bgs[i];x.fillRect(px+2,16,252,64);
+      x.fillStyle=fgs[i];x.font='italic 800 34px Arial,Helvetica,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(names[i],px+128,50);
+      x.fillStyle='#f4f3ef';x.fillRect(px,82,256,14);x.fillStyle=acc;x.fillRect(px,96,256,24);x.fillStyle='#f4f3ef';x.fillRect(px,120,256,3);
+      x.fillStyle='rgba(30,30,28,.55)';x.fillRect(px,0,2,H);x.fillRect(px+128,16,1,104)}
+    const g=x.createLinearGradient(0,60,0,H);g.addColorStop(0,'rgba(40,36,30,0)');g.addColorStop(1,'rgba(40,36,30,.38)');x.fillStyle=g;x.fillRect(0,60,W,H-60);
+    x.fillStyle='#c9c8c2';x.fillRect(0,0,W,12);
+    for(let i=0;i<1400;i++){x.fillStyle='rgba('+(hash2(i,1.3)>.5?'0,0,0':'255,255,255')+','+(.03+hash2(i,2.7)*.05)+')';x.fillRect(hash2(i,3.1)*W,hash2(i,5.3)*H,1+hash2(i,7.7)*3,1+hash2(i,9.1)*2)}
+    return texFinish(c,true,false,true)}
+  /* across-the-lap ground strip: run-off tarmac out to the barrier, then a mown verge; U runs across, V along (tile = 16 m) */
+  function vergeTex(theme,HW,half,edge){const W=512,H=128,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+    const gc=new THREE.Color(theme.field||theme.ground),gr=gc.g>gc.r*1.12&&gc.g>gc.b*1.12,gcol=new THREE.Color(theme.ground);
+    const im=x.createImageData(W,H),d=im.data,ppm=W/(2*HW);
+    for(let i=0;i<W;i++){const m=Math.abs((i+.5)/ppm-HW);let r,g,b,nz=0;
+      if(m<half+2){r=.2;g=.205;b=.22;nz=.05}
+      else if(m<edge){r=.31;g=.315;b=.33;nz=.07;const q=m-half-2;if(q>.05&&q<.28){r=.62;g=.62;b=.6;nz=.03}}     // a painted line at the run-off's edge
+      else if(m<edge+.55){r=.2;g=.2;b=.2}
+      else if(gr){const band=Math.floor((m-edge)/1.8)%2,k=band?1.12:.88;r=gc.r*k;g=gc.g*k;b=gc.b*k;nz=.09}
+      else{const k=.92+((Math.floor((m-edge)/1.8))%2)*.1;r=gcol.r*k;g=gcol.g*k;b=gcol.b*k;nz=.08}
+      for(let j=0;j<H;j++){const n=(hash2(i*1.7,j*2.3)-.5)*nz+(noise2(i*.08,j*.12)-.5)*nz*.8,k=(j*W+i)*4;
+        d[k]=Math.max(0,Math.min(255,(r+n)*255));d[k+1]=Math.max(0,Math.min(255,(g+n)*255));d[k+2]=Math.max(0,Math.min(255,(b+n)*255));d[k+3]=255}}
+    x.putImageData(im,0,0);return texFinish(c,false,true,false)}
+  /* gravel trap: beige grit with darker stones, tiled over ~6 m */
+  function gravelTex(){const P=128,c=document.createElement('canvas');c.width=c.height=P;const x=c.getContext('2d');
+    x.fillStyle='#b4a584';x.fillRect(0,0,P,P);
+    for(let i=0;i<1800;i++){const v=hash2(i,1.1),s=.8+hash2(i,2.2)*1.6;x.fillStyle=v>.66?'rgba(235,225,200,.55)':v>.33?'rgba(110,98,78,.5)':'rgba(150,138,112,.5)';x.fillRect(hash2(i,3.3)*P,hash2(i,4.4)*P,s,s)}
+    return texFinish(c,true,true,false)}
   function circStrip(curve,Nseg,w,yo,mat,rep,hFn){const pos=[],idx=[],uv=[];
     for(let i=0;i<=Nseg;i++){const {p,n}=circAt(i/Nseg,curve),nx=n.x*w/2,nz=n.z*w/2;
       if(!isFinite(p.x)||!isFinite(p.y)||!isFinite(p.z)||!isFinite(n.x)||!isFinite(n.z)) continue;
@@ -7280,8 +7318,20 @@ const PLANETS={
       /* Pieces are laid along the barrier's own line, not the centre line: on the outside of a tight bend the
          barrier is much longer than the road, and centre-line spacing left metre-wide gaps you could drive through. */
       const DSN=Math.max(400,Math.round(TL/1.5));
+      /* ---- how the barrier looks (physics is unchanged): painted sponsor concrete in most stretches, silver Armco in the rest,
+         and a tyre wall with a gravel trap in front of it on the outside of every tight corner ---- */
+      const sd0=((+seed||0)%97+97)%97,concFrac=(venue&&venue.f1)?.85:.7,TKN=DSN+1,tightA=new Float32Array(TKN),outSideA=new Int8Array(TKN),thw=Math.max(2,Math.round(DSN*18/TL));
+      for(let i=0;i<TKN;i++){const a=curve.getTangentAt((((i-thw)/DSN)%1+1)%1),b=curve.getTangentAt((((i+thw)/DSN)%1+1)%1),la=Math.hypot(a.x,a.z)||1,lb=Math.hypot(b.x,b.z)||1;
+        tightA[i]=Math.acos(Math.max(-1,Math.min(1,(a.x*b.x+a.z*b.z)/(la*lb))));outSideA[i]=(a.x*b.z-a.z*b.x)>0?-1:1}
+      const wPos=[],wUv=[],wIdx=[],wS=[0,0],gPos=[],gUv=[],gIdx=[];
+      const wallM=M(0xffffff,{roughness:.8,side:THREE.DoubleSide});wallM.map=wallTex(railOf(theme));ownedMats.push(wallM);
+      const gravM=M(0xffffff,{roughness:1});gravM.map=gravelTex();ownedMats.push(gravM);
+      const tyreCap=LOW?300:800,tyreM=M(0xffffff,{roughness:.95});ownedMats.push(tyreM);
+      const tyreIM=new THREE.InstancedMesh(new THREE.CylinderGeometry(.42,.42,.36,7),tyreM,tyreCap);tyreIM.castShadow=false;tyreIM.receiveShadow=true;tyreIM.frustumCulled=false;tyreIM.count=0;tyreIM.userData.fixedY=tyreIM.userData.onTrack=true;
+      let tn=0;const tyreCols=[0x1c1c1e,0x1c1c1e,0x1c1c1e,0x26262a,0x26262a,0xdcdcd8,0xc0262b,0x1f4fb0].map(c=>new THREE.Color(c)),qI=new THREE.Quaternion();
+      const bse=(Pq,uq)=>{const cq2=circAt(uq,curve).p,g=ELEV?groundAt(Pq.x,Pq.z):CIRC_Y,r=roadY(uq,cq2.x,cq2.z);return [Math.max(g,r),Math.min(g,r)]};
       for(const side of [-1,1]){let A=null,uA=0;
-        const put=(P0,P1,u)=>{const dx=P1.x-P0.x,dz=P1.z-P0.z,L=Math.hypot(dx,dz);if(L<.5)return;const x=(P0.x+P1.x)/2,z=(P0.z+P1.z)/2,yaw=Math.atan2(dx,dz);
+        const put=(P0,P1,u,uP,uQ)=>{const dx=P1.x-P0.x,dz=P1.z-P0.z,L=Math.hypot(dx,dz);if(L<.5)return;const x=(P0.x+P1.x)/2,z=(P0.z+P1.z)/2,yaw=Math.atan2(dx,dz);
           const lf=liftAt(u);if(trackDistL(x,z,off+2,lf)<off-1.5)return;          // another part of the track at this level is closer than ours: no wall across it
           if(inPitSpan(u,side))return;                                               // the pit lane has its own walls
           if(L>8&&(trackDistL(P0.x+dx*.25,P0.z+dz*.25,off+2,lf)<off-1.5||trackDistL(P0.x+dx*.75,P0.z+dz*.75,off+2,lf)<off-1.5))return;   // a long piece: check along it too
@@ -7296,7 +7346,24 @@ const PLANETS={
           const b=new CANNON.Body({mass:0,material:barM});b.addShape(new CANNON.Box(new CANNON.Vec3(1.6,(top-bot)/2,L/2+1.5)));b.__ov=1.35;   /* long overlaps: no seam to slip through between pieces on a bend */
           b.position.set(x+nX*o2,(top+bot)/2,z+nZ*o2);b.quaternion.setFromAxisAngle(cup,yaw);world.addBody(b);barrierBodies.push(b);
           const vis=Math.max(gb,ry)-gb;   // the rail is drawn at road level (the settle pass adds the ground height on hills)
-          if(lf<=.22&&nr<railIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,CIRC_Y+.66+vis,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);sc.set(1,1,1);pp.set(x,CIRC_Y+.4+vis,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}
+          const k0=Math.round(u*DSN)%DSN,outTight=lf<=.22&&tightA[k0]>.9&&side===outSideA[k0]&&tn+4<=tyreCap,
+            conc=lf<=.22&&hash2(Math.floor(u*TL/110)*1.7+side*13.3,4.1+sd0)<concFrac;
+          if(outTight||conc){
+            const ux=dx/L,uz=dz/L,sg=o2>0?1:-1,oX=nX*sg,oZ=nZ*sg,[h0,l0]=bse(P0,uP),[h1,l1]=bse(P1,uQ);
+            if(outTight){   // tyre wall: two columns outside the barrier line, three and two high, with a gravel trap in front
+              const nT=Math.max(1,Math.round(L/.9));
+              for(let kk=0;kk<nT;kk++){const f=(kk+.5)/nT,bx=P0.x+dx*f,bz=P0.z+dz*f,by=h0+(h1-h0)*f;
+                for(let col=0;col<2;col++)for(let row=0;row<2-col;row++){if(tn>=tyreCap)break;
+                  const sh=(row+col)%2?.4:0;pp.set(bx+oX*(.45+col*.85)+ux*sh,by+.19+row*.37,bz+oZ*(.45+col*.85)+uz*sh);mx.compose(pp,qI,sc);tyreIM.setMatrixAt(tn,mx);
+                  tyreIM.setColorAt(tn,tyreCols[(hash2(tn*1.3,kk*.7+3)*tyreCols.length)|0]);tn++}}
+              const gw=BARRIER_OFF-1.9,gb0=h0+.05,gb1=h1+.05,i0x=P0.x-oX*gw,i0z=P0.z-oZ*gw,i1x=P1.x-oX*gw,i1z=P1.z-oZ*gw,v=gPos.length/3;
+              gPos.push(i0x,gb0,i0z,i1x,gb1,i1z,P1.x,gb1,P1.z,P0.x,gb0,P0.z);gUv.push(i0x/5,i0z/5,i1x/5,i1z/5,P1.x/5,P1.z/5,P0.x/5,P0.z/5);gIdx.push(v,v+2,v+1,v,v+3,v+2)}
+            else{   // painted concrete wall, 1.05 m high; the top face samples the plain strip at the top of the texture
+              const a0x=P0.x-ux*.15,a0z=P0.z-uz*.15,a1x=P1.x+ux*.15,a1z=P1.z+uz*.15,T=.35,H=1.05,b0=Math.max(l0,h0-1.5)-.05,b1=Math.max(l1,h1-1.5)-.05,t0=h0+H,t1=h1+H,
+                si=side>0?1:0,flip=(uz*oX-ux*oZ)<=0?-1:1,su=wS[si]/16*flip,eu=(wS[si]+L)/16*flip,vb=wPos.length/3;wS[si]+=L;
+              wPos.push(a0x,b0,a0z,a1x,b1,a1z,a1x,t1,a1z,a0x,t0,a0z,a0x,t0,a0z,a1x,t1,a1z,a1x+oX*T,t1,a1z+oZ*T,a0x+oX*T,t0,a0z+oZ*T);
+              wUv.push(su,.02,eu,.02,eu,.94,su,.94,su,.97,eu,.97,eu,.97,su,.97);wIdx.push(vb,vb+1,vb+2,vb,vb+2,vb+3,vb+4,vb+5,vb+6,vb+4,vb+6,vb+7)}}
+          else if(lf<=.22&&nr<railIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,CIRC_Y+.66+vis,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);sc.set(1,1,1);pp.set(x,CIRC_Y+.4+vis,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}
           else if(lf>.22&&nb<bRailIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,ry+.66,z);mx.compose(pp,q,sc);bRailIM.setMatrixAt(nb,mx);sc.set(1,1,1);pp.set(x,ry+.4,z);mx.compose(pp,q,sc);bPostIM.setMatrixAt(nb,mx);nb++;bRailIM.count=bPostIM.count=nb;bRailIM.instanceMatrix.needsUpdate=bPostIM.instanceMatrix.needsUpdate=true}};
         /* a piece runs on until it is 24 m long or the barrier line bends away from it by more than ~0.35 m: one box
            per 24 m on the straights instead of one per 6 m (1,100 static bodies on a 2.4 km lap slowed every
@@ -7306,11 +7373,28 @@ const PLANETS={
         for(let i=0;i<=DSN;i++){const u=i/DSN,{p,n}=circAt(u,curve),P={x:p.x+n.x*side*off,z:p.z+n.z*side*off};
           if(!A){A=P;uA=u;continue}
           const L=Math.hypot(P.x-A.x,P.z-A.z),onBridge=liftAt(u)>.05||liftAt(uA)>.05;
-          if(L>=6&&(onBridge||L>24||!fits(A,P))&&prev){put(A,prev,(uA+uPrev)/2);A=prev;uA=uPrev;mid=[]}
-          if(i===DSN){put(A,P,(uA+u)/2);break}
+          if(L>=6&&(onBridge||L>24||!fits(A,P))&&prev){put(A,prev,(uA+uPrev)/2,uA,uPrev);A=prev;uA=uPrev;mid=[]}
+          if(i===DSN){put(A,P,(uA+u)/2,uA,u);break}
           if(prev)mid.push(prev);prev=P;uPrev=u}}
       railIM.count=postIM.count=nr;railIM.instanceMatrix.needsUpdate=postIM.instanceMatrix.needsUpdate=true;
-      if(railIM.setColorAt){const ca=new THREE.Color(0xd9dde3),cb=new THREE.Color(railOf(theme));for(let i=0;i<nr;i++)railIM.setColorAt(i,i%2?cb:ca);railIM.instanceColor.needsUpdate=true}}
+      if(railIM.setColorAt){const ca=new THREE.Color(0xd2d6db),cb=new THREE.Color(0xb3b8bf);for(let i=0;i<nr;i++)railIM.setColorAt(i,i%2?cb:ca);railIM.instanceColor.needsUpdate=true}
+      const flatMesh=(pos,uv,idx,m)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
+        const o=new THREE.Mesh(g,m);o.receiveShadow=true;o.userData.fixedY=o.userData.onTrack=true;root.add(o);return o};
+      if(wIdx.length)flatMesh(wPos,wUv,wIdx,wallM);
+      if(gIdx.length)flatMesh(gPos,gUv,gIdx,gravM);
+      if(tn){tyreIM.count=tn;tyreIM.instanceMatrix.needsUpdate=true;if(tyreIM.instanceColor)tyreIM.instanceColor.needsUpdate=true;root.add(tyreIM)}
+      /* run-off tarmac out to the barrier and a mown verge beyond it, one ribbon round the lap (skipped on raised sections) */
+      {const HW=CIRC_W/2+BARRIER_OFF+3.4,RV=Math.max(CN,Math.min(1600,Math.round(TL/2.5))),vp=[],vu=[],vi=[],rv=TL/16,bk=.7/(2*HW),vm=M(0xffffff,{roughness:1});
+        vm.map=vergeTex(theme,HW,CIRC_W/2,CIRC_W/2+BARRIER_OFF);vm.polygonOffset=true;vm.polygonOffsetFactor=-1;vm.polygonOffsetUnits=-1;ownedMats.push(vm);
+        let prevOk=false;
+        for(let i=0;i<=RV;i++){const u=i/RV,{p,n}=circAt(u,curve);if(!isFinite(p.x)||!isFinite(n.x)||!isFinite(p.z)){prevOk=false;vp.push(0,0,0,0,0,0,0,0,0,0,0,0);vu.push(0,0,0,0,0,0,0,0);continue}
+          const yc=hRoad?hRoad(p.x,p.z,u):p.y,ok=liftAt(u)<.02;
+          vp.push(p.x-n.x*HW,yc-.3,p.z-n.z*HW,p.x-n.x*(HW-.7),yc+.012,p.z-n.z*(HW-.7),p.x+n.x*(HW-.7),yc+.012,p.z+n.z*(HW-.7),p.x+n.x*HW,yc-.3,p.z+n.z*HW);
+          vu.push(0,u*rv,bk,u*rv,1-bk,u*rv,1,u*rv);
+          if(i&&ok&&prevOk){const a=(i-1)*4,b=i*4;for(let k=0;k<3;k++)vi.push(a+k,a+k+1,b+k,a+k+1,b+k+1,b+k)}
+          prevOk=ok}
+        const vg=new THREE.BufferGeometry();vg.setAttribute('position',new THREE.Float32BufferAttribute(vp,3));vg.setAttribute('uv',new THREE.Float32BufferAttribute(vu,2));vg.setIndex(vi);vg.computeVertexNormals();
+        const vmesh=new THREE.Mesh(vg,vm);vmesh.receiveShadow=true;vmesh.name='verge';vmesh.userData.fixedY=vmesh.userData.onTrack=true;root.add(vmesh)}}
     BT('barriers');
     /* ---------- the flyover decks: concrete slab out to the rails, pillars, and collision that follows the ramp ---------- */
     const bridgeBodies=[],UPY=new THREE.Vector3(0,1,0);
