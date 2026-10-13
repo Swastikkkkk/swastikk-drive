@@ -1,53 +1,49 @@
-/* Story mode: 50 levels in 5 chapters, each a real F1 circuit run against AI rivals.
-   Progress lives in localStorage 'story-v1' (per browser). Stars: win 3, P2 2, inside the target 1. */
+/* Story mode: 50 levels in 5 chapters on the real F1 circuits, against more and faster AI rivals as you go.
+   Progress lives in localStorage 'story-v1' (per browser). Stars: win 3, P2 2, at or inside the target place 1. */
 (function () {
   'use strict';
   var KEY = 'story-v1';
-  var CHAPTERS = ['Rookie', 'Club Racer', 'Night Streets', 'Mountain Masters', 'World Tour'];
-  var TARGET = [3, 3, 2, 2, 1];   // finish at or inside this place to clear the level
-  var LAPS = [1, 1, 3, 3, 5];
+  // [name, blurb, finish target, laps, circuits (10), rivals first..last, pace first..last]
+  var CHAPTERS = [
+    ['Rookie', 'Short, gentle tracks against a few club drivers.', 3, 1, ['nl','ca','mx','hu','au','cn','it','es','mi','gb'], [2, 4], [.80, .86]],
+    ['Club Racer', 'Proper race circuits, bigger fields.', 3, 2, ['gb','jp','es','at','br','us','it','cn','hu','nl'], [4, 7], [.86, .91]],
+    ['Night & Streets', 'Walls close by, floodlights and city streets.', 2, 3, ['sg','bh','sa','qa','lv','ae','mc','az','mi','md'], [6, 9], [.90, .94]],
+    ['Mountain Masters', 'The steepest climbs and drops on the calendar.', 2, 3, ['at','im','jp','br','us','hu','es','mc','az','be'], [9, 13], [.93, .97]],
+    ['World Tour', 'A full grid of pros. Only wins count.', 1, 3, ['bh','sa','au','jp','mc','ca','gb','be','it','ae'], [15, 19], [.96, 1.0]]
+  ];
   var cur = null;
 
   function load() {
-    try {
-      var d = JSON.parse(localStorage.getItem(KEY) || '{}');
-      return d && typeof d === 'object' && d.s && typeof d.s === 'object' ? d : { s: {} };
-    } catch (e) { return { s: {} }; }
+    try { var d = JSON.parse(localStorage.getItem(KEY) || '{}'); return d && d.s && typeof d.s === 'object' ? d : { s: {} }; }
+    catch (e) { return { s: {} }; }
   }
   function save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
   function starsOf(d, n) { var v = d.s[n]; return typeof v === 'number' ? v : 0; }
   function unlocked(d, n) { return n === 1 || starsOf(d, n - 1) > 0; }
-  function starsFor(lv, pos) {
-    if (!pos || pos > lv.target) return 0;
-    return pos === 1 ? 3 : pos === 2 ? 2 : 1;
-  }
+  function starsFor(lv, pos) { if (!pos || pos > lv.target) return 0; return pos === 1 ? 3 : pos === 2 ? 2 : 1; }
   function toast(t) { try { if (window.toastMsg) window.toastMsg(t); } catch (e) {} }
+  function lerp(a, b, t) { return a + (b - a) * t; }
 
   function levels() {
-    var L = (window.F1 && F1.list && F1.list()) || [];
-    if (!L.length) return [];
-    var C = L.slice().sort(function (a, b) { return (a.lengthM || 0) - (b.lengthM || 0); });
     var out = [];
-    for (var i = 0; i < 50; i++) {
-      var ch = Math.floor(i / 10), c = C[i % C.length];
-      out.push({ n: i + 1, ch: ch, chapter: CHAPTERS[ch], circuit: c.id, name: c.name, laps: LAPS[ch], target: TARGET[ch] });
-    }
+    CHAPTERS.forEach(function (C, ch) {
+      for (var i = 0; i < 10; i++) {
+        var t = i / 9, id = C[4][i], c = window.F1 && F1.get ? F1.get(id) : null;
+        out.push({ n: ch * 10 + i + 1, ch: ch, circuit: id, name: c ? c.name : id, target: C[2],
+          laps: C[3] + (i >= 7 ? 1 : 0), rivals: Math.round(lerp(C[5][0], C[5][1], t)), skill: +lerp(C[6][0], C[6][1], t).toFixed(3) });
+      }
+    });
     return out;
   }
 
   function onFinish(r) {
     window.__onRaceFinish = null;
-    var lv = cur;
+    var lv = cur; cur = null;
     if (!lv || !r) return;
-    var st = starsFor(lv, r.pos | 0);
-    var d = load(), prev = starsOf(d, lv.n);
+    var st = starsFor(lv, r.pos | 0), d = load(), prev = starsOf(d, lv.n);
     if (st > prev) { d.s[lv.n] = st; save(d); }
-    if (st === 0) {
-      toast('Level ' + lv.n + ' not cleared: P' + r.pos + ', you need P' + lv.target + ' or better');
-    } else {
-      var next = lv.n < 50 && prev === 0 ? ' · Level ' + (lv.n + 1) + ' unlocked' : '';
-      toast('Level ' + lv.n + ' · P' + r.pos + ' · ' + '★'.repeat(st) + '☆'.repeat(3 - st) + next);
-    }
+    if (!st) toast('Level ' + lv.n + ' not cleared: P' + r.pos + ', you need P' + lv.target + ' or better');
+    else toast('Level ' + lv.n + ' cleared · P' + r.pos + ' · ' + '★'.repeat(st) + '☆'.repeat(3 - st) + (lv.n < 50 && !prev ? ' · Level ' + (lv.n + 1) + ' unlocked' : ''));
   }
 
   function play(lv) {
@@ -55,10 +51,10 @@
     window.__onRaceFinish = onFinish;
     var go = function () {
       try {
-        if (!window.F1 || !F1.build(lv.circuit, { race: true, laps: lv.laps })) {
-          window.__onRaceFinish = null; toast('Could not load that circuit');
-        }
-      } catch (e) { window.__onRaceFinish = null; console.error('Story level failed', e); }
+        window.__raceGrid = { n: lv.rivals, skill: lv.skill };
+        if (!window.F1 || !F1.build(lv.circuit, { race: true, laps: lv.laps })) { window.__raceGrid = null; window.__onRaceFinish = null; toast('Could not load that circuit'); return; }
+        toast('Level ' + lv.n + ' · ' + lv.name + ' · finish P' + lv.target + ' or better against ' + lv.rivals + ' rivals');
+      } catch (e) { window.__raceGrid = null; window.__onRaceFinish = null; console.error('Story level failed', e); }
     };
     var close = window.__homeClose;
     if (typeof close === 'function') close(go); else go();
@@ -66,27 +62,25 @@
 
   function open(container) {
     if (!container) return;
-    var LV = levels(), d = load();
+    var LV = levels(), d = load(), total = 0;
+    LV.forEach(function (l) { total += starsOf(d, l.n); });
     var html = '<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Story</h1>' +
-      '<p class="sub">Five chapters, fifty levels. Finish at the target place to clear a level: win for 3 stars, second for 2, target for 1.</p>';
-    if (!LV.length) html += '<p class="sub">Circuits are still loading. Try again in a moment.</p>';
-    CHAPTERS.forEach(function (name, ch) {
-      html += '<h2 style="margin:18px 0 8px;font-size:16px">Chapter ' + (ch + 1) + ' · ' + name + '</h2>' +
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px">';
+      '<p class="sub">' + total + ' of 150 stars. Win for 3, second for 2, reach the target for 1.</p><div class="lvwrap">';
+    CHAPTERS.forEach(function (C, ch) {
+      html += '<h2>' + (ch + 1) + '. ' + C[0] + '<small>' + C[1] + '</small></h2><div class="lvgrid">';
       LV.filter(function (l) { return l.ch === ch; }).forEach(function (l) {
         var ok = unlocked(d, l.n), s = starsOf(d, l.n);
-        var stars = s ? '★'.repeat(s) + '☆'.repeat(3 - s) : (ok ? 'Open' : 'Locked');
-        html += '<button class="t" data-lvl="' + l.n + '"' + (ok ? '' : ' disabled style="opacity:.45;cursor:not-allowed"') + '>' +
-          '<b>Level ' + l.n + '</b><span>' + stars + '</span></button>';
+        html += '<button class="lv' + (s ? ' done' : '') + '" data-lvl="' + l.n + '"' + (ok ? '' : ' disabled') +
+          ' title="' + l.name + ' · ' + l.laps + ' lap' + (l.laps > 1 ? 's' : '') + ' · ' + l.rivals + ' rivals · finish P' + l.target + ' or better">' +
+          '<b>' + l.n + '</b><span>' + l.circuit.toUpperCase() + '</span><i>' + (ok ? '★'.repeat(s) + '☆'.repeat(3 - s) : 'locked') + '</i></button>';
       });
       html += '</div>';
     });
-    html += '</div>';
-    container.innerHTML = html;
+    container.innerHTML = html + '</div></div>';
     container.querySelectorAll('[data-lvl]').forEach(function (b) {
-      b.onclick = function () { var n = +b.getAttribute('data-lvl'); if (LV[n - 1]) play(LV[n - 1]); };
+      b.onclick = function (e) { e.stopPropagation(); var n = +b.getAttribute('data-lvl'); if (LV[n - 1] && unlocked(load(), n)) play(LV[n - 1]); };
     });
   }
 
-  window.Story = { open: open };
+  window.Story = { open: open, levels: levels };
 })();
