@@ -54,7 +54,7 @@
     var go = function () {
       try {
         window.__raceGrid = { n: lv.rivals, skill: lv.skill }; window.__storyLevel = lv.n; window.__storyResult = null;
-        if (!window.F1 || !F1.build(lv.circuit, { race: true, laps: lv.laps })) { window.__raceGrid = null; window.__onRaceFinish = null; toast('Could not load that circuit'); return; }
+        if (!window.F1 || !F1.build(lv.circuit, { race: true, laps: window.LapPick ? LapPick.laps(lv.laps) : lv.laps })) { window.__raceGrid = null; window.__onRaceFinish = null; toast('Could not load that circuit'); return; }
         toast('Level ' + lv.n + ' · ' + lv.name + ' · finish P' + lv.target + ' or better against ' + lv.rivals + ' rivals');
       } catch (e) { window.__raceGrid = null; window.__onRaceFinish = null; console.error('Story level failed', e); }
     };
@@ -68,7 +68,7 @@
     var LV = levels(), d = load(), total = 0;
     LV.forEach(function (l) { total += starsOf(d, l.n); });
     var html = '<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Story</h1>' +
-      '<p class="sub">' + total + ' of 150 stars. Win for 3, second for 2, reach the target for 1.</p><div class="lvwrap">';
+      '<p class="sub">' + total + ' of 150 stars. Win for 3, second for 2, reach the target for 1.</p>' + (window.LapPick ? LapPick.html('Level') : '') + '<div class="lvwrap">';
     CHAPTERS.forEach(function (C, ch) {
       html += '<h2>' + (ch + 1) + '. ' + C[0] + '<small>' + C[1] + '</small></h2><div class="lvgrid">';
       LV.filter(function (l) { return l.ch === ch; }).forEach(function (l) {
@@ -80,6 +80,7 @@
       html += '</div>';
     });
     container.innerHTML = html + '</div></div>';
+    if (window.LapPick) LapPick.bind(container);
     container.querySelectorAll('[data-lvl]').forEach(function (b) {
       b.onclick = function (e) { e.stopPropagation(); var n = +b.getAttribute('data-lvl'); if (LV[n - 1] && unlocked(load(), n)) play(LV[n - 1]); };
     });

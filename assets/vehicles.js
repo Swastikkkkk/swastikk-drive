@@ -715,7 +715,8 @@
       box(0.18, 0.025, 0.28, paint, k * 0.25, r + 0.48, 0.68, body, -0.08, k * 0.2);
       box(0.03, 0.09, 0.22, carbonM, k * 0.36, r + 0.45, 0.68, body, -0.08, k * 0.2);
     });
-    // visible brake discs and calipers beside the in-line wheels
+    // visible brake discs and calipers beside the in-line wheels (these two materials were never declared: the bike threw and drove as bare wheels)
+    var discM2 = new THREE.MeshStandardMaterial({ color: 0x9a9da3, metalness: 0.85, roughness: 0.35 }), calM = new THREE.MeshStandardMaterial({ color: 0xc8202a, metalness: 0.3, roughness: 0.45 });
     [zf, zb].forEach(function (ax, i) {
       cyl(r * (i ? 0.42 : 0.5), r * (i ? 0.42 : 0.5), 0.018, discM2, 0.105, r, ax, body, 0, 0, Math.PI / 2, 24);
       box(0.055, 0.16, 0.08, calM, 0.115, r + 0.03, ax + (i ? -0.04 : 0.05), body);

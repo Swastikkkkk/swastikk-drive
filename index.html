@@ -337,6 +337,15 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 
 /* Out of bounds banner */
 #doob{position:absolute;left:50%;top:24%;transform:translateX(-50%);background:rgba(184,50,47,.92);color:#fff;padding:12px 24px;font-weight:700;font-size:15px;letter-spacing:.08em;border-radius:10px;box-shadow:0 8px 30px rgba(184,50,47,.5);display:none;z-index:5;text-align:center;pointer-events:none}
+#dpos.tower{padding:0;border-left:0;background:none;backdrop-filter:none;font-size:13px;min-width:150px}
+#dpos .tw-h{display:flex;align-items:baseline;gap:6px;background:#e10600;color:#fff;padding:5px 10px 4px;border-radius:8px 8px 0 0;font-family:'Barlow Condensed',system-ui,sans-serif;letter-spacing:.02em}
+#dpos .tw-h b{font-size:26px;line-height:1;font-weight:800;font-style:italic}#dpos .tw-h span{font-size:14px;opacity:.85;font-weight:600}
+#dpos ol.tw{list-style:none;margin:0;padding:3px 0;background:rgba(12,13,16,.78);backdrop-filter:blur(8px);border-radius:0 0 8px 8px}
+#dpos ol.tw li{display:grid;grid-template-columns:22px 4px 1fr auto;align-items:center;gap:7px;padding:2px 9px;height:20px;color:#eef0f3}
+#dpos ol.tw li i{font-style:normal;text-align:right;opacity:.75;font-weight:700}#dpos ol.tw li em{width:4px;height:13px;border-radius:2px}
+#dpos ol.tw li b{font-weight:700;letter-spacing:.06em}#dpos ol.tw li small{font-size:11px;opacity:.7;font-weight:600;text-align:right}
+#dpos ol.tw li.me{background:rgba(255,255,255,.92);color:#111}#dpos ol.tw li.me small{opacity:.8}#dpos ol.tw li.gap{height:12px;opacity:.5}#dpos ol.tw li.gap b{font-size:10px}
+@media (max-width:520px){#dpos.tower{min-width:120px;font-size:11px}#dpos ol.tw li{height:17px;gap:5px;padding:1px 7px}#dpos .tw-h b{font-size:20px}}
 #dpos{position:absolute;left:var(--gut);top:calc(180px + env(safe-area-inset-top,0px));background:rgba(10,10,9,.65);backdrop-filter:blur(6px);border-left:2px solid #4d8dff;padding:8px 14px;display:none;font-weight:700;font-size:18px;color:var(--paper);letter-spacing:.04em}
 
 /* Host settings grid */
@@ -696,7 +705,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
       <label>Scenery<select id="dcircscenery"><option value="meadow">Lush green</option><option value="mountain">Mountain</option><option value="desert">Desert</option><option value="coastal">Coastal</option><option value="forest">Forest</option><option value="alpine">Alpine</option><option value="tropical">Tropical</option><option value="rocky">Rocky</option><option value="autumn">Autumn</option><option value="snow">Snow</option><option value="volcanic">Volcanic</option><option value="night">Night</option><option value="city">City</option><option value="moon">Moon</option></select></label>
       <label>Obstacle<select id="dcircobstype"><option value="speed_breaker">Speed breaker</option><option value="blocker">Roadblock</option><option value="ramp">Jump ramp</option></select></label>
       <label>Road width<select id="dcircwidth"><option value="12">Narrow (12 m)</option><option value="16" selected>Standard (16 m)</option><option value="20">Wide (20 m)</option><option value="24">Super-wide (24 m)</option></select></label>
-      <label>Laps<select id="dcirclaps"><option value="1">1 lap</option><option value="2">2 laps</option><option value="3" selected>3 laps</option><option value="5">5 laps</option><option value="10">10 laps</option></select></label>
+      <label>Laps<select id="dcirclaps"><option value="1">1 lap</option><option value="2">2 laps</option><option value="3" selected>3 laps</option><option value="5">5 laps</option><option value="10">10 laps</option><option value="15">15 laps</option><option value="20">20 laps</option><option value="30">30 laps</option><option value="50">50 laps</option></select></label>
       <label>Weather<select id="dcircweather"><option value="day">Clear</option><option value="rain">Rain</option><option value="storm">Storm</option><option value="fog">Fog</option><option value="snow">Light snow</option><option value="blizzard">Heavy snow</option><option value="sand">Sandstorm</option></select></label>
       <label>Time<select id="dcirctime"><option value="day">Morning</option><option value="dusk">Dawn</option><option value="sunset">Sunset</option><option value="night">Night</option></select></label>
       <label>Seed<input id="dcircseed" type="number" min="1" max="2147483647" value="271828" inputmode="numeric"></label>
@@ -764,6 +773,10 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
             <option value="3" selected>3 Laps</option>
             <option value="5">5 Laps</option>
             <option value="10">10 Laps</option>
+            <option value="15">15 Laps</option>
+            <option value="20">20 Laps</option>
+            <option value="30">30 Laps</option>
+            <option value="50">50 Laps</option>
           </select>
         </label>
         
@@ -824,33 +837,33 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 <script src="assets/vendor/cannon.min.js"></script>
 <script src="assets/vendor/GLTFLoader.js"></script>
 <script src="assets/vendor/OBJLoader.js"></script>
-<script src="assets/core-constants.js?v=1791905899"></script>
-<script src="assets/engine-audio.js?v=1791905899"></script>
-<script src="assets/radio.js?v=1791905899"></script>
-<script src="assets/settings.js?v=1791905899"></script>
-<script src="assets/car-builder.js?v=1791905899"></script>
-<script src="assets/vehicles.js?v=1791905899"></script>
-<script src="assets/track-drawer.js?v=1791905899"></script>
-<script src="assets/controller.js?v=1791905899"></script>
+<script src="assets/core-constants.js?v=1791990001"></script>
+<script src="assets/engine-audio.js?v=1791990001"></script>
+<script src="assets/radio.js?v=1791990001"></script>
+<script src="assets/settings.js?v=1791990001"></script>
+<script src="assets/car-builder.js?v=1791990001"></script>
+<script src="assets/vehicles.js?v=1791990001"></script>
+<script src="assets/track-drawer.js?v=1791990001"></script>
+<script src="assets/controller.js?v=1791990001"></script>
 <script src="assets/vendor/qrcode.js"></script>
-<script src="assets/qr.js?v=1791905899"></script>
-<script src="assets/race.js?v=1791905899"></script>
-<script src="assets/editor.js?v=1791905899"></script>
-<script src="assets/daily-maps.js?v=1791905899"></script>
-<script src="assets/daily-extras.js?v=1791905899"></script>
-<script src="assets/f1-circuits.js?v=1791905899"></script>
-<script src="assets/f1-landmarks.js?v=1791905899"></script>
-<script src="assets/f1-real.js?v=1791905899"></script>
-<script src="assets/f1car.js?v=1791905899"></script>
-<script src="assets/game.js?v=1791905899"></script>
-<script src="assets/story.js?v=1791905899"></script>
-<script src="assets/race-finish.js?v=1791905899"></script>
-<script src="assets/typing-sentences.js?v=1791905899"></script>
-<script src="assets/typing-keyboard.js?v=1791905899"></script>
-<script src="assets/venue-decor.js?v=1791905899"></script>
-<script src="assets/typing-bank.js?v=1791905899"></script>
-<script src="assets/typing-race.js?v=1791905899"></script>
-<script src="assets/ui-motion.js?v=1791905899"></script>
+<script src="assets/qr.js?v=1791990001"></script>
+<script src="assets/race.js?v=1791990001"></script>
+<script src="assets/editor.js?v=1791990001"></script>
+<script src="assets/daily-maps.js?v=1791990001"></script>
+<script src="assets/daily-extras.js?v=1791990001"></script>
+<script src="assets/f1-circuits.js?v=1791990001"></script>
+<script src="assets/f1-landmarks.js?v=1791990001"></script>
+<script src="assets/f1-real.js?v=1791990001"></script>
+<script src="assets/f1car.js?v=1791990001"></script>
+<script src="assets/game.js?v=1791990001"></script>
+<script src="assets/story.js?v=1791990001"></script>
+<script src="assets/race-finish.js?v=1791990001"></script>
+<script src="assets/typing-sentences.js?v=1791990001"></script>
+<script src="assets/typing-keyboard.js?v=1791990001"></script>
+<script src="assets/venue-decor.js?v=1791990001"></script>
+<script src="assets/typing-bank.js?v=1791990001"></script>
+<script src="assets/typing-race.js?v=1791990001"></script>
+<script src="assets/ui-motion.js?v=1791990001"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 <!-- Vercel Speed Insights (plain-HTML setup: there is no Next.js/npm build here, so the script tag replaces the <SpeedInsights/> component) -->
 <script>window.si=window.si||function(){(window.siq=window.siq||[]).push(arguments)};</script>

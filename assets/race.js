@@ -534,7 +534,10 @@
       if (posEl) {
         posEl.style.display = (this.state === 'racing' || this.state === 'finished') ? 'block' : 'none';
         var total = Math.max(1, this.leaderboard.length);
-        posEl.textContent = 'P' + (this.finalPosition || 1) + ' / ' + total;
+        var nowT = performance.now(), tw = null;
+        if (!this._twT || nowT - this._twT > 250) { this._twT = nowT; tw = window.__liveTower ? window.__liveTower() : null; this._tw = tw; } else tw = this._tw;
+        if (tw) { if (posEl.__h !== tw) { posEl.__h = tw; posEl.innerHTML = tw; } posEl.classList.add('tower'); }
+        else { posEl.classList.remove('tower'); posEl.__h = null; posEl.textContent = 'P' + (this.finalPosition || 1) + ' / ' + total; }
       }
     },
 

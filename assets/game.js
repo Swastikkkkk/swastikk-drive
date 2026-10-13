@@ -2889,8 +2889,9 @@ t.bd.position.set(x,y+.86,z);
     if(spec.id==='custom'){if(spec.kind==='model'&&CUSTOM.model)return customModelBody(o);spec=Object.assign({},spec,{id:spec.buildAs||'outlaw'})}
     // lofted bodies (assets/vehicles.js) for every model it knows; the EVs and the F1 keep their own builders
     if (window.VehicleKit && window.VehicleKit.has(spec.id)) {
-      return window.VehicleKit.build(spec.id, o);
-    } else if (spec.type==='f1' && window.CarBuilder && window.CarBuilder.buildF1) {
+      try { return window.VehicleKit.build(spec.id, o); } catch (e) { console.error('model failed, using the generic body', spec.id, e); }   // a broken model must never leave bare wheels
+    }
+    if (spec.type==='f1' && window.CarBuilder && window.CarBuilder.buildF1) {
       return window.CarBuilder.buildF1(o);
     } else if (spec.type==='suv' && window.CarBuilder && window.CarBuilder.buildSUV) {
       return window.CarBuilder.buildSUV(o);
@@ -7091,7 +7092,7 @@ const PLANETS={
       nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,fw=1-SM(DL[i]/1.5),w=1/(q*q)*fw;ws+=w;hs+=w*DY[i];if(fw>.5&&q<bq){bq=q;bi=i}});
       const g=REAL?BASE(x,z):hs/ws;if(bq>=1e9)return g;
       {const seg=(a,b)=>{const ax=DX[a],az=DZ[a],ex=DX[b]-ax,ez=DZ[b]-az,L2=ex*ex+ez*ez||1,t=Math.max(0,Math.min(1,((x-ax)*ex+(z-az)*ez)/L2)),px=ax+ex*t-x,pz=az+ez*t-z;return [px*px+pz*pz,DY[a]+(DY[b]-DY[a])*t]};
-       const A=seg(bi,(bi+1)%DN),B=seg((bi-1+DN)%DN,bi),C=A[0]<=B[0]?A:B;by=C[1];bq=C[0]+1}const d=Math.sqrt(bq-1);if(d<=CUT)return by;if(d<CUT+CUTF){const k=SM((d-CUT)/CUTF);return by*(1-k)+g*k}return g};   // a bridge in the air shapes no ground   // a bridge in the air shapes no ground
+       const A=seg(bi,(bi+1)%DN),B=seg((bi-1+DN)%DN,bi),C=A[0]<=B[0]?A:B;by=C[1];bq=C[0]+1}const d=Math.sqrt(bq-1);if(d<=CUT)return by;if(REAL){const e=d-CUT,lim=.3*e+.008*e*e;return by+Math.max(-lim,Math.min(lim,g-by))}if(d<CUT+CUTF){const k=SM((d-CUT)/CUTF);return by*(1-k)+g*k}return g};   // a bridge in the air shapes no ground   // a bridge in the air shapes no ground
     /* the road's surface: the ground on hills, except where a bridge lifts it, which follows its own planned line */
     /* on a flyover (any lift at all) the road height is the track's own smooth curve, never the ground below: near the
        crossing that ground belongs to the OTHER, lower road, and on hilly venues reading it made the ramp drop and then
@@ -7191,10 +7192,21 @@ const PLANETS={
        was the flat plane below it.) The physics slab / heightfield stays the collision body. */
     {
       const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:REAL?200:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=new Uint32Array((n2-1)*(n2-1)*6);let ii=0;
-      for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;{const dd=DF(x,z),sink=dd<CIRC_W/2+BARRIER_OFF+10?.35*(1-SM((dd-CIRC_W/2-BARRIER_OFF)/10)):0;pos[k+1]=(ELEV?(hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03-sink+visH(x,z)}pos[k+2]=z}
-      for(let i=0;i<n2-1;i++)for(let j=0;j<n2-1;j++){const a=i*n2+j,b=(i+1)*n2+j;idx[ii++]=a;idx[ii++]=a+1;idx[ii++]=b;idx[ii++]=b;idx[ii++]=a+1;idx[ii++]=b+1}
-      const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(new THREE.BufferAttribute(idx,1));decorate(tg);
+      const tH=(x,z,ex)=>{const dd=DF(x,z),sink=dd<CIRC_W/2+BARRIER_OFF+10?.35*(1-SM((dd-CIRC_W/2-BARRIER_OFF)/10)):0;return (ELEV?(REAL?groundAt(x,z):hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03-sink-ex+visH(x,z)};
+      /* real circuits: the measured ground can climb steeply right beside the road, and on this coarse grid (25+ m on a
+         big lap) one triangle reached from a vertex on the road to one up the hillside, a pale slab standing over the
+         kerb and burying the barrier. The band within ~60 m of the road is drawn by a fine grid below instead. */
+      const FB=REAL?60:0;
+      for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;pos[k+1]=tH(x,z,FB&&DF(x,z)<FB+ES2?.25:0);pos[k+2]=z}
+      for(let i=0;i<n2-1;i++)for(let j=0;j<n2-1;j++){if(FB&&DF(cx-half2+(i+.5)*ES2,cz-half2+(j+.5)*ES2)<FB-.75*ES2)continue;const a=i*n2+j,b=(i+1)*n2+j;idx[ii++]=a;idx[ii++]=a+1;idx[ii++]=b;idx[ii++]=b;idx[ii++]=a+1;idx[ii++]=b+1}
+      const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(new THREE.BufferAttribute(idx.subarray(0,ii),1));decorate(tg);
       const terrainMesh=new THREE.Mesh(tg,terrainMat);terrainMesh.name='terrain';terrainMesh.receiveShadow=true;terrainMesh.userData.fixedY=terrainMesh.userData.onTrack=true;root.add(terrainMesh);
+      if(FB){const FS=LOW?8:5,nf=Math.ceil(half2*2/FS)+1,fx0=cx-half2,fz0=cz-half2,VI=new Int32Array(nf*nf).fill(-1),fp=[],fi=[];
+        const vtx=(a,b)=>{const q=a*nf+b;if(VI[q]<0){const x=fx0+a*FS,z=fz0+b*FS;VI[q]=fp.length/3;fp.push(x,tH(x,z,0),z)}return VI[q]};
+        for(let a=0;a<nf-1;a++)for(let b=0;b<nf-1;b++){if(DF(fx0+(a+.5)*FS,fz0+(b+.5)*FS)>=FB+4)continue;
+          const p00=vtx(a,b),p01=vtx(a,b+1),p10=vtx(a+1,b),p11=vtx(a+1,b+1);fi.push(p00,p01,p10,p10,p01,p11)}
+        const fg=new THREE.BufferGeometry();fg.setAttribute('position',new THREE.Float32BufferAttribute(fp,3));fg.setIndex(fi);decorate(fg);
+        const fm=new THREE.Mesh(fg,terrainMat);fm.name='terrain-near';fm.receiveShadow=true;fm.userData.fixedY=fm.userData.onTrack=true;root.add(fm)}
       /* real circuits: the rest of the measured terrain out to ~1 km past the track and a skirt beyond it, coarser,
          leaving out the square the near terrain already covers (sunk a hair so the two never fight) */
       if(REAL){const D=REAL,OS=LOW?44:32,ax0=CIRC_X+D.x0-1500,az0=CIRC_Z+D.z0-1500,ax1=CIRC_X+D.x0+(D.nx-1)*D.cell+1500,az1=CIRC_Z+D.z0+(D.nz-1)*D.cell+1500;
@@ -8111,9 +8123,11 @@ const PLANETS={
         const car=LV&&window.F1Car?F1Car.build({primary:LV[0],secondary:LV[1],accent:LV[2],zf:1.8,zb:-1.75,compound:['soft','medium','hard'][i%3]}):buildCar({paint:opts.colors?opts.colors[i%opts.colors.length]:PAINT[i%PAINT.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
         car.g.rotation.order='YXZ';car.g.traverse(o=>{o.userData.onTrack=true;o.userData.fixedY=true});Cc.root.add(car.g);   // rivals drive ON the road: the venue's clearance pass must not hide them
         const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});bd.addShape(new CANNON.Box(new CANNON.Vec3(.95,.62,2.05)));world.addBody(bd);
-        cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:(opts.top||V.max)*(opts.skills?opts.skills[i%opts.skills.length]:opts.skill!=null?opts.skill-(i%4)*.01:SKILL[i%SKILL.length]),sk:opts.skills?opts.skills[i%opts.skills.length]:opts.skill||.9,agg:.75+Math.random()*.5,react:.12+Math.random()*.35,ph:Math.random()*6.28,boostT:0,slip:0,err:0,pu:0,name:opts.names?opts.names[i%opts.names.length]:NAMES[(i+Math.floor(Math.random()*3))%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null})}
+        cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:(opts.top||V.max)*(opts.skills?opts.skills[i%opts.skills.length]:opts.skill!=null?opts.skill-(i%4)*.01:SKILL[i%SKILL.length]),sk:opts.skills?opts.skills[i%opts.skills.length]:opts.skill||.9,agg:.75+Math.random()*.5,react:.12+Math.random()*.35,ph:Math.random()*6.28,boostT:0,slip:0,err:0,pu:0,name:opts.names?opts.names[i%opts.names.length]:NAMES[(i+Math.floor(Math.random()*3))%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null,col:LV?LV[0]:opts.colors?opts.colors[i%opts.colors.length]:PAINT[i%PAINT.length]})}
       pIdx=-1;on=true;place(0)}
-    function playerProg(){const RE=window.RaceEngine,T=RE.checkpoints.length||16;return (RE.currentLap-1)+Math.max(0,RE.currentCheckpoint-1)/T}
+    function playerProg(){const RE=window.RaceEngine,T=RE.checkpoints.length||16,co=(RE.currentLap-1)+Math.max(0,RE.currentCheckpoint-1)/T;
+      /* the checkpoints only count every ~1/15 lap, so a rival alongside flickered ahead and behind: refine with where on the lap you actually are */
+      if(!SPX||pIdx<0)return co;let f=(RE.currentLap-1)+pIdx/SPX.length;if(f-co>.5)f-=1;else if(co-f>.5)f+=1;return Math.abs(f-co)<.25?f:co}
     function place(dt){
       const Cc=circuit;
       cars.forEach(a=>{
@@ -8175,7 +8189,11 @@ const PLANETS={
           const rows=[{name:'You',finishTime:RE.totalRaceTime,isMe:true}].concat(cars.map(a=>({name:a.name,finishTime:a.fin||null,racing:!a.fin,prog:a.prog})));
           rows.sort((p,q)=>p.finishTime&&q.finishTime?p.finishTime-q.finishTime:p.finishTime?-1:q.finishTime?1:q.prog-p.prog);
           rows.forEach((r,i)=>r.position=i+1);RE.leaderboard=rows;if(RE.refreshResults)RE.refreshResults()}}}
-    return {start,clear,update,get on(){return on},get bodies(){return cars.map(c=>c.bd)},get count(){return cars.length},state(){return cars.slice(0,8).map(c=>[c.name,+c.lane.toFixed(1),+(c.spd*3.6).toFixed(0),+c.prog.toFixed(3)])},get skills(){return cars.map(c=>c.vmax)}};
+    return {start,clear,update,get on(){return on},get bodies(){return cars.map(c=>c.bd)},get count(){return cars.length},state(){return cars.slice(0,8).map(c=>[c.name,+c.lane.toFixed(1),+(c.spd*3.6).toFixed(0),+c.prog.toFixed(3)])},get skills(){return cars.map(c=>c.vmax)},
+      /* the live running order for the timing tower: everyone's progress, gaps to the car ahead in seconds */
+      order(){if(!on||!cars.length)return null;const RE=window.RaceEngine,L=circuit?circuit.curve.getLength():1000,pp=RE.finished?laps+1+1/(1+(RE.totalRaceTime||0)/1000):playerProg(),ps=Math.max(15,chassisB.velocity.length());
+        const rows=cars.map(a=>({name:a.name,col:a.col,prog:a.fin?laps+1+1/(1+a.fin/1000):a.prog,spd:Math.max(15,a.spd),fin:!!a.fin}));rows.push({name:'You',col:0xffffff,prog:pp,spd:ps,me:true,fin:!!RE.finished});
+        rows.sort((p,q)=>q.prog-p.prog);for(let i=0;i<rows.length;i++){const r=rows[i];r.pos=i+1;r.gap=i?Math.max(0,(rows[i-1].prog-r.prog)*L/((r.spd+rows[i-1].spd)/2)):0}return rows}};
   })();
   /* One lap count. In a room the host's choice (#dmplaps) is authoritative; on your own it is the draw-track
      panel's Laps setting. buildCircuit, enterCircuit and the race start all read it through here. */
@@ -8225,6 +8243,23 @@ const PLANETS={
       cam.position.copy(p).addScaledVector(fwd,7.5).addScaledVector(side,4.2);cam.position.y+=1.3;cam.lookAt(p.x,p.y+.55,p.z);
       const fg=S.fog,fn=fg&&fg.near,ff=fg&&fg.far;if(fg){fg.near=Math.max(fn,60);fg.far=Math.max(ff,600)}
       R.render(S,cam);const url=R.domElement.toDataURL('image/jpeg',.86);if(fg){fg.near=fn;fg.far=ff}return url}catch(e){return null}};
+  /* live timing tower (#dpos): position, then the running order with team colours and the gap to the car ahead.
+     Any race with rivals on track (Grand Prix, Story, Race) and rooms; in a 9+ car field it shows the top 3 and the cars around you. */
+  if(/[?&]dbg\b/.test(location.search))window.__DBG={S,C,get circuit(){return circuit},get P(){return PCAR},get wv(){return wv}};
+  window.__liveTower=()=>{try{let rows=null;const RE=window.RaceEngine;
+      if(CAI.on)rows=CAI.order();
+      else if(RE&&RE.leaderboard&&RE.leaderboard.length>1&&RE.leaderboard[0]&&RE.leaderboard[0].name)rows=RE.leaderboard.map((r,i)=>({name:r.isMe?'You':r.name,pos:r.position||i+1,me:!!r.isMe,col:(window.__driverColors&&window.__driverColors[r.name])||0x8a8f98,gap:null}));
+      if(!rows||rows.length<2)return null;
+      const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+      const code=n=>{if(n==='You')return 'YOU';const w=String(n).trim().split(/\s+/),l=w[w.length-1]||n;return esc(l.normalize?l.normalize('NFD').replace(/[̀-ͯ]/g,''):l).slice(0,3).toUpperCase()};
+      const hex=c=>typeof c==='number'?'#'+('00000'+c.toString(16)).slice(-6):String(c);
+      const me=rows.find(r=>r.me)||rows[0],mi=rows.indexOf(me),N=rows.length;let show;
+      if(N<=8)show=rows.map((_,i)=>i);else{const s=new Set([0,1,2]);for(let k=mi-2;k<=mi+2;k++)if(k>=0&&k<N)s.add(k);if(mi<5)for(let k=3;k<8;k++)s.add(k);show=[...s].sort((x,y)=>x-y)}
+      let h='<div class="tw-h"><b>P'+me.pos+'</b><span>/ '+N+'</span></div><ol class="tw">',last=-1;
+      for(const i of show){if(last>=0&&i>last+1)h+='<li class="gap"><i></i><em></em><b>···</b><small></small></li>';last=i;const r=rows[i];
+        const g=r.gap==null?'':i===0?'Leader':r.gap>=60?'+'+Math.floor(r.gap/60)+':'+('0'+(r.gap%60).toFixed(0)).slice(-2):'+'+r.gap.toFixed(1);
+        h+='<li'+(r.me?' class="me"':'')+'><i>'+r.pos+'</i><em style="background:'+hex(r.col)+'"></em><b>'+code(r.name)+'</b><small>'+g+'</small></li>'}
+      return h+'</ol>'}catch(e){return null}};
   window.__inRoom=()=>{try{return !!(MP&&MP.on)}catch(e){return false}};window.__caiInfo=()=>({count:CAI.count,on:CAI.on,pads:circuit&&circuit.pads?circuit.pads.length:0,vmax:V.max,nb:V.nb,state:CAI.state()});
   /* ---------- F1 circuits (assets/f1-circuits.js: real layouts at real size; assets/f1-landmarks.js: their scenery) ----------
      F1.build(id,{race,laps}) builds one like any venue: its own width, elevation profile (or height range), tunnels,
@@ -9691,6 +9726,14 @@ addEventListener('deviceorientation',e=>{if(e.gamma==null||drag)return;tx=28+Mat
 if(!drag&&idle>3){tx+=dir*dt*2.2;if(tx>55)dir=-1;if(tx<10)dir=1}
 tx=Math.max(0,Math.min(100,tx));ty=Math.max(0,Math.min(100,ty));const k=1-Math.pow(.002,dt);x+=(tx-x)*k;y+=(ty-y)*k;
 if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y.toFixed(2)+'%';requestAnimationFrame(f)})(last)})();
+   /* one lap count for every race you start from here (F1 Grand Prix, Story, a room you open): "Default" keeps each mode's own */
+   if(!window.LapPick){const OPTS=[0,1,2,3,5,10,15,20,30,50];
+     const ls=document.createElement('style');ls.textContent='#dstartscr .laps,.lapsrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:4px 0 14px}#dstartscr .laps>span,.lapsrow>span{font:600 11px/1 inherit;letter-spacing:.14em;text-transform:uppercase;opacity:.7;margin-right:4px}#dstartscr .laps button,.lapsrow button{all:unset;box-sizing:border-box;cursor:pointer;min-width:38px;height:32px;padding:0 10px;border-radius:9px;text-align:center;font:700 13px/32px inherit;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:inherit}#dstartscr .laps button.on,.lapsrow button.on{background:#e10600;border-color:#e10600;color:#fff}';document.head.appendChild(ls);
+     window.LapPick={get(){try{const v=parseInt(localStorage.getItem('sr_laps')||'0',10);return OPTS.indexOf(v)>=0?v:0}catch(e){return 0}},
+       laps(def){const v=this.get();return v>0?v:def},
+       html(defLabel){const v=this.get(),dn=/^\d+$/.test(defLabel||'')?+defLabel:0;return '<div class="laps"><span>Laps</span>'+OPTS.filter(o=>!(dn&&o===0)).map(o=>'<button data-laps="'+o+'"'+(o===(dn?(v||dn):v)?' class="on"':'')+' title="'+(o?o+' lap'+(o>1?'s':''):'Each mode’s own')+'">'+(o?o:(defLabel||'Default'))+'</button>').join('')+'</div>'},
+       bind(root){root.querySelectorAll('[data-laps]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();try{localStorage.setItem('sr_laps',b.dataset.laps)}catch(_){}
+         root.querySelectorAll('[data-laps]').forEach(x=>x.classList.toggle('on',x===b));const sub=root.querySelector('[data-go^="f1g:"] span');if(sub)sub.textContent=window.LapPick.laps(5)+' lap'+(window.LapPick.laps(5)>1?'s':'')+' against the 2026 F1 grid'}))}}}
    const T=(id,title,sub,wide)=>`<button class="t${wide?' wide':''}" data-go="${id}"><b>${title}</b><span>${sub}</span></button>`;const S=(id,title,sub)=>`<button class="t sm" data-go="${id}"><b>${title}</b><span>${sub}</span></button>`;
    const main=()=>{el.innerHTML='<div class="hm"><div class="hd"><h1>SketchRacer</h1><button class="gear" data-go="settings" aria-label="Settings" title="Settings"></button></div><p class="sub">Pick how you want to play.</p><div class="grid">'+
      T('free','Free drive','Open valley, ramps, the summit and the cable car',true)+
@@ -9699,7 +9742,7 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
      '<div class="pair">'+S('mp','Multiplayer','Up to 8 friends')+S('daily','Daily track',"Today's leaderboard")+S('chill','Chillout room',"Your crew's room")+S('typing','Typing','Type to drive')+S('draw','Draw a track','Sketch it, race it')+S('garage','Garage','Pick or build a car')+'</div></div></div>'};
    const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
      T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
-   const f1c=id=>{const c=window.F1&&F1.get(id);if(!c)return f1();if(window.F1Real)F1Real.load(id);el.innerHTML='<div class="hm"><button class="back" data-go="f1">‹ Back</button><h1>'+c.name+'</h1><p class="sub">'+c.country+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+T('f1p:'+id,'Practice','Drive the circuit on your own')+T('f1m:'+id,'Race a friend','Open a room on this circuit')+T('f1g:'+id,'Grand Prix','5 laps against the 2026 F1 grid')+'</div></div>'};
+   const f1c=id=>{const c=window.F1&&F1.get(id);if(!c)return f1();if(window.F1Real)F1Real.load(id);el.innerHTML='<div class="hm"><button class="back" data-go="f1">‹ Back</button><h1>'+c.name+'</h1><p class="sub">'+c.country+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+T('f1p:'+id,'Practice','Drive the circuit on your own')+T('f1m:'+id,'Race a friend','Open a room on this circuit')+T('f1g:'+id,'Grand Prix',(()=>{const n=LapPick.laps(5);return n+' lap'+(n>1?'s':'')+' against the 2026 F1 grid'})())+'</div>'+LapPick.html('5')+'</div>';LapPick.bind(el)};
    const f1=()=>{const L=(window.F1&&F1.list())||[];el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>F1 circuits</h1><p class="sub">Real layouts, terrain and surroundings. Map data © OpenStreetMap contributors.</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+
      L.map(c=>T('f1:'+c.id,c.name,c.country+' · '+(c.lengthM/1000).toFixed(3)+' km'+(c.raceTime==='night'?' · night':c.raceTime==='dusk'?' · dusk':''))).join('')+'</div></div>'};
    const close=after=>{if(!HOME.on)return;HOME.on=false;try{HOME.putAway&&HOME.putAway(false)}catch(_){}el.classList.add('out');document.body.classList.remove('homeon');driving=wasDriving||true;setTimeout(()=>{el.remove()},500);if(after)setTimeout(after,120)};
@@ -9709,8 +9752,8 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
      settings:()=>close(()=>window.Settings&&Settings.open()),typing,f1,story:()=>window.Story&&window.Story.open(el),home:main,tfast:()=>close(btn('dmtype')),tdaily:()=>close(()=>{try{audioInit()}catch(_){}if(window.TypingRace)TypingRace.start()})};
    el.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;try{audioInit()}catch(_){}const g=b.dataset.go;if(g.startsWith('f1:')){f1c(g.slice(3));return}
      if(/^f1[pmg]:/.test(g)){const mode=g[2],id=g.slice(4),fail=()=>(typeof toastMsg==='function'&&toastMsg('Could not load that circuit'));close(()=>F1.ready(id,()=>{try{if(mode==='p'){if(!window.F1.build(id,{race:false,share:false}))fail();return}
-       if(mode==='m'){if(!window.F1.build(id,{race:false,share:true}))fail();btn('droom')();return}
-       window.__f1GP=true;const ok=window.F1.build(id,{race:true,laps:5});window.__f1GP=false;if(!ok)fail()}catch(err){window.__f1GP=false;console.error('F1 build failed',err);fail()}}));return}ACT[g]&&ACT[g]()});
+       if(mode==='m'){if(!window.F1.build(id,{race:false,share:true}))fail();btn('droom')();const n=LapPick.get();if(n)setTimeout(()=>{try{const l=document.getElementById('dmplaps');if(l&&[...l.options].some(o=>o.value===String(n))){l.value=String(n);l.dispatchEvent(new Event('change'))}}catch(_){}},400);return}
+       window.__f1GP=true;const ok=window.F1.build(id,{race:true,laps:LapPick.laps(5)});window.__f1GP=false;if(!ok)fail()}catch(err){window.__f1GP=false;console.error('F1 build failed',err);fail()}}));return}ACT[g]&&ACT[g]()});
    addEventListener('keydown',e=>{if(HOME.on&&e.code==='Escape')close()},true);
    main();
    // the camera: high over the summit lookout, panning slowly across the valley, with the haze pulled back
