@@ -332,7 +332,11 @@
       // Only a full race of valid laps reaches here, and each lap already passed every gate and the minimum lap time.
       if (this.isDaily) {
         var day = this.dailyDate || new Date().toISOString().slice(0, 10);
-        var rec = { name: (localStorage.getItem('sl_name') || 'Driver'), time: this.totalRaceTime, best: this.bestLapTime, laps: this.totalLaps, day: day, date: Date.now() };
+        // QA fix: localStorage.getItem used to sit outside any try/catch, so with storage blocked (private mode, cookies off)
+        // it threw here and the whole finish (toast, sound, finish screen) never ran.
+        var nm = 'Driver';
+        try { nm = localStorage.getItem('sl_name') || 'Driver'; } catch (e) {}
+        var rec = { name: nm, time: this.totalRaceTime, best: this.bestLapTime, laps: this.totalLaps, day: day, date: Date.now() };
         try {
           var key = 'sl_daily_' + day;
           var records = JSON.parse(localStorage.getItem(key) || '[]');
@@ -356,6 +360,9 @@
 
       var self = this;
       setTimeout(function() {
+        // QA fix: if the player left the track or restarted during the 1.5 s pause (menu, Race again, new venue) the state is
+        // no longer 'finished'; the finish screen / story stars of the old race used to pop up over whatever came next.
+        if (self.state !== 'finished') return;
         if (window.__onRaceFinish) {
           try {
             var me = (self.leaderboard || []).filter(function(r) { return r.isMe; })[0];

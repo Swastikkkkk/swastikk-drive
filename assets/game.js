@@ -1674,7 +1674,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     submitToLeaderboard(ms,V.label);
 }
 async function submitToLeaderboard(ms,vehicle){
-    const name=localStorage.getItem('sl_name')||'Anon';
+    // QA fix: unguarded localStorage threw before the try below (blocked storage) -> unhandled promise rejection on every lap
+    let name='Anon';try{name=localStorage.getItem('sl_name')||'Anon'}catch(e){}
     const entry={n:name,ms,veh:vehicle,at:Date.now()};
     try{
       const res=await fetch(SUPA.url+'/rest/v1/leaderboard',{
@@ -2911,6 +2912,8 @@ t.bd.position.set(x,y+.86,z);
     const paintHex=paint!=null?paint:spec.paints[0];
     try{if(CAMS[camMode].cock&&(spec.type==='bike'||spec.type==='f1'))camMode=0}catch(_){}   // no cabin on the bike or the open-wheeler (the camera list is not made yet when the saved car loads at start)
     Object.assign(V,spec.V);V.label=spec.label;
+    /* QA fix: the Grand Prix's V.nb boost cap and V.__base are not part of any car spec, so they survived a car change (garage) and stuck to the new car */
+    V.__base=null;delete V.nb;
     applyVehicle();
     chassisB.mass=spec.mass;chassisB.updateMassProperties();
     if(PCAR)vis.bodyIn.remove(PCAR.g);
@@ -8018,7 +8021,12 @@ const PLANETS={
       box.setFromObject(c);if(box.isEmpty())continue;box.getCenter(ctr);
       if(Math.hypot(ctr.x-cx,ctr.z-cz)<900)continue;
       c.traverse(o=>{if(o.layers.mask===1){o.layers.set(1);worldHidden.push(o)}})}}
+  /* QA fix: the Grand Prix caps V.max/V.nb (145 km/h) and only a later restartSoloRace() put them back, so leaving a
+     Grand Prix for practice, free drive, a drawn track or the valley kept the F1 speed cap forever. Called when a venue
+     is entered or left; the next Grand Prix start caps again. */
+  function gpUncap(){if(V.__base){if(V.__base.id===curCarId){V.max=V.__base.max;V.nb=V.__base.nb}V.__base=null}}
   function enterCircuit(){if(!circuit)return;
+    gpUncap();
     /* the valley's state (where the car was, its fog, its gravity) is saved only when we come FROM the valley. Going
        from one track straight to another (a multiplayer host switching venues, daily after a drawn track) used to save
        the first track's values as 'the valley's', so back on Earth the car was dropped onto the old track's flat ground
@@ -8058,7 +8066,7 @@ const PLANETS={
     C.far=1800;C.updateProjectionMatrix();                  // the venue's ground and mountains run out to the horizon
     if(circuit.hazeTo)circuit.hazeTo(S.fog.color);
     toastMsg('Venue · '+th.name+' · seed '+circuit.seed);updCircBtn()}
-  function leaveCircuit(){if(MODE!=='circuit')return;try{if(AUTO.lock)AUTO.set(false,true)}catch(e){}   // a typing/daily lap's locked autodrive never follows you out
+  function leaveCircuit(){if(MODE!=='circuit')return;gpUncap();try{if(AUTO.lock)AUTO.set(false,true)}catch(e){}   // a typing/daily lap's locked autodrive never follows you out
    tyreEl.style.display='none';pitBan.style.display='none';pitBanTxt='';pitWasIn=false;TYRE.grip=1;pitStop=null;
     C.far=320;C.updateProjectionMatrix();
     MODE='world';
@@ -8190,6 +8198,10 @@ const PLANETS={
   const GPCAR={prev:null};
   function restartSoloRace(){
     const gp=!!window.__f1GP;window.__f1GP=false;const grid=window.__raceGrid||null;window.__raceGrid=null;const story=window.__storyLevel||null;window.__storyLevel=null;   // story levels ask for a rival count and pace
+    /* QA fix: Story.play() sets the story's finish hook before the circuit loads and only clears it when that race finishes.
+       Quitting a level to the menu and then racing anything else (daily, a drawn track, a Grand Prix) left the hook armed,
+       so that other race's result awarded stars and unlocked levels for the abandoned story level. */
+    if(!story)window.__onRaceFinish=null;
     if(MODE!=='circuit'||!circuit||!window.RaceEngine)return;
     const RE=window.RaceEngine;RE.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps:circuit.daily?DAILY_LAPS:lapsCfg(),roadWidth:CIRC_W});
     {const fc=circuit.f1&&window.F1?F1.get(circuit.f1):null;   // what this race is, for the finish screen and the records
@@ -8720,7 +8732,7 @@ updCircBtn();
     // the board: one entry per driver (their best), rank / name / total / best lap, you highlighted
     function renderDailyBoard(){
       if(!dailyListEl)return;
-      const dStr=dailyDay(),me=(localStorage.getItem('sl_name')||'').trim();
+      /* QA fix: guarded - blocked storage used to throw here and leave the daily board empty */let me='';try{me=(localStorage.getItem('sl_name')||'').trim()}catch(e){}const dStr=dailyDay();
       const draw=(rows,src)=>{
         const best=new Map();rows.forEach(r=>{const k=String(r.name||'Driver').toLowerCase(),o=best.get(k);if(!o||r.time<o.time)best.set(k,r)});
         const list=[...best.values()].sort((a,b)=>a.time-b.time).slice(0,50);
