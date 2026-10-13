@@ -7898,14 +7898,14 @@ const PLANETS={
         curv[i]=Math.acos(Math.max(-1,Math.min(1,(a.x*b.x+a.z*b.z)/(la*lb))))/(2*ds)}}
     // the rivals' bodies are built fresh every race: free their geometry too, or every rebuild leaked ~70 buffers
     function clear(){cars.forEach(c=>{if(c.car.g.parent)c.car.g.parent.remove(c.car.g);c.car.g.traverse(o=>{if(o.geometry)o.geometry.dispose()});try{world.removeBody(c.bd)}catch(e){}});cars=[];on=false;boardSet=false}
-    function start(n){
-      clear();if(!circuit||!window.RaceEngine)return;curvature();laps=window.RaceEngine.totalLaps||3;
+    function start(n,opts){
+      opts=opts||{};clear();if(!circuit||!window.RaceEngine)return;curvature();laps=window.RaceEngine.totalLaps||3;
       const Cc=circuit,L=Cc.curve.getLength(),W=CIRC_W;
       for(let i=0;i<n;i++){const j=i+1,back=6+j*7.5,lane=(j%2===0?1:-1)*W*.28;
         const car=buildCar({paint:PAINT[i%PAINT.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
         car.g.rotation.order='YXZ';Cc.root.add(car.g);
         const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});bd.addShape(new CANNON.Box(new CANNON.Vec3(.95,.62,2.05)));world.addBody(bd);
-        cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:V.max*SKILL[i%SKILL.length],name:NAMES[(i+Math.floor(Math.random()*3))%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null})}
+        cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:V.max*(opts.skill!=null?opts.skill-(i%4)*.01:SKILL[i%SKILL.length]),name:opts.names?opts.names[i%opts.names.length]:NAMES[(i+Math.floor(Math.random()*3))%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null})}
       on=true;place(0)}
     function playerProg(){const RE=window.RaceEngine,T=RE.checkpoints.length||16;return (RE.currentLap-1)+Math.max(0,RE.currentCheckpoint-1)/T}
     function place(dt){
@@ -7955,12 +7955,15 @@ const PLANETS={
   function lapsCfg(){const inRoom=typeof MP!=='undefined'&&MP&&MP.on;return Math.max(1,Math.min(50,inRoom&&MP.getLaps?MP.getLaps():raceCfg.laps))}
   function bigCount(t){const el=$('#dcount');if(!el)return;el.textContent=t;el.classList.remove('on');void el.offsetWidth;el.classList.add('on');
     if(t==='GO')setTimeout(()=>{if(el.textContent==='GO')el.classList.remove('on')},900)}
+  /* Grand Prix: a full grid of fictional rivals, requested by window.__f1GP for one race start only */
+  const GP_RIVALS=19,GP_OPTS={skill:1,names:['Corelli','Vantrell','Marrow','Orsen','Reyne','Quell','Varga','Donnell','Sallis','Tolan','Kell','Aalto','Duval','Caro','Marsh','Hallen','Rend','Oyelaran','Brask']};
   function restartSoloRace(){
+    const gp=!!window.__f1GP;window.__f1GP=false;
     if(MODE!=='circuit'||!circuit||!window.RaceEngine)return;
     const RE=window.RaceEngine;RE.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps:circuit.daily?DAILY_LAPS:lapsCfg(),roadWidth:CIRC_W});RE.isDaily=!!circuit.daily;RE.dailyDate=circuit.dailyDate||null;
     RE.closeResultsModal();
     circuit.lightsDone=false;circuit.lightsStart=performance.now();circuit.cdN=0;tyresReset();
-    RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:sp.tangent||circuit.startP.tg})});CAI.start(3)}
+    RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:sp.tangent||circuit.startP.tg})});CAI.start(gp?GP_RIVALS:3,gp?GP_OPTS:undefined)}
   window.restartSoloRace=restartSoloRace;
   /* ---------- F1 circuits (assets/f1-circuits.js: real layouts at real size; assets/f1-landmarks.js: their scenery) ----------
      F1.build(id,{race,laps}) builds one like any venue: its own width, elevation profile (or height range), tunnels,
@@ -9390,13 +9393,17 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
      '<div class="pair">'+S('mp','Multiplayer','Up to 4 friends')+S('daily','Daily track',"Today's leaderboard")+S('chill','Chillout room',"Your crew's room")+S('typing','Typing','Type to drive')+S('draw','Draw a track','Sketch it, race it')+S('garage','Garage','Pick or build a car')+'</div></div></div>'};
    const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
      T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
+   const f1c=id=>{const c=window.F1&&F1.get(id);if(!c)return f1();el.innerHTML='<div class="hm"><button class="back" data-go="f1">‹ Back</button><h1>'+c.name+'</h1><p class="sub">'+c.country+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+T('f1p:'+id,'Practice','Drive the circuit on your own')+T('f1m:'+id,'Race a friend','Open a room on this circuit')+T('f1g:'+id,'Grand Prix','5 laps, a full grid of rivals')+'</div></div>'};
    const f1=()=>{const L=(window.F1&&F1.list())||[];el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>F1 circuits</h1><p class="sub">Real layouts from GPS, at real size.</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+
      L.map(c=>T('f1:'+c.id,c.name,c.country+' · '+(c.lengthM/1000).toFixed(3)+' km'+(c.raceTime==='night'?' · night':c.raceTime==='dusk'?' · dusk':''))).join('')+'</div></div>'};
    const close=after=>{if(!HOME.on)return;HOME.on=false;try{HOME.putAway&&HOME.putAway(false)}catch(_){}el.classList.add('out');document.body.classList.remove('homeon');driving=wasDriving||true;setTimeout(()=>{el.remove()},500);if(after)setTimeout(after,120)};
    const btn=id=>()=>{const b=document.getElementById(id);if(b)b.click()};
    const ACT={free:()=>close(btn('dmfree')),mp:()=>close(btn('droom')),chill:()=>close(()=>{btn('droom')();setTimeout(()=>{const c=document.getElementById('dmpchill');if(c)c.click()},250)}),daily:()=>close(btn('dmdaily')),draw:()=>close(btn('dcircb')),garage:()=>close(()=>window.__openGarage&&window.__openGarage()),
      settings:()=>close(()=>window.Settings&&Settings.open()),typing,f1,home:main,tfast:()=>close(btn('dmtype')),tdaily:()=>close(()=>{try{audioInit()}catch(_){}if(window.TypingRace)TypingRace.start()})};
-   el.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;try{audioInit()}catch(_){}const g=b.dataset.go;if(g.startsWith('f1:')){const id=g.slice(3);close(()=>{try{if(!window.F1.build(id,{race:false,share:false}))(typeof toastMsg==='function'&&toastMsg('Could not load that circuit'))}catch(err){console.error('F1 build failed',err);(typeof toastMsg==='function'&&toastMsg('Could not load that circuit'))}});return}ACT[g]&&ACT[g]()});
+   el.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;try{audioInit()}catch(_){}const g=b.dataset.go;if(g.startsWith('f1:')){f1c(g.slice(3));return}
+     if(/^f1[pmg]:/.test(g)){const mode=g[2],id=g.slice(4),fail=()=>(typeof toastMsg==='function'&&toastMsg('Could not load that circuit'));close(()=>{try{if(mode==='p'){if(!window.F1.build(id,{race:false,share:false}))fail();return}
+       if(mode==='m'){if(!window.F1.build(id,{race:false,share:true}))fail();btn('droom')();return}
+       window.__f1GP=true;const ok=window.F1.build(id,{race:true,laps:5});window.__f1GP=false;if(!ok)fail()}catch(err){window.__f1GP=false;console.error('F1 build failed',err);fail()}});return}ACT[g]&&ACT[g]()});
    addEventListener('keydown',e=>{if(HOME.on&&e.code==='Escape')close()},true);
    main();
    // the camera: high over the summit lookout, panning slowly across the valley, with the haze pulled back
