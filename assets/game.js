@@ -46,47 +46,47 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const SUPA=window.__SUPA={url:'https://oceaylrebzflgyxfjqfb.supabase.co',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'};
   const GARAGE=[
     {id:'outlaw',label:'Outlaw V8',type:'car',blurb:'Big-block muscle, smokes the rears',mass:205,F:2.5,B:-2.45,W:2.04,price:0,
-     V:{engine:820,max:34,slip:2.3,xw:1.0,zf:1.45,zb:-1.35,r:.44,rest:.38,steer:.56,roll:.02},
+     V:{brake:0.95,engine:840,max:36,slip:2.3,xw:1.0,zf:1.45,zb:-1.35,r:.44,rest:.38,steer:.56,roll:.02},
      paints:[0x5a0a0e,0x111114,0x173224,0xb4481a,0x16335f,0xe8e4da]},
-    {id:'phantom',label:'Phantom',type:'ev',blurb:'Longest, top speed, twitchy',mass:210,F:2.7,B:-2.62,W:2.28,price:600,
-     V:{engine:820,max:37.5,slip:2.1,xw:1.08,zf:1.55,zb:-1.55,r:.46,rest:.4,steer:.58,roll:.024},
+    {id:'phantom',label:'Phantom',type:'ev',blurb:'Electric GT, instant torque, heavy',mass:210,F:2.7,B:-2.62,W:2.28,price:600,
+     V:{brake:1.0,engine:900,max:34,slip:2.1,xw:1.08,zf:1.55,zb:-1.55,r:.46,rest:.4,steer:.58,roll:.024},
      paints:[0x121216,0x2c2c30,0xd9d4c6,0x5c1418]},
     {id:'mamba',label:'Mamba',type:'car',blurb:'Sedan, quick, loose',mass:175,F:2.1,B:-2.1,W:1.95,wagon:false,price:220,
-     V:{engine:700,max:31.5,slip:2.15,xw:.95,zf:1.2,zb:-1.2,r:.4,rest:.36,steer:.6,roll:.016},
+     V:{brake:1.0,engine:700,max:32.5,slip:2.15,xw:.95,zf:1.2,zb:-1.2,r:.4,rest:.36,steer:.6,roll:.016},
      paints:[0xb33a1e,0x14161b,0xd9d4c6,0x27476b]},
     {id:'f1apex',label:'F1 Apex',type:'f1',blurb:'Formula 1 Single-Seater',mass:135,F:2.75,B:-2.35,W:1.9,price:800,
-     V:{engine:900,max:44,slip:3.6,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.8,roll:.01},
+     V:{brake:1.5,engine:1150,max:47.5,slip:4.6,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.88,roll:.01},
      paints:[0xdc143c,0x1a1a2e,0xf0e68c,0x00ffff]},
     {id:'f1papaya',label:'Papaya Strike',type:'f1',blurb:'Free · lightest and quickest off the line',mass:138,F:2.75,B:-2.35,W:1.9,price:0,livery:[0x111111,0x47c7fc],
-     V:{engine:1200,max:47,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
+     V:{brake:1.5,engine:1200,max:47,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
      paints:[0xff8000,0x1a1a1a,0xf2f2f2]},
     {id:'f1rosso',label:'Rosso Fulmine',type:'f1',blurb:'Free · scarlet, brakes late, corners flat',mass:136,F:2.75,B:-2.35,W:1.9,price:0,livery:[0xf2f2f2,0x111111],
-     V:{engine:1250,max:48.5,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
+     V:{brake:1.55,engine:1250,max:48.5,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
      paints:[0xdc0000,0xf2f2f2,0xffd12e]},
     {id:'f1volt',label:'Volt GP-1',type:'f1',blurb:'Free · midnight blue rocket on the straights',mass:134,F:2.75,B:-2.35,W:1.9,price:0,livery:[0xdc0a2d,0xffd12e],
-     V:{engine:1300,max:50,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
+     V:{brake:1.5,engine:1300,max:50,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
      paints:[0x1e2a5a,0x111111,0xdc0a2d]},
     {id:'f1quick',label:'Quicksilver',type:'f1',blurb:'Free · silver, black and teal, all downforce',mass:132,F:2.75,B:-2.35,W:1.9,price:0,livery:[0x27f4d2,0x111111],
-     V:{engine:1350,max:51.5,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
+     V:{brake:1.5,engine:1350,max:51.5,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
      paints:[0xc4c8cc,0x1c1c1f,0x27f4d2]},
     {id:'f1viper',label:'Emerald Viper',type:'f1',blurb:'Free · the fastest car in the garage',mass:130,F:2.75,B:-2.35,W:1.9,price:0,livery:[0xcedc00,0x111111],
-     V:{engine:1400,max:53,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
+     V:{brake:1.5,engine:1400,max:53,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
      paints:[0x00594f,0xcedc00,0x0a0a0a]},
     {id:'titan4x4',label:'Titan 4x4',type:'suv',blurb:'Rugged Off-Road SUV',mass:290,F:2.5,B:-2.4,W:2.2,wagon:true,price:500,
-     V:{engine:680,max:28,slip:3.0,xw:1.2,zf:1.5,zb:-1.5,r:.52,rest:.52,steer:.45,roll:.03},
+     V:{brake:0.8,engine:680,max:26,slip:3.0,xw:1.2,zf:1.5,zb:-1.5,r:.52,rest:.52,steer:.45,roll:.03},
      paints:[0x2d4a22,0x1a1a1a,0xd4a843,0x4a4a4a]},
     {id:'phantombike',label:'Phantom Bike',type:'bike',blurb:'Aerodynamic Superbike',mass:110,F:1.5,B:-1.5,W:1.0,price:600,
-     V:{engine:660,max:42,slip:2.8,xw:0.5,zf:1.0,zb:-1.0,r:.35,rest:.3,steer:.62,roll:.005},   // calmer: steer .9 and 850 power made it twitchy and jumpy
+     V:{brake:0.85,engine:700,max:39,slip:2.8,xw:0.5,zf:1.0,zb:-1.0,r:.35,rest:.3,steer:.62,roll:.005},   // calmer: steer .9 and 850 power made it twitchy and jumpy
      paints:[0x1a1a2e,0xff6b35,0x00d4aa,0xffd700]},
     {id:'valkyrie',label:'Valkyrie LeMans',type:'hypercar',blurb:'Le Mans Hypercar',mass:165,F:2.0,B:-1.9,W:1.8,price:1000,
-     V:{engine:1050,max:46.5,slip:3.2,xw:1.15,zf:1.35,zb:-1.35,r:.4,rest:.32,steer:.7,roll:.01},
+     V:{brake:1.3,engine:1050,max:45.5,slip:3.4,xw:1.15,zf:1.35,zb:-1.35,r:.4,rest:.32,steer:.7,roll:.01},
      paints:[0x0d1b2a,0xff0033,0x00ff88,0xffd700]},
     {id:'skyline',label:'Skyline GTR',type:'car',blurb:'Godzilla, AWD legend',mass:180,F:2.2,B:-2.1,W:1.9,price:500,
-     V:{engine:800,max:35,slip:3.0,xw:1.05,zf:1.3,zb:-1.3,r:.42,rest:.4,steer:.6,roll:.02},
+     V:{brake:1.1,engine:880,max:41,slip:3.0,xw:1.05,zf:1.3,zb:-1.3,r:.42,rest:.4,steer:.6,roll:.02},
      paints:[0x0066cc,0x1a1a2e,0xd9d4c6,0xffd700]},
     {id:'truck',label:'Titan Hauler',type:'truck',blurb:'Heavy hauler, 18-wheeler',mass:450,F:3.0,B:-4.0,W:2.5,wagon:true,price:800,
-     V:{engine:900,max:25,slip:3.5,xw:1.4,zf:2.0,zb:-2.0,r:.6,rest:.6,steer:.35,roll:.04},
-     paints:[0x8b4513,0x2d4a22,0x1a1a2e,0xd4a843]},
+     V:{brake:0.55,engine:900,max:20,slip:3.5,xw:1.4,zf:2.0,zb:-2.0,r:.6,rest:.6,steer:.35,roll:.04},
+     paints:[0xb3202a,0xf2f2ee,0x1d4f91,0x2d4a22,0x1a1a2e,0xd4a843]},
   ];
   /* ---------- your own car (Garage > Make your own) ----------
      From a photo: the photo's paint colour and the shape of the car in it pick the closest body in the garage, painted to
@@ -2505,8 +2505,8 @@ t.bd.position.set(x,y+.86,z);
   /* Cornering limit per car, in g: what full steering lock asks of the tyres at speed (see the
      steering code). Road cars sit around 1.45 g, the race cars well above, the heavy ones below.
      BRAKE_DECEL is the service-brake deceleration in m/s^2, about 1.2 g: 100 to 0 in roughly 32 m. */
-  const LAT_G={outlaw:1.42,f1apex:2.3,valkyrie:1.9,gt40:1.75,phantombike:1.35,truck:.85,titan4x4:1.0,ridgeback:1.15,classicmini:1.3,
-    countach:1.55,skyline:1.55,rx7spirit:1.6,mamba:1.5,kestrel:1.5,phantom:1.55,voltgt:1.5,aster:1.4};
+  const LAT_G={outlaw:1.32,f1apex:2.4,f1papaya:2.4,f1rosso:2.45,f1volt:2.4,f1quick:2.5,f1viper:2.45,valkyrie:1.95,gt40:1.75,phantombike:1.3,truck:.75,titan4x4:.95,ridgeback:1.15,classicmini:1.3,
+    countach:1.55,skyline:1.5,rx7spirit:1.6,mamba:1.38,kestrel:1.5,phantom:1.42,voltgt:1.5,aster:1.4};   /* real ordering: F1 > hypercar > GT-R > EV/sedan/muscle > bike > SUV > truck */
   const latG=id=>LAT_G[id]||LAT_G[ALIAS[id]]||1.45,BRAKE_DECEL=12;
   /* Careful with applyForce in this build of cannon: the second argument is a point in
      WORLD space, not an offset from the centre of mass, whatever the docs say. Passing

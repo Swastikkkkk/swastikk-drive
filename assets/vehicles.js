@@ -17,7 +17,7 @@
   'use strict';
   var CB = window.CarBuilder || {};
   var phong = CB.phong || function (c, o) { return new THREE.MeshPhongMaterial(Object.assign({ color: c, shininess: 80 }, o || {})); };
-  var glassM = new THREE.MeshPhysicalMaterial({ color: 0x0b1016, metalness: 0.1, roughness: 0.04, clearcoat: 1, clearcoatRoughness: 0.02, reflectivity: 0.6, side: THREE.DoubleSide });
+  var glassM = new THREE.MeshStandardMaterial({ color: 0x05080c, metalness: 0.35, roughness: 0.06, envMapIntensity: 0.75, side: THREE.DoubleSide });   // dark tinted glass: the clear-coated version mirrored the sky and every cabin read as a pale grey blob
   var trimM = new THREE.MeshPhongMaterial({ color: 0x15161a, specular: 0x2a2a2e, shininess: 20 });
   var darkM = new THREE.MeshLambertMaterial({ color: 0x0b0b0c });
   var chromeM = new THREE.MeshStandardMaterial({ color: 0xe6e9ec, metalness: 1, roughness: 0.12 });chromeM.reflectivity = 1;if (CB.CARENV) { chromeM.envMap = CB.CARENV; glassM.envMap = CB.CARENV; }
@@ -608,54 +608,93 @@
   };
 
   // Titan Hauler: a conventional tractor unit with sleeper cab and a box trailer body on the same chassis
+  /* Titan Hauler: a modern cab-over rigid box truck (European style). Flat-fronted cab sitting over the front axle with
+     a raked windscreen, roof air deflector, big mirrors and a stepped bumper; a ladder chassis; a box body in brushed
+     aluminium with corner posts, a livery panel, side under-run guards and roller-door style rear. Tandem rear axle
+     (game.js draws the second rear axle 2.3 r ahead of zb). */
   MODELS.truck = function (o, paint, body) {
-    var F = o.F + 0.2, B = o.B - 0.4, W = o.Wb + 0.05, cabBack = o.zf - 0.9;
-    // chassis rails + fuel tanks
-    [-1, 1].forEach(function (k) { box(0.14, 0.24, F - B - 0.4, darkM, k * 0.55, 0.78, (F + B) / 2 - 0.1, body); });
-    [-1, 1].forEach(function (k) { cyl(0.28, 0.28, 1.0, chromeM, k * (W - 0.15), 0.78, cabBack - 0.7, body, Math.PI / 2); });
-    // bonnet + front end
-    // bonnet and cab arch over the big front wheels instead of cutting through them
-    var tArch = archBottom(o, 0.95, 0.1);
-    var hood = stations(o.zf - 0.2, F, 16, function (z, u) { var yt = lerp(1.75, 1.62, u * u); return { z: z, yb: tArch(z, yt), yt: yt, hw: lerp(W * 0.86, W * 0.8, u), n: 6 }; });
-    body.add(loft(hood, paint, 18));
-    // cab
-    var cab = stations(cabBack - 1.3, o.zf - 0.2, 18, function (z) { return { z: z, yb: tArch(z, 2.85), yt: 2.85, hw: W, n: 9, top: 0.96 }; });
-    body.add(loft(cab, paint, 20));
-    // big windscreen + side windows
-    box(W * 0.86, 0.85, 0.05, glassM, -W * 0.44, 2.3, o.zf - 0.17, body, -0.12); box(W * 0.86, 0.85, 0.05, glassM, W * 0.44, 2.3, o.zf - 0.17, body, -0.12);   // split windscreen
-    box(0.06, 0.88, 0.07, paint, 0, 2.3, o.zf - 0.16, body, -0.12);
-    box(W * 1.85, 0.12, 0.3, paint, 0, 2.8, o.zf - 0.05, body, 0.25);                            // sun visor
-    [-1, 1].forEach(function (k) { box(0.04, 0.6, 0.8, glassM, k * (W + 0.005), 2.25, o.zf - 0.6, body); });
-    // roof fairing over the sleeper
-    var fair = stations(cabBack - 1.3, o.zf - 0.4, 12, function (z, u) { return { z: z, yb: 2.82, yt: lerp(3.45, 2.95, u * u), hw: W * 0.95, n: 6 }; });
-    body.add(loft(fair, paint, 16));
-    // grille, bumper, lamps
-    box(W * 1.24, 0.66, 0.05, chromeM, 0, 1.25, F + 0.0, body);
-    box(W * 1.1, 0.56, 0.05, darkM, 0, 1.25, F + 0.012, body);
-    for (var i = 0; i < 6; i++) box(W * 1.1, 0.03, 0.06, darkM, 0, 1.0 + i * 0.1, F + 0.01, body);
-    box(W * 2.05, 0.3, 0.25, chromeM, 0, 0.62, F + 0.08, body);
-    [-1, 1].forEach(function (k) { for (var st = 0; st < 3; st++) box(0.4, 0.04, 0.24, greyM, k * (W + 0.05), 0.55 + st * 0.32, o.zf - 0.75, body); });   // cab steps
-    [-1, 1].forEach(function (k) { box(0.04, 1.1, 0.04, darkM, k * (W + 0.005), 1.9, o.zf - 1.05, body); });   // door shut lines
-    lightPair(W * 0.78, 1.05, F + 0.03, 0.34, 0.16, o.head, body);
-    for (var j = -2; j <= 2; j++) box(0.08, 0.05, 0.05, new THREE.MeshLambertMaterial({ color: 0xffa21a, emissive: 0xff8800, emissiveIntensity: 0.6 }), j * 0.25, 2.88, o.zf - 0.2, body);
-    // exhaust stacks
-    [-1, 1].forEach(function (k) { cyl(0.07, 0.07, 2.2, chromeM, k * (W - 0.05), 2.0, cabBack - 1.35, body); });
-    // box body (cargo)
-    var cargoF = cabBack - 1.45, cargoB = B;
-    var floorY = 2 * o.r + 0.18;                                                                 // box floor clears the rear tyres
-    var cargo = box(W * 2.0, 2.35, cargoF - cargoB, phong(0xe8e6df, { reflectivity: 0.1 }), 0, floorY + 1.175, (cargoF + cargoB) / 2, body);
-    cargo.receiveShadow = true;
-    box(W * 2.02, 0.32, cargoF - cargoB - 0.2, paint, 0, floorY + 1.2, (cargoF + cargoB) / 2, body);   // livery band
-    for (var rz = cargoB + 0.4; rz < cargoF - 0.2; rz += 0.6) [-1, 1].forEach(function (k) { box(0.03, 2.3, 0.06, greyM, k * (W + 0.005), floorY + 1.175, rz, body); });   // ribs
-    box(0.03, 2.2, 0.03, darkM, 0, floorY + 1.175, cargoB - 0.005, body);                      // rear door split
-    [-1, 1].forEach(function (k) { for (var hh = 0; hh < 4; hh++) box(0.12, 0.05, 0.04, chromeM, k * W * 0.45, floorY + 0.35 + hh * 0.6, cargoB - 0.02, body); });   // door hinges/bars
-    for (var ml = 0; ml < 5; ml++) box(0.07, 0.05, 0.05, new THREE.MeshLambertMaterial({ color: 0xffa21a, emissive: 0xff8800, emissiveIntensity: .5 }), W + 0.02, floorY + 0.15, cargoB + 0.5 + ml * (cargoF - cargoB - 1) / 4, body);
-    box(W * 2.02, 0.08, cargoF - cargoB, greyM, 0, floorY - 0.02, (cargoF + cargoB) / 2, body);  // floor rail
-    [-1, 1].forEach(function (k) { box(0.1, 0.16, 0.05, o.tail, k * W * 0.85, floorY - 0.12, cargoB - 0.03, body); });
-    box(W * 1.9, 0.12, 0.12, greyM, 0, 0.6, cargoB - 0.1, body);                                // under-ride bar
-    // mud flaps behind the rear wheels
-    [-1, 1].forEach(function (k) { box(0.36, 0.5, 0.03, rubberM, k * (W - 0.25), 0.45, o.zb - o.r - 0.25, body); });
-    mirrorPair(W, 2.2, o.zf - 0.25, darkM, body);
+    var F = o.F + 0.2, B = o.B - 0.4, W = o.Wb + 0.05, r = o.r;
+    var alu = new THREE.MeshStandardMaterial({ color: 0xd9dcdf, metalness: 0.55, roughness: 0.42 });
+    var panel = new THREE.MeshStandardMaterial({ color: 0xf1f1ee, metalness: 0.1, roughness: 0.55 });
+    var amber = new THREE.MeshLambertMaterial({ color: 0xffa21a, emissive: 0xff8800, emissiveIntensity: 0.55 });
+    var cabB = F - 2.25, cabY0 = 2 * r + 0.12, cabY1 = 3.05, cw = W * 2, cz = (F + cabB) / 2;
+    // ---- chassis: two rails the whole length, cross members, fuel + AdBlue tanks, battery box
+    [-1, 1].forEach(function (k) { box(0.16, 0.26, F - B - 0.5, darkM, k * 0.5, r + 0.2, (F + B) / 2 - 0.1, body); });
+    for (var cm = B + 0.4; cm < F - 0.6; cm += 1.1) box(1.0, 0.12, 0.1, darkM, 0, r + 0.2, cm, body);
+    cyl(0.3, 0.3, 1.05, alu, W - 0.32, r + 0.12, cabB - 0.75, body, Math.PI / 2, 0, 0, 18);
+    cyl(0.17, 0.17, 0.45, panel, -(W - 0.3), r + 0.18, cabB - 0.55, body, Math.PI / 2, 0, 0, 14);
+    box(0.5, 0.42, 0.6, darkM, -(W - 0.35), r + 0.15, cabB - 1.15, body);
+    // ---- cab: lower body (with the front wheel arch cut out by two blocks and a mudguard), upper box, slight front taper
+    var aF = o.zf + r + 0.18, aB = o.zf - r - 0.18;
+    box(cw, cabY1 - (2 * r + 0.25), 2.25, paint, 0, (cabY1 + 2 * r + 0.25) / 2, cz, body);          // main cab above the arch line
+    box(cw, 2 * r + 0.25 - cabY0 + 0.6, F - aF, paint, 0, (2 * r + 0.25 + cabY0 - 0.6) / 2, (F + aF) / 2, body);   // nose block ahead of the wheel
+    box(cw, 2 * r + 0.25 - cabY0 + 0.6, Math.max(0.05, aB - cabB), paint, 0, (2 * r + 0.25 + cabY0 - 0.6) / 2, (aB + cabB) / 2, body);   // behind the wheel (door sill)
+    [-1, 1].forEach(function (k) {
+      var mg = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.16, r + 0.16, 0.5, 18, 1, true, 0, Math.PI), darkM);
+      mg.rotation.set(0, 0, Math.PI / 2); mg.rotation.order = 'ZYX'; mg.position.set(k * (W - 0.24), r, o.zf); mg.material.side = THREE.DoubleSide; body.add(mg);
+    });
+    // windscreen: one wide raked pane, dark rubber surround; side windows and the door
+    box(cw * 0.94, 1.0, 0.06, glassM, 0, 2.42, F + 0.005, body, -0.09);
+    box(cw * 0.97, 0.06, 0.08, darkM, 0, 1.9, F + 0.02, body); box(cw * 0.97, 0.06, 0.08, darkM, 0, 2.93, F - 0.07, body, -0.09);
+    [-1, 1].forEach(function (k) {
+      box(0.05, 0.78, 1.05, glassM, k * (W + 0.003), 2.4, F - 0.65, body);
+      box(0.03, 1.75, 0.03, darkM, k * (W + 0.006), 1.95, F - 1.3, body);                        // door shut line
+      box(0.03, 0.03, 1.2, darkM, k * (W + 0.006), 1.15, F - 0.68, body);
+      box(0.04, 0.05, 0.22, chromeM, k * (W + 0.02), 1.85, F - 1.12, body);                       // door handle
+      // steps up to the door, ahead of the front wheel's arch edge
+      for (var st = 0; st < 2; st++) box(0.42, 0.05, 0.3, alu, k * (W - 0.12), 0.55 + st * 0.38, aF + 0.18, body);
+      // big mirrors on arms
+      tube([k * W, 2.75, F - 0.25], [k * (W + 0.32), 2.62, F - 0.15], 0.025, darkM, body);
+      box(0.08, 0.62, 0.26, darkM, k * (W + 0.36), 2.35, F - 0.15, body); box(0.02, 0.56, 0.22, glassM, k * (W + 0.36), 2.35, F - 0.29, body);
+      box(0.08, 0.26, 0.22, darkM, k * (W + 0.3), 1.9, F - 0.08, body);
+      // headlights in the bumper corners, indicator, fog lamp
+      var hl = box(0.5, 0.2, 0.05, o.head, k * W * 0.66, 1.08, F + 0.04, body); hl.castShadow = false;
+      box(0.14, 0.2, 0.05, amber, k * W * 0.92, 1.08, F + 0.04, body).castShadow = false;
+      cyl(0.07, 0.07, 0.05, o.head, k * W * 0.6, 0.66, F + 0.12, body, Math.PI / 2).castShadow = false;
+    });
+    // grille between the lamps and the windscreen: dark mesh, chrome bars, a badge
+    box(cw * 0.72, 0.62, 0.04, darkM, 0, 1.55, F + 0.025, body);
+    for (var gb = 0; gb < 5; gb++) box(cw * 0.7, 0.035, 0.03, chromeM, 0, 1.3 + gb * 0.12, F + 0.04, body);
+    box(0.38, 0.1, 0.03, chromeM, 0, 1.92, F + 0.03, body);
+    // bumper: grey, wraps the corners, with a step and tow eye
+    box(cw + 0.06, 0.42, 0.22, greyM, 0, 0.78, F + 0.06, body);
+    box(cw * 0.5, 0.06, 0.14, darkM, 0, 0.58, F + 0.16, body);
+    // roof: sun visor, marker lamps, air deflector rising toward the box height
+    box(cw * 0.98, 0.07, 0.32, paint, 0, cabY1 + 0.02, F - 0.02, body, 0.18);
+    for (var j = -2; j <= 2; j++) box(0.1, 0.05, 0.05, amber, j * 0.28, cabY1 + 0.07, F - 0.05, body).castShadow = false;
+    var floorY = 2 * r + 0.25, boxTop = floorY + 2.55;
+    var df = new THREE.Mesh(new THREE.BoxGeometry(cw * 0.94, boxTop - cabY1, 1.6), paint);
+    df.position.set(0, (boxTop + cabY1) / 2 - 0.02, cabB + 0.95); df.rotation.x = -0.32; df.scale.y = 0.95; df.castShadow = true; body.add(df);
+    box(cw * 0.94, boxTop - cabY1 - 0.05, 0.08, paint, 0, (boxTop + cabY1) / 2 - 0.03, cabB + 0.2, body);
+    [-1, 1].forEach(function (k) { box(0.06, boxTop - cabY1, 0.9, paint, k * W * 0.94, (boxTop + cabY1) / 2, cabB + 0.6, body, 0, 0, 0); });
+    // exhaust stack behind the cab
+    cyl(0.075, 0.075, 1.6, chromeM, W - 0.2, cabY1 - 0.4, cabB - 0.12, body);
+    // ---- box body: panels, aluminium corner posts and rails, livery, rear doors, lights, guards
+    var bF = cabB - 0.15, bL = bF - B, bz = (bF + B) / 2, bh = boxTop - floorY;
+    box(cw + 0.02, bh, bL, panel, 0, floorY + bh / 2, bz, body).receiveShadow = true;
+    [-1, 1].forEach(function (kx) { [B, bF].forEach(function (zz) { box(0.09, bh + 0.02, 0.09, alu, kx * (W + 0.02), floorY + bh / 2, zz, body); }); });
+    [floorY, boxTop].forEach(function (yy) { [-1, 1].forEach(function (kx) { box(0.07, 0.1, bL + 0.06, alu, kx * (W + 0.03), yy, bz, body); }); box(cw + 0.08, 0.1, 0.07, alu, 0, yy, B - 0.01, body); box(cw + 0.08, 0.1, 0.07, alu, 0, yy, bF + 0.01, body); });
+    for (var rz = B + 1.2; rz < bF - 0.6; rz += 1.2) [-1, 1].forEach(function (kx) { box(0.02, bh - 0.1, 0.05, alu, kx * (W + 0.015), floorY + bh / 2, rz, body); });
+    [-1, 1].forEach(function (kx) {
+      box(0.02, bh * 0.36, bL * 0.8, paint, kx * (W + 0.02), floorY + bh * 0.52, bz + 0.1, body);       // livery panel in the paint colour
+      box(0.025, 0.05, bL * 0.8, darkM, kx * (W + 0.025), floorY + bh * 0.33, bz + 0.1, body);
+      // side under-run guard: two grey rails between the cab and the rear axles
+      var g0 = o.zb + 2.3 * r + r + 0.25, g1 = cabB - 0.25;
+      if (g1 > g0) { box(0.05, 0.08, g1 - g0, greyM, kx * (W - 0.05), 0.62, (g0 + g1) / 2, body); box(0.05, 0.08, g1 - g0, greyM, kx * (W - 0.05), 0.95, (g0 + g1) / 2, body); }
+      for (var ml = 0; ml < 4; ml++) box(0.05, 0.06, 0.1, amber, kx * (W + 0.04), floorY - 0.12, B + 0.5 + ml * (bL - 1) / 3, body).castShadow = false;   // side markers
+      // rear mudguards over the tandem
+      box(0.6, 0.04, 2.3 * r + 2 * r + 0.3, darkM, kx * (W - 0.32), 2 * r + 0.14, o.zb + 2.3 * r / 2, body);
+      box(0.5, 0.5, 0.03, rubberM, kx * (W - 0.3), 0.48, o.zb - r - 0.2, body);                    // mud flaps
+      // rear lamp clusters on the under-run bar
+      box(0.42, 0.14, 0.05, o.tail, kx * W * 0.7, 0.72, B - 0.16, body).castShadow = false;
+      box(0.12, 0.14, 0.05, amber, kx * W * 0.92, 0.72, B - 0.16, body).castShadow = false;
+    });
+    // rear: two doors with lock bars
+    box(0.03, bh - 0.12, 0.03, darkM, 0, floorY + bh / 2, B - 0.02, body);
+    [-0.55, -0.2, 0.2, 0.55].forEach(function (x) { box(0.04, bh - 0.2, 0.04, chromeM, x * W, floorY + bh / 2, B - 0.05, body); });
+    [-1, 1].forEach(function (kx) { for (var h = 0; h < 3; h++) box(0.16, 0.06, 0.04, chromeM, kx * (W - 0.05), floorY + 0.4 + h * (bh - 0.8) / 2, B - 0.04, body); });
+    box(cw * 0.92, 0.12, 0.12, greyM, 0, 0.55, B - 0.12, body);                                    // rear under-run bar
+    box(0.42, 0.12, 0.01, new THREE.MeshLambertMaterial({ color: 0xf4d23c }), 0, 0.82, B - 0.15, body);   // number plate
   };
 
   // Phantom Bike: a sports motorcycle. Two in-line wheels (drawn by game.js at x = 0), a real frame, tank, seat,
