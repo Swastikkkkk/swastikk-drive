@@ -42,7 +42,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   /* Supabase project used for multiplayer rooms and the global boards. This is the public "anon" key: it is
      meant to ship in the browser, and what it can do is limited by the database's row-level security policies.
      Defined once here so every caller shares it. */
-  const SUPA={url:'https://oceaylrebzflgyxfjqfb.supabase.co',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'};
+  const SUPA=window.__SUPA={url:'https://oceaylrebzflgyxfjqfb.supabase.co',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'};
   const GARAGE=[
     {id:'outlaw',label:'Outlaw V8',type:'car',blurb:'Big-block muscle, smokes the rears',mass:205,F:2.5,B:-2.45,W:2.04,price:0,
      V:{engine:820,max:34,slip:2.3,xw:1.0,zf:1.45,zb:-1.35,r:.44,rest:.38,steer:.56,roll:.02},
@@ -7985,13 +7985,22 @@ const PLANETS={
   const STORY_NAMES=['Corelli','Vantrell','Marrow','Orsen','Reyne','Quell','Varga','Donnell','Sallis','Tolan','Kell','Aalto','Duval','Caro','Marsh','Hallen','Rend','Oyelaran','Brask'];
   const GP_RIVALS=F1_GRID.length,GP_OPTS={names:F1_GRID.map(d=>d[0]),colors:F1_GRID.map(d=>d[1]),skills:F1_GRID.map(d=>d[2])};
   function restartSoloRace(){
-    const gp=!!window.__f1GP;window.__f1GP=false;const grid=window.__raceGrid||null;window.__raceGrid=null;   // story levels ask for a rival count and pace
+    const gp=!!window.__f1GP;window.__f1GP=false;const grid=window.__raceGrid||null;window.__raceGrid=null;const story=window.__storyLevel||null;window.__storyLevel=null;   // story levels ask for a rival count and pace
     if(MODE!=='circuit'||!circuit||!window.RaceEngine)return;
-    const RE=window.RaceEngine;RE.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps:circuit.daily?DAILY_LAPS:lapsCfg(),roadWidth:CIRC_W});RE.isDaily=!!circuit.daily;RE.dailyDate=circuit.dailyDate||null;
+    const RE=window.RaceEngine;RE.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps:circuit.daily?DAILY_LAPS:lapsCfg(),roadWidth:CIRC_W});
+    {const fc=circuit.f1&&window.F1?F1.get(circuit.f1):null;   // what this race is, for the finish screen and the records
+      window.__raceCtx={track:fc?'f1:'+fc.id:circuit.daily?'daily:'+(circuit.dailyDate||''):'drawn:'+(circuit.seed|0)+':'+Math.round(circuit.curve.getLength()),
+        name:fc?fc.name:circuit.daily?"Today's daily track":'Your track',f1:fc?fc.id:null,mode:gp?'gp':story?'story':circuit.daily?'daily':'race',story,laps:RE.totalLaps,rivals:gp?GP_RIVALS:grid?grid.n:3}}RE.isDaily=!!circuit.daily;RE.dailyDate=circuit.dailyDate||null;
     RE.closeResultsModal();
     circuit.lightsDone=false;circuit.lightsStart=performance.now();circuit.cdN=0;tyresReset();
     RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:sp.tangent||circuit.startP.tg})});CAI.start(gp?GP_RIVALS:grid?grid.n:3,gp?GP_OPTS:grid?{skill:grid.skill,names:STORY_NAMES}:undefined)}
-  window.restartSoloRace=restartSoloRace;window.__caiInfo=()=>({count:CAI.count,on:CAI.on});
+  window.restartSoloRace=restartSoloRace;
+  window.__carPhoto=function(){try{const cam=new THREE.PerspectiveCamera(30,R.domElement.width/R.domElement.height,.1,3000),q=car.quaternion,p=car.position;
+      const fwd=new THREE.Vector3(0,0,1).applyQuaternion(q).setY(0).normalize(),side=new THREE.Vector3(fwd.z,0,-fwd.x);
+      cam.position.copy(p).addScaledVector(fwd,7.5).addScaledVector(side,4.2);cam.position.y+=1.3;cam.lookAt(p.x,p.y+.55,p.z);
+      const fg=S.fog,fn=fg&&fg.near,ff=fg&&fg.far;if(fg){fg.near=Math.max(fn,60);fg.far=Math.max(ff,600)}
+      R.render(S,cam);const url=R.domElement.toDataURL('image/jpeg',.86);if(fg){fg.near=fn;fg.far=ff}return url}catch(e){return null}};
+  window.__inRoom=()=>{try{return !!(MP&&MP.on)}catch(e){return false}};window.__caiInfo=()=>({count:CAI.count,on:CAI.on});
   /* ---------- F1 circuits (assets/f1-circuits.js: real layouts at real size; assets/f1-landmarks.js: their scenery) ----------
      F1.build(id,{race,laps}) builds one like any venue: its own width, elevation profile (or height range), tunnels,
      overhead bridges, which pass of a crossing is the bridge, and the race's time of day. In a room only the id

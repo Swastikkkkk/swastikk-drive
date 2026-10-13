@@ -362,7 +362,9 @@
             window.__onRaceFinish({ pos: self.finalPosition || (me && me.position) || 1, time: self.totalRaceTime });
           } catch (e) {}
         }
-        self.showResultsModal();
+        // solo races get the full finish screen (assets/race-finish.js); rooms keep the shared results card
+        if (window.RaceFinish && !(window.__inRoom && window.__inRoom())) { self.state = 'results'; window.RaceFinish.show(self); }
+        else self.showResultsModal();
       }, 1500);
     },
 

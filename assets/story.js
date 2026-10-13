@@ -42,8 +42,9 @@
     if (!lv || !r) return;
     var st = starsFor(lv, r.pos | 0), d = load(), prev = starsOf(d, lv.n);
     if (st > prev) { d.s[lv.n] = st; save(d); }
-    if (!st) toast('Level ' + lv.n + ' not cleared: P' + r.pos + ', you need P' + lv.target + ' or better');
-    else toast('Level ' + lv.n + ' cleared · P' + r.pos + ' · ' + '★'.repeat(st) + '☆'.repeat(3 - st) + (lv.n < 50 && !prev ? ' · Level ' + (lv.n + 1) + ' unlocked' : ''));
+    // the finish screen (assets/race-finish.js) shows this: stars, whether the next level just opened
+    window.__storyResult = { n: lv.n, name: lv.name, chapter: CHAPTERS[lv.ch][0], stars: st, best: Math.max(st, prev), target: lv.target, cleared: st > 0,
+      unlocked: st > 0 && !prev && lv.n < 50 ? lv.n + 1 : null, next: lv.n < 50 && (st > 0 || prev > 0) ? lv.n + 1 : null };
   }
 
   function play(lv) {
@@ -51,14 +52,14 @@
     window.__onRaceFinish = onFinish;
     var go = function () {
       try {
-        window.__raceGrid = { n: lv.rivals, skill: lv.skill };
+        window.__raceGrid = { n: lv.rivals, skill: lv.skill }; window.__storyLevel = lv.n; window.__storyResult = null;
         if (!window.F1 || !F1.build(lv.circuit, { race: true, laps: lv.laps })) { window.__raceGrid = null; window.__onRaceFinish = null; toast('Could not load that circuit'); return; }
         toast('Level ' + lv.n + ' · ' + lv.name + ' · finish P' + lv.target + ' or better against ' + lv.rivals + ' rivals');
       } catch (e) { window.__raceGrid = null; window.__onRaceFinish = null; console.error('Story level failed', e); }
     };
     var ready = function () { if (window.F1 && F1.ready) F1.ready(lv.circuit, go); else go(); };
-    var close = window.__homeClose;
-    if (typeof close === 'function') close(ready); else ready();
+    var close = window.__homeClose, homeUp = window.__home && window.__home.on;
+    if (homeUp && typeof close === 'function') close(ready); else ready();
   }
 
   function open(container) {
@@ -83,5 +84,5 @@
     });
   }
 
-  window.Story = { open: open, levels: levels };
+  window.Story = { open: open, levels: levels, play: function (n) { var L = levels()[n - 1]; if (L && unlocked(load(), n)) play(L); } };
 })();
