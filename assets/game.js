@@ -8874,7 +8874,12 @@ updCircBtn();
   const MP=(function(){
     const CFG={ws:'wss://oceaylrebzflgyxfjqfb.supabase.co/realtime/v1/websocket',
       key:SUPA.key};
-    const MAXP=4,HZ=20,STALE=6500,PAL=[0x1f5fbf,0x2f9e5b,0xd9a12a,0x7a3fb0],HEX=c=>'#'+c.toString(16).padStart(6,'0');
+    const MAXP=8,STALE=6500,PAL=[0x1f5fbf,0x2f9e5b,0xd9a12a,0x7a3fb0,0x12a8b8,0xe0559a,0xe8742a,0xc9ced6],
+    /* network budget: Supabase Realtime (free tier) allows ~100 messages/s per room. Pose updates are the bulk, so the
+       send rate shrinks as the room fills: ~52 pose msgs/s in total however many drivers (20 Hz for 2, 13 for 4, 6 for 8),
+       leaving room for pings, hellos, chat and the odd phone controller. */
+    POSE_BUDGET=52,HZ_MAX=20,HZ_MIN=6,
+    hzFor=n=>Math.max(HZ_MIN,Math.min(HZ_MAX,Math.floor(POSE_BUDGET/Math.max(1,n)))),HEX=c=>'#'+c.toString(16).padStart(6,'0');
     const LOCAL=/[?&]net=local\b/.test(location.search);
     const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',rid=n=>{let s='';for(let i=0;i<n;i++)s+=ALPH[Math.random()*32|0];return s};
     const me={id:rid(8),n:'',j:0},LOG=[],lg=(...a)=>{LOG.push(Math.round(performance.now())+' '+a.join(' '));if(LOG.length>60)LOG.shift()};
@@ -8966,7 +8971,10 @@ updCircBtn();
     const idxOf=id=>sorted().findIndex(m=>m.id===id);
     // whoever's been in the room longest runs it - no server, so this is a convention everyone computes the same way, not an enforced role
     const isHost=()=>{const a=sorted();return a.length>0&&a[0].id===me.id};
-    function colorOf(id){const a=sorted().filter(m=>m.id!==me.id),i=a.findIndex(m=>m.id===id);return PAL[(i<0?0:i)%PAL.length]}
+    // each driver keeps the colour they were given when they arrived (first palette entry nobody here is using), so a dot, a name tag and
+    // a list row stay the same colour for the whole session even when someone before them leaves
+    function pickCol(){const used=new Set();peers.forEach(p=>used.add(p.col));for(const c of PAL)if(!used.has(c))return c;return PAL[peers.size%PAL.length]}
+    function colorOf(id){const P=peers.get(id);return P&&P.col?P.col:PAL[0]}
     function addPeer(m){
       let P=peers.get(m.id);
       if(!P){
@@ -8974,12 +8982,17 @@ updCircBtn();
         // more than MAXP in a room: the latest joiner is the one who is out
         const a=sorted().concat([{id:m.id,j}]).sort((x,y)=>x.j-y.j||(x.id<y.id?-1:1));
         if(a.findIndex(z=>z.id===m.id)>=MAXP)return null;
-        P={id:String(m.id).slice(0,12),n:clean(m.n)||'Driver',j,last:0,gh:null,car:'outlaw',ping:null,tp:new THREE.Vector3(),tq:new THREE.Quaternion(),vx:0,vy:0,vz:0,pt:0,st:0,vf:0,wr:0,d:0,fin:0,got:false,sp:0};
+        P={id:String(m.id).slice(0,12),n:clean(m.n)||'Driver',j,col:pickCol(),iv:0,last:0,gh:null,car:'outlaw',ping:null,tp:new THREE.Vector3(),tq:new THREE.Quaternion(),vx:0,vy:0,vz:0,pt:0,st:0,vf:0,wr:0,d:0,fin:0,got:false,sp:0};
         peers.set(P.id,P);lg('add',P.n,'j',j,'me',me.j);
         if(idxOf(me.id)>=MAXP){leave('Room is full · '+MAXP+' drivers max');return null}
         toast2(P.n+' joined');ui()}
       return P}
-    function dropPeer(id,msg){const P=peers.get(id);if(!P)return;peerHorn(P,false);lg('drop',P.n,'idle',Math.round(performance.now()-P.last));killGhost(P);peers.delete(id);if(msg)toast2(P.n+' left');ui()}
+    function dropPeer(id,msg){const P=peers.get(id);if(!P)return;const hadHost=isHost();peerHorn(P,false);lg('drop',P.n,'idle',Math.round(performance.now()-P.last));killGhost(P);peers.delete(id);if(msg)toast2(P.n+' left');
+      // the earliest remaining join time is the host, so the role passes on by itself; the new host re-announces the track settings
+      if(!hadHost&&isHost()&&room){toast2('You are now the host');if(status==='up'){try{syncCfg(true)}catch(_){}if(lastVenue)send(Object.assign({k:'trk'},lastVenue))}}
+      // a driver who had already finished keeps their time on the results card after leaving; one who had not simply drops out of the standings
+      if(P.fin&&race.id&&(race.st===2||race.st===3||race.st===4))(race.left||(race.left=[])).push({n:P.n,fin:P.fin,id:P.id});
+      ui()}
     function toast2(s){try{toastMsg(s)}catch(e){}}
     /* ----- messages ----- */
     function send(m){if(net&&status==='up'){m.id=me.id;net.send(m)}}
@@ -9078,7 +9091,9 @@ updCircBtn();
             else{P.vx+=((x-P.tp.x)/dt-P.vx)*a;P.vy+=((y-P.tp.y)/dt-P.vy)*a;P.vz+=((z-P.tp.z)/dt-P.vz)*a}
             P.tp.set(x,y,z);P.tq.set(num(m.q[0],-1,1,0),num(m.q[1],-1,1,0),num(m.q[2],-1,1,0),num(m.q[3],-1,1,1)).normalize()}
           if(m.h===1)peerHorn(P,true);else if(m.h===0&&P.horn)peerHorn(P,false);
-          {const B=P.buf||(P.buf=[]);if(B.length&&now-B[B.length-1].t>1500)B.length=0;   // a long gap (tab hidden, teleport): start the playback fresh
+          {const B=P.buf||(P.buf=[]);if(B.length&&now-B[B.length-1].t>1500)B.length=0;
+           if(B.length){const gap=now-B[B.length-1].t;if(gap<400)P.iv=P.iv?P.iv*.85+gap*.15:gap}   // how often this driver's poses really arrive (it falls as the room fills)
+              // a long gap (tab hidden, teleport): start the playback fresh
            B.push({t:now,x:P.tp.x,y:P.tp.y,z:P.tp.z,vx:P.vx,vy:P.vy,vz:P.vz,q:P.tq.clone()});if(B.length>14)B.shift()}
           P.pt=now;P.st=num(m.st,-1,1,0);P.vf=num(m.vf,-80,120,0);P.d=num(m.d,-5,50,0);P.pl=typeof m.pl==='string'&&/^[a-z]{3,8}$/.test(m.pl)?m.pl:'earth';break}
         case 'race':beginCountdown(P.n,num(m.startAt,0,1e15,Date.now()+CD_LEAD)-(P.clk||0),String(m.rid||''),num(m.laps,1,20,3),m.v&&typeof m.v==='object'?m.v:null);break;
@@ -9116,14 +9131,21 @@ updCircBtn();
       if(net){send({k:'bye'});net.close()}
       net=null;peers.forEach(killGhost);peers.clear();room=null;status='off';endRace(true);
       try{const u=new URL(location.href);u.searchParams.delete('room');u.searchParams.delete('net');if(/^\/room\//.test(u.pathname))u.pathname='/multiplayer';history.replaceState(null,'',u)}catch(e){}
-      if(msg)toast2(msg);ui()}
+      if(msg){toast2(msg);note(msg)}ui()}
     function note(s){if(el.note)el.note.textContent=s}
     /* ----- race: a shared countdown, everyone on the grid, first round the loop wins ----- */
     function slotOf(){const a=sorted();const i=a.findIndex(m=>m.id===me.id);return i<0?0:i}
+    /* the grid: two columns, staggered like a real one, 7.5 m between consecutive cars (the same spots the painted grid boxes on a
+       circuit mark). Slot 0 is pole (left of centre), slot 1 sits one stagger behind it on the right, slot 2 is behind slot 1 on the left,
+       and so on, so 8 cars fill 4 rows over ~58 m, all behind the line. The host (earliest joiner) gets pole. */
+    const GRID_BACK=6,GRID_STEP=7.5;
+    function gridSlot(slot,half){return {back:GRID_BACK+slot*GRID_STEP,lat:(slot%2===0?1:-1)*half}}
     function gridTo(slot,n){
       // on a custom venue, grid on the circuit's own start line instead of the Earth loop
-      if(MODE==='circuit'&&circuit){const sp=circuit.startP,back=8,lat=(slot-(n-1)/2)*Math.min(3.4,(CIRC_W-3)/Math.max(1,n-1));   // everyone side by side on ONE line: nobody starts ahead
-        const x=sp.p.x-sp.tg.x*back+sp.n.x*lat,z=sp.p.z-sp.tg.z*back+sp.n.z*lat;
+      if(MODE==='circuit'&&circuit){const gs=gridSlot(slot,CIRC_W*.28),L=circuit.curve.getLength();
+        // walk back along the track itself (not a straight line), so a row behind a bend still sits on the road
+        const bq=circAt(-gs.back/Math.max(50,L),circuit.curve),lat=gs.lat;
+        const x=bq.p.x+bq.n.x*lat,z=bq.p.z+bq.n.z*lat,sp={p:bq.p,tg:bq.tg};
         PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
         chassisB.position.set(x,sp.p.y+1.4,z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
         chassisB.force.set(0,0,0);chassisB.torque.set(0,0,0);chassisB.linearDamping=.01;chassisB.angularDamping=.4;
@@ -9132,7 +9154,7 @@ updCircBtn();
         for(let i=0;i<4;i++){veh.applyEngineForce(0,i);veh.setBrake(0,i)}
         sub=0;inPond=false;steerActual=0;race.hold={x,z,q:chassisB.quaternion.clone()};
         C.position.set(x-sp.tg.x*10,sp.p.y+5,z-sp.tg.z*10);look.set(x+sp.tg.x*6,sp.p.y+1,z+sp.tg.z*6);return}
-      const lat=(slot-(n-1)/2)*3.1,u=.985;
+      const gs=gridSlot(slot,2.1),lat=gs.lat,u=1-gs.back/TLEN;   // u wraps (at() takes it mod 1), so rows behind the line are just further round the loop
       const q=at(u),x=q.p.x+q.n.x*lat,z=q.p.z+q.n.z*lat;
       PREV.ok=false;physAcc=0;leanVf=0;leanA=0;if(vis.body)vis.body.rotation.set(0,0,0);
       chassisB.position.set(x,q.p.y+1.4,z);chassisB.velocity.set(0,0,0);chassisB.angularVelocity.set(0,0,0);
@@ -9222,7 +9244,7 @@ updCircBtn();
       if(myFin){let all=true;peers.forEach(p=>{if(!p.fin&&p.got&&now-p.last<STALE)all=false});if(all&&race.st===2){race.st=3;ui()}}}
     /* ----- per frame ----- */
     const tmpV=new THREE.Vector3(),tmpQ=new THREE.Quaternion(),fwdV=new THREE.Vector3(),qq=new THREE.Quaternion(),UPQ=new CANNON.Vec3(0,0,1),fw=new CANNON.Vec3(),plP=new THREE.Vector3(),plQ=new THREE.Quaternion();
-    let spinMe=0;
+    let spinMe=0,curHz=20,lastPose=null,lastChat=0,pingRR=0;
     /* ----- horns: you hear everyone else's, from where their car is -----
        Pressing the horn sends 'hn' on/off at once, and every pose carries h:1 while it is held, so a lost message
        can neither leave a horn silent nor stuck on (it stops 1.2 s after the last refresh). Each peer's horn is two
@@ -9259,7 +9281,11 @@ updCircBtn();
       peers.forEach(P=>{if(P.last&&now-P.last>STALE)dropPeer(P.id,true)});
       if(status==='up'){
         hornsTick(now);
-        if(now-lastSend>=1000/HZ){lastSend=now;
+        const hz=hzFor(peers.size+1);curHz=hz;
+        // parked (lobby, grid, waiting): the pose barely changes, so a slow trickle is enough and saves the room's message budget
+        const idle=lastPose&&car.position.distanceToSquared(lastPose.p)<.0004&&Math.abs(car.quaternion.dot(lastPose.q))>.99999&&!myHorn;
+        if(now-lastSend>=(idle?500:1000/hz)){lastSend=now;
+          if(!lastPose)lastPose={p:new THREE.Vector3(),q:new THREE.Quaternion()};lastPose.p.copy(car.position);lastPose.q.copy(car.quaternion);
           chassisB.quaternion.vmult(UPQ,fw);const v=chassisB.velocity;let vf=v.x*fw.x+v.y*fw.y+v.z*fw.z;
           let q=car.quaternion,p=car.position,st=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0,pl='earth';
           if(SPACE.state!=='earth'){if(!SPACE.poseOut(plP,plQ))pl='transit';else{p=plP;q=plQ;pl=SPACE.planet;const S=SPACE.SURF;vf=S?Math.hypot(S.vel.x,S.vel.z):0;st=0}}   // in flight: hidden for everyone else
@@ -9267,9 +9293,12 @@ updCircBtn();
           send({k:'s',v:[+v.x.toFixed(2),+v.y.toFixed(2),+v.z.toFixed(2)],n:myName(),j:me.j,p:[+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2)],q:[+q.x.toFixed(3),+q.y.toFixed(3),+q.z.toFixed(3),+q.w.toFixed(3)],
             st:+st.toFixed(3),vf:+vf.toFixed(1),d:+d.toFixed(4),pl,h:myHorn?1:0})}
         if(now-lastHi>3000){lastHi=now;sendHi(true)}
-        if(now-lastPing>1500&&peers.size){lastPing=now;
-          peers.forEach(P=>{const seq=++pingSeq,key=P.id+':'+seq;pendingPings.set(key,performance.now());send({k:'pg',target:P.id,seq})});
-          pendingPings.forEach((sentAt,key)=>{if(performance.now()-sentAt>8000)pendingPings.delete(key)})}}
+        /* one ping at a time, round robin (faster while somebody has not been measured yet). Pinging every peer every 1.5 s costs
+           n*(n-1)/1.5 messages a second plus the same again in replies: 37 a second with 8 drivers, which alone is a third of the budget. */
+        {const ids=[...peers.keys()],fresh=ids.some(i=>peers.get(i).ping==null);
+         if(ids.length&&now-lastPing>(fresh?800:2500)){lastPing=now;
+          const cand=fresh?ids.filter(i=>peers.get(i).ping==null):ids,P=peers.get(cand[(pingRR++)%cand.length]),seq=++pingSeq,key=P.id+':'+seq;pendingPings.set(key,performance.now());send({k:'pg',target:P.id,seq});
+          pendingPings.forEach((sentAt,key)=>{if(performance.now()-sentAt>8000)pendingPings.delete(key)})}}}
       // ghosts
       const k=1-Math.exp(-dt*11);
       const here=SPACE.state==='earth'?'earth':SPACE.planet;
@@ -9281,7 +9310,11 @@ updCircBtn();
         /* snapshot playback: friends are drawn ~110 ms in the past, between two real poses they sent (a curve that
            matches both positions AND speeds), so turns follow their true line instead of being guessed. If packets
            are late, it carries on with the last speed for up to 0.3 s. */
-        {const B=P.buf,rt=now-110;let qa=null,qb=null,f=0;
+        {const B=P.buf;
+         /* playback delay follows the arrival rate: ~110 ms at 20 poses/s, up to ~260 ms at 6/s, so there are always two real poses
+            to blend between and a ghost never freezes then jumps; eased so a change in rate does not make it surge */
+         const wantDl=Math.max(110,Math.min(260,(P.iv||50)*1.5+30));P.dl=P.dl?P.dl+(wantDl-P.dl)*Math.min(1,dt*2):wantDl;
+         const rt=now-P.dl;let qa=null,qb=null,f=0;
          if(B&&B.length>1&&rt>=B[0].t){let i=B.length-1;while(i>0&&B[i-1].t>rt)i--;
            if(rt<=B[B.length-1].t&&i>0){const a=B[i-1],b=B[i],T=Math.max(.001,(b.t-a.t)/1000);f=Math.min(1,Math.max(0,(rt-a.t)/(b.t-a.t)));
              const f2=f*f,f3=f2*f,h00=2*f3-3*f2+1,h10=f3-2*f2+f,h01=-2*f3+3*f2,h11=f3-f2;
@@ -9311,13 +9344,19 @@ updCircBtn();
       if(racing)rows.sort((a,b)=>(a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:b.d-a.d));
       const lead=racing?Math.max.apply(null,rows.filter(r=>!r.fin).map(r=>r.d).concat([-9])):0;
       let h='';
-      rows.forEach((r,i)=>{
+      /* with a full room the corner list would stand 8 rows tall over the road: show the top five, plus you (with your real
+         position) when you are further back; the room panel still lists everybody */
+      const place=new Map();rows.forEach((r,i)=>place.set(r,i));
+      let shown=rows,more=0;
+      if(rows.length>6){const mi=rows.findIndex(r=>r.me);shown=rows.slice(0,5);if(mi>=5)shown.push(rows[mi]);more=rows.length-shown.length}
+      shown.forEach(r=>{const i=place.get(r);
         let t='';
         if(r.fin)t=fmtT(r.fin);
         else if(racing)t=r.d>=lead-1e-4?'leading':'-'+Math.round((lead-r.d)*TLEN)+' m';
         else if(!r.me)t=r.off?'joining':(r.sp>=1000?Math.round(r.sp/100)/10+' km':Math.round(r.sp)+' m');
         if(!r.me&&!r.off&&r.ping!=null)t+=(t?' · ':'')+r.ping+'ms';
         h+='<div class="r'+(r.me?' me':'')+'"><i style="background:'+HEX(r.c)+'"></i>'+(racing?'<em>'+(i+1)+'</em>':'')+'<b>'+esc(r.n)+(r.me?' (you)':'')+'</b><span>'+t+'</span></div>'});
+      if(more>0)h+='<div class="st">+'+more+' more</div>';
       if(status!=='up')h+='<div class="st">'+(status==='down'?'offline':'connecting')+'</div>';
       el.roster.innerHTML=h;el.roster.style.display='block'}
     const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -9428,6 +9467,7 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
   if(chatInput&&chatSend){
     // the message carries your name (receivers drop nameless ones) and shows in your own log too
     chatSend.onclick=()=>{const t=chatInput.value.trim().slice(0,120);if(!t)return;if(!room||status!=='up'){toastMsg('Join a room to chat');return}
+      if(performance.now()-lastChat<900){toastMsg('Slow down a little');return}lastChat=performance.now();
       send({k:'chat',t,n:myName()});chatLine(myName()+' (you)',t,'#9aa0aa');chatInput.value=''};
     chatInput.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')chatSend.onclick()});   // typing must not drive the car
     chatInput.addEventListener('keyup',e=>e.stopPropagation());
@@ -9562,7 +9602,7 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
     function showResults(){
       const m=document.getElementById('dresults');if(!m)return;
       const rows=[{n:myName(),fin:myFin,me:1}];
-      peers.forEach(P=>{if(P.fin||P.got)rows.push({n:P.n,fin:P.fin,id:P.id})});
+      peers.forEach(P=>{if(P.fin||P.got)rows.push({n:P.n,fin:P.fin,id:P.id})});(race.left||[]).forEach(r=>rows.push({n:r.n,fin:r.fin,id:r.id}));
       rows.sort((a,b)=>a.fin&&b.fin?a.fin-b.fin:a.fin?-1:b.fin?1:0);tally(rows);
       const best=rows.length&&rows[0].fin?rows[0].fin:0,list=document.getElementById('dreslist'),nl=race.laps||getLaps();
       if(list)list.innerHTML=rows.map((r,i)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span>${r.fin?i+1+'.':'–'} ${esc(r.n)}${r.me?' (you)':''}</span><span>${r.fin?fmtT(r.fin)+(best&&r.fin>best?' <span style="opacity:.6">+'+((r.fin-best)/1000).toFixed(2)+'s</span>':''):'DNF'}</span></div>`).join('')+
@@ -9656,7 +9696,7 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
      T('free','Free drive','Open valley, ramps, the summit and the cable car',true)+
      `<button class="t f1" data-go="f1"><b>F1 circuits</b><span>25 real tracks at real size</span></button>`+
      `<button class="t story" data-go="story"><b>Story</b><span>50 levels in 5 chapters, earn stars</span></button>`+
-     '<div class="pair">'+S('mp','Multiplayer','Up to 4 friends')+S('daily','Daily track',"Today's leaderboard")+S('chill','Chillout room',"Your crew's room")+S('typing','Typing','Type to drive')+S('draw','Draw a track','Sketch it, race it')+S('garage','Garage','Pick or build a car')+'</div></div></div>'};
+     '<div class="pair">'+S('mp','Multiplayer','Up to 8 friends')+S('daily','Daily track',"Today's leaderboard")+S('chill','Chillout room',"Your crew's room")+S('typing','Typing','Type to drive')+S('draw','Draw a track','Sketch it, race it')+S('garage','Garage','Pick or build a car')+'</div></div></div>'};
    const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
      T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
    const f1c=id=>{const c=window.F1&&F1.get(id);if(!c)return f1();if(window.F1Real)F1Real.load(id);el.innerHTML='<div class="hm"><button class="back" data-go="f1">‹ Back</button><h1>'+c.name+'</h1><p class="sub">'+c.country+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+T('f1p:'+id,'Practice','Drive the circuit on your own')+T('f1m:'+id,'Race a friend','Open a room on this circuit')+T('f1g:'+id,'Grand Prix','5 laps against the 2026 F1 grid')+'</div></div>'};

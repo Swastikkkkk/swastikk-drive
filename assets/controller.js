@@ -221,6 +221,7 @@
 
       function sendInput() {
         if (!ws || ws.readyState !== 1 || !joined) return;
+        lastKey = JSON.stringify(inputState); lastSentAt = Date.now();
         ref++;
         ws.send(JSON.stringify({
           topic: topic,
@@ -240,8 +241,14 @@
         }));
       }
 
-      // Input polling @ 30Hz
-      setInterval(sendInput, 33);
+      /* Input: sampled at 30 Hz but only sent when something changed (at most ~20 a second, so analog steering stays smooth), plus a
+         heartbeat every 300 ms so the laptop's 1 s timeout never trips. Streaming a constant 30 msg/s per phone would eat a third of
+         a room's ~100 msg/s budget with only two phones in an 8-driver race. */
+      var lastKey = '', lastSentAt = 0;
+      setInterval(function() {
+        var k = JSON.stringify(inputState), now = Date.now();
+        if ((k !== lastKey && now - lastSentAt >= 50) || now - lastSentAt >= 300) sendInput();
+      }, 33);
 
       // Button binding helper
       function bindButton(id, onDown, onUp) {
