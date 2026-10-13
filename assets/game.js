@@ -7902,10 +7902,10 @@ const PLANETS={
       opts=opts||{};clear();if(!circuit||!window.RaceEngine)return;curvature();laps=window.RaceEngine.totalLaps||3;
       const Cc=circuit,L=Cc.curve.getLength(),W=CIRC_W;
       for(let i=0;i<n;i++){const j=i+1,back=6+j*7.5,lane=(j%2===0?1:-1)*W*.28;
-        const car=buildCar({paint:PAINT[i%PAINT.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
+        const car=buildCar({paint:opts.colors?opts.colors[i%opts.colors.length]:PAINT[i%PAINT.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
         car.g.rotation.order='YXZ';Cc.root.add(car.g);
         const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});bd.addShape(new CANNON.Box(new CANNON.Vec3(.95,.62,2.05)));world.addBody(bd);
-        cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:V.max*(opts.skill!=null?opts.skill-(i%4)*.01:SKILL[i%SKILL.length]),name:opts.names?opts.names[i%opts.names.length]:NAMES[(i+Math.floor(Math.random()*3))%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null})}
+        cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:V.max*(opts.skills?opts.skills[i%opts.skills.length]:opts.skill!=null?opts.skill-(i%4)*.01:SKILL[i%SKILL.length]),name:opts.names?opts.names[i%opts.names.length]:NAMES[(i+Math.floor(Math.random()*3))%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null})}
       on=true;place(0)}
     function playerProg(){const RE=window.RaceEngine,T=RE.checkpoints.length||16;return (RE.currentLap-1)+Math.max(0,RE.currentCheckpoint-1)/T}
     function place(dt){
@@ -7956,14 +7956,22 @@ const PLANETS={
   function bigCount(t){const el=$('#dcount');if(!el)return;el.textContent=t;el.classList.remove('on');void el.offsetWidth;el.classList.add('on');
     if(t==='GO')setTimeout(()=>{if(el.textContent==='GO')el.classList.remove('on')},900)}
   /* Grand Prix: a full grid of fictional rivals, requested by window.__f1GP for one race start only */
-  const GP_RIVALS=19,GP_OPTS={skill:1,names:['Corelli','Vantrell','Marrow','Orsen','Reyne','Quell','Varga','Donnell','Sallis','Tolan','Kell','Aalto','Duval','Caro','Marsh','Hallen','Rend','Oyelaran','Brask']};
+  /* the 2026 grid (planetf1.com, confirmed line-ups): [driver, team livery, pace]. Pace is a rough team-form order,
+     fastest first so the grid lines up like qualifying. Edit this list to change the field. */
+  const F1_GRID=[['Norris',0xff8000,1],['Piastri',0xff8000,.995],['Verstappen',0x1e3d8f,.995],['Leclerc',0xdc0000,.99],['Russell',0xc4c8cc,.99],
+    ['Hamilton',0xdc0000,.985],['Antonelli',0xc4c8cc,.98],['Hadjar',0x1e3d8f,.975],['Sainz',0x005aff,.975],['Albon',0x005aff,.97],
+    ['Alonso',0x006f62,.97],['Lawson',0x6692ff,.965],['Lindblad',0x6692ff,.96],['Stroll',0x006f62,.96],['Ocon',0xe8e8e8,.958],
+    ['Bearman',0xe8e8e8,.958],['Hulkenberg',0x8c1d1d,.955],['Bortoleto',0x8c1d1d,.952],['Gasly',0x0090ff,.95],['Colapinto',0x0090ff,.945],
+    ['Perez',0x1a1a1a,.945],['Bottas',0x1a1a1a,.94]];
+  const STORY_NAMES=['Corelli','Vantrell','Marrow','Orsen','Reyne','Quell','Varga','Donnell','Sallis','Tolan','Kell','Aalto','Duval','Caro','Marsh','Hallen','Rend','Oyelaran','Brask'];
+  const GP_RIVALS=F1_GRID.length,GP_OPTS={names:F1_GRID.map(d=>d[0]),colors:F1_GRID.map(d=>d[1]),skills:F1_GRID.map(d=>d[2])};
   function restartSoloRace(){
     const gp=!!window.__f1GP;window.__f1GP=false;const grid=window.__raceGrid||null;window.__raceGrid=null;   // story levels ask for a rival count and pace
     if(MODE!=='circuit'||!circuit||!window.RaceEngine)return;
     const RE=window.RaceEngine;RE.initTrack('circuit',circuit.curve,circuit.CSAMP,{laps:circuit.daily?DAILY_LAPS:lapsCfg(),roadWidth:CIRC_W});RE.isDaily=!!circuit.daily;RE.dailyDate=circuit.dailyDate||null;
     RE.closeResultsModal();
     circuit.lightsDone=false;circuit.lightsStart=performance.now();circuit.cdN=0;tyresReset();
-    RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:sp.tangent||circuit.startP.tg})});CAI.start(gp?GP_RIVALS:grid?grid.n:3,gp?GP_OPTS:grid?{skill:grid.skill,names:GP_OPTS.names}:undefined)}
+    RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:sp.tangent||circuit.startP.tg})});CAI.start(gp?GP_RIVALS:grid?grid.n:3,gp?GP_OPTS:grid?{skill:grid.skill,names:STORY_NAMES}:undefined)}
   window.restartSoloRace=restartSoloRace;window.__caiInfo=()=>({count:CAI.count,on:CAI.on});
   /* ---------- F1 circuits (assets/f1-circuits.js: real layouts at real size; assets/f1-landmarks.js: their scenery) ----------
      F1.build(id,{race,laps}) builds one like any venue: its own width, elevation profile (or height range), tunnels,
@@ -9394,7 +9402,7 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
      '<div class="pair">'+S('mp','Multiplayer','Up to 4 friends')+S('daily','Daily track',"Today's leaderboard")+S('chill','Chillout room',"Your crew's room")+S('typing','Typing','Type to drive')+S('draw','Draw a track','Sketch it, race it')+S('garage','Garage','Pick or build a car')+'</div></div></div>'};
    const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
      T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
-   const f1c=id=>{const c=window.F1&&F1.get(id);if(!c)return f1();el.innerHTML='<div class="hm"><button class="back" data-go="f1">‹ Back</button><h1>'+c.name+'</h1><p class="sub">'+c.country+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+T('f1p:'+id,'Practice','Drive the circuit on your own')+T('f1m:'+id,'Race a friend','Open a room on this circuit')+T('f1g:'+id,'Grand Prix','5 laps, a full grid of rivals')+'</div></div>'};
+   const f1c=id=>{const c=window.F1&&F1.get(id);if(!c)return f1();el.innerHTML='<div class="hm"><button class="back" data-go="f1">‹ Back</button><h1>'+c.name+'</h1><p class="sub">'+c.country+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+T('f1p:'+id,'Practice','Drive the circuit on your own')+T('f1m:'+id,'Race a friend','Open a room on this circuit')+T('f1g:'+id,'Grand Prix','5 laps against the 2026 F1 grid')+'</div></div>'};
    const f1=()=>{const L=(window.F1&&F1.list())||[];el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>F1 circuits</h1><p class="sub">Real layouts from GPS, at real size.</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+
      L.map(c=>T('f1:'+c.id,c.name,c.country+' · '+(c.lengthM/1000).toFixed(3)+' km'+(c.raceTime==='night'?' · night':c.raceTime==='dusk'?' · dusk':''))).join('')+'</div></div>'};
    const close=after=>{if(!HOME.on)return;HOME.on=false;try{HOME.putAway&&HOME.putAway(false)}catch(_){}el.classList.add('out');document.body.classList.remove('homeon');driving=wasDriving||true;setTimeout(()=>{el.remove()},500);if(after)setTimeout(after,120)};
