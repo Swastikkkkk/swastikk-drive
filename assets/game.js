@@ -8778,7 +8778,7 @@ updCircBtn();
   const MP=(function(){
     const CFG={ws:'wss://oceaylrebzflgyxfjqfb.supabase.co/realtime/v1/websocket',
       key:SUPA.key};
-    const MAXP=8,HZ=20,STALE=6500,PAL=[0x1f5fbf,0x2f9e5b,0xd9a12a,0x7a3fb0,0xd94a3a,0x1fa3a8,0xe0679f,0x8a8f98],HEX=c=>'#'+c.toString(16).padStart(6,'0');
+    const MAXP=4,HZ=20,STALE=6500,PAL=[0x1f5fbf,0x2f9e5b,0xd9a12a,0x7a3fb0],HEX=c=>'#'+c.toString(16).padStart(6,'0');
     const LOCAL=/[?&]net=local\b/.test(location.search);
     const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',rid=n=>{let s='';for(let i=0;i<n;i++)s+=ALPH[Math.random()*32|0];return s};
     const me={id:rid(8),n:'',j:0},LOG=[],lg=(...a)=>{LOG.push(Math.round(performance.now())+' '+a.join(' '));if(LOG.length>60)LOG.shift()};
@@ -9163,7 +9163,7 @@ updCircBtn();
       peers.forEach(P=>{if(P.last&&now-P.last>STALE)dropPeer(P.id,true)});
       if(status==='up'){
         hornsTick(now);
-        if(now-lastSend>=1000/(peers.size>=4?10:peers.size>=2?14:HZ)){lastSend=now;   // 8 drivers x 10/s stays inside the realtime budget; positions are interpolated between
+        if(now-lastSend>=1000/HZ){lastSend=now;
           chassisB.quaternion.vmult(UPQ,fw);const v=chassisB.velocity;let vf=v.x*fw.x+v.y*fw.y+v.z*fw.z;
           let q=car.quaternion,p=car.position,st=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0,pl='earth';
           if(SPACE.state!=='earth'){if(!SPACE.poseOut(plP,plQ))pl='transit';else{p=plP;q=plQ;pl=SPACE.planet;const S=SPACE.SURF;vf=S?Math.hypot(S.vel.x,S.vel.z):0;st=0}}   // in flight: hidden for everyone else
@@ -9560,7 +9560,7 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
      T('free','Free drive','Open valley, ramps, the summit and the cable car',true)+
      `<button class="t f1" data-go="f1"><b>F1 circuits</b><span>25 real tracks at real size</span></button>`+
      `<button class="t story" data-go="story"><b>Story</b><span>50 levels in 5 chapters, earn stars</span></button>`+
-     '<div class="pair">'+S('mp','Multiplayer','Up to 8 friends')+S('daily','Daily track',"Today's leaderboard")+S('chill','Chillout room',"Your crew's room")+S('typing','Typing','Type to drive')+S('draw','Draw a track','Sketch it, race it')+S('garage','Garage','Pick or build a car')+'</div></div></div>'};
+     '<div class="pair">'+S('mp','Multiplayer','Up to 4 friends')+S('daily','Daily track',"Today's leaderboard")+S('chill','Chillout room',"Your crew's room")+S('typing','Typing','Type to drive')+S('draw','Draw a track','Sketch it, race it')+S('garage','Garage','Pick or build a car')+'</div></div></div>'};
    const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
      T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
    const f1c=id=>{const c=window.F1&&F1.get(id);if(!c)return f1();if(window.F1Real)F1Real.load(id);el.innerHTML='<div class="hm"><button class="back" data-go="f1">‹ Back</button><h1>'+c.name+'</h1><p class="sub">'+c.country+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+T('f1p:'+id,'Practice','Drive the circuit on your own')+T('f1m:'+id,'Race a friend','Open a room on this circuit')+T('f1g:'+id,'Grand Prix','5 laps against the 2026 F1 grid')+'</div></div>'};
