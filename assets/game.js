@@ -2739,7 +2739,7 @@ t.bd.position.set(x,y+.86,z);
       const conv=m=>{if(!m||swap.has(m))return m?swap.get(m):m;let n=m;
         if((m.isMeshPhongMaterial||m.isMeshLambertMaterial)&&!lit(m)){
           const c=m.color,lum=c.r*.3+c.g*.59+c.b*.11,base={color:c.clone(),side:m.side,transparent:m.transparent,opacity:m.opacity,map:m.map||null};
-          if(m===PCAR.paint)n=new THREE.MeshPhysicalMaterial(Object.assign(base,{metalness:.45,roughness:.32,clearcoat:1,clearcoatRoughness:.05,envMap:env,envMapIntensity:1.15}));
+          if(m===PCAR.paint)n=new THREE.MeshPhysicalMaterial(Object.assign(base,{metalness:.3,roughness:.32,clearcoat:1,clearcoatRoughness:.05,envMap:env,envMapIntensity:.95}));
           else if(m.isMeshPhongMaterial&&lum<.08&&m.shininess>=100)n=new THREE.MeshStandardMaterial(Object.assign(base,{color:new THREE.Color(0x05080c),metalness:.35,roughness:.06,envMap:env,envMapIntensity:1.1}));   // glass: dark, the sky only at a glance
           else if(m.isMeshPhongMaterial&&m.reflectivity>=.6)n=new THREE.MeshStandardMaterial(Object.assign(base,{metalness:1,roughness:.12,envMap:env,envMapIntensity:1.2}));   // chrome
           else if(m.isMeshPhongMaterial&&m.reflectivity>=.25)n=new THREE.MeshStandardMaterial(Object.assign(base,{metalness:.9,roughness:.28,envMap:env,envMapIntensity:1}));   // alloy, gunmetal
@@ -2819,7 +2819,7 @@ t.bd.position.set(x,y+.86,z);
     // keep a road car's camera over the back half of its bonnet so the bonnet is in view, re-seating it on the surface
     if(spec.type!=='f1'&&spec.type!=='bike'&&bonnet.z>F*.45){const hz=F*.45,hh=top(hz);bonnet={z:hz,y:hh!=null?Math.max(hh+.3,Math.min(bonnet.y,hh+.45)):bonnet.y}}
     // hand-set where no rule fits: the hauler's tallest part is its trailer, and the wedge has no screen line
-    const FP_SET={truck:{y:2.05,z:2.8},countach:{y:1.27,z:.75}};if(FP_SET[spec.id])bonnet=Object.assign({},FP_SET[spec.id]);
+    const FP_SET={truck:{y:2.5,z:3.32},countach:{y:1.27,z:.75}};if(FP_SET[spec.id])bonnet=Object.assign({},FP_SET[spec.id]);
     const nose=top(F-.15)||.6;
     const out={bonnet,bumper:{y:Math.max(.32,Math.min(.75,nose*.55)),z:F+.12},top:mx,back:B};
     /* the F1 car: 'bonnet' is the onboard T-cam above the driver's helmet (nose, front wheels and wing in view),
@@ -2966,7 +2966,8 @@ t.bd.position.set(x,y+.86,z);
     voltgt: {ev:1,lo:170,hi:1250,w:['sine','sine','triangle'],mix:[.55,.15,.12],h:4.1,filt:[900,3400,1.4],lfo:[6,1],vol:.13},
     phantom:{ev:1,lo:85, hi:620, w:['triangle','sine','sine'],mix:[.7,.45,.06], h:2.5,filt:[500,1800,.9],lfo:[3,2],vol:.17},
   };
-  function engineVoice(S,id,T){id=ALIAS[id]||id;
+  const F1_IDS=new Set(GARAGE.filter(q=>q.type==='f1').map(q=>q.id));
+  function engineVoice(S,id,T){id=ALIAS[id]||id;if(F1_IDS.has(id))id='outlaw';   // every F1 car uses the Outlaw V8's voice (asked for: same sound as the muscle car)
     const ice=window.EngineAudio&&EngineAudio.CARS[id];
     if(ice){if(S.prof!==id){S.prof=id;S.gear=0;S.rpm=ice.idle;S.shiftT=0;S.cutT=0;if(S.eng)S.eng.setCar(id)}return ice}
     const e=ENGINES[id]||ENGINES.aster;if(S.prof===id)return e;S.prof=id;
@@ -6581,8 +6582,9 @@ const PLANETS={
         const fp=CM.n==='Bumper'?FP.bumper:FP.bonnet,fy=fp.y+FP.off;
         camT.set(0,fy,fp.z).applyQuaternion(car.quaternion).add(car.position);C.position.copy(camT);
         lookT.set(0,fy-.25,fp.z+18).applyQuaternion(car.quaternion).add(car.position)}
-      else{const ty=TYPEF.on?1:0,dist=(CM.d+Math.min(5,sp*.2)*CM.k+ce*1.9+ty*3)*pf,hgt=(CM.h+Math.min(2,sp*.07)*CM.k+ce*.7+ty*1.4)*pf;   // typing race: a step back so the whole car clears the panel
-        camT.copy(car.position).addScaledVector(fwd,-dist).add(tmp.set(0,hgt,0));
+      else{const ty=TYPEF.on?1:0,dist=(CM.d+Math.min(5,sp*.2)*CM.k+ce*1.9+ty*3)*pf,hgt=(CM.h+Math.min(2,sp*.07)*CM.k+ce*.7+ty*1.4)*pf,bigK=Math.max(1,(FP.top||1.4)/2.4);   // typing race: a step back so the whole car clears the panel
+        /* tall vehicles (the truck's box is 4 m high): pull back and up so the low chase sees over it, not its rear doors */
+        camT.copy(car.position).addScaledVector(fwd,-dist*bigK).add(tmp.set(0,Math.max(hgt*bigK,CM.d>0?(FP.top||1.4)+.9:0),0));
         C.position.lerp(camT,1-Math.exp(-dt*(active?CM.lag:3.2)));
         // driving under a flyover: keep the camera below the deck, or it rises through it and the deck hides the car
         if(MODE==='circuit'&&circuit&&circuit.decks&&circuit.decks.length){const fl=car.position.y+.8;

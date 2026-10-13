@@ -309,61 +309,101 @@
     box(W * 1.4, 0.025, 0.12, paint, 0, top(B + 0.1) + 0.012, B + 0.1, body, 0.18);
   };
 
-  // Mamba: a modern four-door sports saloon. Shark nose, long roof that flows into a short tail, quad exhausts
+  /* shared realism details for the road cars: panel shut lines, window frames, a shoulder crease, lens covers */
+  function shutLine(x, y0, y1, z, parent) { box(0.012, y1 - y0, 0.012, darkM, x, (y0 + y1) / 2, z, parent); }
+  function plate(z, y, back, parent) { var m = box(0.44, 0.11, 0.012, new THREE.MeshLambertMaterial({ color: back ? 0xf4d23c : 0xf2f2ee }), 0, y, z, parent); m.castShadow = false; box(0.46, 0.13, 0.008, trimM, 0, y, z + (back ? 0.004 : -0.004), parent); }
+  var lensM = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.2, roughness: 0.05, transparent: true, opacity: 0.28 });
+
+  /* Mamba: a modern four-door sports saloon, three-box. Long bonnet, raked screen, a proper roof, a short notch and
+     boot, shoulder crease, four doors, slim LED lamps, quad exhausts. */
   MODELS.mamba = function (o, paint, body) {
     var B = o.B - 0.03, F = o.F + 0.04, W = o.Wb, zf = o.zf, zb = o.zb;
+    var deckZ = B + 0.55, rsZ = -1.0, wsT = -0.05, wsB = zf - 0.6;
     var s = sculpt(o, {
-      len: [B, F], sill: 0.29, n: 7, archGap: 0.05, waistTaper: 0.95, fenderK: 0, lowWaist: true,
-      top: [[B, 0.66], [B + 0.08, 0.98], [B + 0.3, 1.03], [zb + 0.3, 1.02], [zf - 0.9, 1.0], [zf - 0.2, 0.99], [F - 0.22, 0.95], [F - 0.05, 0.88], [F, 0.64]],
-      hw: [[B, W * 0.88], [B + 0.3, W * 0.98], [zb, W], [0, W * 0.97], [zf, W * 0.99], [F - 0.3, W * 0.95], [F, W * 0.84]],
-      cabin: { z0: B + 0.32, z1: zf - 0.95, n: 7, taper: 0.86, hwK: 0.98, belt: -0.02, pillar: -0.25,
-        roof: [[B + 0.32, 1.03], [B + 0.95, 1.33], [zb + 0.6, 1.43], [-0.3, 1.46], [zf - 1.45, 1.42], [zf - 0.95, 1.0]], roofZ: [B + 0.9, zf - 1.35] }
+      len: [B, F], sill: 0.3, n: 7, archGap: 0.045, waistTaper: 0.93, sillTaper: 0.92,
+      top: [[B, 0.6], [B + 0.07, 0.9], [B + 0.2, 0.99], [deckZ, 1.0], [zb + 0.3, 0.99], [zf - 0.8, 0.98], [F - 0.4, 0.92], [F - 0.1, 0.84], [F, 0.58]],
+      hw: [[B, W * 0.86], [B + 0.3, W * 0.97], [zb, W * 1.0], [0, W * 0.965], [zf, W * 0.99], [F - 0.35, W * 0.95], [F, W * 0.8]],
+      nF: [[B, 7], [0, 6], [F, 7]],
+      cabin: { z0: deckZ, z1: wsB, n: 6, taper: 0.8, hwK: 0.93, belt: -0.01, pillar: -0.42,
+        roof: [[deckZ, 1.0], [rsZ, 1.37], [rsZ + 0.25, 1.41], [wsT - 0.2, 1.42], [wsT, 1.4], [wsB, 0.98]], roofZ: [rsZ + 0.05, wsT - 0.05] }
     }, paint, body);
-    var gy = 0.62;
-    box(W * 1.05, 0.2, 0.05, darkM, 0, gy, F - 0.01, body);                                     // grille
-    for (var i = -2; i <= 2; i++) box(W * 1.0, 0.01, 0.02, trimM, 0, gy + i * 0.04, F + 0.016, body);
+    var top = s.top, hw = s.hw;
+    // shoulder crease: a thin lighter line running from the front wing to the tail lamp
+    [-1, 1].forEach(function (k) { var prev = null; for (var j = 0; j <= 14; j++) { var z = lerp(B + 0.25, F - 0.45, j / 14), p = [k * (hw(z) * 0.93 + 0.004), top(z) - 0.12, z]; if (prev) tube(prev, p, 0.008, trimM, body); prev = p; } });   // a side line, not a plate through the body (a full-width loft poked out of the bonnet as silver)
+    // four doors: shut lines, handles; window frame (black) along the glass base
     [-1, 1].forEach(function (k) {
-      var l = box(0.46, 0.07, 0.05, o.head, k * W * 0.66, 0.8, F - 0.07, body); l.rotation.y = -k * 0.12; l.castShadow = false;   // slim LED lamps
-      box(0.42, 0.012, 0.055, o.head, k * W * 0.66, 0.75, F - 0.07, body).castShadow = false;
-      box(0.3, 0.13, 0.05, darkM, k * W * 0.7, 0.42, F - 0.02, body);                             // corner intakes
-      var t = box(0.5, 0.07, 0.04, o.tail, k * W * 0.58, 0.86, B + 0.07, body); t.castShadow = false;
-      exhaust(k * W * 0.45, 0.3, B + 0.03, 0.04, body); exhaust(k * W * 0.6, 0.3, B + 0.03, 0.04, body);
-      box(0.03, 0.025, 0.14, chromeM, k * (s.hw(0.4) * 0.96 + 0.01), s.top(0.4) - 0.12, 0.4, body);   // door handles
-      box(0.03, 0.025, 0.14, chromeM, k * (s.hw(-0.6) * 0.96 + 0.01), s.top(-0.6) - 0.12, -0.6, body);
+      var xs = function (z) { return k * (hw(z) * 0.935 + 0.008); };
+      [zf - 0.62, -0.42, zb + 0.45].forEach(function (z) { shutLine(xs(z), 0.38, top(z) - 0.02, z, body); });
+      [0.15, -0.95].forEach(function (z) { box(0.03, 0.025, 0.15, chromeM, xs(z) + k * 0.01, top(z) - 0.17, z, body); });
+      var prevB = null; for (var j = 0; j <= 12; j++) { var zb2 = lerp(deckZ + 0.15, wsB - 0.08, j / 12), pb = [k * (hw(zb2) * 0.9), top(zb2) + 0.01, zb2]; if (prevB) tube(prevB, pb, 0.014, trimM, body); prevB = pb; }   // black window-base trim
+      box(0.03, 0.05, 1.6, trimM, k * (hw(0) * 0.92 + 0.02), 0.34, 0, body);                       // side skirt
     });
-    box(W * 1.2, 0.014, 0.04, o.tail, 0, 0.86, B + 0.07, body).castShadow = false;                 // light bar across the boot
-    box(W * 1.5, 0.05, 0.1, darkM, 0, 0.3, F - 0.07, body);                                        // splitter
-    box(W * 1.2, 0.07, 0.06, darkM, 0, 0.36, B + 0.06, body);                                      // diffuser
-    box(W * 1.5, 0.02, 0.12, paint, 0, s.top(B + 0.1) + 0.01, B + 0.1, body, 0.15);                 // boot lip
-    mirrorPair(s.hw(zf - 0.95) * 0.9, 1.1, zf - 0.95, paint, body);
+    // front: grille, slim LED lamps with clear covers, intakes, splitter, plate
+    var gy = 0.6;
+    box(W * 0.9, 0.2, 0.05, darkM, 0, gy, F - 0.02, body);
+    for (var i = -2; i <= 2; i++) box(W * 0.86, 0.012, 0.02, chromeM, 0, gy + i * 0.04, F + 0.012, body);
+    [-1, 1].forEach(function (k) {
+      var x = k * W * 0.64;
+      var hb = box(0.44, 0.1, 0.06, darkM, x, 0.79, F - 0.09, body); hb.rotation.y = -k * 0.14;
+      var l = box(0.4, 0.025, 0.065, o.head, x, 0.82, F - 0.08, body); l.rotation.y = -k * 0.14; l.castShadow = false;
+      var l2 = box(0.14, 0.05, 0.065, o.head, x - k * 0.08, 0.77, F - 0.07, body); l2.castShadow = false;
+      var cv = box(0.46, 0.12, 0.02, lensM, x, 0.79, F - 0.04, body); cv.rotation.y = -k * 0.14; cv.castShadow = false;
+      box(0.28, 0.12, 0.05, darkM, k * W * 0.72, 0.42, F - 0.02, body);
+      // rear: wrap-around tail lamps, quad tips
+      var t = box(0.5, 0.08, 0.05, o.tail, k * W * 0.6, 0.86, B + 0.07, body); t.castShadow = false;
+      var t2 = box(0.05, 0.08, 0.24, o.tail, k * (hw(B + 0.2) * 0.93 + 0.01), 0.86, B + 0.2, body); t2.castShadow = false;
+      exhaust(k * W * 0.42, 0.3, B + 0.03, 0.038, body); exhaust(k * W * 0.56, 0.3, B + 0.03, 0.038, body);
+    });
+    box(W * 1.15, 0.014, 0.04, o.tail, 0, 0.86, B + 0.07, body).castShadow = false;
+    box(W * 1.55, 0.04, 0.12, darkM, 0, 0.29, F - 0.08, body);                                       // splitter
+    box(W * 1.25, 0.08, 0.06, darkM, 0, 0.36, B + 0.06, body);                                       // diffuser
+    box(W * 1.5, 0.02, 0.1, paint, 0, top(B + 0.08) + 0.012, B + 0.08, body, 0.15);                 // boot lip
+    plate(F + 0.01, 0.46, false, body); plate(B - 0.0, 0.62, true, body);
+    mirrorPair(hw(wsB - 0.05) * 0.88, 1.06, wsB - 0.08, paint, body);
   };
 
-
-
-  // Skyline GT-R: a squared-off performance coupe, four round tail lamps, big rear wing
+  /* Skyline GT-R: a squared-off performance coupe in the R34 mould (no badges). Long bonnet with a vent, a short
+     upright cabin, flat boot, four round tail lamps, a tall rear wing, flared arches and deep skirts. */
   MODELS.skyline = function (o, paint, body) {
-    var B = o.B - 0.02, F = o.F + 0.04, W = o.Wb + 0.02;
+    var B = o.B - 0.02, F = o.F + 0.04, W = o.Wb + 0.02, zf = o.zf, zb = o.zb;
+    var deckZ = B + 0.6, rsZ = B + 1.12, wsT = 0.0, wsB = zf - 0.5;
     var s = sculpt(o, {
-      len: [B, F], sill: 0.27, n: 8, fenderK: 0, lowWaist: true, waistTaper: 0.96,
-      top: [[B, 0.66], [B + 0.08, 0.98], [B + 0.5, 1.0], [o.zb + 0.3, 0.99], [o.zf - 0.3, 0.98], [F - 0.2, 0.95], [F - 0.04, 0.88], [F, 0.64]],
-      hw: [[B, W * 0.92], [o.zb, W], [0, W * 0.96], [o.zf, W], [F, W * 0.9]],
-      cabin: { z0: B + 0.55, z1: o.zf - 0.5, n: 7, taper: 0.86, hwK: 0.98, belt: -0.02, roof: [[B + 0.55, 0.98], [B + 1.3, 1.38], [-0.1, 1.42], [o.zf - 1.0, 1.38], [o.zf - 0.5, 0.97]], pillar: -0.15 }
+      len: [B, F], sill: 0.27, n: 8, archGap: 0.05, waistTaper: 0.95, sillTaper: 0.94,
+      top: [[B, 0.64], [B + 0.07, 0.96], [deckZ, 1.0], [zb + 0.3, 0.99], [zf - 0.3, 0.97], [F - 0.25, 0.94], [F - 0.05, 0.86], [F, 0.62]],
+      hw: [[B, W * 0.92], [B + 0.25, W], [zb, W * 1.02], [0, W * 0.96], [zf, W * 1.01], [F - 0.25, W * 0.97], [F, W * 0.88]],
+      cabin: { z0: deckZ, z1: wsB, n: 7, taper: 0.84, hwK: 0.95, belt: -0.02, pillar: -0.35,
+        roof: [[deckZ, 1.0], [rsZ, 1.35], [rsZ + 0.2, 1.38], [wsT - 0.15, 1.39], [wsT, 1.37], [wsB, 0.97]], roofZ: [rsZ + 0.05, wsT - 0.05] }
     }, paint, body);
-    lightPair(W * 0.66, 0.8, F - 0.04, 0.42, 0.1, o.head, body);
-    box(W * 0.8, 0.18, 0.04, darkM, 0, 0.64, F + 0.005, body);
-    box(W * 1.4, 0.12, 0.04, darkM, 0, 0.36, F, body);                                           // splitter intake
+    var top = s.top, hw = s.hw;
+    // front: wide black grille opening, angular lamps with clear covers, big lower intake, bonnet vent
+    box(W * 0.75, 0.16, 0.05, darkM, 0, 0.7, F + 0.0, body);
+    for (var i = -1; i <= 1; i++) box(W * 0.72, 0.012, 0.02, trimM, 0, 0.7 + i * 0.045, F + 0.014, body);
+    box(W * 1.45, 0.16, 0.05, darkM, 0, 0.4, F - 0.02, body);
+    box(W * 1.6, 0.04, 0.14, darkM, 0, 0.29, F - 0.06, body);
+    [-1, 1].forEach(function (k) {
+      var x = k * W * 0.7;
+      box(0.42, 0.12, 0.05, darkM, x, 0.8, F - 0.05, body);
+      var l = box(0.16, 0.08, 0.055, o.head, x - k * 0.1, 0.8, F - 0.045, body); l.castShadow = false;
+      var l2 = box(0.14, 0.08, 0.055, o.head, x + k * 0.08, 0.8, F - 0.045, body); l2.castShadow = false;
+      box(0.44, 0.13, 0.015, lensM, x, 0.8, F - 0.02, body).castShadow = false;
+      box(0.22, 0.06, 0.03, new THREE.MeshLambertMaterial({ color: 0xffa31a, emissive: 0xff8a00, emissiveIntensity: 0.3 }), k * W * 0.62, 0.44, F - 0.0, body);
+      // doors, handles, skirts, arch lips
+      var xs = function (z) { return k * (hw(z) * 0.95 + 0.008); };
+      [zf - 0.55, -0.6].forEach(function (z) { shutLine(xs(z), 0.36, top(z) - 0.02, z, body); });
+      box(0.03, 0.025, 0.15, trimM, xs(-0.45) + k * 0.01, top(-0.45) - 0.15, -0.45, body);
+      box(0.05, 0.09, Math.max(0.3, zf - zb - 2 * o.r - 0.2), trimM, k * (hw(0) * 0.95 + 0.02), 0.31, (zf + zb) / 2, body);
+    });
+    var bv = stations(zf - 0.2, F - 0.5, 8, function (z) { return { z: z, yb: top(z) - 0.01, yt: top(z) + 0.02, hw: 0.22, n: 6 }; });
+    body.add(loft(bv, darkM, 10));
     roundLights(W * 0.7, 0.84, B + 0.07, 0.085, o.tail, body, true, 2);                         // the four round lamps
-    o.deck = 0.99; wing(o, B + 0.22, 1.22, W * 1.8, 0.28, paint, body, true);
-    exhaust(-W * 0.55, 0.3, B + 0.04, 0.05, body);
-    mirrorPair(s.hw(o.zf - 0.55) * 0.92, 1.08, o.zf - 0.55, paint, body);
-    [-1, 1].forEach(function (k) { box(0.04, 0.08, 1.5, darkM, k * W * 0.96, 0.32, 0, body); });  // side skirts
+    [-1, 1].forEach(function (k) { for (var j = 0; j < 2; j++) { var c = cyl(0.1, 0.1, 0.03, trimM, k * (W * 0.7 - j * 0.085 * 2.4), 0.84, B + 0.05, body, Math.PI / 2, 0, 0, 16); c.castShadow = false; } });
+    box(W * 1.62, 0.12, 0.02, trimM, 0, 0.84, B + 0.035, body);                                       // dark tail panel behind the lamps
+    o.deck = 1.0; wing(o, B + 0.22, 1.22, W * 1.8, 0.26, paint, body, true);
+    exhaust(-W * 0.55, 0.3, B + 0.04, 0.055, body);
+    box(W * 1.3, 0.07, 0.06, darkM, 0, 0.34, B + 0.05, body);
+    plate(F + 0.02, 0.52, false, body); plate(B + 0.03, 0.6, true, body);
+    mirrorPair(hw(wsB - 0.05) * 0.9, 1.05, wsB - 0.06, paint, body);
   };
-
-
-
-
-
-
 
   // Titan 4x4: an off-roader. High clearance, boxy, flared arches, roof rack, snorkel, spare on the tailgate
   MODELS.titan4x4 = function (o, paint, body) {
@@ -801,7 +841,7 @@
     // body paint: glossy but its own colour, not a mirror of the sky
     /* paint: metallic base under a glossy clear coat, the way real car paint is built; it picks up the scene's
        reflection map (game.js gives every material with 'reflectivity' the live cube camera) */
-    var paint = new THREE.MeshPhysicalMaterial({ color: o.paint, metalness: 0.45, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.05, reflectivity: 0.5, envMapIntensity: 1.1 });
+    var paint = new THREE.MeshPhysicalMaterial({ color: o.paint, metalness: 0.28, roughness: 0.4, clearcoat: 0.7, clearcoatRoughness: 0.08, reflectivity: 0.35, envMapIntensity: 0.6 });   // less metal: at .45 a bright sky turned whole panels silver
     if (CB.CARENV) paint.envMap = CB.CARENV;
     // the body is at least as wide as the wheels it covers (game.js puts wheel centres at 0.9 * xw)
     o.Wb = Math.max(o.W / 2, (o.xw || 0) * 0.9 + 0.2);
