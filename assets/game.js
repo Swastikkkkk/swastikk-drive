@@ -33,6 +33,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(unlockedRaw==null){try{const sc=JSON.parse(localStorage.getItem('sl_car')||'null');if(sc&&sc.id)set.add(sc.id)}catch(e){}}
     return set})();
   unlocked.add('outlaw'); // the starter car is always free, regardless of what's saved
+  ['f1papaya','f1rosso','f1volt','f1quick','f1viper'].forEach(id=>unlocked.add(id));   // the five free F1 cars
   if(unlockedRaw==null)saveUnlocked();
   let updCoinsUI=()=>{}; // the garage UI wiring below replaces this once #dgcoins exists
   // state-only on purpose: callers fold the amount into whatever toast they're already showing
@@ -56,6 +57,21 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {id:'f1apex',label:'F1 Apex',type:'f1',blurb:'Formula 1 Single-Seater',mass:135,F:1.8,B:-1.7,W:1.6,price:800,
      V:{engine:900,max:44,slip:3.6,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.8,roll:.01},
      paints:[0xdc143c,0x1a1a2e,0xf0e68c,0x00ffff]},
+    {id:'f1papaya',label:'Papaya Strike',type:'f1',blurb:'Free · lightest and quickest off the line',mass:138,F:1.8,B:-1.7,W:1.6,price:0,livery:[0x111111,0x47c7fc],
+     V:{engine:1350,max:54,slip:3.9,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.82,roll:.01},
+     paints:[0xff8000,0x1a1a1a,0xf2f2f2]},
+    {id:'f1rosso',label:'Rosso Fulmine',type:'f1',blurb:'Free · scarlet, brakes late, corners flat',mass:136,F:1.8,B:-1.7,W:1.6,price:0,livery:[0xf2f2f2,0x111111],
+     V:{engine:1420,max:56,slip:3.9,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.82,roll:.01},
+     paints:[0xdc0000,0xf2f2f2,0xffd12e]},
+    {id:'f1volt',label:'Volt GP-1',type:'f1',blurb:'Free · midnight blue rocket on the straights',mass:134,F:1.8,B:-1.7,W:1.6,price:0,livery:[0xdc0a2d,0xffd12e],
+     V:{engine:1500,max:58,slip:3.9,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.82,roll:.01},
+     paints:[0x1e2a5a,0x111111,0xdc0a2d]},
+    {id:'f1quick',label:'Quicksilver',type:'f1',blurb:'Free · silver, black and teal, all downforce',mass:132,F:1.8,B:-1.7,W:1.6,price:0,livery:[0x27f4d2,0x111111],
+     V:{engine:1580,max:60,slip:3.9,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.82,roll:.01},
+     paints:[0xc4c8cc,0x1c1c1f,0x27f4d2]},
+    {id:'f1viper',label:'Emerald Viper',type:'f1',blurb:'Free · the fastest car in the garage',mass:130,F:1.8,B:-1.7,W:1.6,price:0,livery:[0xcedc00,0x111111],
+     V:{engine:1680,max:62,slip:3.9,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.82,roll:.01},
+     paints:[0x00594f,0xcedc00,0x0a0a0a]},
     {id:'titan4x4',label:'Titan 4x4',type:'suv',blurb:'Rugged Off-Road SUV',mass:290,F:2.5,B:-2.4,W:2.2,wagon:true,price:500,
      V:{engine:680,max:28,slip:3.0,xw:1.2,zf:1.5,zb:-1.5,r:.52,rest:.52,steer:.45,roll:.03},
      paints:[0x2d4a22,0x1a1a1a,0xd4a843,0x4a4a4a]},
@@ -2859,6 +2875,7 @@ t.bd.position.set(x,y+.86,z);
     return res}
   function makeBody(spec,o){
     if(spec.id==='custom'&&spec.kind==='face')return faceBody(o,spec);
+    if(spec.type==='f1'&&window.F1Car)return F1Car.build({primary:o.paint!=null?o.paint:0xdc143c,secondary:spec.livery?spec.livery[0]:0x111111,accent:spec.livery?spec.livery[1]:0xf2f2f2,zf:o.zf,zb:o.zb,r:o.r,noWheels:true});   // the modern F1 car (assets/f1car.js)
     if(spec.type==='f1'&&F1M.tpl)return f1ModelBody(o);
     if(spec.id==='custom'){if(spec.kind==='model'&&CUSTOM.model)return customModelBody(o);spec=Object.assign({},spec,{id:spec.buildAs||'outlaw'})}
     // lofted bodies (assets/vehicles.js) for every model it knows; the EVs and the F1 keep their own builders
@@ -6059,7 +6076,7 @@ const PLANETS={
       ZN=MODE==='circuit'?{drag:0,fog:1,tint:[1,1,1]}:zoneAt(progU);const zd=ZN.drag;
       if(NP&&frameN%10===0){NP.show(active&&driving);NP.paint(false);if(window.Radio&&Radio.setSpeed)Radio.setSpeed(chassisB.velocity.length()*3.6,dt*10)}
       padT=Math.max(0,padT-dt);WORLDX.tick(dt,performance.now());ROADX.tick();SLIP.tick(dt,chassisB.velocity.length());const boost=(NTANK.on||padT>0)?1:0;NITRO.tick(dt,!!boost&&driving,chassisB.velocity.length());
-      const eMul=(1-sub*.66)*(1-zd*.52),vmax=V.max*(1+boost*.28)*(1-sub*.68)*(1-zd*.38);
+      const eMul=(1-sub*.66)*(1-zd*.52),vmax=V.max*(1+boost*(V.nb!=null?V.nb:.28))*(1-sub*.68)*(1-zd*.38);
       /* Tractive force used to be flat all the way to the cap, so the car pulled just as
          hard at 90 as it did from rest and then hit a wall. This is the shape a gearbox
          actually gives you: strong off the line, tapering as the revs run out. */
@@ -6402,7 +6419,8 @@ const PLANETS={
     if(active&&driving){const cp=car.position;
       padCool=Math.max(0,padCool-dt);
       if(padList.mat)padList.mat.opacity=.6+.3*Math.sin(now/170);
-      if(padCool<=0)for(let i=0;i<padList.length;i++){const Q=padList[i],dx=Q.x-cp.x,dz=Q.z-cp.z;
+      const PL=MODE==='circuit'&&circuit&&circuit.pads?circuit.pads:padList;   // the circuit's own pads on a venue, the valley's otherwise
+      if(padCool<=0)for(let i=0;i<PL.length;i++){const Q=PL[i],dx=Q.x-cp.x,dz=Q.z-cp.z;
         if(dx*dx+dz*dz<2.7*2.7&&Math.abs(Q.y-cp.y)<2.5){padT=1.6;padCool=1.2;
           leanF.set(0,0,1);chassisB.quaternion.vmult(leanF,leanF);chassisB.velocity.x+=leanF.x*5;chassisB.velocity.z+=leanF.z*5;
           shake=Math.max(shake,.3);blip(980,.16,.1);setTimeout(()=>blip(1320,.2,.08),90);break}}}
@@ -7809,7 +7827,18 @@ const PLANETS={
       window.__barrierFix={trimmed,dropped}}
     passes();
     BT('passes');
-    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,BRIDGES,decks:DECKS,TL,pit:PIT,pitPts,TL,inPit:(x,z)=>{if(!PIT)return false;if(trackDist(x,z,CIRC_W)<CIRC_W/2+1)return false;for(let i=0;i<pitPts.length;i+=2){const q=pitPts[i];if(Math.abs(q.x-x)<PIT.half+1.5&&Math.abs(q.z-z)<PIT.half+1.5&&Math.hypot(q.x-x,q.z-z)<PIT.half+1)return true}return false},lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
+    /* boost pads: glowing chevrons on the straights (about one per 900 m, 3-8 a lap), alternating sides of the road, so
+       taking one is a choice of line. Driving over one gives the same 1.6 s burst as the valley pads; rivals use them too */
+    const PADS_C=[];
+    if(padList.mat){const n=Math.max(3,Math.min(8,Math.round(TL/900))),cand=[];
+      for(let u=.06;u<.95;u+=.003){const t1=curve.getTangentAt(u-.004),t2=curve.getTangentAt(u+.004),k=Math.acos(Math.max(-1,Math.min(1,(t1.x*t2.x+t1.z*t2.z)/((Math.hypot(t1.x,t1.z)||1)*(Math.hypot(t2.x,t2.z)||1)))));
+        if(liftAt(u)>.3)continue;cand.push([u,k])}
+      cand.sort((A,B)=>A[1]-B[1]);const us=[];for(const [u] of cand){if(us.length>=n)break;if(us.some(v=>{const d=Math.abs(v-u);return Math.min(d,1-d)<.6/n}))continue;us.push(u)}
+      us.sort((a,b)=>a-b);const pg=new THREE.PlaneGeometry(3.4,4.4).rotateX(-Math.PI/2);
+      us.forEach((u,i)=>{const P=circAt(u,curve),lane=(i%2?1:-1)*CIRC_W*.22,x=P.p.x+P.n.x*lane,z=P.p.z+P.n.z*lane,y=roadY(u,x,z);
+        const m=new THREE.Mesh(pg,padList.mat);m.position.set(x,y+.14,z);m.rotation.y=Math.atan2(P.tg.x,P.tg.z)+Math.PI;m.userData.fixedY=m.userData.onTrack=true;root.add(m);
+        PADS_C.push({u,lane,x,y,z,m})})}
+    circuit={hazeTo:fc=>{if(circuit_hazeFn)circuit_hazeFn(fc)},pads:PADS_C,LODCELLS:null,curve,CN,CSAMP,root,groundBody,bodies:[groundBody].concat(wallBodies).concat(stadiumBodies).concat(bridgeBodies).concat(solidBodies),liftAt,roadY,bridges:BRIDGES.length,BRIDGES,decks:DECKS,TL,pit:PIT,pitPts,TL,inPit:(x,z)=>{if(!PIT)return false;if(trackDist(x,z,CIRC_W)<CIRC_W/2+1)return false;for(let i=0;i<pitPts.length;i+=2){const q=pitPts[i];if(Math.abs(q.x-x)<PIT.half+1.5&&Math.abs(q.z-z)<PIT.half+1.5&&Math.hypot(q.x-x,q.z-z)<PIT.half+1)return true}return false},lights:startLightsIM,startP,ownedMats,theme,seed,pts:pts2D,venue,minY,trackDist,groundAt,get cleared(){return removed}};
     if(window.RaceEngine){const laps=lapsCfg();window.RaceEngine.initTrack('circuit',curve,pts3,{laps,roadWidth:CIRC_W});window.RaceEngine.isDaily=!!venue.daily}
     /* the rest streams in: a few milliseconds of jobs per frame, each batch run through the passes as it lands;
        when the queue is empty every prop set is cut into culled, distance-limited cells. Leaving (or rebuilding)
@@ -7914,23 +7943,32 @@ const PLANETS={
     const UP=new CANNON.Vec3(0,1,0);
     function curvature(){const Cc=circuit,N=Cc.CN,ds=Cc.curve.getLength()/N;curv=new Float32Array(N);
       for(let i=0;i<N;i++){const a=Cc.curve.getTangentAt(((i-1+N)%N)/N),b=Cc.curve.getTangentAt(((i+1)%N)/N),la=Math.hypot(a.x,a.z)||1,lb=Math.hypot(b.x,b.z)||1;
-        curv[i]=Math.acos(Math.max(-1,Math.min(1,(a.x*b.x+a.z*b.z)/(la*lb))))/(2*ds)}}
+        curv[i]=Math.acos(Math.max(-1,Math.min(1,(a.x*b.x+a.z*b.z)/(la*lb))))/(2*ds)}
+      csg=new Float32Array(N);SPX=new Float32Array(N);SPZ=new Float32Array(N);SNX=new Float32Array(N);SNZ=new Float32Array(N);
+      for(let i=0;i<N;i++){const P=circAt(i/N,Cc.curve),a=Cc.curve.getTangentAt(((i-1+N)%N)/N),b=Cc.curve.getTangentAt(((i+1)%N)/N),la=Math.hypot(a.x,a.z)||1,lb=Math.hypot(b.x,b.z)||1;
+        csg[i]=((b.x/lb-a.x/la)*P.n.x+(b.z/lb-a.z/la)*P.n.z)/(2*ds);SPX[i]=P.p.x;SPZ[i]=P.p.z;SNX[i]=P.n.x;SNZ[i]=P.n.z}}
+    let csg=null,SPX=null,SPZ=null,SNX=null,SNZ=null,pIdx=0;
+    // where the player is on the lap (index + lateral offset), searched near the last answer
+    function playerOnTrack(){const N=SPX.length,cp=car.position;let bi=pIdx,bd=1e18;const R=pIdx<0?N:60;
+      for(let k=-R;k<=R;k++){const i=((pIdx+k)%N+N)%N,dx=cp.x-SPX[i],dz=cp.z-SPZ[i],d=dx*dx+dz*dz;if(d<bd){bd=d;bi=i}}
+      if(bd>40*40&&R<N){for(let i=0;i<N;i++){const dx=cp.x-SPX[i],dz=cp.z-SPZ[i],d=dx*dx+dz*dz;if(d<bd){bd=d;bi=i}}}
+      pIdx=bi;return {u:bi/N,lane:(cp.x-SPX[bi])*SNX[bi]+(cp.z-SPZ[bi])*SNZ[bi],spd:chassisB.velocity.length()}}
     // the rivals' bodies are built fresh every race: free their geometry too, or every rebuild leaked ~70 buffers
     function clear(){cars.forEach(c=>{if(c.car.g.parent)c.car.g.parent.remove(c.car.g);c.car.g.traverse(o=>{if(o.geometry)o.geometry.dispose()});try{world.removeBody(c.bd)}catch(e){}});cars=[];on=false;boardSet=false}
     function start(n,opts){
       opts=opts||{};clear();if(!circuit||!window.RaceEngine)return;curvature();laps=window.RaceEngine.totalLaps||3;
       const Cc=circuit,L=Cc.curve.getLength(),W=CIRC_W;
       for(let i=0;i<n;i++){const j=i+1,back=6+j*7.5,lane=(j%2===0?1:-1)*W*.28;
-        const car=buildCar({paint:opts.colors?opts.colors[i%opts.colors.length]:PAINT[i%PAINT.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
+        const LV=opts.liveries&&opts.liveries[i%opts.liveries.length];   // F1 circuits: a real-looking F1 car in its team's livery (assets/f1car.js)
+        const car=LV&&window.F1Car?F1Car.build({primary:LV[0],secondary:LV[1],accent:LV[2],zf:1.8,zb:-1.75,compound:['soft','medium','hard'][i%3]}):buildCar({paint:opts.colors?opts.colors[i%opts.colors.length]:PAINT[i%PAINT.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
         car.g.rotation.order='YXZ';car.g.traverse(o=>{o.userData.onTrack=true;o.userData.fixedY=true});Cc.root.add(car.g);   // rivals drive ON the road: the venue's clearance pass must not hide them
         const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});bd.addShape(new CANNON.Box(new CANNON.Vec3(.95,.62,2.05)));world.addBody(bd);
-        cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:V.max*(opts.skills?opts.skills[i%opts.skills.length]:opts.skill!=null?opts.skill-(i%4)*.01:SKILL[i%SKILL.length]),name:opts.names?opts.names[i%opts.names.length]:NAMES[(i+Math.floor(Math.random()*3))%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null})}
-      on=true;place(0)}
+        cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:(opts.top||V.max)*(opts.skills?opts.skills[i%opts.skills.length]:opts.skill!=null?opts.skill-(i%4)*.01:SKILL[i%SKILL.length]),sk:opts.skills?opts.skills[i%opts.skills.length]:opts.skill||.9,agg:.75+Math.random()*.5,react:.12+Math.random()*.35,ph:Math.random()*6.28,boostT:0,slip:0,err:0,pu:0,name:opts.names?opts.names[i%opts.names.length]:NAMES[(i+Math.floor(Math.random()*3))%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null})}
+      pIdx=-1;on=true;place(0)}
     function playerProg(){const RE=window.RaceEngine,T=RE.checkpoints.length||16;return (RE.currentLap-1)+Math.max(0,RE.currentCheckpoint-1)/T}
     function place(dt){
       const Cc=circuit;
       cars.forEach(a=>{
-        a.lane+=(a.laneT-a.lane)*Math.min(1,dt*1.6);
         const P=circAt(a.u,Cc.curve),x=P.p.x+P.n.x*a.lane,z=P.p.z+P.n.z*a.lane,y=Cc.roadY?Cc.roadY(a.u,x,z):Cc.groundAt?Cc.groundAt(x,z):P.p.y;   // the road's own surface, so over a flyover, not under it
         const yaw=Math.atan2(P.tg.x,P.tg.z),pitch=Math.atan2(P.tg.y,Math.hypot(P.tg.x,P.tg.z));
         const G=a.car.g;G.position.set(x,y+.02,z);G.rotation.set(-pitch,yaw,0);
@@ -7944,17 +7982,39 @@ const PLANETS={
       if(!on||!circuit||MODE!=='circuit')return;const RE=window.RaceEngine;if(!RE)return;
       const go=RE.state==='racing'||RE.state==='finished'||RE.state==='results';
       const Cc=circuit,L=Cc.curve.getLength(),N=Cc.CN,W=CIRC_W,obs=Cc.venue.obstacles||[];
-      if(go)cars.forEach(a=>{
+      if(go){
+        const ds=L/N,sat=v=>Math.max(-1,Math.min(1,v/.018)),t=(now-RE.raceStartTime)/1000,pads=Cc.pads||[];
+        const me=playerOnTrack(),field=cars.map(c=>({u:c.u,lane:c.lane,spd:c.spd,c})).concat([{u:me.u,lane:me.lane,spd:me.spd,c:null}]);
+        cars.forEach(a=>{
         if(a.fin){a.spd=Math.max(0,a.spd-8*dt);a.u=(a.u+a.spd*dt/L)%1;return}
-        // brake for the tightest bend inside stopping distance
-        const look=Math.max(30,a.spd*a.spd/(2*7)+20);let k=0;for(let d=0;d<look;d+=L/N)k=Math.max(k,curv[Math.floor(((a.u+d/L)%1)*N)%N]);
-        let want=Math.min(a.vmax,Math.sqrt(9/Math.max(1e-4,k)));a.laneT=a.lane0;
+        if(t<a.react){a.spd=0;return}   // reaction at the lights
+        const iU=Math.floor(a.u*N)%N,latA=(a.sk>.93?12.5:10)*Math.min(1.05,.9+a.sk*.12),brk=17,acc=t<a.react+3?10:8.5;
+        // brake for the tightest bend inside stopping distance (pros brake late and carry more speed)
+        const look=Math.max(30,a.spd*a.spd/(2*brk)+18);let k=0;for(let d=0;d<look;d+=ds)k=Math.max(k,curv[Math.floor(((a.u+d/L)%1)*N)%N]);
+        a.boostT=Math.max(0,a.boostT-dt);a.err=Math.max(0,a.err-dt);
+        let want=Math.min(a.vmax*(1+a.slip+(a.boostT>0?.12:0))*(a.err>0?.9:1),Math.sqrt(latA/Math.max(1e-4,k)));
+        // racing line: wide on the way in, clip the apex, wide again on the way out, each driver a little different
+        const cn=csg[(iU+Math.round(8/ds))%N],cf=csg[(iU+Math.round(45/ds))%N];
+        let line=W*.32*(sat(cn)-.75*sat(cf))+Math.sin(t*.6+a.ph)*W*.05+(a.err>0?Math.sin(t*3+a.ph)*W*.12:0);
+        // traffic: the nearest car ahead (rivals and you)
+        let ah=null,ahD=1e9;for(const o of field){if(o.c===a)continue;const d=(((o.u-a.u)%1)+1)%1*L;if(d>0&&d<ahD&&d<40){ahD=d;ah=o}}
+        a.slip=0;let rate=1.2;
+        if(ah){const dl=a.lane-ah.lane;
+          if(ahD<28&&Math.abs(dl)<1.6)a.slip=.035*(1-ahD/28);   // slipstream right behind someone
+          if(ahD<18&&ah.spd<want+.5){   // closing in: pick the side with room, or wait behind
+            const side=Math.abs(dl)>.4?Math.sign(dl):(line>=0?1:-1),tgt=Math.max(-W*.4,Math.min(W*.4,ah.lane+side*W*.42));
+            const blocked=field.some(o=>o.c!==a&&o!==ah&&Math.abs(o.lane-tgt)<1.9&&Math.abs((((o.u-a.u)%1+1.5)%1-.5)*L)<6.5);
+            if(!blocked&&a.agg>.8||!blocked&&ahD<10){line=tgt;rate=1.6+a.agg}else want=Math.min(want,ah.spd+(ahD>9?1.5:-.3))}
+          if(ahD<6.5&&Math.abs(dl)<1.9)want=Math.min(want,ah.spd-.6)}   // never through the car ahead
+        a.laneT=Math.max(-W*.4,Math.min(W*.4,line));a.lane+=(a.laneT-a.lane)*Math.min(1,dt*rate);
         for(const o of obs){const dm=(((o.u-a.u)%1+1)%1)*L;if(dm>90)continue;
           if(o.t==='speed_breaker'&&dm<45)want=Math.min(want,13);
           if(o.t==='blocker'||o.t==='ramp')a.laneT=o.s===0?(a.lane0>=0?W*.36:-W*.36):-o.s*W*.32}
-        a.spd=want>a.spd?Math.min(want,a.spd+7*dt):Math.max(want,a.spd-14*dt);
-        a.u=(a.u+a.spd*dt/L)%1;a.prog+=a.spd*dt/L;
-        if(a.prog>=laps)a.fin=now-RE.raceStartTime});
+        if(Math.random()<dt*.0025*(1.1-a.sk))a.err=.8+Math.random();   // the odd lock-up or a run wide
+        a.spd=want>a.spd?Math.min(want,a.spd+acc*dt):Math.max(want,a.spd-brk*dt);
+        const u0=a.u;a.u=(a.u+a.spd*dt/L)%1;a.prog+=a.spd*dt/L;
+        for(const pd of pads){const cross=u0<=a.u?(pd.u>u0&&pd.u<=a.u):(pd.u>u0||pd.u<=a.u);if(cross&&Math.abs(a.lane-pd.lane)<1.8)a.boostT=1.6}
+        if(a.prog>=laps)a.fin=now-RE.raceStartTime})}
       place(dt);
       // live position, and the full standings once you cross the line
       const pp=playerProg();let pos=1;cars.forEach(a=>{if(RE.finished?(a.fin&&a.fin<RE.totalRaceTime):a.prog>pp)pos++});
@@ -7966,7 +8026,7 @@ const PLANETS={
           const rows=[{name:'You',finishTime:RE.totalRaceTime,isMe:true}].concat(cars.map(a=>({name:a.name,finishTime:a.fin||null,racing:!a.fin,prog:a.prog})));
           rows.sort((p,q)=>p.finishTime&&q.finishTime?p.finishTime-q.finishTime:p.finishTime?-1:q.finishTime?1:q.prog-p.prog);
           rows.forEach((r,i)=>r.position=i+1);RE.leaderboard=rows;if(RE.refreshResults)RE.refreshResults()}}}
-    return {start,clear,update,get on(){return on},get bodies(){return cars.map(c=>c.bd)},get count(){return cars.length},get skills(){return cars.map(c=>c.vmax)}};
+    return {start,clear,update,get on(){return on},get bodies(){return cars.map(c=>c.bd)},get count(){return cars.length},state(){return cars.slice(0,8).map(c=>[c.name,+c.lane.toFixed(1),+(c.spd*3.6).toFixed(0),+c.prog.toFixed(3)])},get skills(){return cars.map(c=>c.vmax)}};
   })();
   /* One lap count. In a room the host's choice (#dmplaps) is authoritative; on your own it is the draw-track
      panel's Laps setting. buildCircuit, enterCircuit and the race start all read it through here. */
@@ -7977,13 +8037,15 @@ const PLANETS={
   /* Grand Prix: a full grid of fictional rivals, requested by window.__f1GP for one race start only */
   /* the 2026 grid (planetf1.com, confirmed line-ups): [driver, team livery, pace]. Pace is a rough team-form order,
      fastest first so the grid lines up like qualifying. Edit this list to change the field. */
-  const F1_GRID=[['Norris',0xff8000,1],['Piastri',0xff8000,.995],['Verstappen',0x1e3d8f,.995],['Leclerc',0xdc0000,.99],['Russell',0xc4c8cc,.99],
-    ['Hamilton',0xdc0000,.985],['Antonelli',0xc4c8cc,.98],['Hadjar',0x1e3d8f,.975],['Sainz',0x005aff,.975],['Albon',0x005aff,.97],
-    ['Alonso',0x006f62,.97],['Lawson',0x6692ff,.965],['Lindblad',0x6692ff,.96],['Stroll',0x006f62,.96],['Ocon',0xe8e8e8,.958],
-    ['Bearman',0xe8e8e8,.958],['Hulkenberg',0x8c1d1d,.955],['Bortoleto',0x8c1d1d,.952],['Gasly',0x0090ff,.95],['Colapinto',0x0090ff,.945],
-    ['Perez',0x1a1a1a,.945],['Bottas',0x1a1a1a,.94]];
+  const F1_GRID=[['Norris','mclaren',1],['Piastri','mclaren',.995],['Verstappen','redbull',.995],['Leclerc','ferrari',.99],['Russell','mercedes',.99],
+    ['Hamilton','ferrari',.985],['Antonelli','mercedes',.98],['Hadjar','redbull',.975],['Sainz','williams',.975],['Albon','williams',.97],
+    ['Alonso','aston',.97],['Lawson','rb',.965],['Lindblad','rb',.96],['Stroll','aston',.96],['Ocon','haas',.958],
+    ['Bearman','haas',.958],['Hulkenberg','audi',.955],['Bortoleto','audi',.952],['Gasly','alpine',.95],['Colapinto','alpine',.945],
+    ['Perez','cadillac',.945],['Bottas','cadillac',.94]];
+  const teamLivery=t=>(window.F1Car&&F1Car.TEAMS[t])||[0xdc0000,0x111111,0xf2f2f2];
   const STORY_NAMES=['Corelli','Vantrell','Marrow','Orsen','Reyne','Quell','Varga','Donnell','Sallis','Tolan','Kell','Aalto','Duval','Caro','Marsh','Hallen','Rend','Oyelaran','Brask'];
-  const GP_RIVALS=F1_GRID.length,GP_OPTS={names:F1_GRID.map(d=>d[0]),colors:F1_GRID.map(d=>d[1]),skills:F1_GRID.map(d=>d[2])};
+  const GP_RIVALS=F1_GRID.length,GP_OPTS={top:41.9,names:F1_GRID.map(d=>d[0]),colors:F1_GRID.map(d=>teamLivery(d[1])[0]),liveries:F1_GRID.map(d=>teamLivery(d[1])),skills:F1_GRID.map(d=>d[2])};
+  const GPCAR={prev:null};
   function restartSoloRace(){
     const gp=!!window.__f1GP;window.__f1GP=false;const grid=window.__raceGrid||null;window.__raceGrid=null;const story=window.__storyLevel||null;window.__storyLevel=null;   // story levels ask for a rival count and pace
     if(MODE!=='circuit'||!circuit||!window.RaceEngine)return;
@@ -7993,14 +8055,23 @@ const PLANETS={
         name:fc?fc.name:circuit.daily?"Today's daily track":'Your track',f1:fc?fc.id:null,mode:gp?'gp':story?'story':circuit.daily?'daily':'race',story,laps:RE.totalLaps,rivals:gp?GP_RIVALS:grid?grid.n:3}}RE.isDaily=!!circuit.daily;RE.dailyDate=circuit.dailyDate||null;
     RE.closeResultsModal();
     circuit.lightsDone=false;circuit.lightsStart=performance.now();circuit.cdN=0;tyresReset();
-    RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:sp.tangent||circuit.startP.tg})});CAI.start(gp?GP_RIVALS:grid?grid.n:3,gp?GP_OPTS:grid?{skill:grid.skill,names:STORY_NAMES}:undefined)}
+    /* the Grand Prix puts you in an F1 car too (your paint, your saved garage choice untouched); the next other race gives your own car back */
+    if(gp&&garageOf(curCarId).type!=='f1'){let saved=null;try{saved=localStorage.getItem('sl_car')}catch(e){}const sv=saved?JSON.parse(saved):null;
+      GPCAR.prev={id:curCarId,paint:sv&&sv.paint,saved};setCar('f1apex',sv&&sv.paint!=null?sv.paint:0xdc143c,true);try{if(saved)localStorage.setItem('sl_car',saved)}catch(e){}}
+    else if(!gp&&GPCAR.prev){const P0=GPCAR.prev;GPCAR.prev=null;setCar(P0.id,P0.paint,true)}
+    if(gp){if(!V.__base||V.__base.id!==curCarId)V.__base={id:curCarId,max:V.max,nb:V.nb};V.max=145/3.6;V.nb=167/145-1}
+    else if(V.__base&&V.__base.id===curCarId){V.max=V.__base.max;V.nb=V.__base.nb;V.__base=null}
+    // the Grand Prix starts you from the back of the grid, in the slot behind the last rival
+    const slot=gp?(()=>{const L=circuit.curve.getLength(),j=GP_RIVALS+1,u=((1-(6+j*7.5)/L)%1+1)%1,P=circAt(u,circuit.curve),lane=(j%2===0?1:-1)*CIRC_W*.28,x=P.p.x+P.n.x*lane,z=P.p.z+P.n.z*lane;
+      return {x,y:(circuit.roadY?circuit.roadY(u,x,z):P.p.y)+.9,z,tg:P.tg}})():null;
+    RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo(slot?{pos:{x:slot.x,y:slot.y,z:slot.z},tangent:slot.tg}:{pos:{x:sp.x,y:sp.y,z:sp.z},tangent:sp.tangent||circuit.startP.tg})});CAI.start(gp?GP_RIVALS:grid?grid.n:3,gp?GP_OPTS:grid?{skill:grid.skill,names:STORY_NAMES,liveries:circuit.f1&&window.F1Car?Object.values(F1Car.TEAMS):null}:undefined)}
   window.restartSoloRace=restartSoloRace;
   window.__carPhoto=function(){try{const cam=new THREE.PerspectiveCamera(30,R.domElement.width/R.domElement.height,.1,3000),q=car.quaternion,p=car.position;
       const fwd=new THREE.Vector3(0,0,1).applyQuaternion(q).setY(0).normalize(),side=new THREE.Vector3(fwd.z,0,-fwd.x);
       cam.position.copy(p).addScaledVector(fwd,7.5).addScaledVector(side,4.2);cam.position.y+=1.3;cam.lookAt(p.x,p.y+.55,p.z);
       const fg=S.fog,fn=fg&&fg.near,ff=fg&&fg.far;if(fg){fg.near=Math.max(fn,60);fg.far=Math.max(ff,600)}
       R.render(S,cam);const url=R.domElement.toDataURL('image/jpeg',.86);if(fg){fg.near=fn;fg.far=ff}return url}catch(e){return null}};
-  window.__inRoom=()=>{try{return !!(MP&&MP.on)}catch(e){return false}};window.__caiInfo=()=>({count:CAI.count,on:CAI.on});
+  window.__inRoom=()=>{try{return !!(MP&&MP.on)}catch(e){return false}};window.__caiInfo=()=>({count:CAI.count,on:CAI.on,pads:circuit&&circuit.pads?circuit.pads.length:0,vmax:V.max,nb:V.nb,state:CAI.state()});
   /* ---------- F1 circuits (assets/f1-circuits.js: real layouts at real size; assets/f1-landmarks.js: their scenery) ----------
      F1.build(id,{race,laps}) builds one like any venue: its own width, elevation profile (or height range), tunnels,
      overhead bridges, which pass of a crossing is the bridge, and the race's time of day. In a room only the id

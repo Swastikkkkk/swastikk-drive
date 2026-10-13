@@ -19,7 +19,8 @@
   }
   function save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
   function starsOf(d, n) { var v = d.s[n]; return typeof v === 'number' ? v : 0; }
-  function unlocked(d, n) { return n === 1 || starsOf(d, n - 1) > 0; }
+  // the first level of every chapter is always open; the rest of a chapter opens one level at a time
+  function unlocked(d, n) { return (n - 1) % 10 === 0 || starsOf(d, n - 1) > 0; }
   function starsFor(lv, pos) { if (!pos || pos > lv.target) return 0; return pos === 1 ? 3 : pos === 2 ? 2 : 1; }
   function toast(t) { try { if (window.toastMsg) window.toastMsg(t); } catch (e) {} }
   function lerp(a, b, t) { return a + (b - a) * t; }
