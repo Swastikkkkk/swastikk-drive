@@ -5792,7 +5792,8 @@ const PLANETS={
       if(!rec){if(mesh)mesh.visible=false;return}
       const now=clk-t0;
       if(now>=rec.length*100&&rec.length<6000){const p=chassisB.position,q=chassisB.quaternion,yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));rec.push([+p.x.toFixed(2),+p.y.toFixed(2),+p.z.toFixed(2),+yaw.toFixed(3)])}
-      if(best&&mesh){const f=now/100,i=Math.floor(f);if(i<best.p.length-1){const a=best.p[i],b=best.p[i+1],k=f-i;
+      if(best&&mesh&&CAI.on){mesh.visible=false}   // racing real rivals: no ghost of your own best lap
+      else if(best&&mesh){const f=now/100,i=Math.floor(f);if(i<best.p.length-1){const a=best.p[i],b=best.p[i+1],k=f-i;
           mesh.visible=true;mesh.position.set(a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k);let dy=b[3]-a[3];dy=Math.atan2(Math.sin(dy),Math.cos(dy));mesh.rotation.set(0,a[3]+dy*k,0)}
         else mesh.visible=false}}
     // circuits: a lap is every pass of the start line
@@ -7921,7 +7922,7 @@ const PLANETS={
       const Cc=circuit,L=Cc.curve.getLength(),W=CIRC_W;
       for(let i=0;i<n;i++){const j=i+1,back=6+j*7.5,lane=(j%2===0?1:-1)*W*.28;
         const car=buildCar({paint:opts.colors?opts.colors[i%opts.colors.length]:PAINT[i%PAINT.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
-        car.g.rotation.order='YXZ';Cc.root.add(car.g);
+        car.g.rotation.order='YXZ';car.g.traverse(o=>{o.userData.onTrack=true;o.userData.fixedY=true});Cc.root.add(car.g);   // rivals drive ON the road: the venue's clearance pass must not hide them
         const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});bd.addShape(new CANNON.Box(new CANNON.Vec3(.95,.62,2.05)));world.addBody(bd);
         cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:V.max*(opts.skills?opts.skills[i%opts.skills.length]:opts.skill!=null?opts.skill-(i%4)*.01:SKILL[i%SKILL.length]),name:opts.names?opts.names[i%opts.names.length]:NAMES[(i+Math.floor(Math.random()*3))%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null})}
       on=true;place(0)}
