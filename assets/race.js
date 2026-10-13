@@ -356,6 +356,12 @@
 
       var self = this;
       setTimeout(function() {
+        if (window.__onRaceFinish) {
+          try {
+            var me = (self.leaderboard || []).filter(function(r) { return r.isMe; })[0];
+            window.__onRaceFinish({ pos: self.finalPosition || (me && me.position) || 1, time: self.totalRaceTime });
+          } catch (e) {}
+        }
         self.showResultsModal();
       }, 1500);
     },
