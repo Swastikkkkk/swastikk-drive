@@ -60,64 +60,76 @@
     var next = null;
     if (story && story.next) next = { label: 'Level ' + story.next, go: function () { close(); window.Story.play(story.next); } };
     else if (ctx.mode === 'gp' && window.F1) { var L = F1.list(), i = L.findIndex(function (c) { return c.id === ctx.f1; }), nc = L[(i + 1) % L.length];
-      next = { label: nc.name.replace(/ Circuit$| International Circuit$/, ''), go: function () { close(); F1.ready(nc.id, function () { window.__f1GP = true; F1.build(nc.id, { race: true, laps: ctx.laps || 5 }); }); } }; }
+      next = { label: nc.country, go: function () { close(); F1.ready(nc.id, function () { window.__f1GP = true; F1.build(nc.id, { race: true, laps: ctx.laps || 5 }); }); } }; }
     var again = function () { close();
       if (story) window.Story.play(story.n);
       else { if (ctx.mode === 'gp') window.__f1GP = true; if (window.restartSoloRace) window.restartSoloRace(); } };
 
     var banners = '';
-    if (newRace && prevRace) banners += '<span class="rf-b gold">New record · ' + ((prevRace.ms - total) / 1000).toFixed(2) + ' s faster</span>';
+    if (newRace && prevRace) banners += '<span class="rf-b gold">New record <i>' + ((prevRace.ms - total) / 1000).toFixed(2) + ' s faster</i></span>';
     else if (newRace) banners += '<span class="rf-b gold">First time set</span>';
     if (newLap && prevLap) banners += '<span class="rf-b">Fastest lap here</span>';
-    if (story) banners += story.cleared ? '<span class="rf-b ok">Level cleared' + (story.unlocked ? ' · level ' + story.unlocked + ' unlocked' : '') + '</span>' : '<span class="rf-b no">Finish ' + ord(story.target) + ' or better to clear</span>';
+    if (story) banners += story.cleared ? '<span class="rf-b ok">Level cleared' + (story.unlocked ? ' <i>level ' + story.unlocked + ' unlocked</i>' : '') + '</span>' : '<span class="rf-b no">Finish ' + ord(story.target) + ' or better to clear</span>';
 
-    var reward = '';
-    if (ctx.mode === 'gp') reward = '<div class="rf-k"><span>Points</span><b>' + (POINTS[pos - 1] || 0) + '</b></div>';
-    if (story) reward = '<div class="rf-k"><span>Stars</span><b class="rf-stars">' + '★'.repeat(story.stars) + '<i>' + '★'.repeat(3 - story.stars) + '</i></b></div>';
+    var stats = [['Race time', fmt(total)], ['Best lap', fmt(lap)]];
+    if (ctx.mode === 'gp') stats.push(['Points', String(POINTS[pos - 1] || 0)]);
+    if (story) stats.push(['Stars', '<span class="rf-stars">' + '★'.repeat(story.stars) + '<i>' + '★'.repeat(3 - story.stars) + '</i></span>']);
+    if (gap && pos > 1 && stats.length < 3) stats.push(['Gap to winner', gap]);
 
-    // classification: the top of the field and you
-    var rows = board.slice().sort(function (a, b) { return a.position - b.position; });
-    var shown = rows.filter(function (r, k) { return k < 5 || r.isMe; });
-    var cls = shown.map(function (r) { var done = !r.racing && r.finishTime;
-      return '<li' + (r.isMe ? ' class="me"' : '') + '><span>' + (done ? r.position : '–') + '</span><span>' + esc(r.isMe ? (name || 'You') : r.name) + '</span><span>' + (r.racing ? 'on track' : done ? fmt(r.finishTime) : 'DNF') + '</span></li>'; }).join('');
+    // timing tower: the top of the field and you, with team colour slivers and three-letter codes
+    var colors = window.__driverColors || {}, wt = winner && winner.finishTime;
+    var rows = board.slice().sort(function (a, b) { return (a.position || 99) - (b.position || 99); });
+    var shown = rows.filter(function (r, k) { return k < 6 || r.isMe; });
+    var code = function (n) { return String(n || '').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'DRV'; };
+    var tower = shown.map(function (r) { var done = !r.racing && r.finishTime, c = r.isMe ? accent : '#' + ((colors[r.name] != null ? colors[r.name] : 0x5a5f69) >>> 0).toString(16).padStart(6, '0');
+      var t = r.racing ? 'On track' : !done ? 'DNF' : r.position === 1 || !wt ? fmt(r.finishTime) : '+' + ((r.finishTime - wt) / 1000).toFixed(3);
+      return '<li' + (r.isMe ? ' class="me"' : '') + '><b>' + (done ? r.position : '·') + '</b><i style="background:' + c + '"></i><span class="cd">' + esc(r.isMe ? code(name || 'You') : code(r.name)) + '</span><span class="nm">' + esc(r.isMe ? (name || 'You') : r.name) + '</span><span class="tm">' + t + '</span></li>'; }).join('');
 
     el = document.createElement('div'); el.id = 'rfin';
+    if (!document.getElementById('rfFont')) { var lk = document.createElement('link'); lk.id = 'rfFont'; lk.rel = 'stylesheet'; lk.href = 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,800&display=swap'; document.head.appendChild(lk); }
+    var CF = '"Barlow Condensed","Arial Narrow",-apple-system,BlinkMacSystemFont,sans-serif';
     el.innerHTML = '<style>' +
-      '#rfin{position:fixed;inset:0;z-index:2147482500;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,1fr);background:#08090c;color:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;animation:rfIn .45s ease both}' +
-      '@keyframes rfIn{from{opacity:0}}@keyframes rfUp{from{opacity:0;transform:translateY(14px)}}' +
-      '#rfin .ph{position:relative;overflow:hidden;background:#111 center/cover no-repeat}' +
-      '#rfin .ph::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 55%,#08090c 100%),linear-gradient(0deg,rgba(8,9,12,.85) 0%,transparent 45%)}' +
-      '#rfin .pos{position:absolute;left:clamp(18px,4vw,48px);bottom:clamp(18px,5vh,52px);z-index:1;animation:rfUp .6s .15s both}' +
-      '#rfin .pos b{display:block;font-size:clamp(84px,14vw,168px);line-height:.82;font-weight:800;font-style:italic;letter-spacing:-.04em}' +
-      '#rfin .pos small{display:block;margin-top:10px;font-size:15px;color:rgba(244,244,246,.75)}' +
-      '#rfin .pos .bar{display:block;width:72px;height:5px;background:' + accent + ';margin-bottom:14px}' +
-      '#rfin .pn{padding:clamp(20px,4vh,44px) clamp(18px,3vw,40px);overflow-y:auto;display:flex;flex-direction:column;gap:18px;animation:rfUp .6s .25s both}' +
-      '#rfin h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.01em}#rfin h2 small{display:block;font-size:13px;font-weight:400;color:rgba(244,244,246,.55);margin-top:4px}' +
-      '#rfin .rf-bs{display:flex;flex-wrap:wrap;gap:6px}#rfin .rf-b{font-size:12.5px;font-weight:600;padding:6px 10px;border-radius:99px;background:rgba(255,255,255,.08)}' +
-      '#rfin .rf-b.gold{background:#e8a317;color:#1a1204}#rfin .rf-b.ok{background:rgba(63,138,86,.35)}#rfin .rf-b.no{background:rgba(225,6,0,.25)}' +
-      '#rfin .rf-ks{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}' +
-      '#rfin .rf-k{background:rgba(255,255,255,.05);border-radius:12px;padding:12px}#rfin .rf-k span{display:block;font-size:12px;color:rgba(244,244,246,.55)}' +
-      '#rfin .rf-k b{display:block;margin-top:4px;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}#rfin .rf-stars{color:#e8a317;letter-spacing:2px}#rfin .rf-stars i{font-style:normal;color:rgba(255,255,255,.18)}' +
-      '#rfin h3{margin:0 0 6px;font-size:13px;font-weight:600;color:rgba(244,244,246,.7)}' +
-      '#rfin ol{list-style:none;margin:0;padding:0}#rfin li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;padding:7px 8px;border-radius:8px;font-size:14px;font-variant-numeric:tabular-nums}' +
-      '#rfin li:nth-child(odd){background:rgba(255,255,255,.03)}#rfin li.me{background:' + accent + '33;font-weight:700}#rfin li span:first-child{color:rgba(244,244,246,.5)}' +
-      '#rfin .rf-src{font-size:11.5px;color:rgba(244,244,246,.4);margin-top:4px}' +
-      '#rfin .rf-name{display:flex;gap:6px}#rfin .rf-name input{flex:1;min-width:0;padding:9px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#fff;font:inherit}' +
-      '#rfin .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding-top:6px}' +
-      '#rfin button{all:unset;cursor:pointer;padding:12px 16px;border-radius:11px;font-size:14px;font-weight:600;background:rgba(255,255,255,.08);transition:background .15s}' +
-      '#rfin button:hover{background:rgba(255,255,255,.16)}#rfin button.go{background:' + accent + ';color:#fff;flex:1;text-align:center}#rfin button.go:hover{filter:brightness(1.1)}' +
-      '#rfin button:focus-visible{outline:2px solid #fff;outline-offset:2px}' +
-      '@media (max-width:760px){#rfin{grid-template-columns:1fr;grid-template-rows:38vh auto;overflow-y:auto}#rfin .ph::after{background:linear-gradient(0deg,#08090c 0%,transparent 60%)}#rfin .pn{overflow:visible}}' +
-      '@media (prefers-reduced-motion:reduce){#rfin,#rfin .pos,#rfin .pn{animation:none}}' +
+      '#rfin{--ac:' + accent + ';position:fixed;inset:0;z-index:2147482500;color:#f3f3f1;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;background:#07080a;overflow:hidden;animation:rfFade .5s ease both}' +
+      '@keyframes rfFade{from{opacity:0}}@keyframes rfSettle{from{transform:scale(1.07)}to{transform:scale(1)}}@keyframes rfRise{from{opacity:0;transform:translateY(18px)}}@keyframes rfGlow{0%{box-shadow:0 0 0 0 rgba(232,163,23,.55)}100%{box-shadow:0 0 0 14px rgba(232,163,23,0)}}' +
+      '#rfin .bg{position:absolute;inset:0;background:#111 center/cover no-repeat;animation:rfSettle 2.4s cubic-bezier(.2,.7,.2,1) both}' +
+      '#rfin .bg::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,8,10,.15) 0%,rgba(7,8,10,.35) 42%,rgba(7,8,10,.92) 62%,#07080a 100%),linear-gradient(0deg,rgba(7,8,10,.9) 0%,rgba(7,8,10,0) 40%)}' +
+      '#rfin .hero{position:absolute;left:clamp(20px,5vw,72px);bottom:clamp(24px,7vh,80px);max-width:46vw;animation:rfRise .7s .2s both}' +
+      '#rfin .hero .ev{font:600 15px/1.2 ' + CF + ';letter-spacing:.04em;color:rgba(243,243,241,.72);display:flex;align-items:center;gap:10px}' +
+      '#rfin .hero .ev::before{content:"";width:28px;height:3px;background:var(--ac)}' +
+      '#rfin .hero .p{font:italic 800 clamp(120px,19vw,240px)/.78 ' + CF + ';letter-spacing:-.02em;margin:14px 0 6px;text-shadow:0 10px 40px rgba(0,0,0,.45)}' +
+      '#rfin .hero .p small{font-size:.32em;font-style:normal;font-weight:600;color:rgba(243,243,241,.55);margin-left:.2em;letter-spacing:0}' +
+      '#rfin .hero h1{margin:0;font:700 clamp(24px,2.6vw,34px)/1.1 ' + CF + ';letter-spacing:.01em}' +
+      '#rfin .pn{position:absolute;top:0;right:0;bottom:0;width:min(470px,100%);padding:clamp(22px,5vh,52px) clamp(20px,3vw,40px);display:flex;flex-direction:column;gap:22px;overflow-y:auto;animation:rfRise .7s .35s both}' +
+      '#rfin .rf-bs{display:flex;flex-wrap:wrap;gap:8px}#rfin .rf-b{font:600 13px/1 -apple-system,sans-serif;padding:8px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.14);color:rgba(243,243,241,.9)}#rfin .rf-b i{font-style:normal;opacity:.7;margin-left:4px}' +
+      '#rfin .rf-b.gold{border-color:transparent;background:linear-gradient(135deg,#f6c453,#d99a12);color:#1d1404;animation:rfGlow 1.4s .9s ease-out 2}#rfin .rf-b.ok{border-color:rgba(84,190,120,.5);color:#9fe0b4}#rfin .rf-b.no{border-color:rgba(225,6,0,.5);color:#ff8f8a}' +
+      '#rfin .st{display:grid;grid-template-columns:repeat(' + Math.min(stats.length, 3) + ',minmax(0,1fr));border-top:1px solid rgba(255,255,255,.12);border-bottom:1px solid rgba(255,255,255,.12)}' +
+      '#rfin .st div{padding:14px 0 13px;padding-left:14px;border-left:1px solid rgba(255,255,255,.08)}#rfin .st div:first-child{padding-left:0;border-left:0}' +
+      '#rfin .st span{display:block;font-size:12px;color:rgba(243,243,241,.5)}#rfin .st b{display:block;margin-top:4px;font:700 clamp(22px,2.1vw,28px)/1 ' + CF + ';font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:clip}' +
+      '#rfin .rf-stars{color:#f0b429;letter-spacing:2px}#rfin .rf-stars i{font-style:normal;color:rgba(255,255,255,.16)}' +
+      '#rfin h3{margin:0 0 8px;font:600 13px/1 -apple-system,sans-serif;color:rgba(243,243,241,.55)}' +
+      '#rfin ol{list-style:none;margin:0;padding:0}#rfin li{display:grid;grid-template-columns:26px 4px 44px 1fr auto;align-items:center;gap:10px;height:38px;padding:0 10px 0 4px;font-size:14px;font-variant-numeric:tabular-nums;border-radius:6px}' +
+      '#rfin li+li{margin-top:2px}#rfin li b{font:700 17px/1 ' + CF + ';text-align:right;color:rgba(243,243,241,.85)}#rfin li i{height:20px;border-radius:2px}' +
+      '#rfin li .cd{font:700 16px/1 ' + CF + ';letter-spacing:.06em}#rfin li .nm{color:rgba(243,243,241,.5);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#rfin li .tm{font:600 15px/1 ' + CF + ';color:rgba(243,243,241,.8)}' +
+      '#rfin li:nth-child(odd){background:rgba(255,255,255,.035)}#rfin li.me{background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 30%,transparent),rgba(255,255,255,.03));}#rfin li.me .nm{color:#f3f3f1}' +
+      '#rfin .rf-src{font-size:11.5px;color:rgba(243,243,241,.38);margin-top:6px}' +
+      '#rfin .rf-name{display:flex;gap:8px}#rfin .rf-name input{flex:1;min-width:0;padding:11px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;font:inherit;font-size:14px}' +
+      '#rfin .acts{display:flex;gap:10px;margin-top:auto;padding-top:4px}' +
+      '#rfin button{all:unset;box-sizing:border-box;cursor:pointer;height:48px;padding:0 20px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;font:600 15px/1 -apple-system,sans-serif;border:1px solid rgba(255,255,255,.16);color:#f3f3f1;transition:background .15s,border-color .15s,transform .15s}' +
+      '#rfin button:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.28)}#rfin button:active{transform:scale(.98)}' +
+      '#rfin button.go{flex:1;background:var(--ac);border-color:transparent;color:#fff}#rfin button.go:hover{filter:brightness(1.08);background:var(--ac)}#rfin button:focus-visible{outline:2px solid #fff;outline-offset:3px}' +
+      '#rfin .rf-name button{height:auto}' +
+      '@media (max-width:820px){#rfin{overflow-y:auto}#rfin .bg{position:relative;height:46vh}#rfin .bg::after{background:linear-gradient(0deg,#07080a 0%,rgba(7,8,10,0) 70%)}#rfin .hero{bottom:auto;top:calc(46vh - 150px);max-width:none}#rfin .hero .p{font-size:110px}#rfin .pn{position:relative;width:auto;overflow:visible}}' +
+      '@media (prefers-reduced-motion:reduce){#rfin,#rfin .bg,#rfin .hero,#rfin .pn,#rfin .rf-b.gold{animation:none}}' +
       '</style>' +
-      '<div class="ph"' + (photo ? ' style="background-image:url(' + photo + ')"' : '') + '><div class="pos"><i class="bar"></i><b>P' + pos + '</b><small>' + (field > 1 ? 'of ' + field + ' · ' : '') + esc(title) + '</small></div></div>' +
-      '<div class="pn"><h2>' + esc(title) + '<small>' + laps + ' lap' + (laps > 1 ? 's' : '') + (field > 1 ? ' · ' + field + ' cars' : '') + (gap ? ' · ' + gap : '') + '</small></h2>' +
-      (banners ? '<div class="rf-bs">' + banners + '</div>' : '') +
-      '<div class="rf-ks"><div class="rf-k"><span>Race time</span><b>' + fmt(total) + '</b></div><div class="rf-k"><span>Best lap</span><b>' + fmt(lap) + '</b></div>' + reward + '</div>' +
-      (cls && field > 1 ? '<div><h3>Classification</h3><ol>' + cls + '</ol></div>' : '') +
-      '<div><h3>Best times · this race</h3><ol id="rfTop"><li><span></span><span>Loading…</span><span></span></li></ol><div class="rf-src" id="rfSrc"></div></div>' +
+      '<div class="bg"' + (photo ? ' style="background-image:url(' + photo + ')"' : '') + '></div>' +
+      '<div class="hero"><div class="ev">' + esc(ctx.mode === 'gp' ? 'Grand Prix' : ctx.mode === 'story' && story ? story.chapter + ' · Level ' + story.n : ctx.mode === 'daily' ? 'Daily track' : 'Race') + ' · ' + laps + ' lap' + (laps > 1 ? 's' : '') + '</div>' +
+        '<div class="p">P' + pos + (field > 1 ? '<small>/' + field + '</small>' : '') + '</div><h1>' + esc(ctx.mode === 'story' && story ? story.name : ctx.name) + '</h1></div>' +
+      '<div class="pn">' + (banners ? '<div class="rf-bs">' + banners + '</div>' : '') +
+      '<div class="st">' + stats.slice(0, 3).map(function (x) { return '<div><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>' +
+      (tower && field > 1 ? '<div><h3>Classification</h3><ol>' + tower + '</ol></div>' : '') +
+      '<div><h3>Best times on this race</h3><ol id="rfTop"><li><b></b><i></i><span class="cd"></span><span class="nm">Loading…</span><span class="tm"></span></li></ol><div class="rf-src" id="rfSrc"></div></div>' +
       (name ? '' : '<div class="rf-name"><input id="rfNm" maxlength="20" placeholder="Your name for the leaderboard" aria-label="Your name for the leaderboard"><button id="rfPost">Post time</button></div>') +
-      '<div class="acts">' + (next ? '<button class="go" id="rfNext">Next race · ' + esc(next.label) + '</button>' : '') +
+      '<div class="acts">' + (next ? '<button class="go" id="rfNext">Next · ' + esc(next.label) + '</button>' : '') +
       '<button' + (next ? '' : ' class="go"') + ' id="rfAgain">Race again</button><button id="rfMenu">Menu</button></div></div>';
     document.body.appendChild(el);
     if (next) el.querySelector('#rfNext').onclick = next.go;
@@ -127,8 +139,8 @@
 
     var rec = { track: ctx.track, mode: ctx.mode, laps: laps, ms: Math.round(total || 0), best_lap_ms: lap ? Math.round(lap) : null, pos: pos, field: field, story_level: story ? story.n : null };
     function fill(list, src) { var ol = el && el.querySelector('#rfTop'); if (!ol) return;
-      ol.innerHTML = (list || []).slice(0, 8).map(function (r, k) { var me = r.me || (r.ms === rec.ms && r.name === (myName() || 'Driver'));
-        return '<li' + (me ? ' class="me"' : '') + '><span>' + (k + 1) + '</span><span>' + esc(r.name || 'Driver') + '</span><span>' + fmt(r.ms) + '</span></li>'; }).join('') || '<li><span></span><span>No times yet</span><span></span></li>';
+      ol.innerHTML = (list || []).slice(0, 6).map(function (r, k) { var me = r.me || (r.ms === rec.ms && r.name === (myName() || 'Driver'));
+        return '<li' + (me ? ' class="me"' : '') + '><b>' + (k + 1) + '</b><i style="background:' + (me ? accent : 'rgba(255,255,255,.18)') + '"></i><span class="cd">' + esc(String(r.name || 'Driver').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'DRV') + '</span><span class="nm">' + esc(r.name || 'Driver') + '</span><span class="tm">' + fmt(r.ms) + '</span></li>'; }).join('') || '<li><b></b><i></i><span class="cd"></span><span class="nm">No times yet</span><span class="tm"></span></li>';
       var s = el.querySelector('#rfSrc'); if (s) s.textContent = src; }
     function post(nm) { rec.name = nm || 'Driver';
       return DB.submit(rec).then(function (ok) { return DB.top(ctx.track, ctx.mode, laps).then(function (top) {

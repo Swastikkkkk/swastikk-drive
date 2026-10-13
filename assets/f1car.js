@@ -144,12 +144,13 @@
     TYRE = TYRE || new T.MeshStandardMaterial({ vertexColors: true, metalness: .1, roughness: .85 });
     paint.vertexColors = true; var paintV = paint, a = new T.Mesh(shell(), paint);
     var b = new T.Mesh(detail(acc, sec), CARBON);
-    [a, b].forEach(function (m) { m.castShadow = true; m.receiveShadow = true; model.add(m); });
+    // one shadow draw per car; the curved shell never receives shadows (it banded itself with stripes of shadow acne)
+    a.castShadow = true; b.castShadow = false; a.receiveShadow = false; b.receiveShadow = true; model.add(a); model.add(b);
     var tail = new T.MeshLambertMaterial({ color: 0xff2a20, emissive: 0xff2a20, emissiveIntensity: .55 });
     var rl = new T.Mesh(new T.BoxGeometry(.08, .1, .03), tail); rl.position.set(0, .3, -2.32); model.add(rl);
     var wheels = [];
     if (!o.noWheels) [[RZF, RTF, true], [RZF, -RTF, true], [RZB, RTR, false], [RZB, -RTR, false]].forEach(function (W) {   // the player's car: the game draws its own wheels
-      var w = new T.Group(); w.position.set(W[1], RR, W[0]); var spin = new T.Mesh(wheel(W[2], o.compound || 'medium'), TYRE); spin.castShadow = true; w.add(spin); model.add(w); wheels.push({ w: w, spin: spin }); });
+      var w = new T.Group(); w.position.set(W[1], RR, W[0]); var spin = new T.Mesh(wheel(W[2], o.compound || 'medium'), TYRE); spin.castShadow = false; w.add(spin); model.add(w); wheels.push({ w: w, spin: spin }); });
     // ride height: tyres on the ground at the asked-for wheel radius (the game's r) when given
     if (o.r) model.position.y = o.r - RR * k;
     return { g: g, body: body, wheels: wheels, tail: tail, paint: paintV, f1: true };
@@ -161,5 +162,7 @@
     aston: [0x00594f, 0xcedc00, 0x111111], alpine: [0x0a5bd8, 0xff87bc, 0x111111], williams: [0x0a2a6b, 0x00a0de, 0xf2f2f2], rb: [0xf2f2f2, 0x1634cb, 0xdc0a2d],
     haas: [0xf2f2f2, 0x111111, 0xdc0a2d], audi: [0x9fa3a8, 0x111111, 0xd40000], cadillac: [0x111111, 0xf2f2f2, 0xc8102e]
   };
-  window.F1Car = { build: build, TEAMS: TEAMS };
+  // an F1 wheel on its own (axle along x, tyre radius 0.36 m) for the game's own spinning / steering wheel groups
+  function wheelMesh(front, compound) { TYRE = TYRE || new T.MeshStandardMaterial({ vertexColors: true, metalness: .1, roughness: .85 }); var m = new T.Mesh(wheel(front, compound || 'soft'), TYRE); m.castShadow = false; return m; }
+  window.F1Car = { build: build, wheelMesh: wheelMesh, TEAMS: TEAMS, RR: RR };
 })();

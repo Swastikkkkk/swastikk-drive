@@ -19,7 +19,7 @@
   function load(id) {
     if (cache[id]) return Promise.resolve(cache[id]);
     if (pending[id]) return pending[id];
-    pending[id] = fetch('assets/real/' + id + '.json?v=1791879422').then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    pending[id] = fetch('assets/real/' + id + '.json?v=1791891976').then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (j) { cache[id] = decode(j); delete pending[id]; return cache[id]; })
       .catch(function (e) { delete pending[id]; console.warn('real surroundings for', id, 'not loaded:', e.message); return null; });
     return pending[id];
@@ -37,17 +37,20 @@
 
     // ---------- buildings: walls + flat roofs, merged into a few big meshes ----------
     (function () {
-      var B = R.b, LIM = low ? 4000 : 1e9, pos = [], clr = [], meshes = 0;
+      /* split into ~300 m chunks: off-screen chunks are culled, and nothing here casts a shadow (a whole city in
+         the shadow pass every frame was the biggest cost) */
+      var B = R.b, LIM = low ? 3500 : 1e9, CH = 300, chunks = {}, pos, clr, meshes = 0;
       var mat = new T.MeshStandardMaterial({ vertexColors: true, roughness: .85, metalness: .05, flatShading: true,
         emissive: night ? 0x2a2620 : ctx.dusk ? 0x141210 : 0x000000 });
       ctx.own(mat);
-      function flush() { if (!pos.length) return; var g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new T.Float32BufferAttribute(clr, 3)); g.computeVertexNormals();
-        var m = new T.Mesh(g, mat); m.castShadow = !low; m.receiveShadow = true; m.name = 'real-buildings'; add(m); pos = []; clr = []; meshes++; }
+      function flush(c) { if (!c.pos.length) return; var g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(c.pos, 3)); g.setAttribute('color', new T.Float32BufferAttribute(c.clr, 3)); g.computeVertexNormals(); g.computeBoundingSphere();
+        var m = new T.Mesh(g, mat); m.castShadow = false; m.receiveShadow = !low; m.name = 'real-buildings'; add(m); meshes++; }
       var seed = 7, rnd = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
       for (var k = 0, bi = 0; k < B.length && bi < LIM; bi++) {
         var nv = B[k], h = B[k + 1] / 10, mh = B[k + 2] / 10, cls = B[k + 3]; k += 4;
         var xs = [], zs = [], g0 = 1e9, gs = 0;
         for (var v = 0; v < nv; v++) { var x = ox + B[k] / 10, z = oz + B[k + 1] / 10; k += 2; xs.push(x); zs.push(z); var gy = ground(x, z); if (gy < g0) g0 = gy; gs += gy; }
+        var ck = Math.floor(xs[0] / CH) + ',' + Math.floor(zs[0] / CH), C = chunks[ck] || (chunks[ck] = { pos: [], clr: [] }); pos = C.pos; clr = C.clr;
         var ga = gs / nv, bot = mh > 0 ? ga + mh : g0 - 1.2, top = ga + h;
         var pal = PAL[cls] || PAL[0]; col.setHex(h > 45 && cls !== 2 ? [0x8fa3b5, 0x9fb0bf, 0x7f93a6][bi % 3] : pal[Math.floor(rnd() * pal.length)]).multiplyScalar(.9 + rnd() * .2);
         var wr = col.r, wg = col.g, wb = col.b, lit = night && rnd() < .55 ? 1 : 0;
@@ -65,20 +68,22 @@
           if (cr > 0) { var tmp = Bv; Bv = Cv; Cv = tmp; }
           pos.push(xs[A], top, zs[A], xs[Bv], top, zs[Bv], xs[Cv], top, zs[Cv]); clr.push(rr, rg, rb, rr, rg, rb, rr, rg, rb); }
         made.buildings++;
-        if (pos.length > 540000) flush();
       }
-      flush();
+      Object.keys(chunks).forEach(function (k) { flush(chunks[k]); }); made.chunks = meshes;
     })();
 
     // ---------- water surfaces (lakes, rivers, docks) ----------
     (function () {
       var Wt = R.w, mat = new T.MeshStandardMaterial({ color: 0x2c6d8c, roughness: .25, metalness: .15, side: T.DoubleSide }); ctx.own(mat);
+      var all = [];
       for (var k = 0; k < Wt.length;) {
         var lvl = Wt[k] / 10, rings = Wt[k + 1]; k += 2; var shape = null;
         for (var r = 0; r < rings; r++) { var nv = Wt[k++], pts = []; for (var v = 0; v < nv; v++) { pts.push(new T.Vector2(Wt[k] / 10, -Wt[k + 1] / 10)); k += 2; }
           if (r === 0) shape = new T.Shape(pts); else shape.holes.push(new T.Path(pts)); }
-        try { var g = new T.ShapeGeometry(shape); g.rotateX(-Math.PI / 2); var m = new T.Mesh(g, mat); m.position.set(ox, Y0 + lvl + .05, oz); m.receiveShadow = true; m.name = 'real-water'; add(m); made.water++; } catch (e) {}
+        try { var g = new T.ShapeGeometry(shape).toNonIndexed(); g.rotateX(-Math.PI / 2); g.translate(ox, Y0 + lvl + .05, oz); var a = g.attributes.position.array; for (var q = 0; q < a.length; q++) all.push(a[q]); made.water++; } catch (e) {}
       }
+      if (all.length) { var wg = new T.BufferGeometry(); wg.setAttribute('position', new T.Float32BufferAttribute(all, 3)); wg.computeVertexNormals();   // every lake and river in one draw
+        var wm = new T.Mesh(wg, mat); wm.receiveShadow = !low; wm.name = 'real-water'; add(wm); }
     })();
 
     // ---------- ribbons: nearby streets on the ground, piers over the water ----------
@@ -92,26 +97,32 @@
           pos.push(a[0] + nx, ya, a[1] + nz, b[0] + nx, yb, b[1] + nz, b[0] - nx, yb, b[1] - nz, a[0] + nx, ya, a[1] + nz, b[0] - nx, yb, b[1] - nz, a[0] - nx, ya, a[1] - nz); }
       }
       if (!pos.length) return; var g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
-      var m = new T.Mesh(g, mat); m.receiveShadow = true; m.material.side = T.DoubleSide; m.name = name; add(m);
+      var m = new T.Mesh(g, mat); m.receiveShadow = !low; m.material.side = T.DoubleSide; m.name = name; add(m);
     }
     var roadW = function (S, k) { return S[k + 1] / 10; }; roadW.skip = 2;
     ribbons(R.r, roadW, function (x, z) { return ground(x, z) + .14; }, 0x3f3f43, 'real-roads');
     var pierW = function () { return 7; }; pierW.skip = 1;
     ribbons(R.p, pierW, function (x, z) { return R.sea != null ? Math.max(Y0 + R.sea + 1.6, ground(x, z) + .3) : ground(x, z) + .3; }, 0x9a958a, 'real-piers');
 
-    // ---------- trees in the real woods and parks ----------
+    // ---------- trees in the real woods and parks: one instanced set per ~300 m chunk, culled off screen ----------
     (function () {
-      var Tt = R.t, cnt = Math.min(Tt.length / 3, low ? 2500 : 9000); if (!cnt) return;
-      var crownM = new T.MeshStandardMaterial({ color: 0xffffff, roughness: .9, flatShading: true }), trunkM = new T.MeshStandardMaterial({ color: 0x5a4632, roughness: .95 }); ctx.own(crownM); ctx.own(trunkM);
-      var crown = new T.InstancedMesh(new T.ConeGeometry(1, 1, 6).translate(0, .5, 0), crownM, cnt), trunk = new T.InstancedMesh(new T.CylinderGeometry(.12, .16, 1, 5).translate(0, .5, 0), trunkM, cnt);
-      var M4 = new T.Matrix4(), Q = new T.Quaternion(), P = new T.Vector3(), Sx = new T.Vector3(), c = new T.Color(), seed = 11;
+      var Tt = R.t, cnt = Math.min(Tt.length / 3, low ? 2000 : 6000); if (!cnt) return;
+      var crownM = new T.MeshStandardMaterial({ color: 0xffffff, roughness: .9, flatShading: true }), trunkM = new T.MeshLambertMaterial({ color: 0x5a4632 }); ctx.own(crownM); ctx.own(trunkM);
+      var cone = new T.ConeGeometry(1, 1, 6).translate(0, .5, 0), cyl = new T.CylinderGeometry(.12, .16, 1, 4).translate(0, .5, 0);
+      var M4 = new T.Matrix4(), Q = new T.Quaternion(), P = new T.Vector3(), Sx = new T.Vector3(), c = new T.Color(), up = new T.Vector3(0, 1, 0), seed = 11, CH = 300, groups = {};
       var rnd = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-      for (var i = 0; i < cnt; i++) { var x = ox + Tt[i * 3] / 10, z = oz + Tt[i * 3 + 1] / 10, h = Tt[i * 3 + 2] / 10, y = ground(x, z) - .2, round = rnd() < .45;
-        P.set(x, y + h * .28, z); Sx.set(h * (round ? .34 : .27), h * .78, h * (round ? .34 : .27)); Q.setFromAxisAngle(new T.Vector3(0, 1, 0), rnd() * 6.28); M4.compose(P, Q, Sx); crown.setMatrixAt(i, M4);
-        c.setHSL(.26 + rnd() * .08, .42 + rnd() * .2, .2 + rnd() * .12); crown.setColorAt(i, c);
-        P.set(x, y, z); Sx.set(h * .1, h * .32, h * .1); M4.compose(P, Q, Sx); trunk.setMatrixAt(i, M4); }
-      crown.frustumCulled = trunk.frustumCulled = false;   // instances span the whole area; the base cone's bounds would cull them
-      crown.castShadow = !low; crown.name = 'real-trees'; add(crown); add(trunk); made.trees = cnt;
+      for (var i = 0; i < cnt; i++) { var x = ox + Tt[i * 3] / 10, z = oz + Tt[i * 3 + 1] / 10, k = Math.floor(x / CH) + ',' + Math.floor(z / CH); (groups[k] || (groups[k] = [])).push(i); }
+      Object.keys(groups).forEach(function (k) { var L = groups[k], n = L.length, gc = cone.clone(), gt = cyl.clone();
+        var crown = new T.InstancedMesh(gc, crownM, n), trunk = new T.InstancedMesh(gt, trunkM, n), lo = new T.Vector3(1e9, 1e9, 1e9), hi = new T.Vector3(-1e9, -1e9, -1e9);
+        L.forEach(function (i, j) { var x = ox + Tt[i * 3] / 10, z = oz + Tt[i * 3 + 1] / 10, h = Tt[i * 3 + 2] / 10, y = ground(x, z) - .2, round = rnd() < .45;
+          P.set(x, y + h * .28, z); Sx.set(h * (round ? .34 : .27), h * .78, h * (round ? .34 : .27)); Q.setFromAxisAngle(up, rnd() * 6.28); M4.compose(P, Q, Sx); crown.setMatrixAt(j, M4);
+          c.setHSL(.26 + rnd() * .08, .42 + rnd() * .2, .2 + rnd() * .12); crown.setColorAt(j, c);
+          P.set(x, y, z); Sx.set(h * .1, h * .32, h * .1); M4.compose(P, Q, Sx); trunk.setMatrixAt(j, M4);
+          lo.min(new T.Vector3(x, y, z)); hi.max(new T.Vector3(x, y + h * 1.1, z)); });
+        // bounds of the whole chunk, so culling works on the instances rather than on one small cone at the origin
+        var sph = new T.Sphere(); new T.Box3(lo, hi).getBoundingSphere(sph); sph.radius += 12; gc.boundingSphere = sph; gt.boundingSphere = sph.clone();
+        crown.castShadow = trunk.castShadow = false; crown.name = 'real-trees'; add(crown); add(trunk); });
+      made.trees = cnt;
     })();
     return made;
   }

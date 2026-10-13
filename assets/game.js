@@ -54,23 +54,23 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {id:'mamba',label:'Mamba',type:'car',blurb:'Sedan, quick, loose',mass:175,F:2.1,B:-2.1,W:1.95,wagon:false,price:220,
      V:{engine:700,max:31.5,slip:2.15,xw:.95,zf:1.2,zb:-1.2,r:.4,rest:.36,steer:.6,roll:.016},
      paints:[0xb33a1e,0x14161b,0xd9d4c6,0x27476b]},
-    {id:'f1apex',label:'F1 Apex',type:'f1',blurb:'Formula 1 Single-Seater',mass:135,F:1.8,B:-1.7,W:1.6,price:800,
-     V:{engine:900,max:44,slip:3.6,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.8,roll:.01},
+    {id:'f1apex',label:'F1 Apex',type:'f1',blurb:'Formula 1 Single-Seater',mass:135,F:2.75,B:-2.35,W:1.9,price:800,
+     V:{engine:900,max:44,slip:3.6,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.8,roll:.01},
      paints:[0xdc143c,0x1a1a2e,0xf0e68c,0x00ffff]},
-    {id:'f1papaya',label:'Papaya Strike',type:'f1',blurb:'Free · lightest and quickest off the line',mass:138,F:1.8,B:-1.7,W:1.6,price:0,livery:[0x111111,0x47c7fc],
-     V:{engine:1350,max:54,slip:3.9,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.82,roll:.01},
+    {id:'f1papaya',label:'Papaya Strike',type:'f1',blurb:'Free · lightest and quickest off the line',mass:138,F:2.75,B:-2.35,W:1.9,price:0,livery:[0x111111,0x47c7fc],
+     V:{engine:1200,max:47,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
      paints:[0xff8000,0x1a1a1a,0xf2f2f2]},
-    {id:'f1rosso',label:'Rosso Fulmine',type:'f1',blurb:'Free · scarlet, brakes late, corners flat',mass:136,F:1.8,B:-1.7,W:1.6,price:0,livery:[0xf2f2f2,0x111111],
-     V:{engine:1420,max:56,slip:3.9,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.82,roll:.01},
+    {id:'f1rosso',label:'Rosso Fulmine',type:'f1',blurb:'Free · scarlet, brakes late, corners flat',mass:136,F:2.75,B:-2.35,W:1.9,price:0,livery:[0xf2f2f2,0x111111],
+     V:{engine:1250,max:48.5,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
      paints:[0xdc0000,0xf2f2f2,0xffd12e]},
-    {id:'f1volt',label:'Volt GP-1',type:'f1',blurb:'Free · midnight blue rocket on the straights',mass:134,F:1.8,B:-1.7,W:1.6,price:0,livery:[0xdc0a2d,0xffd12e],
-     V:{engine:1500,max:58,slip:3.9,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.82,roll:.01},
+    {id:'f1volt',label:'Volt GP-1',type:'f1',blurb:'Free · midnight blue rocket on the straights',mass:134,F:2.75,B:-2.35,W:1.9,price:0,livery:[0xdc0a2d,0xffd12e],
+     V:{engine:1300,max:50,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
      paints:[0x1e2a5a,0x111111,0xdc0a2d]},
-    {id:'f1quick',label:'Quicksilver',type:'f1',blurb:'Free · silver, black and teal, all downforce',mass:132,F:1.8,B:-1.7,W:1.6,price:0,livery:[0x27f4d2,0x111111],
-     V:{engine:1580,max:60,slip:3.9,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.82,roll:.01},
+    {id:'f1quick',label:'Quicksilver',type:'f1',blurb:'Free · silver, black and teal, all downforce',mass:132,F:2.75,B:-2.35,W:1.9,price:0,livery:[0x27f4d2,0x111111],
+     V:{engine:1350,max:51.5,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
      paints:[0xc4c8cc,0x1c1c1f,0x27f4d2]},
-    {id:'f1viper',label:'Emerald Viper',type:'f1',blurb:'Free · the fastest car in the garage',mass:130,F:1.8,B:-1.7,W:1.6,price:0,livery:[0xcedc00,0x111111],
-     V:{engine:1680,max:62,slip:3.9,xw:1.1,zf:1.4,zb:-1.4,r:.38,rest:.35,steer:.82,roll:.01},
+    {id:'f1viper',label:'Emerald Viper',type:'f1',blurb:'Free · the fastest car in the garage',mass:130,F:2.75,B:-2.35,W:1.9,price:0,livery:[0xcedc00,0x111111],
+     V:{engine:1400,max:53,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
      paints:[0x00594f,0xcedc00,0x0a0a0a]},
     {id:'titan4x4',label:'Titan 4x4',type:'suv',blurb:'Rugged Off-Road SUV',mass:290,F:2.5,B:-2.4,W:2.2,wagon:true,price:500,
      V:{engine:680,max:28,slip:3.0,xw:1.2,zf:1.5,zb:-1.5,r:.52,rest:.52,steer:.45,roll:.03},
@@ -2931,6 +2931,8 @@ t.bd.position.set(x,y+.86,z);
     wv={car:Array.from({length:nW},(_,i)=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
     wv.car.forEach(k=>vis.car.add(k.w));
     if(spec.ownWheels&&CUSTOM.model)wv.car.forEach(k=>{k.w.visible=false;k.w.traverse(x=>x.visible=false)});
+    if(spec.type==='f1'&&window.F1Car)wv.car.forEach((k,i)=>{const inn=k.w.children[0]&&k.w.children[0].children[0];if(!inn)return;inn.children.slice().forEach(c=>inn.remove(c));   // proper F1 wheels: covers, Pirelli stripes
+      const m=F1Car.wheelMesh(i<2,'soft');m.scale.setScalar(V.r/F1Car.RR);inn.add(m)});
     carLook();
     if(carShadow){carShadow.position.y=.05-(V.rest-.07)-.02;carShadow.scale.z=(spec.F-spec.B)/GARAGE_BASE_LEN}
     try{localStorage.setItem('sl_car',JSON.stringify({id:spec.id,paint:paintHex}))}catch(e){}
@@ -6644,7 +6646,7 @@ const PLANETS={
     {const z=ZN,e=.08;
      // a custom venue is open ground out to the mountains, so clear weather there gets a much longer view than the tight valley map
      // and the summit lookout pulls the haze back so the whole valley shows below
-     const fk=MODE==='circuit'?(fogFar0>=200?3.6:Math.max(1,420/Math.max(1,fogFar0)))*(circuit&&circuit.real?3.6:1):CABLE.high()?Math.max(9,2600/Math.max(1,fogFar0)):recapCam?3.8:1,fn=fk>1?2.4:1;   // on a venue even snow / fog keeps ~400 m of view, or the scenery is a white-out
+     const fk=MODE==='circuit'?(fogFar0>=200?3.6:Math.max(1,420/Math.max(1,fogFar0)))*(circuit&&circuit.real?2.6:1):CABLE.high()?Math.max(9,2600/Math.max(1,fogFar0)):recapCam?3.8:1,fn=fk>1?2.4:1;   // on a venue even snow / fog keeps ~400 m of view, or the scenery is a white-out
      // phones: the valley's darker bands no longer close the haze in to ~100 m, and the view runs further out
      const zf=TOUCH&&MODE!=='circuit'?Math.max(.85,z.fog)*1.35:z.fog;
      S.fog.far+=(fogFar0*zf*fk-S.fog.far)*e;S.fog.near+=(fogNear0*Math.min(1,zf)*fn-S.fog.near)*e;
@@ -6919,7 +6921,8 @@ const PLANETS={
        across the crossing (long enough to clear the lower road's barriers at that angle) with ~11% ramps
        either side. The terrain and the lower road keep the un-lifted heights; the bridge gets its own
        deck, pillars, rails and collision, built further down. liftAt(u) is the lift at arc position u. */
-    const BRIDGES=[],BH=7.5;
+    const BRIDGES=[];let BH=7.5;
+    if(venue.f1){   // real circuits: the researched crossing (Suzuka) as a single flyover
     {const base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5),BL=base.getLength(),K=Math.max(120,Math.min(1600,Math.round(BL/3)));
      const P=[];for(let k=0;k<K;k++){const q=base.getPointAt(k/K);P.push([q.x,q.z])}
      const gapU=Math.min(.45,(CIRC_W*3+30)/BL),cell=12,G=new Map(),key=(x,z)=>Math.floor(x/cell)+','+Math.floor(z/cell);
@@ -6960,6 +6963,51 @@ const PLANETS={
        for(let k=0;k<M2;k++){const u=k/M2,q=base.getPointAt(u);pts3.push(new THREE.Vector3(q.x,q.y+levelAt(u)+BRIDGES.reduce((m,B)=>{const d=arc(u,B.u);return Math.max(m,d<B.flat?B.h:d<B.flat+B.ramp?B.h*SM(1-(d-B.flat)/B.ramp):0)},0),q.z))}}
      CIRC_LEVEL=LEVEL;
      var liftAt=u=>{if(!BRIDGES.length)return 0;u=((u%1)+1)%1;let m=0;for(const B of BRIDGES){const d=arc(u,B.u);m=Math.max(m,d<B.flat?B.h:d<B.flat+B.ramp?B.h*SM(1-(d-B.flat)/B.ramp):0)}return m}}
+    }else{
+    /* drawn tracks: any two parts of the lap that come closer than the road and its barriers (a crossing, a parallel
+       overlap, circles drawn on top of each other) are stacked at least 10 m apart. The later pass goes over, so
+       repeated loops climb as a spiral and come back down on gentle ramps (10 %, steeper only if the drawing is
+       very tight); the start straight stays on the ground. The lift is one smooth profile round the lap, and every
+       lifted stretch becomes a bridge (deck, piers, parapets) with liftAt(u) as its height. */
+     BH=10;
+     const base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5),BL=base.getLength(),K=Math.max(160,Math.min(2400,Math.round(BL/2.5))),ds=BL/K;
+     const P=[],Y=[];for(let k=0;k<K;k++){const q=base.getPointAt(k/K);P.push([q.x,q.z]);Y.push(q.y)}
+     const D=CIRC_W+2*BARRIER_OFF+3,gapArc=Math.max(D*3,CIRC_W*3+30),G=new Map(),key=(x,z)=>(Math.floor(x/D)+4096)*8192+Math.floor(z/D)+4096;
+     for(let k=0;k<K;k++){const c=key(P[k][0],P[k][1]);let L=G.get(c);if(!L)G.set(c,L=[]);L.push(k)}
+     const nearStart=k=>Math.min(k,K-k)*ds<70,pairs=[];
+     for(let i=0;i<K&&pairs.length<60000;i++){const gx=Math.floor(P[i][0]/D),gz=Math.floor(P[i][1]/D);
+       for(let a2=-1;a2<=1;a2++)for(let b2=-1;b2<=1;b2++){const L=G.get((gx+a2+4096)*8192+gz+b2+4096);if(!L)continue;
+         for(const j of L){if(j<=i)continue;const da=Math.min(j-i,K-(j-i))*ds;if(da<gapArc)continue;if(Math.hypot(P[j][0]-P[i][0],P[j][1]-P[i][1])>=D)continue;
+           pairs.push(i,j,0)}}}
+     /* who goes over whom: one ordering round the lap, rising from the start line to a high point and back down
+        (plus the ground's own height), so the choice can never chase itself round the loop and the solver settles */
+     const H=new Float32Array(K);let solved=false,best=null;
+     const solve=(pk,g)=>{const tri=k=>{const u=k/K;return u<pk?u/pk:(1-u)/(1-pk)};
+       for(let q=0;q<pairs.length;q+=3){const i=pairs[q],j=pairs[q+1],si=tri(i)*40+Y[i],sj=tri(j)*40+Y[j];pairs[q+2]=nearStart(i)?j:nearStart(j)?i:sj>=si?j:i}
+       H.fill(0);const st=g*ds;
+       for(let it=0;it<400;it++){let viol=0;
+         for(let q=0;q<pairs.length;q+=3){const u=pairs[q+2],l=u===pairs[q]?pairs[q+1]:pairs[q],need=(Y[l]+H[l]+BH)-(Y[u]+H[u]);if(need>.01){H[u]+=need;viol++}}
+         for(let sw=0;sw<3;sw++){for(let k=0;k<K;k++){const p0=(k-1+K)%K;if(H[k]<H[p0]-st)H[k]=H[p0]-st}for(let k=K-1;k>=0;k--){const n0=(k+1)%K;if(H[k]<H[n0]-st)H[k]=H[n0]-st}}
+         let mx=0;for(let k=0;k<K;k++)mx=Math.max(mx,H[k]);if(mx>90)return null;if(!viol)return mx}
+       return null};
+     if(pairs.length)for(const g of [.1,.14,.2]){for(const pk of [.5,.35,.65,.25,.75]){const mx=solve(pk,g);if(mx!=null&&(!best||mx<best.mx))best={mx,pk,g}}if(best)break}
+     if(best){solve(best.pk,best.g);
+       // round off the foot and the top of every ramp, then make sure every gap still holds
+       const r=Math.max(1,Math.round(14/ds)),S2=new Float32Array(K);for(let k=0;k<K;k++){let sm=0;for(let d=-r;d<=r;d++)sm+=H[(k+d+K)%K];S2[k]=sm/(2*r+1)}
+       for(let k=0;k<K;k++)H[k]=Math.max(H[k],S2[k]);
+       for(let q=0;q<pairs.length;q+=3){const u=pairs[q+2],l=u===pairs[q]?pairs[q+1]:pairs[q],need=(Y[l]+H[l]+BH)-(Y[u]+H[u]);if(need>.01)H[u]+=need}
+       solved=best.mx<=60}
+     if(pairs.length&&!solved){if(!best)H.fill(0);else for(let k=0;k<K;k++)H[k]=Math.min(H[k],60);setTimeout(()=>toastMsg('Part of this drawing is too tight to stack cleanly · spread the loops out a little'),1200)}
+     {let mn=1e9;for(let k=0;k<K;k++)mn=Math.min(mn,H[k]);if(mn>0&&mn<1e9)for(let k=0;k<K;k++)H[k]-=mn}   // the lowest point of the lap sits on the ground
+     const Hat=u=>{u=((u%1)+1)%1;const f=u*K,i=Math.floor(f)%K,t=f-Math.floor(f);return H[i]*(1-t)+H[(i+1)%K]*t};
+     // every lifted stretch is a bridge: centre and half-length in metres, the highest point, and a lower pass under it
+     if(pairs.length){let k0=-1;for(let k=0;k<K;k++)if(H[k]<.05){k0=k;break}
+       if(k0>=0){let k=k0;for(let n=0;n<K;n++){const i=(k0+n)%K;if(H[i]>=.05&&H[(i-1+K)%K]<.05){let e=i,mxh=0,len=0;while(H[e%K]>=.05&&len<K){mxh=Math.max(mxh,H[e%K]);e++;len++}
+           const c=(i+len/2)%K,lowPair=(()=>{for(let q=0;q<pairs.length;q+=3){const u=pairs[q+2];if(((u-i+K)%K)<len)return (u===pairs[q]?pairs[q+1]:pairs[q])/K}return c/K})();
+           BRIDGES.push({u:c/K,flat:len*ds/2+2,ramp:0,h:mxh,x:P[Math.floor(c)][0],z:P[Math.floor(c)][1],low:lowPair})}}}}
+     if(BRIDGES.length){const M2=Math.max(80,Math.round(BL/5));pts3=[];for(let k=0;k<M2;k++){const u=k/M2,q=base.getPointAt(u);pts3.push(new THREE.Vector3(q.x,q.y+Hat(u),q.z))}}
+     CIRC_LEVEL=[];
+     var liftAt=u=>BRIDGES.length?Hat(u):0}
     const curve=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);
     const CN=Math.max(60,Math.min(480,Math.round(curve.getLength()/6)));
     const CSAMP=[];for(let i=0;i<CN;i++)CSAMP.push(curve.getPointAt(i/CN));
@@ -7093,14 +7141,14 @@ const PLANETS={
        the outer hills. (The old hilly-venue ground mesh was wound upside-down and culled, so what you actually saw
        was the flat plane below it.) The physics slab / heightfield stays the collision body. */
     {
-      const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:REAL?320:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=new Uint32Array((n2-1)*(n2-1)*6);let ii=0;
+      const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:REAL?256:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=new Uint32Array((n2-1)*(n2-1)*6);let ii=0;
       for(let i=0;i<n2;i++)for(let j=0;j<n2;j++){const x=cx-half2+i*ES2,z=cz-half2+j*ES2,k=(i*n2+j)*3;pos[k]=x;{const dd=DF(x,z),sink=dd<CIRC_W/2+BARRIER_OFF+10?.35*(1-SM((dd-CIRC_W/2-BARRIER_OFF)/10)):0;pos[k+1]=(ELEV?(hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03-sink+visH(x,z)}pos[k+2]=z}
       for(let i=0;i<n2-1;i++)for(let j=0;j<n2-1;j++){const a=i*n2+j,b=(i+1)*n2+j;idx[ii++]=a;idx[ii++]=a+1;idx[ii++]=b;idx[ii++]=b;idx[ii++]=a+1;idx[ii++]=b+1}
       const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(pos,3));tg.setIndex(new THREE.BufferAttribute(idx,1));decorate(tg);
       const terrainMesh=new THREE.Mesh(tg,terrainMat);terrainMesh.name='terrain';terrainMesh.receiveShadow=true;terrainMesh.userData.fixedY=terrainMesh.userData.onTrack=true;root.add(terrainMesh);
       /* real circuits: the rest of the measured terrain out to ~1 km past the track and a skirt beyond it, coarser,
          leaving out the square the near terrain already covers (sunk a hair so the two never fight) */
-      if(REAL){const D=REAL,OS=LOW?30:15,ax0=CIRC_X+D.x0-1500,az0=CIRC_Z+D.z0-1500,ax1=CIRC_X+D.x0+(D.nx-1)*D.cell+1500,az1=CIRC_Z+D.z0+(D.nz-1)*D.cell+1500;
+      if(REAL){const D=REAL,OS=LOW?40:24,ax0=CIRC_X+D.x0-1500,az0=CIRC_Z+D.z0-1500,ax1=CIRC_X+D.x0+(D.nx-1)*D.cell+1500,az1=CIRC_Z+D.z0+(D.nz-1)*D.cell+1500;
         const nx=Math.ceil((ax1-ax0)/OS)+1,nz=Math.ceil((az1-az0)/OS)+1,P=new Float32Array(nx*nz*3),I=[];
         for(let a=0;a<nx;a++)for(let b=0;b<nz;b++){const x=ax0+a*OS,z=az0+b*OS,k=(a*nz+b)*3;P[k]=x;P[k+1]=BASE(x,z)-.25;P[k+2]=z}
         const inIn=(x,z)=>x>cx-half2&&x<cx+half2&&z>cz-half2&&z<cz+half2;
@@ -7272,7 +7320,7 @@ const PLANETS={
       const cq=new CANNON.Quaternion(),tq=new THREE.Quaternion(),te=new THREE.Euler(0,0,0,'YXZ'),tp=new THREE.Vector3(),ts=new THREE.Vector3(),tm=new THREE.Matrix4();
       const geoOf=(pos,idx)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();return g};
       const mesh=(g,m,cast)=>{const o=new THREE.Mesh(g,m);o.castShadow=cast&&!LOW;o.receiveShadow=true;o.userData.fixedY=o.userData.onTrack=true;root.add(o);return o};
-      const pierIM=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),pierMat,BRIDGES.length*60);pierIM.castShadow=!LOW;pierIM.receiveShadow=true;let pn=0;
+      const pierIM=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),pierMat,Math.max(BRIDGES.length*60,BRIDGES.reduce((m,B)=>m+Math.ceil((B.flat+B.ramp)/3)+20,0)));pierIM.castShadow=!LOW;pierIM.receiveShadow=true;let pn=0;
       BRIDGES.forEach(B=>{const span=(B.flat+B.ramp)/TL,n=Math.ceil((B.flat+B.ramp)*2/STEP);
         // physics: the deck pieces the car drives on (top face = road surface)
         for(let k=0;k<n;k++){const u0=B.u-span+k*STEP/TL,u1=u0+STEP/TL;if(liftAt((u0+u1)/2)<.05)continue;
@@ -8044,6 +8092,7 @@ const PLANETS={
     ['Perez','cadillac',.945],['Bottas','cadillac',.94]];
   const teamLivery=t=>(window.F1Car&&F1Car.TEAMS[t])||[0xdc0000,0x111111,0xf2f2f2];
   const STORY_NAMES=['Corelli','Vantrell','Marrow','Orsen','Reyne','Quell','Varga','Donnell','Sallis','Tolan','Kell','Aalto','Duval','Caro','Marsh','Hallen','Rend','Oyelaran','Brask'];
+  window.__driverColors=Object.fromEntries(F1_GRID.map(d=>[d[0],teamLivery(d[1])[0]]));   // the finish screen's timing tower colours
   const GP_RIVALS=F1_GRID.length,GP_OPTS={top:41.9,names:F1_GRID.map(d=>d[0]),colors:F1_GRID.map(d=>teamLivery(d[1])[0]),liveries:F1_GRID.map(d=>teamLivery(d[1])),skills:F1_GRID.map(d=>d[2])};
   const GPCAR={prev:null};
   function restartSoloRace(){
@@ -8227,19 +8276,16 @@ const PLANETS={
     {let q=rs.slice(0,rs.length-1);for(let pass=0;pass<2;pass++){const n=q.length;q=q.map((p,i)=>{const a=q[(i-1+n)%n],b=q[(i+1)%n];return {x:p.x*.5+(a.x+b.x)*.25,y:p.y*.5+(a.y+b.y)*.25}})}
      q.push({x:q[0].x,y:q[0].y});let L2=0;for(let i=1;i<q.length;i++)L2+=Math.hypot(q[i].x-q[i-1].x,q[i].y-q[i-1].y);rs=resamplePath(q,Math.max(4,L2/110));if(rs.length<8){drawFail('Draw a larger loop.');return}}
 
-    /* crossings are allowed: buildCircuit lifts one pass of each onto a flyover (a deck with ramps either side,
-       pillars, rails, collision). Refused only where a bridge cannot work: a crossing at a very shallow angle (the
-       two roads run on top of each other), one right on the start straight, or more than four of them. */
+    /* crossings and overlaps are allowed: buildCircuit stacks the two passes at least 10 m apart as bridges (deck,
+       pillars, rails, collision), climbing as a spiral where loops are drawn over each other. */
     let crossings=0;
     {const n=rs.length-1,near0=Math.max(3,Math.round(n*.05));
      for(let i=0;i<rs.length-1;i++)for(let j=i+2;j<rs.length-1;j++){
       if(i===0&&j>=rs.length-2)continue;
       if(!segInt(rs[i],rs[i+1],rs[j],rs[j+1]))continue;
       const ax=rs[i+1].x-rs[i].x,ay=rs[i+1].y-rs[i].y,bx=rs[j+1].x-rs[j].x,by=rs[j+1].y-rs[j].y,sin=Math.abs(ax*by-ay*bx)/(Math.hypot(ax,ay)*Math.hypot(bx,by)||1);
-      if(sin<.28){drawFail('The track crosses itself at too shallow an angle for a flyover. Cross more squarely.');return}
-      if(i<near0||j>n-near0){drawFail('A crossing right at the start line cannot be a flyover. Start the loop somewhere else.');return}
-      crossings++}
-     if(crossings>4){drawFail('Too many crossings ('+crossings+'). Up to 4 can become flyovers.');return}}
+      crossings++}   // any angle, anywhere: buildCircuit stacks the passes at least 10 m apart (spirals climb, the start straight stays on the ground)
+     if(crossings>24){drawFail('Too many crossings ('+crossings+'). Keep it under 25.');return}}
     drawRS=rs.slice(0,rs.length-1);
     pendingTrack=normalizeLoop(drawRS,CIRC_SIZES[selVal('#dcircsize','large')]);
     redrawPath();
