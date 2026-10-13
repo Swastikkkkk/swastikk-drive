@@ -6862,7 +6862,10 @@ const PLANETS={
     /* width/elevation/obstacles travel WITH the venue (so every driver in a room builds the identical
        track); only fall back to the local editor setting when a venue predates these options */
     CIRC_W=Math.max(8,Math.min(30,+venue.width||(window.TrackEditor&&window.TrackEditor.roadWidth)||16));venue.width=CIRC_W;
-    const ELEV=CIRC_ELEV[venue.elev]||0;venue.elev=CIRC_ELEV[venue.elev]!=null?venue.elev:'flat';
+    /* a real circuit brings its own height profile ([lap fraction, metres] from the start line) or just a height range;
+       otherwise the named setting (flat / rolling / hilly / mountain) drives the seeded hills as before */
+    const PROF=Array.isArray(venue.elevProfile)&&venue.elevProfile.length>=3?venue.elevProfile.map(a=>[((+a[0]%1)+1)%1,+a[1]||0]).sort((a,b)=>a[0]-b[0]):null;
+    const ELEV=PROF?Math.max(1,...PROF.map(a=>Math.abs(a[1]))):(+venue.elevM>0?+venue.elevM:(CIRC_ELEV[venue.elev]||0));venue.elev=CIRC_ELEV[venue.elev]!=null?venue.elev:'flat';
     theme=theme||THEME_DEFAULT;
     let startLightsIM=null,circuit_hazeFn=null;const wallBodies=[];
     /* decoration that is not needed to drive is queued and built over the next frames (see pumpJobs), so pressing
@@ -6877,7 +6880,12 @@ const PLANETS={
        cycles, so the loop closes on itself), eased to flat over the start/finish straight for the grid */
     let erng=(seed^0x5bd1e995)>>>0;const er=()=>{erng=(Math.imul(erng,1664525)+1013904223)>>>0;return erng/4294967296};
     const ek1=2+Math.floor(er()*2),ek2=3+Math.floor(er()*3),ep1=er()*6.283,ep2=er()*6.283;
-    const elevAt=u=>{if(!ELEV)return 0;const d=Math.min(u,1-u),flat=Math.min(1,Math.max(0,(d-.03)/.07)),k=flat*flat*(3-2*flat);
+    // profile: a closed Catmull-Rom through the points, so the climbs are smooth and the lap ends where it began
+    const profAt=u=>{const P=PROF,n=P.length;u=((u%1)+1)%1;let i=n-1;for(let k=0;k<n;k++)if(P[k][0]<=u)i=k;
+      const at=k=>{const m=((k%n)+n)%n,w=Math.floor(k/n);return [P[m][0]+w,P[m][1]]};const a=at(i-1),b=at(i),c=at(i+1),d=at(i+2);
+      const span=(c[0]-b[0])||1,t=Math.max(0,Math.min(1,(u-b[0]+(u<b[0]?1:0))/span)),t2=t*t,t3=t2*t;
+      return .5*(2*b[1]+(-a[1]+c[1])*t+(2*a[1]-5*b[1]+4*c[1]-d[1])*t2+(-a[1]+3*b[1]-3*c[1]+d[1])*t3)};
+    const elevAt=u=>{if(!ELEV)return 0;if(PROF)return profAt(u);const d=Math.min(u,1-u),flat=Math.min(1,Math.max(0,(d-.03)/.07)),k=flat*flat*(3-2*flat);
       return ELEV*k*(.62*Math.sin(6.283*ek1*u+ep1)+.38*Math.sin(6.283*ek2*u+ep2)-(.62*Math.sin(ep1)+.38*Math.sin(ep2)))};
     let pts3=pts2D.map((q,i)=>new THREE.Vector3(CIRC_X+q.x,CIRC_Y+elevAt(i/pts2D.length),CIRC_Z+q.y));
     /* ---------- flyovers ----------
@@ -6906,7 +6914,10 @@ const PLANETS={
        const ok=u=>!nearStart(u)&&arc(u,0)>flat+ramp&&!found.some(g=>g!==f&&(arc(u,g.ua)<flat+ramp||arc(u,g.ub)<flat+ramp));
        // on a hilly venue the two passes can already be metres apart: lift the higher one, by enough to clear the other
        const ya=base.getPointAt(f.ua).y,yb=base.getPointAt(f.ub).y,hi=yb>=ya?f.ub:f.ua,lo2=hi===f.ub?f.ua:f.ub;
-       const u=ok(hi)?hi:ok(lo2)?lo2:null;if(u==null){f.skip=1;return}
+       let u=ok(hi)?hi:ok(lo2)?lo2:null;
+       // a real circuit says which pass is the bridge (Suzuka: the back straight goes over the first half of the lap)
+       if(venue.bridgeU!=null){const near=x=>Math.min(Math.abs(x-venue.bridgeU),1-Math.abs(x-venue.bridgeU)),pick=near(f.ua)<near(f.ub)?f.ua:f.ub;if(!nearStart(pick))u=pick}
+       if(u==null){f.skip=1;return}
        const yU=u===f.ub?yb:ya,yL=u===f.ub?ya:yb,h=Math.max(2,yL+BH-yU);if(h>24)return;f.ok=1;   // already high above it: a short lift, just enough to make it a proper deck
        if(BRIDGES.some(B=>arc(B.u,u)<B.flat+B.ramp+flat+ramp)){f.ok=0;f.skip=1;return}
        BRIDGES.push({u,flat,ramp:Math.max(ramp,h*9),h,x:f.x,z:f.z,low:u===f.ub?f.ua:f.ub})});
@@ -7263,6 +7274,45 @@ const PLANETS={
             const pb=new CANNON.Body({mass:0,material:barM});pb.addShape(new CANNON.Box(new CANNON.Vec3(.8,h/2,.8)));pb.position.set(x,g+h/2,z);pb.quaternion.setFromAxisAngle(cup,yaw);world.addBody(pb);bridgeBodies.push(pb)}
           if(any){tp.set(r.p.x,colTop-.45,r.p.z);tq.setFromAxisAngle(UPY,yaw);ts.set(CIRC_W-.4,.9,1.9);tm.compose(tp,tq,ts);if(pn<pierIM.count)pierIM.setMatrixAt(pn++,tm)}}});
       pierIM.count=pn;pierIM.instanceMatrix.needsUpdate=true;pierIM.userData.fixedY=pierIM.userData.onTrack=true;root.add(pierIM)}
+    /* ---------- tunnels and overhead structures (real circuits: Monaco's tunnel, Yas Marina's hotel, footbridges) ----------
+       A tunnel is a covered stretch [u0,u1]: walls just outside the barrier line, a roof 6.5 m over the road whose shadow
+       darkens the inside, warm light strips along the ceiling and a portal frame at each end. An overhead is a deck
+       across the track on two towers (a footbridge, a sponsor bridge, a motorway flyover) with its name facing the
+       traffic. Both follow the road's own height, are tagged onTrack/fixedY so the placement passes leave them alone,
+       and stand outside the barriers, so the barrier is still the wall you hit. */
+    if((venue.tunnels&&venue.tunnels.length)||(venue.overheads&&venue.overheads.length)){
+      const concM=M(0x8f8b84,{roughness:.92,side:THREE.DoubleSide}),roofM=M(0x55524d,{roughness:.95,side:THREE.DoubleSide}),frameM=M(0xd6d1c4,{roughness:.8}),
+        lampM=new THREE.MeshBasicMaterial({color:0xffe1a6}),trimM=M(kerbOf(theme),{roughness:.6});ownedMats.push(concM,roofM,frameM,lampM,trimM);
+      const off=CIRC_W/2+BARRIER_OFF+.45,H=6.5,TH=.9,yaw=tg=>Math.atan2(tg.x,tg.z);
+      const tag=o=>{o.userData.fixedY=o.userData.onTrack=true;o.receiveShadow=true;return o};
+      const strip=(pos,idx,m,cast)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();const o=tag(new THREE.Mesh(g,m));o.castShadow=cast&&!LOW;root.add(o);return o};
+      const lampIM=tag(new THREE.InstancedMesh(new THREE.BoxGeometry(.35,.12,2.4),lampM,600));let ln=0;root.add(lampIM);
+      const lm=new THREE.Matrix4(),lq=new THREE.Quaternion(),lp=new THREE.Vector3(),ls=new THREE.Vector3(1,1,1),UPa=new THREE.Vector3(0,1,0);
+      const portal=(u,y,p,tg,nn)=>{const g=new THREE.Group();g.position.set(p.x,y,p.z);g.rotation.y=yaw(tg);tag(g);
+        for(const s of [-1,1]){const pil=tag(new THREE.Mesh(new THREE.BoxGeometry(1.4,H+TH+.6,1.6),frameM));pil.position.set(s*(off+.7),(H+TH+.6)/2-1,0);pil.castShadow=!LOW;g.add(pil)}
+        const lin=tag(new THREE.Mesh(new THREE.BoxGeometry(2*off+2.8,1.7,1.6),frameM));lin.position.set(0,H+.55,0);lin.castShadow=!LOW;g.add(lin);
+        const band=tag(new THREE.Mesh(new THREE.BoxGeometry(2*off+2.82,.28,1.64),trimM));band.position.set(0,H-.2,0);g.add(band);root.add(g)};
+      (venue.tunnels||[]).forEach(t=>{let a=+t[0],b=+t[1];if(!(isFinite(a)&&isFinite(b)))return;if(b<a)b+=1;const len=(b-a)*TL;if(len<8)return;const n=Math.max(2,Math.ceil(len/2));
+        const wl=[],wi=[],wr=[],ri=[],rf=[],fi=[];
+        for(let k=0;k<=n;k++){const u=((a+(b-a)*k/n)%1+1)%1,{p,n:nn}=circAt(u,curve),y=roadY(u,p.x,p.z);
+          const Lx=p.x-nn.x*off,Lz=p.z-nn.z*off,Rx=p.x+nn.x*off,Rz=p.z+nn.z*off;
+          wl.push(Lx,y-1.5,Lz,Lx,y+H,Lz);wr.push(Rx,y-1.5,Rz,Rx,y+H,Rz);
+          rf.push(Lx-nn.x*.5,y+H,Lz-nn.z*.5,Rx+nn.x*.5,y+H,Rz+nn.z*.5,Lx-nn.x*.5,y+H+TH,Lz-nn.z*.5,Rx+nn.x*.5,y+H+TH,Rz+nn.z*.5);
+          if(k){const q=(k-1)*2;wi.push(q,q+1,q+2,q+1,q+3,q+2);const r=(k-1)*4;fi.push(r,r+1,r+4,r+1,r+5,r+4,r+2,r+6,r+3,r+3,r+6,r+7)}
+          if(k%4===2)for(const s of [-1,1]){lp.set(p.x+nn.x*s*(CIRC_W/2-.5),y+H-.12,p.z+nn.z*s*(CIRC_W/2-.5));const {tg}=circAt(u,curve);lq.setFromAxisAngle(UPa,yaw(tg));lm.compose(lp,lq,ls);if(ln<lampIM.count)lampIM.setMatrixAt(ln++,lm)}}
+        strip(wl,wi,concM,true);strip(wr,wi.slice(),concM,true);const roof=strip(rf,fi,roofM,true);roof.castShadow=true;   // the roof's shadow is what makes it dark inside
+        for(const e of [a,b]){const u=((e%1)+1)%1,A=circAt(u,curve);portal(u,roadY(u,A.p.x,A.p.z),A.p,A.tg,A.n)}});
+      lampIM.count=ln;lampIM.instanceMatrix.needsUpdate=true;
+      (venue.overheads||[]).forEach(o=>{const u=((+o[0]%1)+1)%1;if(!isFinite(u))return;const {p,tg}=circAt(u,curve),y=roadY(u,p.x,p.z),span=2*(off+2.6);
+        const g=tag(new THREE.Group());g.position.set(p.x,y,p.z);g.rotation.y=yaw(tg);
+        const deck=tag(new THREE.Mesh(new THREE.BoxGeometry(span,1.1,3.6),frameM));deck.position.y=6.9;deck.castShadow=!LOW;g.add(deck);
+        for(const s of [-1,1]){const tw=tag(new THREE.Mesh(new THREE.BoxGeometry(2.6,7.9,2.8),concM));tw.position.set(s*(off+1.6),3.6,0);tw.castShadow=!LOW;tw.userData.solid=true;g.add(tw);
+          const rail=tag(new THREE.Mesh(new THREE.BoxGeometry(span,.9,.12),trimM));rail.position.set(0,7.9,s*1.75);g.add(rail)}
+        // the name, on the face the cars drive towards
+        const label=String(o[1]||'').toUpperCase().slice(0,28);if(label){const c=document.createElement('canvas');c.width=1024;c.height=96;const x=c.getContext('2d');x.fillStyle='#1d1f24';x.fillRect(0,0,1024,96);
+          x.fillStyle='#f2efe6';x.font='700 54px -apple-system,Segoe UI,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(label,512,52);
+          const tx=new THREE.CanvasTexture(c),sm=new THREE.MeshBasicMaterial({map:tx});ownedMats.push(sm);const sign=tag(new THREE.Mesh(new THREE.PlaneGeometry(Math.min(span-2,14),1.3),sm));sign.position.set(0,6.9,-1.83);sign.rotation.y=Math.PI;g.add(sign)}
+        root.add(g)})}
     JOB(()=>{
     // Keep the grandstands close enough to read from the track, placed from its actual tangent.
     {const standN=Math.max(8,Math.min(16,Math.round(curve.getLength()/38)));
@@ -7912,6 +7962,47 @@ const PLANETS={
     circuit.lightsDone=false;circuit.lightsStart=performance.now();circuit.cdN=0;tyresReset();
     RE.startCountdown(0,sp=>{if(window.resetCarTo)window.resetCarTo({pos:{x:sp.x,y:sp.y,z:sp.z},tangent:sp.tangent||circuit.startP.tg})});CAI.start(3)}
   window.restartSoloRace=restartSoloRace;
+  /* ---------- F1 circuits (assets/f1-circuits.js: real layouts at real size; assets/f1-landmarks.js: their scenery) ----------
+     F1.build(id,{race,laps}) builds one like any venue: its own width, elevation profile (or height range), tunnels,
+     overhead bridges, which pass of a crossing is the bridge, and the race's time of day. In a room only the id
+     travels (see shareVenue), so every driver builds the identical track. */
+  window.F1=(function(){
+    const list=()=>window.F1_CIRCUITS||[],get=id=>list().find(c=>c.id===id)||null;
+    const TIME={night:'night',dusk:'sunset',day:'day'};
+    function seedOf(id){let h=2166136261;for(const ch of String(id))h=Math.imul(h^ch.charCodeAt(0),16777619);return (h>>>1)%2147483646+1}
+    function landmarks(c){const L=window.F1Landmarks&&window.F1Landmarks[c.id];if(!L||!circuit)return;
+      const C=circuit,cv=C.curve,TLc=cv.getLength(),seedR=(()=>{let a=seedOf(c.id);return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}})();
+      const mats=[],box=new THREE.Box3(),tq=new THREE.Quaternion(),tp=new THREE.Vector3(),ts=new THREE.Vector3(),tc=new THREE.Vector3();
+      const ctx={THREE,root:C.root,lengthM:TLc,roadHalf:CIRC_W/2,clear:CIRC_W/2+BARRIER_OFF+2,night:c.raceTime==='night',dusk:c.raceTime==='dusk',theme:C.theme&&C.theme.id,
+        rand:seedR,
+        at(u){u=((u%1)+1)%1;const {p,tg,n}=circAt(u,cv),hl=Math.hypot(tg.x,tg.z)||1;return {x:p.x,y:C.roadY?C.roadY(u,p.x,p.z):p.y,z:p.z,tx:tg.x/hl,tz:tg.z/hl,lx:-n.x,lz:-n.z,yaw:Math.atan2(tg.x,tg.z)}},
+        ground(x,z){return C.groundAt?C.groundAt(x,z):CIRC_Y},
+        trackDist(x,z){return C.trackDist?C.trackDist(x,z,400):1e9},
+        clearOf(x,z,r){return !C.trackDist||C.trackDist(x,z,(r||0)+CIRC_W/2+BARRIER_OFF+40)>(r||0)+CIRC_W/2+BARRIER_OFF+2},
+        mat(color,o){const m=new THREE.MeshStandardMaterial(Object.assign({color,roughness:.8,metalness:0},o||{}));mats.push(m);return m},
+        basic(color,o){const m=new THREE.MeshBasicMaterial(Object.assign({color},o||{}));mats.push(m);return m},
+        add(o){o.userData.fixedY=true;o.userData.landmark=true;C.root.add(o);return o},
+        // a static collision box matching a mesh (its own geometry box, rotated with it), removed with the track
+        solid(mesh){try{mesh.updateMatrixWorld(true);const g=mesh.geometry;if(!g)return;if(!g.boundingBox)g.computeBoundingBox();g.boundingBox.getCenter(tc);g.boundingBox.getSize(ts);
+          mesh.matrixWorld.decompose(tp,tq,box.min);const sx=Math.abs(box.min.x),sy=Math.abs(box.min.y),sz=Math.abs(box.min.z);tc.applyMatrix4(mesh.matrixWorld);
+          const b=new CANNON.Body({mass:0,material:gM});b.addShape(new CANNON.Box(new CANNON.Vec3(ts.x*sx/2,ts.y*sy/2,ts.z*sz/2)));b.position.set(tc.x,tc.y,tc.z);b.quaternion.set(tq.x,tq.y,tq.z,tq.w);world.addBody(b);C.bodies.push(b)}catch(e){}}};
+      try{L(ctx)}catch(e){console.warn('F1 landmarks',c.id,e)}
+      C.ownedMats=(C.ownedMats||[]).concat(mats)}
+    function build(id,o){o=o||{};const c=get(id);if(!c)return false;
+      try{audioInit()}catch(_){}if(!active)try{enterDrive()}catch(_){}try{if(SPACE.state!=='earth')SPACE.forceEarth()}catch(e){}
+      const lp=document.getElementById('dlanding');if(lp)lp.style.display='none';
+      let cx=0,cz=0;c.pts.forEach(a=>{cx+=a[0];cz+=a[1]});cx/=c.pts.length;cz/=c.pts.length;
+      const pts=c.pts.map(a=>({x:a[0]-cx,y:a[1]-cz}));drawPts=pts;
+      const theme=THEMES.find(t=>t.id===c.theme)||THEME_DEFAULT,time=TIME[c.raceTime]||'day';
+      const venue={weather:'day',time,width:c.width||14,f1:c.id,tunnels:c.tunnels||[],overheads:c.overheads||[],bridgeU:c.bridgeU};
+      if(c.elev&&c.elev.length>=3){venue.elev='hilly';venue.elevProfile=c.elev}else if(c.elevRange>0){venue.elev='rolling';venue.elevM=c.elevRange/2}else venue.elev='flat';
+      buildCircuit(pts,theme,seedOf(c.id),venue);if(!circuit)return false;circuit.f1=c.id;landmarks(c);
+      enterCircuit();if(window.__updModes)window.__updModes();
+      if(o.laps)raceCfg.laps=Math.max(1,Math.min(50,o.laps|0));
+      toastMsg(c.name+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns');
+      try{if(o.share!==false&&MP&&MP.shareVenue)MP.shareVenue({pts,seed:seedOf(c.id),scenery:theme.id,weather:'day',time,width:venue.width,elev:venue.elev,f1:c.id})}catch(e){}
+      if(o.race!==false)restartSoloRace();return true}
+    return {list,get,build,has:id=>!!get(id)}})();
   const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
   const circCx=circCv?circCv.getContext('2d'):null;
   let drawPts=[],drawingNow=false,pendingTrack=null,drawRS=[],drawObs=[],drawTool='draw';
@@ -8086,7 +8177,7 @@ const PLANETS={
   // that implies) before the drawer opened. A half-working shortcut is worse than not having one;
   // redrawing needs a page reload for now (see ROADMAP.md).
   if(circBtn)circBtn.onclick=()=>{if(MODE==='circuit'){leaveCircuit();return}
-    if(circuit){enterCircuit();try{if(MP&&MP.shareVenue&&circuit.pts)MP.shareVenue({pts:circuit.pts,seed:circuit.seed,scenery:circuit.theme.id,weather:circuit.venue.weather,time:circuit.venue.time,width:circuit.venue.width,elev:circuit.venue.elev,obstacles:circuit.venue.obstacles})}catch(e){}return}
+    if(circuit){enterCircuit();try{if(MP&&MP.shareVenue&&circuit.pts)MP.shareVenue({pts:circuit.pts,seed:circuit.seed,scenery:circuit.theme.id,weather:circuit.venue.weather,time:circuit.venue.time,width:circuit.venue.width,elev:circuit.venue.elev,obstacles:circuit.venue.obstacles,f1:circuit.venue.f1})}catch(e){}return}
     openDrawer()};
   {const x=$('#dcircx'),cl=$('#dcircclear');
    if(x)x.onclick=closeDrawer;
@@ -8280,6 +8371,18 @@ updCircBtn();
     const mpBtn = document.getElementById('dlnd-mp');
     const dailyBtn = document.getElementById('dlnd-daily');
     const editorBtn = document.getElementById('dlnd-editor');
+    const f1Sel = document.getElementById('dlnd-f1-sel');
+    const f1Go = document.getElementById('dlnd-f1-go');
+    if(f1Sel && window.F1 && window.F1.list){
+      window.F1.list().forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.name+' · '+c.country;f1Sel.appendChild(o)});
+    }
+    if(f1Go) f1Go.onclick=()=>{ try{audioInit();}catch(_){}
+      if(!f1Sel||!f1Sel.value) return;
+      if(landing) landing.style.display='none';
+      if(!active) try{enterDrive();}catch(_){}
+      try{ if(!window.F1.build(f1Sel.value,{race:false,share:false})) toastMsg('Could not load that circuit'); }
+      catch(e){ console.error('F1 build failed',e); toastMsg('Could not load that circuit'); }
+    };
 
     if(minBtn && boxEl){
       minBtn.onclick = () => {
@@ -8790,7 +8893,7 @@ updCircBtn();
         if(!(circuit&&circuit.daily)&&window.__buildDaily)window.__buildDaily();else if(MODE!=='circuit')enterCircuit();
       }else if(MODE==='circuit')leaveCircuit();
       let v={earth:1};
-      if(MODE==='circuit'&&circuit){shareVenue({pts:circuit.pts,seed:circuit.seed,scenery:circuit.theme.id,weather:circuit.venue.weather,time:circuit.venue.time,width:circuit.venue.width,elev:circuit.venue.elev,obstacles:circuit.venue.obstacles});v=lastVenue}
+      if(MODE==='circuit'&&circuit){shareVenue({pts:circuit.pts,seed:circuit.seed,scenery:circuit.theme.id,weather:circuit.venue.weather,time:circuit.venue.time,width:circuit.venue.width,elev:circuit.venue.elev,obstacles:circuit.venue.obstacles,f1:circuit.venue.f1});v=lastVenue}
       const startAt=Date.now()+CD_LEAD+1500,rid=me.id+'-'+startAt,m1={k:'race',startAt,rid,laps,v};send(m1);setTimeout(()=>send(Object.assign({},m1)),700);   // twice: a lost broadcast used to leave a friend out
       beginCountdown('You',startAt,rid,laps,null)}
     function beginCountdown(who,startAt,rid,laps,v){
@@ -9103,12 +9206,15 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
     function shareVenue(cfg){try{
       if(!cfg||!Array.isArray(cfg.pts)||cfg.pts.length<8)return;
       lastVenue={pts:cfg.pts.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2)]),seed:cfg.seed|0,scn:cfg.scenery,wx:cfg.weather,tm:cfg.time,
-        w:+cfg.width||16,el:cfg.elev||'flat',ob:(cfg.obstacles||[]).slice(0,60).map(o=>[o.t,+(+o.u).toFixed(4),o.s|0])};
-      mpVenueKey=venueKey(cfg.pts,cfg.seed|0,JSON.stringify([lastVenue.w,lastVenue.el,lastVenue.ob]));
+        w:+cfg.width||16,el:cfg.elev||'flat',ob:(cfg.obstacles||[]).slice(0,60).map(o=>[o.t,+(+o.u).toFixed(4),o.s|0]),f1:cfg.f1||undefined};
+      if(cfg.f1)lastVenue.pts=lastVenue.pts.slice(0,8);   // an F1 circuit travels as its id; the few points only keep the venue key unique
+      mpVenueKey=cfg.f1?'f1:'+cfg.f1:venueKey(cfg.pts,cfg.seed|0,JSON.stringify([lastVenue.w,lastVenue.el,lastVenue.ob]));
       if(room&&status==='up')send(Object.assign({k:'trk'},lastVenue));
     }catch(e){lg('shareVenue',e&&e.message)}}
     // received someone else's venue: build the identical circuit and drop into it
     function adoptVenue(m){try{
+      // an F1 circuit: build it from the shared catalogue by id (identical for everyone, and its 1000+ points never travel)
+      if(m.f1&&window.F1&&window.F1.has(m.f1)){const key='f1:'+m.f1;if(key===mpVenueKey&&MODE==='circuit')return;mpVenueKey=key;lastVenue=m;window.F1.build(m.f1,{race:false,share:false});toast2('Joined the room venue');return}
       if(!Array.isArray(m.pts)||m.pts.length<8||m.pts.length>400)return;
       const pts=m.pts.map(a=>({x:num(a&&a[0],-1e4,1e4,0),y:num(a&&a[1],-1e4,1e4,0)}));
       const seed=num(m.seed,1,2147483647,271828),key=venueKey(pts,seed,JSON.stringify([+m.w||16,m.el||'flat',m.ob||[]]));
@@ -9279,14 +9385,16 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
    const T=(id,title,sub,wide)=>`<button class="t${wide?' wide':''}" data-go="${id}"><b>${title}</b><span>${sub}</span></button>`;
    const main=()=>{el.innerHTML='<div class="hm"><h1>SketchRacer</h1><p class="sub">Pick how you want to play.</p><div class="grid">'+
      T('free','Free drive','Open valley, ramps, the summit and the cable car',true)+T('chill','Chillout room','Your crew\'s saved room · no link needed')+T('mp','Multiplayer','Race up to 4 friends with a room code')+T('daily',"Daily track","Today's circuit and its leaderboard")+
-     T('typing','Typing','Type to drive: practice or the daily test')+T('draw','Draw a track','Sketch a circuit and race it')+T('garage','Garage','Pick a car or make your own')+T('settings','Settings','Sound, graphics, controls')+'</div></div>'};
+     T('typing','Typing','Type to drive: practice or the daily test')+T('draw','Draw a track','Sketch a circuit and race it')+T('f1','F1 circuits','25 real tracks at real size, with landmarks')+T('garage','Garage','Pick a car or make your own')+T('settings','Settings','Sound, graphics, controls')+'</div></div>'};
    const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
      T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
+   const f1=()=>{const L=(window.F1&&F1.list())||[];el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>F1 circuits</h1><p class="sub">Real layouts from GPS, at real size.</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+
+     L.map(c=>T('f1:'+c.id,c.name,c.country+' · '+(c.lengthM/1000).toFixed(3)+' km'+(c.raceTime==='night'?' · night':c.raceTime==='dusk'?' · dusk':''))).join('')+'</div></div>'};
    const close=after=>{if(!HOME.on)return;HOME.on=false;try{HOME.putAway&&HOME.putAway(false)}catch(_){}el.classList.add('out');document.body.classList.remove('homeon');driving=wasDriving||true;setTimeout(()=>{el.remove()},500);if(after)setTimeout(after,120)};
    const btn=id=>()=>{const b=document.getElementById(id);if(b)b.click()};
    const ACT={free:()=>close(btn('dmfree')),mp:()=>close(btn('droom')),chill:()=>close(()=>{btn('droom')();setTimeout(()=>{const c=document.getElementById('dmpchill');if(c)c.click()},250)}),daily:()=>close(btn('dmdaily')),draw:()=>close(btn('dcircb')),garage:()=>close(()=>window.__openGarage&&window.__openGarage()),
-     settings:()=>close(()=>window.Settings&&Settings.open()),typing,home:main,tfast:()=>close(btn('dmtype')),tdaily:()=>close(()=>{try{audioInit()}catch(_){}if(window.TypingRace)TypingRace.start()})};
-   el.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;try{audioInit()}catch(_){}ACT[b.dataset.go]&&ACT[b.dataset.go]()});
+     settings:()=>close(()=>window.Settings&&Settings.open()),typing,f1,home:main,tfast:()=>close(btn('dmtype')),tdaily:()=>close(()=>{try{audioInit()}catch(_){}if(window.TypingRace)TypingRace.start()})};
+   el.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;try{audioInit()}catch(_){}const g=b.dataset.go;if(g.startsWith('f1:')){const id=g.slice(3);close(()=>{try{if(!window.F1.build(id,{race:false,share:false}))(typeof toastMsg==='function'&&toastMsg('Could not load that circuit'))}catch(err){console.error('F1 build failed',err);(typeof toastMsg==='function'&&toastMsg('Could not load that circuit'))}});return}ACT[g]&&ACT[g]()});
    addEventListener('keydown',e=>{if(HOME.on&&e.code==='Escape')close()},true);
    main();
    // the camera: high over the summit lookout, panning slowly across the valley, with the haze pulled back
