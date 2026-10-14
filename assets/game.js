@@ -7729,6 +7729,16 @@ const PLANETS={
         {const S0=alongT(0),ct=checkerTex(Math.round(CIRC_W/.55),3),cm=addMat(new THREE.MeshLambertMaterial({map:ct,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
          const band=new THREE.Mesh(new THREE.PlaneGeometry(CIRC_W,3*.55+.2).rotateX(-Math.PI/2),cm);band.rotation.y=S0.yaw;
          band.position.set(S0.p.x,GY+.13+S0.y,S0.p.z);band.receiveShadow=true;band.userData.onTrack=true;root.add(band)}});
+      /* F1 venues: painted grid boxes, one per starting slot (the same staggered slots the rivals and you line up in):
+         a white bar across the front of the slot and short legs back along each side, plus the slot number */
+      if(venue&&venue.f1)safe(()=>{const NS=24,wm=addMat(new THREE.MeshLambertMaterial({color:0xf2f2ee,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+        const gim=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.02,1),wm,NS*3);gim.receiveShadow=true;gim.userData.onTrack=true;let k=0;
+        const put=(x,y,z,yaw,w,d)=>{Q.setFromAxisAngle(up,yaw);P.set(x,y,z);SC.set(w,1,d);MX.compose(P,Q,SC);gim.setMatrixAt(k++,MX)};
+        for(let j=1;j<=NS;j++){const back=6+j*7.5,u=((1-back/TL)%1+1)%1,a=circAt(u,curve),hl=Math.hypot(a.tg.x,a.tg.z)||1,tx=a.tg.x/hl,tz=a.tg.z/hl,lane=(j%2===0?1:-1)*CIRC_W*.28;
+          const cx=a.p.x+a.n.x*lane,cz=a.p.z+a.n.z*lane,yaw=Math.atan2(tx,tz),y=GY+.135+(roadY(u,cx,cz)-(ELEV?groundAt(cx,cz):CIRC_Y));
+          const fx=cx+tx*2.6,fz=cz+tz*2.6;put(fx,y,fz,yaw,2.4,.18);
+          for(const sd of [-1,1]){const lx=fx+a.n.x*sd*1.11-tx*.65,lz=fz+a.n.z*sd*1.11-tz*.65;put(lx,y,lz,yaw,.18,1.3)}}
+        gim.count=k;gim.instanceMatrix.needsUpdate=true;root.add(gim)});
 
       // --- main grandstand: larger, multi-tier, opposite the pits on the start straight, + a big screen ---
       JOB(()=>safe(()=>{
@@ -8247,7 +8257,7 @@ const PLANETS={
       R.render(S,cam);const url=R.domElement.toDataURL('image/jpeg',.86);if(fg){fg.near=fn;fg.far=ff}return url}catch(e){return null}};
   /* live timing tower (#dpos): position, then the running order with team colours and the gap to the car ahead.
      Any race with rivals on track (Grand Prix, Story, Race) and rooms; in a 9+ car field it shows the top 3 and the cars around you. */
-  if(/[?&]dbg\b/.test(location.search))window.__DBG={S,C,get circuit(){return circuit},get P(){return PCAR},get wv(){return wv}};
+  if(/[?&]dbg\b/.test(location.search))window.__DBG={S,C,R,get circuit(){return circuit},get P(){return PCAR},get wv(){return wv}};
   window.__liveTower=()=>{try{let rows=null;const RE=window.RaceEngine;
       if(CAI.on)rows=CAI.order();
       else if(RE&&RE.leaderboard&&RE.leaderboard.length>1&&RE.leaderboard[0]&&RE.leaderboard[0].name)rows=RE.leaderboard.map((r,i)=>({name:r.isMe?'You':r.name,pos:r.position||i+1,me:!!r.isMe,col:(window.__driverColors&&window.__driverColors[r.name])||0x8a8f98,gap:null}));
