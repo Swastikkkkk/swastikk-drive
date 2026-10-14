@@ -245,9 +245,26 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let recapCam=false;
   const fillL=new THREE.DirectionalLight(0x8fa8ff,.1);fillL.position.set(-16,9,-11);S.add(fillL);
   /* ---------- sky dome, sun glow, stars, dust: atmosphere so the world isn't just flat fog ---------- */
-  const skyMat=new THREE.ShaderMaterial({uniforms:{topColor:{value:new THREE.Color(0x323a52)},bottomColor:{value:new THREE.Color(0x0e0e0d)},offset:{value:9},exponent:{value:.68}},
+  /* sky: gradient from the weather's two colours, a pale haze band on the horizon, a warm glow round the sun, and
+     procedural clouds (fbm projected onto a cloud deck) that drift with the wind; at night the clouds go dark and the
+     glow goes out. One draw, all in the shader. */
+  const skyMat=new THREE.ShaderMaterial({uniforms:{topColor:{value:new THREE.Color(0x323a52)},bottomColor:{value:new THREE.Color(0x0e0e0d)},offset:{value:9},exponent:{value:.68},
+      sunDir:{value:new THREE.Vector3(.4,.75,.3).normalize()},uTime:{value:0},cover:{value:.5}},
     vertexShader:'varying vec3 vWP;void main(){vec4 wp=modelMatrix*vec4(position,1.0);vWP=wp.xyz;gl_Position=projectionMatrix*viewMatrix*wp;}',
-    fragmentShader:'uniform vec3 topColor;uniform vec3 bottomColor;uniform float offset;uniform float exponent;varying vec3 vWP;void main(){float h=normalize(vWP+vec3(0.0,offset,0.0)).y;gl_FragColor=vec4(mix(bottomColor,topColor,max(pow(max(h,0.0),exponent),0.0)),1.0);}',
+    fragmentShader:[
+      'uniform vec3 topColor;uniform vec3 bottomColor;uniform float offset;uniform float exponent;uniform vec3 sunDir;uniform float uTime;uniform float cover;varying vec3 vWP;',
+      'float hsh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
+      'float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh(i),hsh(i+vec2(1,0)),f.x),mix(hsh(i+vec2(0,1)),hsh(i+vec2(1,1)),f.x),f.y);}',
+      'float fbm(vec2 p){float a=.5,s=0.0;for(int i=0;i<5;i++){s+=a*vn(p);p=p*2.03+vec2(17.1,9.3);a*=.5;}return s;}',
+      'void main(){vec3 d=normalize(vWP-cameraPosition);float h=d.y;',
+      ' vec3 col=mix(bottomColor,topColor,pow(max(h+.04,0.0),exponent));',
+      ' float lum=dot(topColor,vec3(.3,.59,.11)),day=clamp(lum*3.2-.15,0.0,1.0);',
+      ' vec3 haze=mix(bottomColor,vec3(.86,.89,.93),.55*day);col=mix(col,haze,exp(-max(h,0.0)*9.0)*.75);',
+      ' float sd=max(dot(d,normalize(sunDir)),0.0);col+=vec3(1.0,.86,.62)*(pow(sd,8.0)*.22+pow(sd,180.0)*.9)*day;',
+      ' if(h>0.0){vec2 uv=d.xz/(h+.12)*1.6+vec2(uTime*.006,uTime*.0025);float n=fbm(uv),c=smoothstep(cover,cover+.28,n)*smoothstep(0.0,.18,h);',
+      '  float shade=fbm(uv+normalize(sunDir.xz+vec2(.001))*.08);vec3 cc=mix(vec3(.62,.66,.72),vec3(1.0,.99,.97),clamp(.5+(n-shade)*5.0,0.0,1.0));',
+      '  cc=mix(bottomColor*1.4+vec3(.03),cc,day)+vec3(1.0,.8,.55)*pow(sd,6.0)*.25*day;col=mix(col,cc,c*.92);}',
+      ' gl_FragColor=vec4(col,1.0);}'].join('\n'),
     side:THREE.BackSide,fog:false,depthWrite:false});
   const sky=new THREE.Mesh(new THREE.SphereGeometry(280,20,14),skyMat);S.add(sky);
   const sunTexC=document.createElement('canvas');sunTexC.width=sunTexC.height=128;
@@ -1326,7 +1343,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const CLOUDM=new THREE.SpriteMaterial({transparent:true,opacity:.8,fog:false,depthWrite:false});
   const CLOUD=new THREE.Group();S.add(CLOUD);{const c=document.createElement('canvas');c.width=256;c.height=128;const x=c.getContext('2d');
     for(let i=0;i<14;i++){const px=40+Math.random()*176,py=52+Math.random()*36,r=20+Math.random()*28,g=x.createRadialGradient(px,py,2,px,py,r);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,256,128)}
-    CLOUDM.map=new THREE.CanvasTexture(c);
+    CLOUDM.map=new THREE.CanvasTexture(c);CLOUD.visible=false;   // the sky shader draws the clouds now; these flat sprites read as stickers
+
     for(let i=0;i<(LOW?8:16);i++){const s=new THREE.Sprite(CLOUDM),sc=50+Math.random()*50;s.scale.set(sc,sc*.45,1);s.position.set((Math.random()-.5)*400,90+Math.random()*25,(Math.random()-.5)*300);CLOUD.add(s)}}
   /* --- the view from the peak: low cloud banks on the mountain flanks, three little villages whose windows light up at
      night, and birds wheeling round the summit --- */
@@ -2437,6 +2455,7 @@ t.bd.position.set(x,y+.86,z);
     groundM.color.setHex(wx.ground);leafM.color.setHex(wx.leaf);waterM.color.setHex(wx.water);
     terrainM.color.setRGB(wx.terr[0],wx.terr[1],wx.terr[2]);
     skyMat.uniforms.topColor.value.setHex(wx.skyTop);skyMat.uniforms.bottomColor.value.setHex(wx.skyBottom);
+    skyMat.uniforms.cover.value=({rain:.22,overcast:.18,snow:.25,fog:.3,sunset:.5,dusk:.52,night:.55,autumn:.42})[wx.id]??.56;   // clear days: scattered fair-weather cloud
     starMat.uniforms.uOpacity.value=wx.star;moon.material.opacity=Math.min(1,wx.star*1.35);
     sunSprite.material.color.setHex(wx.sun);sunSprite.material.opacity=wx.sunA;dustMat.opacity=wx.dust;
     if(full||ridgeN++%6===0)ridgeTint(wx.ridge);
@@ -6627,7 +6646,7 @@ const PLANETS={
      const a=Math.round((p.x*r.x+p.y*r.y+p.z*r.z)/tx)*tx,b=Math.round((p.x*u.x+p.y*u.y+p.z*u.z)/tx)*tx,c=p.x*d.x+p.y*d.y+p.z*d.z;
      sun.target.position.set(r.x*a+u.x*b+d.x*c,r.y*a+u.y*b+d.y*c,r.z*a+u.z*b+d.z*c);
      sun.position.copy(sun.target.position).add(sunOff)}
-    sky.position.copy(C.position);stars.position.copy(C.position);stars.rotation.y+=dt*.0015;
+    sky.position.copy(C.position);skyMat.uniforms.uTime.value+=dt;skyMat.uniforms.sunDir.value.copy(sun.position).sub(sun.target.position).normalize();stars.position.copy(C.position);stars.rotation.y+=dt*.0015;
     /* ---------- night sky: twinkle, moon, the odd shooting star ---------- */
     starMat.uniforms.uTime.value+=dt;
     moon.position.copy(C.position).addScaledVector(MOON_DIR,250);
@@ -7341,7 +7360,7 @@ const PLANETS={
       const sd0=((+seed||0)%97+97)%97,concFrac=(venue&&venue.f1)?.85:.7,TKN=DSN+1,tightA=new Float32Array(TKN),outSideA=new Int8Array(TKN),thw=Math.max(2,Math.round(DSN*18/TL));
       for(let i=0;i<TKN;i++){const a=curve.getTangentAt((((i-thw)/DSN)%1+1)%1),b=curve.getTangentAt((((i+thw)/DSN)%1+1)%1),la=Math.hypot(a.x,a.z)||1,lb=Math.hypot(b.x,b.z)||1;
         tightA[i]=Math.acos(Math.max(-1,Math.min(1,(a.x*b.x+a.z*b.z)/(la*lb))));outSideA[i]=(a.x*b.z-a.z*b.x)>0?-1:1}
-      const wPos=[],wUv=[],wIdx=[],wS=[0,0],gPos=[],gUv=[],gIdx=[];
+      const wPos=[],wUv=[],wIdx=[],wS=[0,0],gPos=[],gUv=[],gIdx=[],fPos=[],fUv=[],fIdx=[],FENCE=!!(venue&&venue.f1)&&!LOW;   // F1: debris (catch) fence above the walls
       const wallM=M(0xffffff,{roughness:.8,side:THREE.DoubleSide});wallM.map=wallTex(railOf(theme));ownedMats.push(wallM);
       const gravM=M(0xffffff,{roughness:1});gravM.map=gravelTex();ownedMats.push(gravM);
       const tyreCap=LOW?300:800,tyreM=M(0xffffff,{roughness:.95});ownedMats.push(tyreM);
@@ -7380,7 +7399,9 @@ const PLANETS={
               const a0x=P0.x-ux*.15,a0z=P0.z-uz*.15,a1x=P1.x+ux*.15,a1z=P1.z+uz*.15,T=.35,H=1.05,b0=Math.max(l0,h0-1.5)-.05,b1=Math.max(l1,h1-1.5)-.05,t0=h0+H,t1=h1+H,
                 si=side>0?1:0,flip=(uz*oX-ux*oZ)<=0?-1:1,su=wS[si]/16*flip,eu=(wS[si]+L)/16*flip,vb=wPos.length/3;wS[si]+=L;
               wPos.push(a0x,b0,a0z,a1x,b1,a1z,a1x,t1,a1z,a0x,t0,a0z,a0x,t0,a0z,a1x,t1,a1z,a1x+oX*T,t1,a1z+oZ*T,a0x+oX*T,t0,a0z+oZ*T);
-              wUv.push(su,.02,eu,.02,eu,.94,su,.94,su,.97,eu,.97,eu,.97,su,.97);wIdx.push(vb,vb+1,vb+2,vb,vb+2,vb+3,vb+4,vb+5,vb+6,vb+4,vb+6,vb+7)}}
+              wUv.push(su,.02,eu,.02,eu,.94,su,.94,su,.97,eu,.97,eu,.97,su,.97);wIdx.push(vb,vb+1,vb+2,vb,vb+2,vb+3,vb+4,vb+5,vb+6,vb+4,vb+6,vb+7);
+              if(FENCE){const FH=3.6,fb=fPos.length/3,cx0=a0x+oX*T*.5,cz0=a0z+oZ*T*.5,cx1=a1x+oX*T*.5,cz1=a1z+oZ*T*.5,fu0=(wS[si]-L)/2.2,fu1=wS[si]/2.2;
+                fPos.push(cx0,t0,cz0,cx1,t1,cz1,cx1,t1+FH,cz1,cx0,t0+FH,cz0);fUv.push(fu0,0,fu1,0,fu1,1,fu0,1);fIdx.push(fb,fb+1,fb+2,fb,fb+2,fb+3)}}}
           else if(lf<=.22&&nr<railIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,CIRC_Y+.66+vis,z);mx.compose(pp,q,sc);railIM.setMatrixAt(nr,mx);sc.set(1,1,1);pp.set(x,CIRC_Y+.4+vis,z);mx.compose(pp,q,sc);postIM.setMatrixAt(nr,mx);nr++}
           else if(lf>.22&&nb<bRailIM.instanceMatrix.count){sc.set(1,1,(L+.3)/(segL+.15));pp.set(x,ry+.66,z);mx.compose(pp,q,sc);bRailIM.setMatrixAt(nb,mx);sc.set(1,1,1);pp.set(x,ry+.4,z);mx.compose(pp,q,sc);bPostIM.setMatrixAt(nb,mx);nb++;bRailIM.count=bPostIM.count=nb;bRailIM.instanceMatrix.needsUpdate=bPostIM.instanceMatrix.needsUpdate=true}};
         /* a piece runs on until it is 24 m long or the barrier line bends away from it by more than ~0.35 m: one box
@@ -7400,6 +7421,13 @@ const PLANETS={
         const o=new THREE.Mesh(g,m);o.receiveShadow=true;o.userData.fixedY=o.userData.onTrack=true;root.add(o);return o};
       if(wIdx.length)flatMesh(wPos,wUv,wIdx,wallM);
       if(gIdx.length)flatMesh(gPos,gUv,gIdx,gravM);
+      if(fIdx.length){   // catch fence: diamond mesh with a top cable and a post every panel, alpha-tested so it casts lacy shadows
+        const c=document.createElement('canvas');c.width=128;c.height=256;const x=c.getContext('2d');x.strokeStyle='rgba(190,195,200,.8)';x.lineWidth=1.1;
+        for(let k=-16;k<32;k++){x.beginPath();x.moveTo(k*8,0);x.lineTo(k*8+256,256);x.stroke();x.beginPath();x.moveTo(k*8,256);x.lineTo(k*8+256,0);x.stroke()}
+        x.fillStyle='#5e6268';x.fillRect(0,0,128,6);x.fillRect(0,0,7,256);x.fillRect(0,250,128,6);
+        const ft=new THREE.CanvasTexture(c);ft.wrapS=THREE.RepeatWrapping;ft.anisotropy=4;
+        const fm=M(0xffffff,{roughness:.6,metalness:.5,side:THREE.DoubleSide,transparent:false});fm.map=ft;fm.alphaTest=.35;ownedMats.push(fm);
+        const fo=flatMesh(fPos,fUv,fIdx,fm);fo.name='catch-fence';fo.castShadow=false}
       if(tn){tyreIM.count=tn;tyreIM.instanceMatrix.needsUpdate=true;if(tyreIM.instanceColor)tyreIM.instanceColor.needsUpdate=true;root.add(tyreIM)}
       /* run-off tarmac out to the barrier and a mown verge beyond it, one ribbon round the lap (skipped on raised sections) */
       {const HW=CIRC_W/2+BARRIER_OFF+3.4,RV=Math.max(CN,Math.min(1600,Math.round(TL/2.5))),vp=[],vu=[],vi=[],rv=TL/16,bk=.7/(2*HW),vm=M(0xffffff,{roughness:1});
@@ -8131,12 +8159,13 @@ const PLANETS={
     function start(n,opts){
       opts=opts||{};clear();if(!circuit||!window.RaceEngine)return;curvature();laps=window.RaceEngine.totalLaps||3;
       const Cc=circuit,L=Cc.curve.getLength(),W=CIRC_W;
+      const nameOff=Math.floor(Math.random()*NAMES.length);   // one offset for the field: every rival a different name
       for(let i=0;i<n;i++){const j=i+1,back=6+j*7.5,lane=(j%2===0?1:-1)*W*.28;
         const LV=opts.liveries&&opts.liveries[i%opts.liveries.length];   // F1 circuits: a real-looking F1 car in its team's livery (assets/f1car.js)
         const car=LV&&window.F1Car?F1Car.build({primary:LV[0],secondary:LV[1],accent:LV[2],zf:1.8,zb:-1.75,compound:['soft','medium','hard'][i%3]}):buildCar({paint:opts.colors?opts.colors[i%opts.colors.length]:PAINT[i%PAINT.length],r:.42,zf:1.3,zb:-1.3,F:2.05,B:-2.05,W:2,xw:.84,ww:.3,wagon:false,wheels:true});
         car.g.rotation.order='YXZ';car.g.traverse(o=>{o.userData.onTrack=true;o.userData.fixedY=true});Cc.root.add(car.g);   // rivals drive ON the road: the venue's clearance pass must not hide them
         const bd=new CANNON.Body({mass:0,type:CANNON.Body.KINEMATIC,material:oM});bd.addShape(new CANNON.Box(new CANNON.Vec3(.95,.62,2.05)));world.addBody(bd);
-        cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:(opts.top||V.max)*(opts.skills?opts.skills[i%opts.skills.length]:opts.skill!=null?opts.skill-(i%4)*.01:SKILL[i%SKILL.length]),sk:opts.skills?opts.skills[i%opts.skills.length]:opts.skill||.9,agg:.75+Math.random()*.5,react:.12+Math.random()*.35,ph:Math.random()*6.28,boostT:0,slip:0,err:0,pu:0,name:opts.names?opts.names[i%opts.names.length]:NAMES[(i+Math.floor(Math.random()*3))%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null,col:LV?LV[0]:opts.colors?opts.colors[i%opts.colors.length]:PAINT[i%PAINT.length]})}
+        cars.push({car,bd,u:((1-back/L)%1+1)%1,prog:-back/L,lane,lane0:lane,laneT:lane,spd:0,vmax:(opts.top||V.max)*(opts.skills?opts.skills[i%opts.skills.length]:opts.skill!=null?opts.skill-(i%4)*.01:SKILL[i%SKILL.length]),sk:opts.skills?opts.skills[i%opts.skills.length]:opts.skill||.9,agg:.75+Math.random()*.5,react:.12+Math.random()*.35,ph:Math.random()*6.28,boostT:0,slip:0,err:0,pu:0,name:opts.names?opts.names[i%opts.names.length]:NAMES[(i+nameOff)%NAMES.length],fin:0,pv:0,dive:0,wa:0,py:null,col:LV?LV[0]:opts.colors?opts.colors[i%opts.colors.length]:PAINT[i%PAINT.length]})}
       pIdx=-1;on=true;place(0)}
     function playerProg(){const RE=window.RaceEngine,T=RE.checkpoints.length||16,co=(RE.currentLap-1)+Math.max(0,RE.currentCheckpoint-1)/T;
       /* the checkpoints only count every ~1/15 lap, so a rival alongside flickered ahead and behind: refine with where on the lap you actually are */

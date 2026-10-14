@@ -141,24 +141,40 @@
     var pierW = function () { return 7; }; pierW.skip = 1;
     ribbons(R.p, pierW, function (x, z) { return R.sea != null ? Math.max(Y0 + R.sea + 1.6, ground(x, z) + .3) : ground(x, z) + .3; }, 0x9a958a, 'real-piers');
 
-    // ---------- trees in the real woods and parks: one instanced set per ~300 m chunk, culled off screen ----------
+    // ---------- trees in the real woods and parks: broadleaf (lumpy two-blob crowns) and conifers (stacked tiers),
+    //            one instanced set of each per ~300 m chunk, culled off screen ----------
     (function () {
       var Tt = R.t, cnt = Math.min(Tt.length / 3, low ? 1500 : 4000); if (!cnt) return;
-      var crownM = new T.MeshStandardMaterial({ color: 0xffffff, roughness: .9, flatShading: true }), trunkM = new T.MeshLambertMaterial({ color: 0x5a4632 }); ctx.own(crownM); ctx.own(trunkM);
-      var cone = new T.ConeGeometry(1, 1, 5).translate(0, .5, 0), cyl = new T.CylinderGeometry(.12, .16, 1, 3).translate(0, .5, 0);
+      var crownM = new T.MeshStandardMaterial({ color: 0xffffff, roughness: .95, flatShading: true }), trunkM = new T.MeshLambertMaterial({ color: 0x4a3a2a }); ctx.own(crownM); ctx.own(trunkM);
+      // broadleaf crown: two jittered icosahedra, merged (40 triangles), base at y = 0, about 1 wide and 1 tall
+      var blob = (function () { var out = [], sd = 3, r = function () { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+        [[0, .52, 0, .5, .48], [.22, .7, .12, .36, .34]].forEach(function (b) { var g = new T.IcosahedronGeometry(1, 0).toNonIndexed(), a = g.attributes.position.array, jit = {};
+          for (var i = 0; i < a.length; i += 3) { var key = a[i].toFixed(3) + a[i + 1].toFixed(3) + a[i + 2].toFixed(3), j = jit[key] || (jit[key] = .82 + r() * .3);
+            out.push(b[0] + a[i] * b[3] * j, b[1] + a[i + 1] * b[4] * j, b[2] + a[i + 2] * b[3] * j); } });
+        var g2 = new T.BufferGeometry(); g2.setAttribute('position', new T.Float32BufferAttribute(out, 3)); g2.computeVertexNormals(); return g2; })();
+      // conifer: two stacked six-sided tiers
+      var pine = (function () { var a = new T.ConeGeometry(.5, .62, 6).translate(0, .31, 0).toNonIndexed(), b = new T.ConeGeometry(.36, .5, 6).translate(0, .75, 0).toNonIndexed(), out = [];
+        [a, b].forEach(function (g) { var p = g.attributes.position.array; for (var i = 0; i < p.length; i++) out.push(p[i]); });
+        var g3 = new T.BufferGeometry(); g3.setAttribute('position', new T.Float32BufferAttribute(out, 3)); g3.computeVertexNormals(); return g3; })();
+      var cyl = new T.CylinderGeometry(.1, .16, 1, 5).translate(0, .5, 0);
       var M4 = new T.Matrix4(), Q = new T.Quaternion(), P = new T.Vector3(), Sx = new T.Vector3(), c = new T.Color(), up = new T.Vector3(0, 1, 0), seed = 11, CH = 300, groups = {};
       var rnd = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
       for (var i = 0; i < cnt; i++) { var x = ox + Tt[i * 3] / 10, z = oz + Tt[i * 3 + 1] / 10, k = Math.floor(x / CH) + ',' + Math.floor(z / CH); (groups[k] || (groups[k] = [])).push(i); }
-      Object.keys(groups).forEach(function (k) { var L = groups[k], n = L.length, gc = cone.clone(), gt = cyl.clone();
-        var crown = new T.InstancedMesh(gc, crownM, n), trunk = new T.InstancedMesh(gt, trunkM, n), lo = new T.Vector3(1e9, 1e9, 1e9), hi = new T.Vector3(-1e9, -1e9, -1e9);
-        L.forEach(function (i, j) { var x = ox + Tt[i * 3] / 10, z = oz + Tt[i * 3 + 1] / 10, h = Tt[i * 3 + 2] / 10, y = ground(x, z) - .2, round = rnd() < .45;
-          P.set(x, y + h * .28, z); Sx.set(h * (round ? .34 : .27), h * .78, h * (round ? .34 : .27)); Q.setFromAxisAngle(up, rnd() * 6.28); M4.compose(P, Q, Sx); crown.setMatrixAt(j, M4);
-          c.setHSL(.26 + rnd() * .08, .42 + rnd() * .2, .2 + rnd() * .12); crown.setColorAt(j, c);
-          P.set(x, y, z); Sx.set(h * .1, h * .32, h * .1); M4.compose(P, Q, Sx); trunk.setMatrixAt(j, M4);
+      Object.keys(groups).forEach(function (k) { var L = groups[k], kinds = L.map(function () { return rnd() < .3 ? 1 : 0; }), nB = 0, nP = 0;
+        kinds.forEach(function (q) { if (q) nP++; else nB++; });
+        var gb = blob.clone(), gp = pine.clone(), gt = cyl.clone(), crownB = new T.InstancedMesh(gb, crownM, Math.max(1, nB)), crownP = new T.InstancedMesh(gp, crownM, Math.max(1, nP)), trunk = new T.InstancedMesh(gt, trunkM, L.length);
+        var lo = new T.Vector3(1e9, 1e9, 1e9), hi = new T.Vector3(-1e9, -1e9, -1e9), jb = 0, jp = 0;
+        L.forEach(function (i, j) { var x = ox + Tt[i * 3] / 10, z = oz + Tt[i * 3 + 1] / 10, h = Tt[i * 3 + 2] / 10, y = ground(x, z) - .2, isP = kinds[j];
+          Q.setFromAxisAngle(up, rnd() * 6.28);
+          if (isP) { P.set(x, y + h * .18, z); Sx.set(h * .42, h * .86, h * .42); M4.compose(P, Q, Sx); crownP.setMatrixAt(jp, M4); c.setHSL(.33 + rnd() * .06, .28 + rnd() * .14, .12 + rnd() * .07); crownP.setColorAt(jp++, c); }
+          else { var w = .55 + rnd() * .25; P.set(x, y + h * .3, z); Sx.set(h * w, h * .74, h * w); M4.compose(P, Q, Sx); crownB.setMatrixAt(jb, M4); c.setHSL(.2 + rnd() * .1, .3 + rnd() * .18, .15 + rnd() * .1); crownB.setColorAt(jb++, c); }
+          P.set(x, y, z); Sx.set(h * .08, h * .36, h * .08); M4.compose(P, Q, Sx); trunk.setMatrixAt(j, M4);
           lo.min(new T.Vector3(x, y, z)); hi.max(new T.Vector3(x, y + h * 1.1, z)); });
-        // bounds of the whole chunk, so culling works on the instances rather than on one small cone at the origin
-        var sph = new T.Sphere(); new T.Box3(lo, hi).getBoundingSphere(sph); sph.radius += 12; gc.boundingSphere = sph; gt.boundingSphere = sph.clone();
-        crown.castShadow = trunk.castShadow = false; crown.name = 'real-trees'; add(crown); add(trunk); });
+        crownB.count = jb; crownP.count = jp;
+        // bounds of the whole chunk, so culling works on the instances rather than on one small mesh at the origin
+        var sph = new T.Sphere(); new T.Box3(lo, hi).getBoundingSphere(sph); sph.radius += 12; gb.boundingSphere = sph; gp.boundingSphere = sph.clone(); gt.boundingSphere = sph.clone();
+        crownB.castShadow = crownP.castShadow = trunk.castShadow = false; crownB.name = crownP.name = 'real-trees';
+        if (jb) add(crownB); if (jp) add(crownP); add(trunk); });
       made.trees = cnt;
     })();
     return made;
