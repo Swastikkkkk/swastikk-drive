@@ -6992,7 +6992,7 @@ const PLANETS={
        across the crossing (long enough to clear the lower road's barriers at that angle) with ~11% ramps
        either side. The terrain and the lower road keep the un-lifted heights; the bridge gets its own
        deck, pillars, rails and collision, built further down. liftAt(u) is the lift at arc position u. */
-    const BRIDGES=[];let BH=7.5;
+    const BRIDGES=[],DIVIDERS=[];let BH=7.5;
     if(venue.f1){   // real circuits: the researched crossing (Suzuka) as a single flyover
     {const base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5),BL=base.getLength(),K=Math.max(120,Math.min(1600,Math.round(BL/3)));
      const P=[];for(let k=0;k<K;k++){const q=base.getPointAt(k/K);P.push([q.x,q.z])}
@@ -7036,20 +7036,41 @@ const PLANETS={
      var liftAt=u=>{if(!BRIDGES.length)return 0;u=((u%1)+1)%1;let m=0;for(const B of BRIDGES){const d=arc(u,B.u);m=Math.max(m,d<B.flat?B.h:d<B.flat+B.ramp?B.h*SM(1-(d-B.flat)/B.ramp):0)}return m}}
     }else{
     /* drawn tracks: any two parts of the lap that come closer than the road and its barriers (a crossing, a parallel
-       overlap, circles drawn on top of each other) are stacked at least 10 m apart. The later pass goes over, so
+       overlap, circles drawn on top of each other) are stacked at least 20 m apart (road to road). The later pass goes over, so
        repeated loops climb as a spiral and come back down on gentle ramps (10 %, steeper only if the drawing is
        very tight); the start straight stays on the ground. The lift is one smooth profile round the lap, and every
        lifted stretch becomes a bridge (deck, piers, parapets) with liftAt(u) as its height. */
-     BH=10;
-     const base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5),BL=base.getLength(),K=Math.max(160,Math.min(2400,Math.round(BL/2.5))),ds=BL/K;
+     BH=20;
+     let base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5),BL=base.getLength();const K=Math.max(160,Math.min(2400,Math.round(BL/2.5)));let ds=BL/K;
      const P=[],Y=[];for(let k=0;k<K;k++){const q=base.getPointAt(k/K);P.push([q.x,q.z]);Y.push(q.y)}
      const D=CIRC_W+2*BARRIER_OFF+3,gapArc=Math.max(D*3,CIRC_W*3+30),G=new Map(),key=(x,z)=>(Math.floor(x/D)+4096)*8192+Math.floor(z/D)+4096;
-     for(let k=0;k<K;k++){const c=key(P[k][0],P[k][1]);let L=G.get(c);if(!L)G.set(c,L=[]);L.push(k)}
+     /* side by side: two stretches drawn next to each other, running the same way or opposite ways, are eased apart until
+        they sit edge to edge with a concrete divider between them, instead of being stacked into a tower. Only real
+        crossings (and stretches drawn right on top of each other) are left for the flyovers. */
      const nearStart=k=>Math.min(k,K-k)*ds<70,pairs=[];
-     for(let i=0;i<K&&pairs.length<60000;i++){const gx=Math.floor(P[i][0]/D),gz=Math.floor(P[i][1]/D);
+     const SEP=CIRC_W+1.8,tanAt=k=>{const a=P[(k-3+K)%K],b=P[(k+3)%K],dx=b[0]-a[0],dz=b[1]-a[1],l=Math.hypot(dx,dz)||1;return [dx/l,dz/l]},
+       parl=(i,j)=>{const a=tanAt(i),b=tanAt(j);return Math.abs(a[0]*b[0]+a[1]*b[1])>.93};
+     {let moved=false;const SK=v=>Math.floor(v/SEP);
+      for(let it=0;it<24;it++){const G2=new Map();for(let k=0;k<K;k++){const c=(SK(P[k][0])+4096)*8192+SK(P[k][1])+4096;let L=G2.get(c);if(!L)G2.set(c,L=[]);L.push(k)}
+        const OX=new Float32Array(K),OZ=new Float32Array(K);let any=0;
+        for(let i=0;i<K;i++){const gx=SK(P[i][0]),gz=SK(P[i][1]);
+          for(let a2=-1;a2<=1;a2++)for(let b2=-1;b2<=1;b2++){const L=G2.get((gx+a2+4096)*8192+gz+b2+4096);if(!L)continue;
+            for(const j of L){if(j===i)continue;const da=Math.min(Math.abs(j-i),K-Math.abs(j-i))*ds;if(da<gapArc)continue;
+              const dx=P[i][0]-P[j][0],dz=P[i][1]-P[j][1],d=Math.hypot(dx,dz);if(d>=SEP-.05||d<CIRC_W*.3)continue;if(!parl(i,j))continue;
+              const f=(SEP-d)*.45/d;OX[i]+=dx*f;OZ[i]+=dz*f;any++}}}
+        if(!any)break;moved=true;
+        for(let pass=0;pass<2;pass++){const r=5,TX=new Float32Array(K),TZ=new Float32Array(K);for(let k=0;k<K;k++){let sx=0,sz=0,w=0;for(let d=-r;d<=r;d++){const q=(k+d+K)%K,ww=r+1-Math.abs(d);sx+=OX[q]*ww;sz+=OZ[q]*ww;w+=ww}TX[k]=sx/w;TZ[k]=sz/w}OX.set(TX);OZ.set(TZ)}
+        for(let k=0;k<K;k++){const m=Math.hypot(OX[k],OZ[k]),cap=Math.min(1,4/(m||1));P[k][0]+=OX[k]*cap;P[k][1]+=OZ[k]*cap}}
+      window.__sepDbg={moved,SEP,W:CIRC_W,D};
+      if(moved){pts3=P.map((q,k)=>new THREE.Vector3(q[0],Y[k],q[1]));base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);BL=base.getLength();ds=BL/K;
+        for(let k=0;k<K;k++){const q=base.getPointAt(k/K);P[k][0]=q.x;P[k][1]=q.z;Y[k]=q.y}}}
+     for(let k=0;k<K;k++){const c=key(P[k][0],P[k][1]);let L=G.get(c);if(!L)G.set(c,L=[]);L.push(k)}
+          for(let i=0;i<K&&pairs.length<60000;i++){const gx=Math.floor(P[i][0]/D),gz=Math.floor(P[i][1]/D);
        for(let a2=-1;a2<=1;a2++)for(let b2=-1;b2<=1;b2++){const L=G.get((gx+a2+4096)*8192+gz+b2+4096);if(!L)continue;
-         for(const j of L){if(j<=i)continue;const da=Math.min(j-i,K-(j-i))*ds;if(da<gapArc)continue;if(Math.hypot(P[j][0]-P[i][0],P[j][1]-P[i][1])>=D)continue;
+         for(const j of L){if(j<=i)continue;const da=Math.min(j-i,K-(j-i))*ds;if(da<gapArc)continue;const dd=Math.hypot(P[j][0]-P[i][0],P[j][1]-P[i][1]);if(dd>=D)continue;
+           if(dd>=CIRC_W+.4&&parl(i,j)){if(dd<SEP+4.5)DIVIDERS.push(i/K,j/K);continue}   // side by side: a divider, not a flyover
            pairs.push(i,j,0)}}}
+     if(window.__sepDbg){window.__sepDbg.pairs=pairs.length/3;window.__sepDbg.divs=DIVIDERS.length/2}
      /* who goes over whom: one ordering round the lap, rising from the start line to a high point and back down
         (plus the ground's own height), so the choice can never chase itself round the loop and the solver settles */
      const H=new Float32Array(K);let solved=false,best=null;
@@ -7059,16 +7080,16 @@ const PLANETS={
        for(let it=0;it<400;it++){let viol=0;
          for(let q=0;q<pairs.length;q+=3){const u=pairs[q+2],l=u===pairs[q]?pairs[q+1]:pairs[q],need=(Y[l]+H[l]+BH)-(Y[u]+H[u]);if(need>.01){H[u]+=need;viol++}}
          for(let sw=0;sw<3;sw++){for(let k=0;k<K;k++){const p0=(k-1+K)%K;if(H[k]<H[p0]-st)H[k]=H[p0]-st}for(let k=K-1;k>=0;k--){const n0=(k+1)%K;if(H[k]<H[n0]-st)H[k]=H[n0]-st}}
-         let mx=0;for(let k=0;k<K;k++)mx=Math.max(mx,H[k]);if(mx>90)return null;if(!viol)return mx}
+         let mx=0;for(let k=0;k<K;k++)mx=Math.max(mx,H[k]);if(mx>150)return null;if(!viol)return mx}
        return null};
-     if(pairs.length)for(const g of [.1,.14,.2]){for(const pk of [.5,.35,.65,.25,.75]){const mx=solve(pk,g);if(mx!=null&&(!best||mx<best.mx))best={mx,pk,g}}if(best)break}
+     if(pairs.length)for(const g of [.1,.14,.2,.26]){for(const pk of [.5,.35,.65,.25,.75]){const mx=solve(pk,g);if(mx!=null&&(!best||mx<best.mx))best={mx,pk,g}}if(best)break}
      if(best){solve(best.pk,best.g);
        // round off the foot and the top of every ramp, then make sure every gap still holds
        const r=Math.max(1,Math.round(14/ds)),S2=new Float32Array(K);for(let k=0;k<K;k++){let sm=0;for(let d=-r;d<=r;d++)sm+=H[(k+d+K)%K];S2[k]=sm/(2*r+1)}
        for(let k=0;k<K;k++)H[k]=Math.max(H[k],S2[k]);
        for(let q=0;q<pairs.length;q+=3){const u=pairs[q+2],l=u===pairs[q]?pairs[q+1]:pairs[q],need=(Y[l]+H[l]+BH)-(Y[u]+H[u]);if(need>.01)H[u]+=need}
-       solved=best.mx<=60}
-     if(pairs.length&&!solved){if(!best)H.fill(0);else for(let k=0;k<K;k++)H[k]=Math.min(H[k],60);setTimeout(()=>toastMsg('Part of this drawing is too tight to stack cleanly · spread the loops out a little'),1200)}
+       solved=best.mx<=120}
+     if(pairs.length&&!solved){if(!best)H.fill(0);else for(let k=0;k<K;k++)H[k]=Math.min(H[k],120);setTimeout(()=>toastMsg('Part of this drawing is too tight to stack cleanly · spread the loops out a little'),1200)}
      {let mn=1e9;for(let k=0;k<K;k++)mn=Math.min(mn,H[k]);if(mn>0&&mn<1e9)for(let k=0;k<K;k++)H[k]-=mn}   // the lowest point of the lap sits on the ground
      const Hat=u=>{u=((u%1)+1)%1;const f=u*K,i=Math.floor(f)%K,t=f-Math.floor(f);return H[i]*(1-t)+H[(i+1)%K]*t};
      // every lifted stretch is a bridge: centre and half-length in metres, the highest point, and a lower pass under it
@@ -7438,13 +7459,32 @@ const PLANETS={
         let prevOk=false;
         for(let i=0;i<=RV;i++){const u=i/RV,{p,n}=circAt(u,curve);if(!isFinite(p.x)||!isFinite(n.x)||!isFinite(p.z)){prevOk=false;vp.push(0,0,0,0,0,0,0,0,0,0,0,0);vu.push(0,0,0,0,0,0,0,0);continue}
           const yc=hRoad?hRoad(p.x,p.z,u):p.y,ok=liftAt(u)<.02;
-          vp.push(p.x-n.x*HW,yc-.3,p.z-n.z*HW,p.x-n.x*(HW-.7),yc+.012,p.z-n.z*(HW-.7),p.x+n.x*(HW-.7),yc+.012,p.z+n.z*(HW-.7),p.x+n.x*HW,yc-.3,p.z+n.z*HW);
+          /* stop the verge short where another stretch runs alongside (side-by-side roads with a divider): run-off painted over the neighbour's asphalt read as broken road */
+          const clip=sg=>{let t=HW;for(let tt=CIRC_W/2+.8;tt<=HW;tt+=1){const x=p.x+n.x*sg*tt,z=p.z+n.z*sg*tt;if(trackDistL(x,z,HW+6,liftAt(u))<tt-.6){t=Math.max(CIRC_W/2+.3,tt-1.2);break}}return t},HL=clip(-1),HR=clip(1);
+          vp.push(p.x-n.x*HL,yc-.3,p.z-n.z*HL,p.x-n.x*(HL-.7),yc+.012,p.z-n.z*(HL-.7),p.x+n.x*(HR-.7),yc+.012,p.z+n.z*(HR-.7),p.x+n.x*HR,yc-.3,p.z+n.z*HR);
           vu.push(0,u*rv,bk,u*rv,1-bk,u*rv,1,u*rv);
           if(i&&ok&&prevOk){const a=(i-1)*4,b=i*4;for(let k=0;k<3;k++)vi.push(a+k,a+k+1,b+k,a+k+1,b+k+1,b+k)}
           prevOk=ok}
         const vg=new THREE.BufferGeometry();vg.setAttribute('position',new THREE.Float32BufferAttribute(vp,3));vg.setAttribute('uv',new THREE.Float32BufferAttribute(vu,2));vg.setIndex(vi);vg.computeVertexNormals();
         const vmesh=new THREE.Mesh(vg,vm);vmesh.receiveShadow=true;vmesh.name='verge';vmesh.userData.fixedY=vmesh.userData.onTrack=true;root.add(vmesh)}}
     BT('barriers');
+    /* ---------- dividers: where two stretches run side by side, a concrete jersey wall down the middle ---------- */
+    if(DIVIDERS.length){const mids=[];
+      for(let q=0;q<DIVIDERS.length;q+=2){const ua=DIVIDERS[q],ub=DIVIDERS[q+1],A=circAt(ua,curve).p,B=circAt(ub,curve).p,ya=roadY(ua,A.x,A.z),yb=roadY(ub,B.x,B.z);
+        if(Math.abs(ya-yb)>.8)continue;mids.push({u:ua,x:(A.x+B.x)/2,z:(A.z+B.z)/2,y:(ya+yb)/2})}
+      mids.sort((a,b)=>a.u-b.u);
+      const divM=M(0xd9d6cf,{roughness:.85}),stripeM2=M(kerbOf(theme),{roughness:.7});ownedMats.push(divM,stripeM2);
+      const im=new THREE.InstancedMesh(new THREE.BoxGeometry(.6,1.0,1),divM,mids.length+1),im2=new THREE.InstancedMesh(new THREE.BoxGeometry(.62,.12,1),stripeM2,mids.length+1);
+      im.castShadow=!LOW;im.receiveShadow=true;let n=0;const mq=new THREE.Quaternion(),mp=new THREE.Vector3(),msc=new THREE.Vector3(),mmx=new THREE.Matrix4(),up0=new THREE.Vector3(0,1,0);
+      let run=null;const flushRun=()=>{if(run&&run.L>1){const b=new CANNON.Body({mass:0,material:barM});const dx=run.x1-run.x0,dz=run.z1-run.z0,L=Math.hypot(dx,dz);
+          b.addShape(new CANNON.Box(new CANNON.Vec3(.45,2,L/2+.3)));b.position.set((run.x0+run.x1)/2,(run.y0+run.y1)/2+.6,(run.z0+run.z1)/2);b.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),Math.atan2(dx,dz));world.addBody(b);barrierBodies.push(b)}run=null};
+      for(let k=1;k<mids.length;k++){const a=mids[k-1],b=mids[k],dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz);if(L<.2)continue;if(L>7){flushRun();continue}
+        const yaw=Math.atan2(dx,dz),y=(a.y+b.y)/2+.12;mq.setFromAxisAngle(up0,yaw);mp.set((a.x+b.x)/2,y+.5,(a.z+b.z)/2);msc.set(1,1,L+.05);mmx.compose(mp,mq,msc);im.setMatrixAt(n,mmx);
+        mp.y=y+1.03;mmx.compose(mp,mq,msc);im2.setMatrixAt(n,mmx);n++;
+        if(!run)run={x0:a.x,z0:a.z,y0:a.y,x1:b.x,z1:b.z,y1:b.y,L:0};
+        // physics in straight-ish pieces of up to ~12 m
+        const rdx=b.x-run.x0,rdz=b.z-run.z0,rl=Math.hypot(rdx,rdz);if(rl>12){flushRun();run={x0:a.x,z0:a.z,y0:a.y,x1:b.x,z1:b.z,y1:b.y,L:L}}else{run.x1=b.x;run.z1=b.z;run.y1=b.y;run.L=rl}}
+      flushRun();im.count=im2.count=n;im.instanceMatrix.needsUpdate=im2.instanceMatrix.needsUpdate=true;im.userData.fixedY=im.userData.onTrack=im2.userData.fixedY=im2.userData.onTrack=true;if(n){root.add(im,im2)}}
     /* ---------- the flyover decks: concrete slab out to the rails, pillars, and collision that follows the ramp ---------- */
     const bridgeBodies=[],UPY=new THREE.Vector3(0,1,0);
     bridgeBodies.push(...barrierBodies);   // the track-limit walls, placed at absolute heights (not settled)
@@ -7458,6 +7498,9 @@ const PLANETS={
       const off=CIRC_W/2+BARRIER_OFF,half=off+.55,STEP=2,PH=1.05,FAS=1.5,cup=new CANNON.Vec3(0,1,0);
       const baseY=(x,z)=>ELEV?groundAt(x,z):CIRC_Y,surf=u=>{const {p}=circAt(u,curve);return roadY(u,p.x,p.z)+.12};
       const overLow=(x,z,r)=>trackDistL(x,z,CIRC_W+BARRIER_OFF+10,0)<(r!=null?r:CIRC_W/2+BARRIER_OFF+3);
+      /* any road passing underneath at a lower level, not only the ground-level one: on a stacked drawing the middle
+         deck runs under the top one, and the top one's piers used to stand right on it */
+      const overAny=(x,z,r,lf)=>{const R2=(r!=null?r:CIRC_W/2+BARRIER_OFF+3);let hit=false;nearIdx(x,z,R2+2,i=>{if(hit||DL[i]>lf-3)return;const dx=DX[i]-x,dz=DZ[i]-z;if(dx*dx+dz*dz<R2*R2)hit=true});return hit};
       const cq=new CANNON.Quaternion(),tq=new THREE.Quaternion(),te=new THREE.Euler(0,0,0,'YXZ'),tp=new THREE.Vector3(),ts=new THREE.Vector3(),tm=new THREE.Matrix4();
       const geoOf=(pos,idx)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();return g};
       const mesh=(g,m,cast)=>{const o=new THREE.Mesh(g,m);o.castShadow=cast&&!LOW;o.receiveShadow=true;o.userData.fixedY=o.userData.onTrack=true;root.add(o);return o};
@@ -7471,7 +7514,7 @@ const PLANETS={
           tp.set(0,-.5,0).applyQuaternion(tq);b.position.set((A.x+C.x)/2+tp.x,(ya+yc)/2+tp.y,(A.z+C.z)/2+tp.z);cq.set(tq.x,tq.y,tq.z,tq.w);b.quaternion.copy(cq);world.addBody(b);bridgeBodies.push(b)}
         // rows across the structure, 2 m apart, wherever the road is lifted at all
         const R=[];for(let k=0;k<=n;k++){const u=B.u-span+k*STEP/TL,lf=liftAt(u);if(lf<.02)continue;const {p,n:nn}=circAt(u,curve),top=surf(u)-.13;
-          const sd={};for(const s of [-1,1]){const ex=p.x+nn.x*s*half,ez=p.z+nn.z*s*half,g=baseY(ex,ez);sd[s]={ex,ez,g,wall:top-g<3.6&&!overLow(ex,ez)}}
+          const sd={};for(const s of [-1,1]){const ex=p.x+nn.x*s*half,ez=p.z+nn.z*s*half,g=baseY(ex,ez);sd[s]={ex,ez,g,wall:top-g<3.6&&!overLow(ex,ez)&&!overAny(ex,ez,undefined,lf)}}
           R.push({u,lf,p,n:nn,top,sd,par:lf>.22})}
         if(R.length<2)return;
         const deck=[],di=[],side=[],si=[],under=[],ui=[],par=[],pi=[],cap=[],ci=[];
@@ -7495,11 +7538,23 @@ const PLANETS={
         // piers + crosshead where the deck is up in the air
         for(let k=4;k<R.length-4;k+=9){const r=R[k];if(r.sd[-1].wall||r.sd[1].wall)continue;const yaw=Math.atan2(r.n.z,-r.n.x),colTop=r.top-FAS;let any=false;
           for(const s of [-1,1]){const x=r.p.x+r.n.x*s*(CIRC_W/2-1.2),z=r.p.z+r.n.z*s*(CIRC_W/2-1.2),g=baseY(x,z),h=colTop-.9-g;
-            if(h<1.5||overLow(x,z,CIRC_W/2+1.6))continue;any=true;
+            if(h<1.5||overLow(x,z,CIRC_W/2+BARRIER_OFF+1)||overAny(x,z,CIRC_W/2+BARRIER_OFF+1.5,r.lf))continue;any=true;
             tp.set(x,g+h/2,z);tq.setFromAxisAngle(UPY,yaw);ts.set(1.5,h,1.5);tm.compose(tp,tq,ts);if(pn<pierIM.count)pierIM.setMatrixAt(pn++,tm);
             const pb=new CANNON.Body({mass:0,material:barM});pb.addShape(new CANNON.Box(new CANNON.Vec3(.8,h/2,.8)));pb.position.set(x,g+h/2,z);pb.quaternion.setFromAxisAngle(cup,yaw);world.addBody(pb);bridgeBodies.push(pb)}
           if(any){tp.set(r.p.x,colTop-.45,r.p.z);tq.setFromAxisAngle(UPY,yaw);ts.set(CIRC_W-.4,.9,1.9);tm.compose(tp,tq,ts);if(pn<pierIM.count)pierIM.setMatrixAt(pn++,tm)}}});
-      pierIM.count=pn;pierIM.instanceMatrix.needsUpdate=true;pierIM.userData.fixedY=pierIM.userData.onTrack=true;root.add(pierIM)}
+      pierIM.count=pn;pierIM.instanceMatrix.needsUpdate=true;pierIM.userData.fixedY=pierIM.userData.onTrack=true;root.add(pierIM);
+      /* lights, drawn not computed (no real lamps, so no cost per frame): strip lights under the deck wherever a road
+         runs beneath it, and a lamp post on the parapet every 30 m along the top */
+      {const lampM=new THREE.MeshBasicMaterial({color:0xfff0c8}),poleM2=M(0x6e7278,{roughness:.5,metalness:.6});ownedMats.push(lampM,poleM2);
+        const cap0=BRIDGES.reduce((m,B)=>m+Math.ceil((B.flat+B.ramp)*2/6)+4,0)*2+8;
+        const underIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.45,.07,1.4),lampM,cap0),headIM=new THREE.InstancedMesh(new THREE.BoxGeometry(.5,.12,.9),lampM,cap0),postIM=new THREE.InstancedMesh(new THREE.CylinderGeometry(.07,.09,1,6),poleM2,cap0);
+        let nu=0,nh=0;const qq=new THREE.Quaternion(),pp2=new THREE.Vector3(),ss=new THREE.Vector3(),mm=new THREE.Matrix4();
+        BRIDGES.forEach(B=>{const span=(B.flat+B.ramp)/TL;let k=0;
+          for(let d=-(B.flat+B.ramp);d<=B.flat+B.ramp;d+=6,k++){const u=B.u+d/TL,lf=liftAt(u);if(lf<4)continue;const {p,n:nn,tg}=circAt(u,curve),top=surf(u)-.13,yaw=Math.atan2(tg.x,tg.z);qq.setFromAxisAngle(UPY,yaw);
+            if((overLow(p.x,p.z,CIRC_W/2+3)||overAny(p.x,p.z,CIRC_W/2+3,lf))&&nu+2<=cap0)for(const s of [-1,1]){pp2.set(p.x+nn.x*s*2.6,top-FAS-.05,p.z+nn.z*s*2.6);ss.set(1,1,1);mm.compose(pp2,qq,ss);underIM.setMatrixAt(nu++,mm)}
+            if(k%5===0&&nh+1<=cap0){const s=k%10===0?1:-1,x=p.x+nn.x*s*(off+.3),z=p.z+nn.z*s*(off+.3);pp2.set(x,top+PH+3,z);ss.set(1,6,1);mm.compose(pp2,qq,ss);postIM.setMatrixAt(nh,mm);
+              pp2.set(p.x+nn.x*s*(off-.7),top+PH+6,p.z+nn.z*s*(off-.7));ss.set(1,1,1);mm.compose(pp2,qq,ss);headIM.setMatrixAt(nh++,mm)}}});
+        [underIM,headIM,postIM].forEach((o,i)=>{o.count=i?nh:nu;o.instanceMatrix.needsUpdate=true;o.castShadow=false;o.userData.fixedY=o.userData.onTrack=true;if(o.count)root.add(o)})}}
     /* ---------- tunnels and overhead structures (real circuits: Monaco's tunnel, Yas Marina's hotel, footbridges) ----------
        A tunnel is a covered stretch [u0,u1]: walls just outside the barrier line, a roof 6.5 m over the road whose shadow
        darkens the inside, warm light strips along the ceiling and a portal frame at each end. An overhead is a deck
