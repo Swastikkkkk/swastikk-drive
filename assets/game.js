@@ -1907,7 +1907,7 @@ async function submitToLeaderboard(ms,vehicle){
   const trimM=new THREE.MeshPhongMaterial({color:0x131313,specular:0x1c1c1c,shininess:18,side:THREE.DoubleSide});
   const tyreM=new THREE.MeshLambertMaterial({color:0x1c1c1c,side:THREE.DoubleSide});
   const discM=new THREE.MeshLambertMaterial({color:0x6a6966}),plateM=new THREE.MeshLambertMaterial({color:0xefece4});
-  const evGlassM=phong(0x040506,{specular:0x9a9a9a,shininess:120,reflectivity:.1});
+  const evGlassM=new THREE.MeshStandardMaterial({color:0x05080c,metalness:.35,roughness:.06,envMap:CARENV,envMapIntensity:.75});   // dark tint: the phong glass read as body-grey in the garage
   const npcHeadM=new THREE.MeshLambertMaterial({color:0xfff2c0,emissive:0xfff2c0,emissiveIntensity:1});
   /* bake a group's meshes into one mesh per material, so a car is a handful of draw calls */
    function bakeGroup(root){root.updateMatrixWorld(true);const inv=new THREE.Matrix4().copy(root.matrixWorld).invert(),byM=new Map(),kill=[],mx=new THREE.Matrix4();
