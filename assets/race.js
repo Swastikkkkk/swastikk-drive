@@ -292,7 +292,8 @@
       var t = s0 / (s0 - s1);
       var px = a.x + (b.x - a.x) * t, pz = a.z + (b.z - a.z) * t;
       var lat = Math.abs((px - cp.pos.x) * nx + (pz - cp.pos.z) * nz);
-      return lat <= cp.width * 0.6;
+      // the start/finish line also counts in the pit lane, which runs alongside the straight ~16 m out
+      return lat <= cp.width * (cp.index === 0 ? 1.15 : 0.6);
     },
 
     onLapCompleted: function(now) {

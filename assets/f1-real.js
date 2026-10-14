@@ -35,30 +35,63 @@
     var add = function (o) { o.userData.onTrack = true; return ctx.add(o); };
     var col = new T.Color(), n = 0, made = { buildings: 0, trees: 0, water: 0 };
 
-    // ---------- buildings: walls + flat roofs, merged into a few big meshes ----------
+    // ---------- buildings: textured walls + roofs, merged per ~300 m chunk; grandstands as raked, packed stands ----------
     (function () {
       /* split into ~300 m chunks: off-screen chunks are culled, and nothing here casts a shadow (a whole city in
          the shadow pass every frame was the biggest cost) */
-      var B = R.b, LIM = low ? 3500 : 1e9, CH = 300, chunks = {}, pos, clr, meshes = 0;
-      var mat = new T.MeshStandardMaterial({ vertexColors: true, roughness: .85, metalness: .05, flatShading: true,
-        emissive: night ? 0x2a2620 : ctx.dusk ? 0x141210 : 0x000000 });
+      var B = R.b, LIM = low ? 3500 : 1e9, CH = 300, chunks = {}, meshes = 0, MW = 3.2, MH = 3.4;   // one window bay is 3.2 m wide, a storey 3.4 m
+      /* facade tile: wall frame round one window (light glass by day, warm when lit at night). Roofs and blank walls sample
+         the solid frame at uv (0.04, 0.04); industrial sheds get vertical cladding by sampling only the top band */
+      function cv(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+      var fc = cv(64, 64), fx = fc.getContext('2d');
+      fx.fillStyle = '#fff'; fx.fillRect(0, 0, 64, 64);
+      fx.fillStyle = '#e6e6e6'; fx.fillRect(0, 54, 64, 10);                                     // floor band
+      fx.fillStyle = '#3b4652'; fx.fillRect(13, 14, 38, 32);                                    // glass
+      fx.fillStyle = '#5d6b78'; fx.fillRect(13, 14, 38, 6);                                     // sky in the top of the pane
+      fx.fillStyle = '#d0d0d0'; fx.fillRect(31, 14, 2, 32); fx.fillRect(13, 44, 38, 3);           // mullion, sill
+      var ftex = new T.CanvasTexture(fc); if (T.sRGBEncoding) ftex.encoding = T.sRGBEncoding; ftex.wrapS = ftex.wrapT = T.RepeatWrapping; ftex.anisotropy = 4;
+      var etex = null;
+      if (night) { var ec = cv(64, 64), ex = ec.getContext('2d'); ex.fillStyle = '#000'; ex.fillRect(0, 0, 64, 64); ex.fillStyle = '#ffcf86'; ex.fillRect(13, 14, 38, 32); etex = new T.CanvasTexture(ec); etex.wrapS = etex.wrapT = T.RepeatWrapping; }
+      var mat = new T.MeshStandardMaterial({ vertexColors: true, map: ftex, roughness: .82, metalness: .05,
+        emissive: night ? 0xffffff : ctx.dusk ? 0x141210 : 0x000000, emissiveIntensity: night ? .55 : 1, emissiveMap: etex });
       ctx.own(mat);
-      function flush(c) { if (!c.pos.length) return; var g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(c.pos, 3)); g.setAttribute('color', new T.Float32BufferAttribute(c.clr, 3)); g.computeVertexNormals(); g.computeBoundingSphere();
-        var m = new T.Mesh(g, mat); m.castShadow = false; m.receiveShadow = !low; m.name = 'real-buildings'; add(m); meshes++; }
+      /* the crowd on a raked stand: rows of seats in team colours with people in them, mapped one seat row per 0.8 m */
+      var sc = cv(128, 128), sx = sc.getContext('2d'), CC = ['#e4572e', '#f3a712', '#e9e6dc', '#2f6f9e', '#3f8a56', '#b8322f', '#5c4b8a', '#e0bd58', '#ff8000', '#27f4d2', '#dc0000', '#1e41ff'];
+      sx.fillStyle = '#2a2d33'; sx.fillRect(0, 0, 128, 128);
+      for (var ry = 0; ry < 16; ry++) { sx.fillStyle = ry % 2 ? '#3a3f47' : '#454b54'; sx.fillRect(0, ry * 8 + 6, 128, 2);
+        for (var rx = 0; rx < 32; rx++) { var sd = Math.sin(ry * 91.7 + rx * 13.3) * 43758.5, rr = sd - Math.floor(sd); if (rr < .18) continue;
+          sx.fillStyle = CC[Math.floor(rr * 997) % CC.length]; sx.fillRect(rx * 4, ry * 8 + 1, 3, 5); sx.fillStyle = '#c99b78'; sx.fillRect(rx * 4 + .5, ry * 8, 2, 2); } }
+      var stex = new T.CanvasTexture(sc); if (T.sRGBEncoding) stex.encoding = T.sRGBEncoding; stex.wrapS = stex.wrapT = T.RepeatWrapping; stex.anisotropy = 4;
+      var smat = new T.MeshStandardMaterial({ map: stex, roughness: .95, emissive: night ? 0x222222 : 0x000000 }); ctx.own(smat);
+      function flush(c) {
+        if (c.pos.length) { var g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(c.pos, 3)); g.setAttribute('color', new T.Float32BufferAttribute(c.clr, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(c.uv, 2)); g.computeVertexNormals(); g.computeBoundingSphere();
+          var m = new T.Mesh(g, mat); m.castShadow = false; m.receiveShadow = !low; m.name = 'real-buildings'; add(m); meshes++; }
+        if (c.spos.length) { var g2 = new T.BufferGeometry(); g2.setAttribute('position', new T.Float32BufferAttribute(c.spos, 3)); g2.setAttribute('uv', new T.Float32BufferAttribute(c.suv, 2)); g2.computeVertexNormals(); g2.computeBoundingSphere();
+          var m2 = new T.Mesh(g2, smat); m2.castShadow = false; m2.receiveShadow = !low; m2.name = 'real-stands'; add(m2); meshes++; }
+      }
       var seed = 7, rnd = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
       for (var k = 0, bi = 0; k < B.length && bi < LIM; bi++) {
         var nv = B[k], h = B[k + 1] / 10, mh = B[k + 2] / 10, cls = B[k + 3]; k += 4;
         var xs = [], zs = [], g0 = 1e9, gs = 0;
         for (var v = 0; v < nv; v++) { var x = ox + B[k] / 10, z = oz + B[k + 1] / 10; k += 2; xs.push(x); zs.push(z); var gy = ground(x, z); if (gy < g0) g0 = gy; gs += gy; }
-        var ck = Math.floor(xs[0] / CH) + ',' + Math.floor(zs[0] / CH), C = chunks[ck] || (chunks[ck] = { pos: [], clr: [] }); pos = C.pos; clr = C.clr;
-        var ga = gs / nv, bot = mh > 0 ? ga + mh : g0 - 1.2, top = ga + h;
+        var ck = Math.floor(xs[0] / CH) + ',' + Math.floor(zs[0] / CH), C = chunks[ck] || (chunks[ck] = { pos: [], clr: [], uv: [], spos: [], suv: [] }), pos = C.pos, clr = C.clr, uv = C.uv;
+        var ga = gs / nv, bot = mh > 0 ? ga + mh : g0 - 1.2;
         var pal = PAL[cls] || PAL[0]; col.setHex(h > 45 && cls !== 2 ? [0x8fa3b5, 0x9fb0bf, 0x7f93a6][bi % 3] : pal[Math.floor(rnd() * pal.length)]).multiplyScalar(.9 + rnd() * .2);
-        var wr = col.r, wg = col.g, wb = col.b, lit = night && rnd() < .55 ? 1 : 0;
-        if (lit) { wr = wr * .55 + .45; wg = wg * .55 + .38; wb = wb * .55 + .22; }   // warm lit facades at night
+        var wr = col.r, wg = col.g, wb = col.b;
+        /* a grandstand near the track: its top rakes up away from the circuit (low at the front, full height at the
+           back) and that slope is the seating, packed with spectators */
+        var stand = cls === 3 && ctx.trackDist, tops = [], dv = [], dmin = 1e9, dmax = -1e9;
+        if (stand) { for (v = 0; v < nv; v++) { var d = ctx.trackDist(xs[v], zs[v]); dv.push(d); if (d < dmin) dmin = d; if (d > dmax) dmax = d; } if (dmin > 160 || dmax - dmin < 4) stand = false; }
+        for (v = 0; v < nv; v++) tops.push(stand ? ga + Math.max(2.5, h) * (.14 + .86 * (dv[v] - dmin) / (dmax - dmin)) : ga + h);
         var ar = 0; for (v = 0; v < nv; v++) { var v2 = (v + 1) % nv; ar += xs[v] * zs[v2] - xs[v2] * zs[v]; }
+        var windows = cls === 0 || cls === 1 || (cls !== 2 && cls !== 3 && h > 6), sideU = 0;
         for (var e = 0; e < nv; e++) { var a = ar > 0 ? e : (e + 1) % nv, b = ar > 0 ? (e + 1) % nv : e;   // walls face outward
-          pos.push(xs[a], bot, zs[a], xs[b], top, zs[b], xs[b], bot, zs[b], xs[a], bot, zs[a], xs[a], top, zs[a], xs[b], top, zs[b]);
-          for (var q = 0; q < 6; q++) clr.push(wr * .92, wg * .92, wb * .92); }
+          var L = Math.hypot(xs[b] - xs[a], zs[b] - zs[a]), ua = sideU / MW, ub = (sideU + L) / MW; sideU += L;
+          var vb = (bot - ga) / MH, va = (tops[a] - ga) / MH, vt = (tops[b] - ga) / MH;
+          if (!windows) { ua = ub = .04; vb = va = vt = .04; if (cls === 2) { ua = sideU / 1.1; ub = (sideU + L) / 1.1; vb = va = vt = .93; } }   // plain, or cladding stripes
+          pos.push(xs[a], bot, zs[a], xs[b], tops[b], zs[b], xs[b], bot, zs[b], xs[a], bot, zs[a], xs[a], tops[a], zs[a], xs[b], tops[b], zs[b]);
+          uv.push(ua, vb, ub, vt, ub, vb, ua, vb, ua, va, ub, vt);
+          var sh = stand ? .62 : .92; for (var q = 0; q < 6; q++) clr.push(wr * sh, wg * sh, wb * sh); }
         var cont = []; for (v = 0; v < nv; v++) cont.push(new T.Vector2(xs[v], zs[v]));
         var tri = T.ShapeUtils.triangulateShape(cont, []);
         var rr = col.r * .78, rg = col.g * .78, rb = col.b * .8;
@@ -66,8 +99,12 @@
           // wind each roof triangle to face up
           var A = f[0], Bv = f[1], Cv = f[2], cr = (xs[Bv] - xs[A]) * (zs[Cv] - zs[A]) - (zs[Bv] - zs[A]) * (xs[Cv] - xs[A]);
           if (cr > 0) { var tmp = Bv; Bv = Cv; Cv = tmp; }
-          pos.push(xs[A], top, zs[A], xs[Bv], top, zs[Bv], xs[Cv], top, zs[Cv]); clr.push(rr, rg, rb, rr, rg, rb, rr, rg, rb); }
-        made.buildings++;
+          if (stand) {   // seating: texture rows run across the slope, so v follows distance from the track
+            C.spos.push(xs[A], tops[A], zs[A], xs[Bv], tops[Bv], zs[Bv], xs[Cv], tops[Cv], zs[Cv]);
+            [A, Bv, Cv].forEach(function (i) { C.suv.push((xs[i] + zs[i]) / 6.4, (dv[i] - dmin) / 12.8); });
+          } else { pos.push(xs[A], tops[A], zs[A], xs[Bv], tops[Bv], zs[Bv], xs[Cv], tops[Cv], zs[Cv]); clr.push(rr, rg, rb, rr, rg, rb, rr, rg, rb); uv.push(.04, .04, .04, .04, .04, .04); }
+        }
+        made.buildings++; if (stand) made.stands = (made.stands || 0) + 1;
       }
       Object.keys(chunks).forEach(function (k) { flush(chunks[k]); }); made.chunks = meshes;
     })();

@@ -6772,13 +6772,13 @@ const PLANETS={
     for(let i=0;i<D.length;i++){const d=D[i],dx=d.x-x,dz=d.z-z;if(dx*dx+dz*dz<R2&&d.y>carY+2.5&&d.y-2<c)c=d.y-2}return c}
   let circRoadM=null;
   function f1Road(){if(circRoadM)return circRoadM;const W=256,H=512,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
-    x.fillStyle='#2e2f32';x.fillRect(0,0,W,H);const im=x.getImageData(0,0,W,H),d=im.data;
+    x.fillStyle='#56585c';x.fillRect(0,0,W,H);const im=x.getImageData(0,0,W,H),d=im.data;
     for(let jj=0;jj<H;jj++)for(let ii=0;ii<W;ii++){const k=(jj*W+ii)*4,u=ii/W;
       let n=(hash2(ii*1.73+.5,jj*1.31+.5)-.5)*20+(noise2(ii*.045,jj*.045)-.5)*14+(noise2(ii*.19,jj*.19)-.5)*6;
       n-=Math.exp(-((u-.5)**2)/.02)*5;   // the racing line, a touch darker with rubber
       d[k]+=n;d[k+1]+=n;d[k+2]+=n+1}
     x.putImageData(im,0,0);x.fillStyle='rgba(240,238,232,.95)';x.fillRect(W*.012,0,W*.022,H);x.fillRect(W*(1-.012-.022),0,W*.022,H);
-    const t=new THREE.CanvasTexture(c);t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;t.__shared=true;
+    const t=new THREE.CanvasTexture(c);t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;t.__shared=true;if('encoding' in t&&THREE.sRGBEncoding)t.encoding=THREE.sRGBEncoding;   // read as sRGB: linear, the dark asphalt came out pale grey
     circRoadM=M(0xffffff,{roughness:.86});circRoadM.map=t;return circRoadM}
   /* ---------- trackside textures (small canvases, tiled; built once per circuit) ---------- */
   const hexCss=h=>'#'+new THREE.Color(h).getHexString();
@@ -6812,12 +6812,12 @@ const PLANETS={
       else{const k=.92+((Math.floor((m-edge)/1.8))%2)*.1;r=gcol.r*k;g=gcol.g*k;b=gcol.b*k;nz=.08}
       for(let j=0;j<H;j++){const n=(hash2(i*1.7,j*2.3)-.5)*nz+(noise2(i*.08,j*.12)-.5)*nz*.8,k=(j*W+i)*4;
         d[k]=Math.max(0,Math.min(255,(r+n)*255));d[k+1]=Math.max(0,Math.min(255,(g+n)*255));d[k+2]=Math.max(0,Math.min(255,(b+n)*255));d[k+3]=255}}
-    x.putImageData(im,0,0);return texFinish(c,false,true,false)}
+    x.putImageData(im,0,0);return texFinish(c,false,true,true)}
   /* gravel trap: beige grit with darker stones, tiled over ~6 m */
   function gravelTex(){const P=128,c=document.createElement('canvas');c.width=c.height=P;const x=c.getContext('2d');
     x.fillStyle='#b4a584';x.fillRect(0,0,P,P);
     for(let i=0;i<1800;i++){const v=hash2(i,1.1),s=.8+hash2(i,2.2)*1.6;x.fillStyle=v>.66?'rgba(235,225,200,.55)':v>.33?'rgba(110,98,78,.5)':'rgba(150,138,112,.5)';x.fillRect(hash2(i,3.3)*P,hash2(i,4.4)*P,s,s)}
-    return texFinish(c,true,true,false)}
+    return texFinish(c,true,true,true)}
   function circStrip(curve,Nseg,w,yo,mat,rep,hFn){const pos=[],idx=[],uv=[];
     for(let i=0;i<=Nseg;i++){const {p,n}=circAt(i/Nseg,curve),nx=n.x*w/2,nz=n.z*w/2;
       if(!isFinite(p.x)||!isFinite(p.y)||!isFinite(p.z)||!isFinite(n.x)||!isFinite(n.z)) continue;
@@ -7187,6 +7187,7 @@ const PLANETS={
         const dirt=paleTheme?0:SM((sl-.05)/.14)*.65;r=LRP(r,cdirt.r,dirt);g=LRP(g,cdirt.g,dirt);b=LRP(b,cdirt.b,dirt);
         const rock=SM((sl-.16)/.14)*.8;r=LRP(r,crock.r,rock);g=LRP(g,crock.g,rock);b=LRP(b,crock.b,rock);
         const edge=SM((CIRC_W/2+16-d)/12)*.4;r=LRP(r,crock.r*.85,edge);g=LRP(g,crock.g*.85,edge);b=LRP(b,crock.b*.85,edge);   // gravel/worn ground beside the pavement
+        if(!paleTheme&&sl<.12){const dd=DF(x,z);if(dd>CIRC_W/2+5&&dd<62){const st=(Math.floor((x*.8+z*.6)/14)&1)?1.07:.94,fade=1-SM((dd-42)/20);const f=1+(st-1)*fade*(1-dirt);r*=f;g*=f;b*=f}}   // mown stripes on the grass round the circuit
         col[k*3]=r;col[k*3+1]=g;col[k*3+2]=b;uv[k*2]=x/36;uv[k*2+1]=z/36}
       geo.setAttribute('color',new THREE.BufferAttribute(col,3));geo.setAttribute('uv',new THREE.BufferAttribute(uv,2))}
     /* One visual terrain for flat and hilly venues alike: the road-following heights (hilly) or the flat base, plus
