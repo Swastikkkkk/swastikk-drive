@@ -55,7 +55,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      V:{brake:1.0,engine:700,max:32.5,slip:2.15,xw:.95,zf:1.2,zb:-1.2,r:.4,rest:.36,steer:.6,roll:.016},
      paints:[0xb33a1e,0x14161b,0xd9d4c6,0x27476b]},
     {id:'f1apex',label:'F1 Apex',type:'f1',blurb:'Formula 1 Single-Seater',mass:135,F:2.75,B:-2.35,W:1.9,price:800,
-     V:{brake:1.5,engine:1150,max:47.5,slip:4.6,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.88,roll:.01},
+     V:{brake:1.5,engine:1700,max:72.5,slip:4.6,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.88,roll:.01},
      paints:[0xdc143c,0x1a1a2e,0xf0e68c,0x00ffff]},
     {id:'f1papaya',label:'Papaya Strike',type:'f1',blurb:'Free · lightest and quickest off the line',mass:138,F:2.75,B:-2.35,W:1.9,price:0,livery:[0x111111,0x47c7fc],
      V:{brake:1.5,engine:1200,max:47,slip:4.9,xw:.85,zf:1.75,zb:-1.75,r:.36,rest:.33,steer:.9,roll:.01},
