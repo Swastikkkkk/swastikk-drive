@@ -3639,7 +3639,7 @@ t.bd.position.set(x,y+.86,z);
         if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true);
       }else if(MODE==='circuit'||SPACE.state!=='earth')NAV.toggle();
       return
-    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyT'&&!e.repeat){radioCycle();return}if(/^Digit[1-4]$/.test(e.code)&&!e.repeat&&MP.on){MP.emote(+e.code.slice(5)-1);return}if(e.code==='KeyO'&&!e.repeat){if(window.Settings)Settings.open();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyT'&&!e.repeat){radioCycle();return}if(/^Digit[1-4]$/.test(e.code)&&!e.repeat&&MP.on){MP.emote(+e.code.slice(5)-1);return}if(e.code==='KeyO'&&!e.repeat){if(window.Settings)Settings.open();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){if(!e.repeat&&!boardEl.classList.contains('on')&&window.__restartRace&&window.__restartRace())return;boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -8342,8 +8342,11 @@ const PLANETS={
   window.__driverColors=Object.fromEntries(F1_GRID.map(d=>[d[0],teamLivery(d[1])[0]]));   // the finish screen's timing tower colours
   const GP_RIVALS=F1_GRID.length,GP_OPTS={top:41.9,names:F1_GRID.map(d=>d[0]),colors:F1_GRID.map(d=>teamLivery(d[1])[0]),liveries:F1_GRID.map(d=>teamLivery(d[1])),skills:F1_GRID.map(d=>d[2])};
   const GPCAR={prev:null};
+  const RLAST={gp:false,grid:null,story:null};
   function restartSoloRace(){
-    const gp=!!window.__f1GP;window.__f1GP=false;const grid=window.__raceGrid||null;window.__raceGrid=null;const story=window.__storyLevel||null;window.__storyLevel=null;   // story levels ask for a rival count and pace
+    const gp=!!window.__f1GP;window.__f1GP=false;const grid=window.__raceGrid||null;window.__raceGrid=null;const story=window.__storyLevel||null;window.__storyLevel=null;
+    RLAST.gp=gp;RLAST.grid=grid;RLAST.story=story;
+    NTANK.fuel=1;NTANK.lock=false;   // every race starts on a full nitro tank   // story levels ask for a rival count and pace
     /* QA fix: Story.play() sets the story's finish hook before the circuit loads and only clears it when that race finishes.
        Quitting a level to the menu and then racing anything else (daily, a drawn track, a Grand Prix) left the hook armed,
        so that other race's result awarded stars and unlocked levels for the abandoned story level. */
@@ -8374,6 +8377,21 @@ const PLANETS={
   /* live timing tower (#dpos): position, then the running order with team colours and the gap to the car ahead.
      Any race with rivals on track (Grand Prix, Story, Race) and rooms; in a 9+ car field it shows the top 3 and the cars around you. */
   if(/[?&]dbg\b/.test(location.search))window.__DBG={S,C,R,get circuit(){return circuit},get P(){return PCAR},get wv(){return wv}};
+  /* restart: the same race from the grid (Daily, a drawn track, Grand Prix, Story level). The B key or the button
+     under the menu; not in a room, where the host owns the start. */
+  window.__restartRace=()=>{try{const RE=window.RaceEngine;
+      if(MODE!=='circuit'||!circuit||!RE||(typeof MP!=='undefined'&&MP.on))return false;
+      if(!/^(racing|finished|results|countdown)$/.test(RE.state))return false;
+      try{window.RaceFinish&&RaceFinish.close&&RaceFinish.close()}catch(_){}
+      if(RLAST.story&&window.Story&&Story.play){Story.play(RLAST.story);return true}
+      window.__f1GP=RLAST.gp;window.__raceGrid=RLAST.grid;restartSoloRace();toastMsg('Restart · back to the grid');return true}catch(e){console.warn('restart failed',e);return false}};
+  {const rb=document.createElement('button');rb.id='drestart';rb.className='dbtn mono';rb.type='button';rb.textContent='↻ Restart  (B)';rb.title='Restart this race (B)';
+    rb.style.cssText='position:absolute;right:var(--gut,16px);top:calc(232px + env(safe-area-inset-top,0px));z-index:6;display:none;border-radius:999px;padding:8px 14px;font-size:10px;letter-spacing:.14em';
+    rb.addEventListener('click',e=>{e.stopPropagation();window.__restartRace();rb.blur()});
+    const host=document.getElementById('drive')||document.body;host.appendChild(rb);
+    setInterval(()=>{const RE=window.RaceEngine,on=active&&MODE==='circuit'&&!!circuit&&RE&&/^(racing|finished|results|countdown)$/.test(RE.state)&&!(typeof MP!=='undefined'&&MP.on);rb.style.display=on?'block':'none'},400);
+    /* the B key is handled with the other driving keys: in a race it restarts, otherwise it opens the lap board */
+  }
   window.__liveTower=()=>{try{let rows=null;const RE=window.RaceEngine;
       if(CAI.on)rows=CAI.order();
       else if(RE&&RE.leaderboard&&RE.leaderboard.length>1&&RE.leaderboard[0]&&RE.leaderboard[0].name)rows=RE.leaderboard.map((r,i)=>({name:r.isMe?'You':r.name,pos:r.position||i+1,me:!!r.isMe,col:(window.__driverColors&&window.__driverColors[r.name])||0x8a8f98,gap:null}));
@@ -9349,7 +9367,7 @@ updCircBtn();
       if(MODE==='circuit'&&circuit){shareVenue({pts:circuit.pts,seed:circuit.seed,scenery:circuit.theme.id,weather:circuit.venue.weather,time:circuit.venue.time,width:circuit.venue.width,elev:circuit.venue.elev,obstacles:circuit.venue.obstacles,f1:circuit.venue.f1});v=lastVenue}
       const startAt=Date.now()+CD_LEAD+1500,rid=me.id+'-'+startAt,m1={k:'race',startAt,rid,laps,v};send(m1);setTimeout(()=>send(Object.assign({},m1)),700);   // twice: a lost broadcast used to leave a friend out
       beginCountdown('You',startAt,rid,laps,null)}
-    function beginCountdown(who,startAt,rid,laps,v){
+    function beginCountdown(who,startAt,rid,laps,v){NTANK.fuel=1;NTANK.lock=false;   // full nitro for every room race
       rid=String(rid||('legacy-'+startAt));
       if(race.id===rid&&race.st>=1)return;
       if(raceMode)stopRace();
