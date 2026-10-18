@@ -12,6 +12,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       loading.classList.add('nogl-on')}
   };
   if(!window.THREE||!window.CANNON){show3DFallback();return}
+  /* setColorAt used to size the colour buffer from the count at the moment of the first call; meshes that start at
+     count 0 and fill in later got an empty buffer and were never drawn. Size it from the real capacity. */
+  {const P=THREE.InstancedMesh&&THREE.InstancedMesh.prototype;if(P&&P.setColorAt&&!P.__capColor){const o=P.setColorAt;P.__capColor=true;
+    P.setColorAt=function(i,c){if(this.instanceColor===null)this.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(this.instanceMatrix.count*3),3);return o.call(this,i,c)}}}
+  /* a dark veil over mode changes, so you never see the world half torn down or the next track half built */
+  window.__veil=(on,txt)=>{let v=document.getElementById('dveil');if(!v){v=document.createElement('div');v.id='dveil';v.innerHTML='<i></i><span></span>';document.body.appendChild(v)}
+    clearTimeout(v._t);if(on){v.querySelector('span').textContent=txt||'Loading the track';v.classList.add('on');v._t=setTimeout(()=>v.classList.remove('on'),12000);return}
+    let n=0;const f=()=>{if(++n<4)requestAnimationFrame(f);else v.classList.remove('on')};requestAnimationFrame(f)};
   try{const probe=document.createElement('canvas');if(!(probe.getContext('webgl')||probe.getContext('experimental-webgl'))){show3DFallback();return}}catch(e){show3DFallback();return}
   /* the weather turns as you go round the loop: [how far round it is (0..1), weather] */
   const ACTS=[[.008,'day'],[.075,'day'],[.145,'day'],[.215,'day'],[.295,'rain'],[.395,'dusk'],[.5,'dusk'],[.575,'day'],[.65,'dusk'],[.762,'day'],[.845,'autumn'],[.905,'autumn'],[.962,'dusk']];
@@ -7464,7 +7472,9 @@ const PLANETS={
         const ft=new THREE.CanvasTexture(c);ft.wrapS=THREE.RepeatWrapping;ft.anisotropy=4;
         const fm=M(0xffffff,{roughness:.6,metalness:.5,side:THREE.DoubleSide,transparent:false});fm.map=ft;fm.alphaTest=.35;ownedMats.push(fm);
         /* never between you and your car: on tight street circuits the chase camera swings out past the fence, so any piece within 8 m of the camera is simply not drawn */
-        fm.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('void main() {','void main() {\n if(length(vViewPosition)<8.0) discard;')};
+        fm.onBeforeCompile=sh=>{
+          sh.vertexShader=sh.vertexShader.replace('void main() {','varying float vCamD;\nvoid main() {').replace('#include <project_vertex>','#include <project_vertex>\n vCamD=length(mvPosition.xyz);');
+          sh.fragmentShader=sh.fragmentShader.replace('void main() {','varying float vCamD;\nvoid main() {\n if(vCamD<8.0) discard;')};
         const fo=flatMesh(fPos,fUv,fIdx,fm);fo.name='catch-fence';fo.castShadow=false}
       if(tn){tyreIM.count=tn;tyreIM.instanceMatrix.needsUpdate=true;if(tyreIM.instanceColor)tyreIM.instanceColor.needsUpdate=true;root.add(tyreIM)}
       /* run-off tarmac out to the barrier and a mown verge beyond it, one ribbon round the lap (skipped on raised sections) */
@@ -7749,7 +7759,7 @@ const PLANETS={
       root.add(pitRoot);
       // the gantry: square across the road AT the line, legs outside the barriers, a truss over the full width
       const gantry=new THREE.Group();gantry.position.set(S0.p.x,CIRC_Y+S0.y,S0.p.z);gantry.rotation.y=S0.yaw;gantry.userData.onTrack=true;
-      const span=CIRC_W/2+BARRIER_OFF+1.8,H=7.2,steel=M(0x2a2d33,{roughness:.5}),accent=M(theme.standTrim,{roughness:.55});ownedMats.push(steel,accent);
+      const span=CIRC_W/2+BARRIER_OFF+1.8,H=10.5,steel=M(0x2a2d33,{roughness:.5}),accent=M(theme.standTrim,{roughness:.55});ownedMats.push(steel,accent);
       [-1,1].forEach(sd=>{const leg=new THREE.Mesh(new THREE.BoxGeometry(1.1,H+1.6,1.1),steel);leg.position.set(sd*span,(H+1.6)/2,0);leg.castShadow=!LOW;leg.userData.solid=true;gantry.add(leg);
         const foot=new THREE.Mesh(new THREE.BoxGeometry(1.8,.5,1.8),accent);foot.position.set(sd*span,.25,0);gantry.add(foot);
         // a flag on top of each leg
@@ -8179,6 +8189,7 @@ const PLANETS={
      is entered or left; the next Grand Prix start caps again. */
   function gpUncap(){if(V.__base){if(V.__base.id===curCarId){V.max=V.__base.max;V.nb=V.__base.nb}V.__base=null}}
   function enterCircuit(){if(!circuit)return;
+    if(window.__veil)window.__veil(false);
     gpUncap();
     /* the valley's state (where the car was, its fog, its gravity) is saved only when we come FROM the valley. Going
        from one track straight to another (a multiplayer host switching venues, daily after a drawn track) used to save
@@ -8466,8 +8477,12 @@ const PLANETS={
       toastMsg(c.name+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns'+(RW?' · map data © OpenStreetMap contributors':''));
       try{if(o.share!==false&&MP&&MP.shareVenue)MP.shareVenue({pts,seed:seedOf(c.id),scenery:theme.id,weather:'day',time,width:venue.width,elev:venue.elev,f1:c.id})}catch(e){}
       if(o.race!==false)restartSoloRace();return true}
-    function ready(id,fn){if(!window.F1Real||F1Real.get(id)){fn();return}let done=false;const t=setTimeout(()=>{if(!done)try{toastMsg('Loading the real surroundings…')}catch(_){}},250);
-      F1Real.load(id).then(()=>{done=true;clearTimeout(t);fn()})}
+    function ready(id,fn){if(!window.F1Real||F1Real.get(id)){fn();return}let done=false;
+      if(window.__veil)window.__veil(true,'Loading the circuit');
+      const once=()=>{if(done)return;done=true;clearTimeout(t);clearTimeout(t2);fn()};
+      const t=setTimeout(()=>{if(!done)try{toastMsg('Loading the real surroundings…')}catch(_){}},1500);
+      const t2=setTimeout(once,9000);   // a slow network should not hold the race forever: go without the scenery
+      F1Real.load(id).then(once,once)}
     return {list,get,build,ready,has:id=>!!get(id)}})();
   const circDrawEl=$('#dcirc'),circCv=$('#dcircdraw'),circErrEl=$('#dcircerr'),circGoEl=$('#dcircgo'),circSeedEl=$('#dcircseed');
   const circCx=circCv?circCv.getContext('2d'):null;
@@ -8698,8 +8713,8 @@ updCircBtn();
           if(window.AppQR&&$('#dqr-modal')){
             window.AppQR.render($('#dqrcanvas'),url);
             $('#dqr-modal').dataset.mode='track';
-            $('#dqrdesc').textContent='Scan or copy this custom track code:';
-            $('#dqrcode-text').value=code;
+            $('#dqrdesc').textContent='Scan with your phone, or copy the link and send it.';
+            $('#dqrcode-text').value=url;
             $('#dqr-modal').classList.add('on');
           }else prompt('Copy track share code:',code);
         }else toastMsg('Draw and close a track first');
@@ -9781,6 +9796,11 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
     {const qrCopy=document.getElementById('dqrcopy');if(qrCopy)qrCopy.onclick=()=>{const t=document.getElementById('dqrcode-text');if(!t)return;t.select();
       const done=()=>{qrCopy.textContent='Copied';setTimeout(()=>qrCopy.textContent='Copy',1500)};
       try{navigator.clipboard.writeText(t.value).then(done,()=>{document.execCommand('copy');done()})}catch(e){try{document.execCommand('copy');done()}catch(_){}}}}
+    /* the one QR card serves three things; its heading follows whichever opened it */
+    {const m=document.getElementById('dqr-modal');if(m){const T={phone:['PHONE CONTROLLER','Drive with your phone','Phone and laptop both need internet. Keep this tab open; the car switches back to the keyboard if the phone goes quiet.'],
+       invite:['INVITE','Scan to join the room','Whoever opens the link lands in this room.'],track:['SHARE TRACK','Scan to drive this track','Whoever opens the link gets this track, ready to drive.']};
+      const paint=()=>{const t=T[m.dataset.mode]||T.phone,e=id=>document.getElementById(id);if(e('dqreb'))e('dqreb').textContent=t[0];if(e('dqrtitle'))e('dqrtitle').textContent=t[1];if(e('dqrfoot'))e('dqrfoot').textContent=t[2]};
+      new MutationObserver(paint).observe(m,{attributes:true,attributeFilter:['data-mode','class']})}}
     {const qrClose=document.getElementById('dqrclose');if(qrClose)qrClose.onclick=()=>{const m=document.getElementById('dqr-modal');clearInterval(phoneStTimer);if(m){m.classList.remove('on');m.dataset.mode=''}}}
     {const rematch=document.getElementById('dresrematch');if(rematch)rematch.onclick=()=>{
       if(!room){const m=document.getElementById('dresults');if(m)m.classList.remove('on');restartSoloRace();return}

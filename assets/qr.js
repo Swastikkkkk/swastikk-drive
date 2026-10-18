@@ -294,12 +294,22 @@
     }
   };
 
+  /* when a link cannot become a QR code, say so on the canvas instead of drawing something that will not scan */
+  function drawTooLong(canvas) {
+    canvas.width = 240; canvas.height = 240; var g = canvas.getContext('2d');
+    g.fillStyle = '#16171b'; g.fillRect(0, 0, 240, 240); g.fillStyle = 'rgba(238,240,243,.75)';
+    g.font = '600 14px -apple-system,Segoe UI,Inter,Arial,sans-serif'; g.textAlign = 'center';
+    g.fillText('Link too long for a QR code', 120, 112); g.fillStyle = 'rgba(238,240,243,.5)'; g.fillText('Use Copy below instead', 120, 134);
+  }
   window.AppQR = {
     render: function(canvas, text, scale) {
       /* proven encoder (vendor/qrcode.js, qrcode-generator, MIT); the hand-rolled one below drew a blank code */
       if (window.qrcode) {
         try {
-          var q = window.qrcode(0, 'M'); q.addData(text); q.make();
+          var q = null;
+          for (var lv of (text.length > 400 ? ['L', 'M'] : ['M', 'L'])) {   // long links: lower redundancy keeps the code coarse enough to scan
+             try { q = window.qrcode(0, lv); q.addData(text); q.make(); break; } catch (e2) { q = null; } }
+          if (!q) { drawTooLong(canvas); return false; }
           var n = q.getModuleCount(), m = 2, s = scale || 6, size = (n + m * 2) * s;
           canvas.width = size; canvas.height = size;
           var g = canvas.getContext('2d');
@@ -308,14 +318,8 @@
           return true;
         } catch (e) { console.error('QR Gen error:', e); }
       }
-      try {
-        var qr = new QRCode(text, 'M');
-        qr.drawToCanvas(canvas, scale || 5, 2);
-        return true;
-      } catch (e) {
-        console.error('QR Gen error:', e);
-        return false;
-      }
+      drawTooLong(canvas);
+      return false;
     }
   };
 })(window);

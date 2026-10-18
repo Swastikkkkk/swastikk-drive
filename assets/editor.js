@@ -83,6 +83,10 @@
     },
 
     importTrackData: function(data) {
+      if (data && typeof data.points === 'string') {   // the short form exportTrackCode writes
+        var ax = 0, ay = 0;
+        data.points = data.points.split(';').map(function (s) { var v = s.split(','); ax += parseInt(v[0], 36) || 0; ay += parseInt(v[1], 36) || 0; return [ax, ay]; });
+      }
       if (!data || !Array.isArray(data.points) || data.points.length < 4) return false;
       this.trackName = data.name || 'Imported Track';
       this.points = data.points.map(function(p) { return { x: p[0], y: p[1] }; });
@@ -369,11 +373,17 @@
     },
     exportTrackCode: function() {
       var data = this.exportTrackData();
+      /* short enough for a QR code: whole pixels, each point stored as the step from the one before, in base 36 */
+      var px = 0, py = 0;
+      data.points = data.points.map(function (p, i) { var x = Math.round(p[0]), y = Math.round(p[1]), s = (x - px).toString(36) + ',' + (y - py).toString(36); px = x; py = y; return s; }).join(';');
+      delete data.createdAt;
       return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
     },
     importTrackCode: function(code) {
       try {
-        var str = decodeURIComponent(escape(atob(code.trim())));
+        code = String(code).trim().replace(/^.*\/track\//, '').replace(/^.*[?&]track=/, '').split(/[?#&]/)[0];
+        try { code = decodeURIComponent(code); } catch (e) {}
+        var str = decodeURIComponent(escape(atob(code)));
         var data = JSON.parse(str);
         return this.importTrackData(data);
       } catch(e) {

@@ -176,7 +176,7 @@
   function fetchMeta(){const S=STATIONS[st];if(!S||!isLive(st))return;const key=S.name,ok=()=>STATIONS[st]&&STATIONS[st].name===key,
       set=list=>{if(!ok())return;recent=list;const t=recent[0],k=t?t.title+'|'+t.artist:null;if(k!==meta){meta=k;info()}};
     if(S.live)fetch('https://somafm.com/songs/'+S.live+'.json',{cache:'no-store'}).then(r=>r.json()).then(j=>set((j.songs||[]).slice(0,8))).catch(()=>{});
-    else if(S.rp!=null)fetch('https://api.radioparadise.com/api/now_playing?chan='+S.rp,{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.title)set([{title:j.title,artist:j.artist}])}).catch(()=>{})}
+    else if(S.rp!=null)fetch('/api/rp?chan='+S.rp,{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.title)set([{title:j.title,artist:j.artist}])}).catch(()=>{})}
   function liveNow(){const S=STATIONS[st],t=recent[0];return {title:t&&t.title||S.genre,artist:t&&t.artist||'Live radio'}}
   function info(){if(on&&isLive(st)){const n=liveNow();if(R.onInfo)R.onInfo('FM '+STATIONS[st].fm+' · '+STATIONS[st].name+' — “'+n.title+'” · '+n.artist);if(R.onChange)R.onChange();return}
     if(R.onInfo&&song)R.onInfo('FM '+STATIONS[st].fm+' · '+STATIONS[st].name+' — “'+song.title+'” · '+song.artist);if(R.onChange)R.onChange()}

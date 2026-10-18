@@ -681,6 +681,19 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 .nogl button,#dgfxlost button{margin-top:6px;background:#f5f5f7;color:#1d1d1f;border:0;border-radius:12px;padding:11px 18px;font:600 14px var(--sans,system-ui,sans-serif);cursor:pointer}
 #dload .nogl{box-shadow:none}
 #dgfxlost{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:24px;background:rgba(6,7,9,.78);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font-family:var(--sans,system-ui,sans-serif)}
+body:has(#dtype.on) #dnitro,body:has(#dtype.on) #dtyre{display:none!important}
+#dtyre{top:calc(96px + env(safe-area-inset-top,0px))}
+/* the share-QR card opened from the track drawer used to open underneath it */
+#dqr-modal{z-index:120!important}
+/* the QR is shown big enough for a phone camera to read off a laptop screen */
+#dqrcanvas{width:min(320px,58vh,78vw)!important;height:auto!important;aspect-ratio:1;box-sizing:border-box}
+/* typing results: the finished card covers the race card instead of sitting on top of its text */
+body:has(#dtyperes.on) #dtype{visibility:hidden}
+/* mode-change veil */
+#dveil{position:fixed;inset:0;z-index:2147482000;display:grid;place-items:center;align-content:center;gap:14px;background:#06070b;opacity:0;pointer-events:none;transition:opacity .45s ease;font:600 11px var(--sans,system-ui,sans-serif);letter-spacing:.16em;text-transform:uppercase;color:rgba(238,240,243,.55)}
+#dveil.on{opacity:1;pointer-events:auto;transition:opacity .15s ease}
+#dveil i{width:120px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,rgba(238,240,243,.75),transparent);background-size:50% 100%;background-repeat:no-repeat;animation:dveilbar 1.1s linear infinite}
+@keyframes dveilbar{from{background-position:-60px 0}to{background-position:180px 0}}
 </style>
   <!-- Daily Track Conqueror Modal & Leaderboard -->
   <div id="ddaily-modal" style="position:fixed;inset:0;background:rgba(8,8,7,.88);backdrop-filter:blur(10px);z-index:98;display:none;place-items:center;padding:24px;">
@@ -773,7 +786,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
   </div></div>
 
   <!-- Multiplayer Room & Lobby -->
-  <div id="dqr-modal" role="dialog" aria-label="Phone controller"><div class="bd-in"><div class="mono" style="color:#4d8dff;font-size:10px;letter-spacing:.18em">PHONE CONTROLLER</div><h3 class="disp" style="font-size:30px;margin:4px 0 6px">Drive with your phone</h3><div id="dqrdesc" class="mono" style="font-size:10px;color:var(--bone);margin-bottom:14px">Scan to use phone as controller</div><canvas id="dqrcanvas" width="240" height="240"></canvas><div class="mono" style="font-size:9px;color:var(--mute);margin:14px 0 6px">Or open this link on your phone</div><div style="display:flex;gap:8px"><input id="dqrcode-text" readonly aria-label="Controller link"><button id="dqrcopy" class="dbtn mono" type="button">Copy</button></div><div class="mono" style="font-size:9px;color:var(--mute);margin-top:12px;line-height:1.6">Phone and laptop both need internet. Keep this tab open; the car switches back to the keyboard if the phone goes quiet.</div><button id="dqrclose" class="dbtn mono bd-x" type="button" style="margin-top:16px">Close &#10005;</button></div></div>
+  <div id="dqr-modal" role="dialog" aria-label="Phone controller"><div class="bd-in"><div class="mono" id="dqreb" style="color:#4d8dff;font-size:10px;letter-spacing:.18em">PHONE CONTROLLER</div><h3 class="disp" id="dqrtitle" style="font-size:30px;margin:4px 0 6px">Drive with your phone</h3><div id="dqrdesc" class="mono" style="font-size:10px;color:var(--bone);margin-bottom:14px">Scan to use phone as controller</div><canvas id="dqrcanvas" width="240" height="240"></canvas><div class="mono" style="font-size:9px;color:var(--mute);margin:14px 0 6px">Or open this link on your phone</div><div style="display:flex;gap:8px"><input id="dqrcode-text" readonly aria-label="Controller link"><button id="dqrcopy" class="dbtn mono" type="button">Copy</button></div><div class="mono" id="dqrfoot" style="font-size:9px;color:var(--mute);margin-top:12px;line-height:1.6">Phone and laptop both need internet. Keep this tab open; the car switches back to the keyboard if the phone goes quiet.</div><button id="dqrclose" class="dbtn mono bd-x" type="button" style="margin-top:16px">Close &#10005;</button></div></div>
   <div id="dmp"><div class="bd-in">
     <div class="mono" style="color:var(--bone)">Multiplayer Racing &middot; up to 8 drivers</div>
     <h3 class="disp">Race Lobby</h3>
@@ -874,33 +887,33 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 <script src="assets/vendor/cannon.min.js"></script>
 <script src="assets/vendor/GLTFLoader.js"></script>
 <script src="assets/vendor/OBJLoader.js"></script>
-<script src="assets/core-constants.js?v=1792270003"></script>
-<script src="assets/engine-audio.js?v=1792270003"></script>
-<script src="assets/radio.js?v=1792270003"></script>
-<script src="assets/settings.js?v=1792270003"></script>
-<script src="assets/car-builder.js?v=1792270003"></script>
-<script src="assets/vehicles.js?v=1792270003"></script>
-<script src="assets/track-drawer.js?v=1792270003"></script>
-<script src="assets/controller.js?v=1792270003"></script>
+<script src="assets/core-constants.js?v=1792270004"></script>
+<script src="assets/engine-audio.js?v=1792270004"></script>
+<script src="assets/radio.js?v=1792270004"></script>
+<script src="assets/settings.js?v=1792270004"></script>
+<script src="assets/car-builder.js?v=1792270004"></script>
+<script src="assets/vehicles.js?v=1792270004"></script>
+<script src="assets/track-drawer.js?v=1792270004"></script>
+<script src="assets/controller.js?v=1792270004"></script>
 <script src="assets/vendor/qrcode.js"></script>
-<script src="assets/qr.js?v=1792270003"></script>
-<script src="assets/race.js?v=1792270003"></script>
-<script src="assets/editor.js?v=1792270003"></script>
-<script src="assets/daily-maps.js?v=1792270003"></script>
-<script src="assets/daily-extras.js?v=1792270003"></script>
-<script src="assets/f1-circuits.js?v=1792270003"></script>
-<script src="assets/f1-landmarks.js?v=1792270003"></script>
-<script src="assets/f1-real.js?v=1792270003"></script>
-<script src="assets/f1car.js?v=1792270003"></script>
-<script src="assets/game.js?v=1792270003"></script>
-<script src="assets/story.js?v=1792270003"></script>
-<script src="assets/race-finish.js?v=1792270003"></script>
-<script src="assets/typing-sentences.js?v=1792270003"></script>
-<script src="assets/typing-keyboard.js?v=1792270003"></script>
-<script src="assets/venue-decor.js?v=1792270003"></script>
-<script src="assets/typing-bank.js?v=1792270003"></script>
-<script src="assets/typing-race.js?v=1792270003"></script>
-<script src="assets/ui-motion.js?v=1792270003"></script>
+<script src="assets/qr.js?v=1792270004"></script>
+<script src="assets/race.js?v=1792270004"></script>
+<script src="assets/editor.js?v=1792270004"></script>
+<script src="assets/daily-maps.js?v=1792270004"></script>
+<script src="assets/daily-extras.js?v=1792270004"></script>
+<script src="assets/f1-circuits.js?v=1792270004"></script>
+<script src="assets/f1-landmarks.js?v=1792270004"></script>
+<script src="assets/f1-real.js?v=1792270004"></script>
+<script src="assets/f1car.js?v=1792270004"></script>
+<script src="assets/game.js?v=1792270004"></script>
+<script src="assets/story.js?v=1792270004"></script>
+<script src="assets/race-finish.js?v=1792270004"></script>
+<script src="assets/typing-sentences.js?v=1792270004"></script>
+<script src="assets/typing-keyboard.js?v=1792270004"></script>
+<script src="assets/venue-decor.js?v=1792270004"></script>
+<script src="assets/typing-bank.js?v=1792270004"></script>
+<script src="assets/typing-race.js?v=1792270004"></script>
+<script src="assets/ui-motion.js?v=1792270004"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 <!-- Vercel Speed Insights (plain-HTML setup: there is no Next.js/npm build here, so the script tag replaces the <SpeedInsights/> component) -->
 <script>window.si=window.si||function(){(window.siq=window.siq||[]).push(arguments)};</script>
