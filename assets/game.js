@@ -9882,16 +9882,24 @@ body.homeon #drive>*:not(canvas){visibility:hidden!important}body.homeon #dlandi
 #dstartscr.gs h1,#dstartscr.gs .sub,#dstartscr.gs .grid{animation:none}
 #dstartscr .sheen{position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.14) 50%,transparent 65%);background-size:250% 100%;background-position:120% 0;opacity:0}
 `;document.head.appendChild(ts)}
-   const GS=window.gsap;if(GS){el.classList.add('gs');try{GS.ticker.lagSmoothing(0)}catch(_){}}   // real time: on a slow first frame the intro still ends on time instead of dragging
+   const GS=window.gsap;if(GS)el.classList.add('gs');
+   /* The game keeps building the world for a second or more after this screen goes up (longest in Safari),
+      and the page cannot draw while it does. Played straight away, the intro was over before its first
+      frame reached the screen, so it looked like it never ran. It now waits in its start pose until the
+      page is drawing smoothly again (three quick frames in a row, or 5 s at most), then plays. */
+   const whenFree=fn=>{const t0=performance.now();let last=t0,calm=0;
+     const step=now=>{calm=now-last<100?calm+1:0;last=now;if(calm>=3||now-t0>5000)fn();else requestAnimationFrame(step)};
+     requestAnimationFrame(step)};
    /* every screen is innerHTML'd into el: when one lands, split its title into letters and play it in */
    const hmIn=()=>{if(!GS)return;const hm=el.querySelector('.hm');if(!hm||hm.__in)return;hm.__in=1;
      const h=hm.querySelector('h1');if(h&&!h.querySelector('.ch')){const t=h.textContent;let n=0;h.innerHTML=t.split(' ').map(wd=>'<span class="w">'+[...wd].map(c=>{const i=n++;return '<span class="ch'+(t==='SketchRacer'&&i>=6?' r':'')+'">'+c.replace(/[&<>]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[x])+'</span>'}).join('')+'</span>').join(' ')}
-     const tl=GS.timeline({defaults:{ease:'power3.out'}});
+     const tl=GS.timeline({paused:true,defaults:{ease:'power3.out'}});
      if(h)tl.from(h.querySelectorAll('.ch'),{yPercent:110,opacity:0,rotate:6,duration:.7,stagger:.028},0);
      tl.from(hm.querySelectorAll('.sub,.back,.gear'),{y:10,opacity:0,duration:.5,stagger:.05},.1);
      const g=hm.querySelector('.grid,.lvwrap');if(g)tl.from(g,{y:24,opacity:0,scale:.98,duration:.6,ease:'power4.out'},.15);
      {const bs=hm.querySelectorAll('button.t,.lv,.laps button');tl.from(bs,{x:-18,opacity:0,duration:.45,stagger:{amount:Math.min(.45,bs.length*.035)}},.25)}
      const w=hm.querySelector('button.t.wide');if(w){const sh=document.createElement('i');sh.className='sheen';w.style.position='relative';w.appendChild(sh);tl.fromTo(sh,{opacity:1,backgroundPosition:'120% 0'},{backgroundPosition:'-30% 0',duration:1.1,ease:'power2.inOut'},.75).set(sh,{opacity:0})}
+     whenFree(()=>tl.play());
      hm.querySelectorAll('button.t').forEach(b=>{const ic=b;b.addEventListener('pointerenter',()=>GS.to(ic,{x:4,duration:.25,ease:'power2.out'}));b.addEventListener('pointerleave',()=>GS.to(ic,{x:0,duration:.35,ease:'power3.out'}));
        b.addEventListener('pointerdown',()=>GS.to(b,{scale:.975,duration:.12}));b.addEventListener('pointerup',()=>GS.to(b,{scale:1,duration:.3,ease:'back.out(3)'}))})};
    new MutationObserver(hmIn).observe(el,{childList:true});(function(){let tx=28,ty=58,x=28,y=58,drag=null,last=performance.now(),idle=0,dir=1;
