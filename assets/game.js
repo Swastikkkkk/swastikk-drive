@@ -3,7 +3,13 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   if(window.PhoneController&&window.PhoneController.isControllerMode)return;   // this tab is a phone gamepad, not a game
   const show3DFallback=()=>{
     const loading=$('#dload');
-    if(loading){loading.textContent='This game requires WebGL for the full 3D experience. Please use a modern browser with hardware acceleration enabled.';loading.style.cssText='position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:28px;background:#06070b;color:#eef0f3;font:500 15px/1.6 system-ui,sans-serif;text-align:center;letter-spacing:0;text-transform:none'}
+    if(loading){const ua=navigator.userAgent,ff=/Firefox\//.test(ua),sf=/Safari\//.test(ua)&&!/Chrome|Chromium|Edg\//.test(ua),edge=/Edg\//.test(ua);
+      const fix=ff?'Firefox: Settings, General, Performance. Untick “Use recommended performance settings”, tick “Use hardware acceleration when available”, then restart Firefox.'
+        :sf?'Safari: update macOS to get the latest Safari, then quit and reopen it.'
+        :(edge?'Edge':'Chrome')+': Settings, System, turn on “Use graphics acceleration when available”, then press Relaunch.';
+      loading.innerHTML='<div class="nogl"><b>Your browser has 3D switched off</b><p>SketchRacer draws the whole world in 3D (WebGL), and this browser is not allowing it right now. It is usually one setting.</p><p class="fx"></p><button type="button">Try again</button></div>';
+      loading.querySelector('.fx').textContent=fix;loading.querySelector('button').onclick=()=>location.reload();
+      loading.classList.add('nogl-on')}
   };
   if(!window.THREE||!window.CANNON){show3DFallback();return}
   try{const probe=document.createElement('canvas');if(!(probe.getContext('webgl')||probe.getContext('experimental-webgl'))){show3DFallback();return}}catch(e){show3DFallback();return}
@@ -136,6 +142,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let R;
   try{R=new THREE.WebGLRenderer({canvas:cv,antialias:!LOW,powerPreference:'high-performance'})}
   catch(e){show3DFallback();return}
+  cv.addEventListener('webglcontextlost',e=>{e.preventDefault();
+    if(document.getElementById('dgfxlost'))return;const o=document.createElement('div');o.id='dgfxlost';
+    o.innerHTML='<div><b>The graphics card reset</b><p>This happens after sleep or when a laptop switches GPUs. Reload to keep playing.</p><button type="button">Reload</button></div>';
+    o.querySelector('button').onclick=()=>location.reload();document.body.appendChild(o)},false);
   R.shadowMap.enabled=!LOW;R.shadowMap.type=THREE.PCFSoftShadowMap;R.debug.checkShaderErrors=false;
   /* One quality: Ultra, and it is not a menu. Everything the old tiers used to switch off
      is simply on — shadows, grass, dust, stars, the full particle budget. The only thing
@@ -3151,7 +3161,11 @@ t.bd.position.set(x,y+.86,z);
       SND.bus.gain.setTargetAtTime(muted?0:.9*VOL('master'),T,.05)}
     if(window.Radio)Radio.setVolume(VOL('music')*VOL('master')*1.1)}
   // key and label are glued with no-break spaces so a wrapped line never splits "G" from "GPS"
-  const HINT=['WASD drive','Space handbrake','Shift boost','H horn','C camera','Z mirror','F lights','N night','T radio','L time a lap','M map','G GPS','P autodrive','R reset','O settings'].map(x=>x.replace(/ /g,'\u00a0')).join(' · ');
+  /* only the five keys you need in the first minute; Settings (O) lists every control */
+  const HINT=['WASD drive','Shift boost','Space handbrake','C camera','O all controls'].map(x=>x.replace(/ /g,'\u00a0')).join(' · ');
+  // once you have driven for a few seconds the hint fades out of the way
+  addEventListener('keydown',function hintFade(e){if(!/^(Key[WASD]|Arrow(Up|Down|Left|Right))$/.test(e.code))return;removeEventListener('keydown',hintFade);
+    setTimeout(()=>{if(hint&&hint.textContent===HINT)hint.classList.add('dim')},9000)});
   function applyDisplay(){hint.textContent=TOUCH?'':HINT;hint.style.display=SET.v.hints?'':'none';
     const u=spd&&spd.nextElementSibling;if(u)u.textContent=SET.v.units==='mph'?'mph':'km/h'}
   function applyQuality(){const q=SET.v.quality;if(q!=='auto'&&q!=null)setTier(+q)}
@@ -3364,7 +3378,7 @@ t.bd.position.set(x,y+.86,z);
         '<div class="mono mk-note" id="dmknote">Face car: a photo of a face, it becomes a big 3D head on a kart. Car photo: a side or 3/4 shot on a plain background works best. We match its colour and shape to the closest body and tune it.<br>3D model: .glb, .gltf (embedded or with its .bin/images) or .obj, up to 25 MB. For a web download, select the .gltf and all files it came with together.</div>'+
         (CUSTOM.spec?'<div class="mk-row"><button class="dbtn mono" id="dmkflip" type="button">Turn model round</button><button class="dbtn mono" id="dmkdel" type="button">Delete my car</button></div>':'')+
          '<input type="file" id="dmkff" accept="image/*" hidden><input type="file" id="dmkfp" accept="image/*" hidden><input type="file" id="dmkfm" accept=".glb,.gltf,.obj,.bin,.png,.jpg,.jpeg,.webp,model/gltf-binary,model/gltf+json" multiple hidden></div>';
-      const st=document.createElement('style');st.textContent='#dmaker{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgba(6,7,9,.72);backdrop-filter:blur(8px);padding:20px}#dmaker .mk-in{width:min(460px,100%);background:linear-gradient(180deg,rgba(26,27,32,.96),rgba(13,14,17,.98));border:1px solid rgba(238,240,243,.12);border-radius:22px;padding:22px;color:#eef0f3}#dmaker .mk-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}#dmaker h3{margin:0;font-size:22px}#dmaker .mk-l{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#828a98}#dmaker input#dmkname{width:100%;box-sizing:border-box;margin:6px 0 14px;padding:10px 12px;border-radius:12px;border:1px solid rgba(238,240,243,.16);background:rgba(238,240,243,.06);color:inherit;font:inherit}#dmaker .mk-row{display:flex;gap:8px;margin:8px 0}#dmaker .mk-row .dbtn{flex:1;padding:12px}#dmaker .mk-note{font-size:12px;line-height:1.5;color:#9aa1ad;margin-top:6px}';
+      const st=document.createElement('style');st.textContent='#dmaker{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgba(6,7,9,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);padding:20px}#dmaker .mk-in{width:min(460px,100%);background:linear-gradient(180deg,rgba(26,27,32,.96),rgba(13,14,17,.98));border:1px solid rgba(238,240,243,.12);border-radius:22px;padding:22px;color:#eef0f3}#dmaker .mk-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}#dmaker h3{margin:0;font-size:22px}#dmaker .mk-l{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#828a98}#dmaker input#dmkname{width:100%;box-sizing:border-box;margin:6px 0 14px;padding:10px 12px;border-radius:12px;border:1px solid rgba(238,240,243,.16);background:rgba(238,240,243,.06);color:inherit;font:inherit}#dmaker .mk-row{display:flex;gap:8px;margin:8px 0}#dmaker .mk-row .dbtn{flex:1;padding:12px}#dmaker .mk-note{font-size:12px;line-height:1.5;color:#9aa1ad;margin-top:6px}';
       document.head.appendChild(st);document.body.appendChild(el);
       const note=$('#dmknote'),nm=()=>($('#dmkname').value||'').trim()||'My car',save=c=>{localStorage.setItem('sl_custom',JSON.stringify(c));localStorage.setItem('sl_car',JSON.stringify({id:'custom',paint:c.paint}));note.textContent='Done. Loading your car...';setTimeout(()=>location.reload(),500)};
       el.querySelector('.mk-x').onclick=()=>el.remove();el.addEventListener('pointerdown',e=>{if(e.target===el)el.remove()});
@@ -4074,7 +4088,7 @@ t.bd.position.set(x,y+.86,z);
       const css=document.createElement('style');css.textContent=
         '#dnav{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3;display:none;pointer-events:none;'+
           'grid-template-columns:auto 1fr auto;align-items:center;gap:12px;min-width:min(380px,calc(100vw - 32px));max-width:calc(100vw - 32px);padding:8px 12px 8px 8px;border-radius:16px;'+
-          'background:linear-gradient(180deg,rgba(18,20,22,.86),rgba(10,11,12,.8));backdrop-filter:blur(10px);box-shadow:0 8px 28px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);color:#eef0f3}'+
+          'background:linear-gradient(180deg,rgba(18,20,22,.86),rgba(10,11,12,.8));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 8px 28px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);color:#eef0f3}'+
         '#dnav.on{display:grid}#dnav .ic{width:52px;height:52px;border-radius:12px;background:#1f7a4a;display:grid;place-items:center}#dnav.off .ic{background:#b5761a}'+
         '#dnav .md{font:700 22px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;letter-spacing:-.01em;white-space:nowrap}'+
         '#dnav .mt{font:600 12px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;opacity:.85;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
@@ -4745,7 +4759,7 @@ const F=chassisB.force,T=chassisB.torque;
     ];
     const selEl=document.createElement('div');
     selEl.style.cssText='position:fixed;inset:0;z-index:46;display:none;place-items:center;background:rgba(4,5,10,.82);'+
-      'backdrop-filter:blur(6px);padding:24px;font-family:ui-monospace,Menlo,Consolas,monospace';
+      '-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding:24px;font-family:ui-monospace,Menlo,Consolas,monospace';
     const selIn=document.createElement('div');selIn.style.cssText='width:min(460px,100%);color:#eef2ff';
     selIn.innerHTML='<div style="color:#9fc3d6;font-size:11px;letter-spacing:.2em">UFO NAVIGATION TERMINAL</div>'+
       '<h3 style="font:600 clamp(30px,5vw,48px)/1 var(--serif,sans-serif);margin:8px 0 14px;letter-spacing:-.02em">Choose a destination</h3>';
@@ -5676,7 +5690,7 @@ const PLANETS={
     const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),btn=document.createElement('button');
     {const gb=$('#dgps');if(gb){btn.className=gb.className;btn.id='dauto';btn.textContent='Autodrive';btn.title='Autodrive (P)';gb.after(btn);btn.onclick=()=>set(!on)}}
     const badge=document.createElement('div');badge.className='mono';badge.textContent='AUTODRIVE · any key to take over';
-    badge.style.cssText='position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:6;display:none;padding:6px 12px;border-radius:999px;background:rgba(18,20,25,.82);color:#8db7ff;border:1px solid rgba(77,141,255,.45);backdrop-filter:blur(12px);font-size:10px;letter-spacing:.14em;pointer-events:none';
+    badge.style.cssText='position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:6;display:none;padding:6px 12px;border-radius:999px;background:rgba(18,20,25,.82);color:#8db7ff;border:1px solid rgba(77,141,255,.45);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);font-size:10px;letter-spacing:.14em;pointer-events:none';
     sec.appendChild(badge);
     function set(v,quiet){on=!!v;latOff=latT=0;lanePicked=false;badge.style.display=on&&!quiet?'block':'none';btn.classList.toggle('on',on);if(!on){for(const k of ['f','b','l','r','h'])key[k]=0;lock=false;vCap=null}if(!quiet)toastMsg(on?'Autodrive on · steer or brake to take over':'Autodrive off')}
     // a path for whatever world the car is in: sample(i) and its count, or a planet road by distance
@@ -6302,7 +6316,7 @@ const PLANETS={
           circU0=u}
         if(frameN%45===0&&circuit.hazeTo)circuit.hazeTo(S.fog.color);
         if(frameN%8===0&&circuit.LODCELLS)lodTick(circuit.LODCELLS,C.position.x,C.position.z);   // follow weather/time-of-day fog changes
-        if(frameN%20===0)hint.textContent='Circuit · lap '+(circLap+1)+(circBest?' · best '+fmtT(circBest):'')+' · Track button to leave'}
+        if(frameN%20===0)hint.classList.remove('dim'),hint.textContent='Circuit · lap '+(circLap+1)+(circBest?' · best '+fmtT(circBest):'')+' · Track button to leave'}
       CAI.update(dt,now);
       if(window.RaceEngine && window.RaceEngine.active){
         window.RaceEngine.update(now, dt, {
@@ -9557,7 +9571,7 @@ updCircBtn();
       // the host's restart, on screen for the whole race (two taps, so a stray click does not wipe everyone's lap)
       {let rb=document.getElementById('dmprestart');const show=!!room&&status==='up'&&isHost()&&(race.st===1||race.st===2||race.st===4);
        if(!rb&&show){rb=document.createElement('button');rb.id='dmprestart';rb.className='dbtn mono';rb.textContent='↻ Restart race';
-         rb.style.cssText='position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:7;padding:8px 14px;border-radius:999px;background:rgba(18,20,25,.82);color:#eef0f3;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);font-size:11px;letter-spacing:.06em;cursor:pointer;pointer-events:auto';
+         rb.style.cssText='position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:7;padding:8px 14px;border-radius:999px;background:rgba(18,20,25,.82);color:#eef0f3;border:1px solid rgba(255,255,255,.22);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);font-size:11px;letter-spacing:.06em;cursor:pointer;pointer-events:auto';
          rb.onclick=e=>{e.stopPropagation();if(rb._arm&&performance.now()-rb._arm<3000){rb._arm=0;rb.textContent='↻ Restart race';requestRace()}else{rb._arm=performance.now();rb.textContent='Tap again to restart';setTimeout(()=>{if(rb._arm){rb._arm=0;rb.textContent='↻ Restart race'}},3000)}};
          ['pointerdown','touchstart'].forEach(ev=>rb.addEventListener(ev,e=>e.stopPropagation(),{passive:true}));sec.appendChild(rb)}
        if(rb)rb.style.display=show?'':'none'}
@@ -9886,9 +9900,12 @@ body.homeon #drive>*:not(canvas){visibility:hidden!important}body.homeon #dlandi
    /* The game keeps building the world for a second or more after this screen goes up (longest in Safari),
       and the page cannot draw while it does. Played straight away, the intro was over before its first
       frame reached the screen, so it looked like it never ran. It now waits in its start pose until the
-      page is drawing smoothly again (three quick frames in a row, or 5 s at most), then plays. */
-   const whenFree=fn=>{const t0=performance.now();let last=t0,calm=0;
-     const step=now=>{calm=now-last<100?calm+1:0;last=now;if(calm>=3||now-t0>5000)fn();else requestAnimationFrame(step)};
+      page is drawing smoothly again (three quick frames in a row, or 3 s at most), then plays. Only the first
+      screen waits: by the time you open another one the world is built, and a slow machine should not be
+      made to wait for frames it will never hit. */
+   let introN=0;
+   const whenFree=fn=>{if(introN++)return fn();const t0=performance.now();let last=t0,calm=0;
+     const step=now=>{calm=now-last<100?calm+1:0;last=now;if(calm>=3||now-t0>3000)fn();else requestAnimationFrame(step)};
      requestAnimationFrame(step)};
    /* every screen is innerHTML'd into el: when one lands, split its title into letters and play it in */
    const hmIn=()=>{if(!GS)return;const hm=el.querySelector('.hm');if(!hm||hm.__in)return;hm.__in=1;

@@ -31,7 +31,7 @@
     ['M','Map'],['G','GPS'],['P','Autodrive'],['E','Interact (UFO, planets)'],['R','Reset car'],['O','Settings'],['Esc','Close panels']];
 
   const css=`
-#dset{position:absolute;inset:0;z-index:30;display:none;place-items:center;background:rgba(6,7,9,.72);backdrop-filter:blur(8px);padding:20px}
+#dset{position:absolute;inset:0;z-index:30;display:none;place-items:center;background:rgba(6,7,9,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);padding:20px}
 #dset.on{display:grid}
 #dset .st-in{width:min(560px,100%);max-height:calc(100dvh - 40px);overflow:auto;background:linear-gradient(180deg,rgba(26,27,32,.95),rgba(13,14,17,.97));border:1px solid rgba(238,240,243,.12);border-radius:22px;padding:22px 24px 18px;color:var(--paper,#eef0f3);box-shadow:0 30px 80px rgba(0,0,0,.5)}
 #dset .st-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
