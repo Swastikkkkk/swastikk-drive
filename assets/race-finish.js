@@ -55,6 +55,8 @@
     var gap = pos > 1 && winner && winner.finishTime && total ? '+' + ((total - winner.finishTime) / 1000).toFixed(2) + ' s' : pos === 1 && field > 1 ? 'Winner' : '';
     var title = ctx.mode === 'gp' ? ctx.name + ' Grand Prix' : ctx.mode === 'story' && story ? 'Level ' + story.n + ' · ' + story.name : ctx.name;
     var accent = ctx.mode === 'gp' ? '#e10600' : ctx.mode === 'story' ? '#e8a317' : '#4d8dff';
+    // a daily track shows the worldwide record for that UTC day (the same board the Daily modal reads)
+    var dailyDay = ctx.mode === 'daily' && window.DailyBoard ? (RE.dailyDate || String(ctx.track || '').replace(/^daily:/, '') || new Date().toISOString().slice(0, 10)) : '';
 
     // what Next race means here
     var next = null;
@@ -127,7 +129,7 @@
       '<div class="pn">' + (banners ? '<div class="rf-bs">' + banners + '</div>' : '') +
       '<div class="st">' + stats.slice(0, 3).map(function (x) { return '<div><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>' +
       (tower && field > 1 ? '<div><h3>Classification</h3><ol>' + tower + '</ol></div>' : '') +
-      '<div><h3>Best times on this race</h3><ol id="rfTop"><li><b></b><i></i><span class="cd"></span><span class="nm">Loading…</span><span class="tm"></span></li></ol><div class="rf-src" id="rfSrc"></div></div>' +
+      '<div><h3>' + (dailyDay ? 'Daily record worldwide' : 'Best times on this race') + '</h3><ol id="rfTop"><li><b></b><i></i><span class="cd"></span><span class="nm">Loading…</span><span class="tm"></span></li></ol><div class="rf-src" id="rfSrc"></div></div>' +
       (name ? '' : '<div class="rf-name"><input id="rfNm" maxlength="20" placeholder="Your name for the leaderboard" aria-label="Your name for the leaderboard"><button id="rfPost">Post time</button></div>') +
       '<div class="acts">' + (next ? '<button class="go" id="rfNext">Next · ' + esc(next.label) + '</button>' : '') +
       '<button' + (next ? '' : ' class="go"') + ' id="rfAgain">Race again</button><button id="rfMenu">Menu</button></div></div>';
@@ -145,7 +147,22 @@
     function post(nm) { rec.name = nm || 'Driver';
       return DB.submit(rec).then(function (ok) { return DB.top(ctx.track, ctx.mode, laps).then(function (top) {
         if (ok && top) fill(top, 'Everyone’s times, saved online'); else fill(hist, 'Times on this device (online board not reachable)'); }); }); }
-    if (!total) fill(hist, '');
+    // daily: fill the panel from the worldwide board for today's track; race.js already posts the time to it,
+    // so here it only merges our own time in if the board has not caught up yet
+    function showDailyWorld() {
+      return window.DailyBoard.fetch(dailyDay).then(function (rows) {
+        if (!rows) return fill(hist, 'Times on this device (online board not reachable)');
+        var seen = {}, list = [];
+        rows.slice().sort(function (a, b) { return a.time - b.time; }).forEach(function (r) {
+          var k = String(r.name || 'Driver').toLowerCase(); if (seen[k]) return; seen[k] = 1;
+          list.push({ name: r.name, ms: r.time, best_lap_ms: r.best, me: !!total && r.time === rec.ms }); });
+        if (total && !list.some(function (r) { return r.ms === rec.ms; })) {
+          list.push({ name: name || 'You', ms: rec.ms, best_lap_ms: rec.best_lap_ms, me: 1 }); list.sort(function (a, b) { return a.ms - b.ms; }); }
+        fill(list, 'Worldwide · ' + dailyDay + ' (UTC)');
+      }).catch(function () { fill(hist, 'Times on this device (online board not reachable)'); });
+    }
+    if (!total) { if (dailyDay) showDailyWorld(); else fill(hist, ''); }
+    else if (dailyDay) { DB.submit(Object.assign({}, rec, { name: name || 'Driver' })); showDailyWorld(); }
     else if (name) post(name);
     else { fill(hist, 'Add your name to post this time online');
       el.querySelector('#rfPost').onclick = function () { var v = (el.querySelector('#rfNm').value || '').trim().slice(0, 20); if (!v) return;
