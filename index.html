@@ -650,8 +650,8 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
 #dhint{display:inline-block;max-width:none;white-space:nowrap;margin-top:0;padding:7px 13px;border-radius:999px;background:rgba(10,11,14,.42);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);font-size:10px;letter-spacing:.12em;line-height:1.2;color:rgba(238,240,243,.78);transition:opacity .9s ease}
 #dhint:empty{display:none}
 #dhint.dim{opacity:0}
-/* nitro sits with the speedometer instead of across the back of the car */
-#drive:not(.touch) #dnitro{left:auto!important;right:var(--gut)!important;transform:none!important;bottom:calc(86px + env(safe-area-inset-bottom,0px))!important;width:168px!important}
+/* nitro: centred along the bottom edge, in line with the radio and the speedometer, clear of the car */
+#drive:not(.touch) #dnitro{left:50%!important;right:auto!important;transform:translateX(-50%)!important;bottom:calc(20px + env(safe-area-inset-bottom,0px))!important;width:220px!important}
 /* lobby before you are in a room: one centred card, everything the same width */
 #dmp .bd-in:has(> #dmp-out:not([style*="display: none"])){width:min(440px,100%)!important}
 #dmp-out{max-width:none!important}
