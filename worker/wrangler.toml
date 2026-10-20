@@ -1,0 +1,24 @@
+# Sketch Racer room server (Cloudflare Workers + Durable Objects).
+# Deploy: npm run deploy   Local: npm run dev (http://localhost:8787)
+
+name = "skr-rooms"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Players per room. Phone controllers don't count toward this.
+MAX_PLAYERS = "8"
+# Origins allowed to open a room socket. Add your own domain here before deploying (comma-separated).
+ALLOWED_ORIGINS = "https://swastikk-drive.vercel.app,http://localhost:8000,http://127.0.0.1:8000"
+
+[[durable_objects.bindings]]
+name = "RACE_ROOM"
+class_name = "RaceRoom"
+
+# SQLite-backed Durable Objects. RaceRoom keeps no storage today; the migration is here so it can be added later.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RaceRoom"]
+
+[observability]
+enabled = true
