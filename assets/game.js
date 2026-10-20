@@ -54,10 +54,6 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   // (mission-done, lap-done, etc), since the single-element toast would otherwise overwrite itself
   function earnCoins(n){coins+=n;saveCoins();updCoinsUI()}
   /* ---------- garage: 6 cars, 2 body kits (buildEV / buildCar) sharing the same physics rig ---------- */
-  /* Supabase project used for multiplayer rooms and the global boards. This is the public "anon" key: it is
-     meant to ship in the browser, and what it can do is limited by the database's row-level security policies.
-     Defined once here so every caller shares it. */
-  const SUPA=window.__SUPA={url:'https://oceaylrebzflgyxfjqfb.supabase.co',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'};
   const GARAGE=[
     {id:'outlaw',label:'Outlaw V8',type:'car',blurb:'Big-block muscle, smokes the rears',mass:205,F:2.5,B:-2.45,W:2.04,price:0,
      V:{brake:0.95,engine:840,max:36,slip:2.3,xw:1.0,zf:1.45,zb:-1.35,r:.44,rest:.38,steer:.56,roll:.02},
@@ -1685,7 +1681,13 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     bdList.innerHTML=rows.length?rows.map((l,i)=>lapRow(Object.assign({p:i+1},l),!!l.pend)).join('')
       :'<li class="em">No laps yet. Hit \u201cTime a lap\u201d, cross the start gate and go round once.</li>';
     bdNote.textContent=pendingMs&&!saved?('Your last lap: '+fmtT(pendingMs)+' \u00b7 add a name and save it')
-      :'Times are kept on this device.'}
+      :'Your laps above. Global fastest laps below.';
+    if(window.Boards){let me='';try{me=(localStorage.getItem('sl_name')||'').trim()}catch(e){}
+      Boards.get('race',{track:'world:loop',mode:'lap',laps:1,name:me}).then(res=>{if(!res||!boardEl.classList.contains('on'))return;
+        const old=bdList.querySelector('.glob');if(old)old.remove();const li=document.createElement('li');li.className='glob';li.style.cssText='list-style:none;margin-top:12px';
+        li.innerHTML='<div style="font-size:11px;letter-spacing:.08em;opacity:.6;margin-bottom:6px">GLOBAL'+(res.rank?' · YOU ARE #'+res.rank+' OF '+res.players:'')+'</div>'+
+          (res.top.length?res.top.slice(0,8).map((r,i)=>'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;'+(me&&r.name.toLowerCase()===me.toLowerCase()?'color:#7fb0ff;font-weight:600':'')+'"><span>'+(i+1)+'. '+esc(r.name)+'</span><span style="font-family:monospace">'+fmtT(r.ms)+'</span></div>').join(''):'<div style="font-size:13px;opacity:.6">No global laps yet</div>');
+        bdList.appendChild(li)})}}
   function openBoard(){boardEl.classList.add('on');try{bdName.value=localStorage.getItem('sl_name')||''}catch(e){}
     bdSave.disabled=!pendingMs;renderBoard()}
   function closeBoard(){boardEl.classList.remove('on')}
@@ -1710,21 +1712,12 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     submitToLeaderboard(ms,V.label);
 }
 async function submitToLeaderboard(ms,vehicle){
-    // QA fix: unguarded localStorage threw before the try below (blocked storage) -> unhandled promise rejection on every lap
-    let name='Anon';try{name=localStorage.getItem('sl_name')||'Anon'}catch(e){}
-    const entry={n:name,ms,veh:vehicle,at:Date.now()};
-    try{
-      const res=await fetch(SUPA.url+'/rest/v1/leaderboard',{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'apikey':SUPA.key,
-          'Authorization':'Bearer '+SUPA.key
-        },
-        body:JSON.stringify(entry)
-      });
-      if(res.ok)toastMsg('Time uploaded to global leaderboard!');
-    }catch(e){console.warn('Leaderboard submit failed:',e)}
+    // global board for the main loop's timed lap (Cloudflare D1, race board, mode 'lap')
+    let name='Driver';try{name=(localStorage.getItem('sl_name')||'Driver').trim()||'Driver'}catch(e){}
+    if(!window.Boards)return;
+    const ok=await Boards.post('race',{track:'world:loop',mode:'lap',laps:1,name:name.slice(0,24),ms:Math.round(ms),best_lap_ms:Math.round(ms),pos:1,field:1});
+    if(ok)toastMsg('Lap posted to the global board');
+    if(boardEl&&boardEl.classList.contains('on'))renderBoard()
   }
   /* ---------- start / finish gantry ----------
      A painted chequered band that follows the road surface, and a steel gantry: concrete footings,
@@ -5805,7 +5798,7 @@ const PLANETS={
   /* the Typing Race lap: one fixed ~490 m circuit, the same every day; only the weather and time of day change */
   function typingLap(){const pts=[];for(let i=0;i<64;i++){const t=i/64*Math.PI*2,k=1+.13*Math.sin(3*t+.6)+.05*Math.cos(5*t);pts.push({x:96*k*Math.cos(t),y:60*k*Math.sin(t)})}return pts}   /* ~490 m: 60 WPM drives it at ~110 km/h, 100 WPM at ~190 */
   window.GameBridge={
-    supa:SUPA,day:()=>dailyDay(),
+    day:()=>dailyDay(),
     name:()=>{try{return (localStorage.getItem('sl_name')||'').trim()}catch(e){return ''}},
     /* meters (optional): how far the whole text should drive. Type Faster passes ~7 m per character, so a long
        text is a long drive (several laps) and every key is worth the same distance whatever the length */
@@ -8954,8 +8947,8 @@ updCircBtn();
           `<li style="padding:8px 4px;font-size:11px;color:rgba(255,255,255,.5)">${src}</li>`
           :'<li style="padding:12px;color:rgba(255,255,255,.5);font-size:13px;">No times yet for today\'s track. Be the first!</li>'};
       let local=[];try{local=JSON.parse(localStorage.getItem('sl_daily_'+dStr)||'[]').filter(r=>r.laps===DAILY_LAPS)}catch(_){}   // only runs over today's distance
-      draw(local,'Times on this device');
-      if(window.DailyBoard)window.DailyBoard.fetch(dStr).then(rows=>{if(rows)draw(rows.concat(local),'Global board · '+dStr+' (UTC)')}).catch(()=>{});
+      draw(local,'Loading the global board…');
+      if(window.DailyBoard)window.DailyBoard.fetch(dStr).then(rows=>{if(rows)draw(rows.concat(local),'Global board · '+dStr+' (UTC)');else draw(local,'Global board is offline right now · showing your runs')}).catch(()=>{});
     }
     window.renderDailyBoard=renderDailyBoard;
 
@@ -9040,15 +9033,11 @@ updCircBtn();
     };
   }
 
-  // --- Daily Track: the UTC day the track belongs to; global board if the backend has the table, else this device ---
+  // --- Daily Track: the UTC day the track belongs to; results go to the global daily board (Cloudflare D1) ---
   function dailyDay(){return new Date().toISOString().slice(0,10)}
-  window.DailyBoard=(function(){
-    const URL_=SUPA.url+'/rest/v1/daily_times',KEY=SUPA.key;
-    const H={'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+KEY};
-    async function fetch_(day){try{const r=await fetch(URL_+'?select=name,ms,best_ms&day=eq.'+day+'&laps=eq.1&order=ms.asc&limit=200',{headers:H});if(!r.ok)return null;
-      return (await r.json()).map(x=>({name:x.name,time:x.ms,best:x.best_ms}))}catch(e){return null}}
-    async function submit(rec){try{const r=await fetch(URL_,{method:'POST',headers:Object.assign({Prefer:'return=minimal'},H),
-      body:JSON.stringify({day:rec.day,name:String(rec.name).slice(0,24),ms:Math.round(rec.time),best_ms:rec.best?Math.round(rec.best):null,laps:rec.laps})});return r.ok}catch(e){return false}}
+  window.DailyBoard=(function(){   // global daily board on Cloudflare D1 (worker/src/boards.ts)
+    async function fetch_(day){if(!window.Boards)return null;const r=await Boards.get('daily',{day,laps:1});return r?r.top.map(x=>({name:x.name,time:x.ms,best:x.best_ms})):null}
+    async function submit(rec){if(!window.Boards)return false;return Boards.post('daily',{day:rec.day,name:String(rec.name).slice(0,24),ms:Math.round(rec.time),best_ms:rec.best?Math.round(rec.best):null,laps:rec.laps})}
     return {fetch:fetch_,submit}})();
   // --- Save Daily Leaderboard Time ---
   function saveDailyTime(name, time) {

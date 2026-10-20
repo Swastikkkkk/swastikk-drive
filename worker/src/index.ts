@@ -1,8 +1,9 @@
 import type { RoomEnv } from './room';
+import { handleBoards, type BoardsEnv } from './boards';
 
 export { RaceRoom } from './room';
 
-export interface Env extends RoomEnv {
+export interface Env extends RoomEnv, BoardsEnv {
   RACE_ROOM: DurableObjectNamespace;
   /** Comma-separated origins allowed to open a room socket. Empty allows any origin. */
   ALLOWED_ORIGINS?: string;
@@ -27,6 +28,20 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+// The game is served from another origin (Vercel), so the HTTP API needs CORS for the allowed sites.
+function cors(request: Request, env: Env, res: Response): Response {
+  const origin = request.headers.get('Origin');
+  const list = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!origin || (list.length && !list.includes(origin))) return res;
+  const h = new Headers(res.headers);
+  h.set('Access-Control-Allow-Origin', origin);
+  h.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  h.set('Access-Control-Allow-Headers', 'Content-Type');
+  h.set('Access-Control-Max-Age', '86400');
+  h.set('Vary', 'Origin');
+  return new Response(res.body, { status: res.status, headers: h });
+}
+
 function originAllowed(request: Request, env: Env): boolean {
   const list = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (!list.length) return true;
@@ -47,6 +62,12 @@ export default {
       const path = url.pathname.replace(/\/+$/, '') || '/';
 
       if (path === '/health') return new Response('ok', { headers: { 'cache-control': 'no-store' } });
+
+      if (request.method === 'OPTIONS') return cors(request, env, new Response(null, { status: 204 }));
+
+      // Leaderboards: /api/boards/race | daily | typing
+      const board = path.match(/^\/api\/boards\/([a-z]+)$/);
+      if (board) return cors(request, env, await handleBoards(request, env, board[1], json));
 
       // Create a room: returns a code nobody is using yet. Joining is by code, the same way the game does it.
       if (path === '/api/rooms' && request.method === 'POST') {

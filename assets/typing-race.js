@@ -203,13 +203,10 @@
   function quit(){if(st==='idle')return;st='idle';cdTimers.forEach(clearTimeout);cd.classList.remove('on');hud.classList.remove('on');sec.classList.remove('typing');
     lines.style.opacity='0';if(KBR())KBR().active=false;try{G().typeEnd()}catch(e){}input.blur()}
 
-  /* ---------- leaderboard (Supabase typing_times; the database re-checks every stat) ---------- */
+  /* ---------- leaderboard (Cloudflare D1 typing board; the server re-checks every stat) ---------- */
   const Board={
-    url(){const s=G()&&G().supa;return s?s.url+'/rest/v1/typing_times':null},
-    head(){const k=G().supa.key;return {'Content-Type':'application/json',apikey:k,Authorization:'Bearer '+k}},
-    async fetch(day){try{const u=this.url();if(!u)return null;const r=await fetch(u+'?select=name,ms,wpm,acc&day=eq.'+day+'&order=ms.asc&limit=300',{headers:this.head()});if(!r.ok)return null;
-      const best=new Map();(await r.json()).forEach(x=>{const k=String(x.name).toLowerCase();if(!best.has(k))best.set(k,x)});return [...best.values()]}catch(e){return null}},
-    async submit(rec){try{const u=this.url();if(!u)return false;const r=await fetch(u,{method:'POST',headers:Object.assign({Prefer:'return=minimal'},this.head()),body:JSON.stringify(rec)});return r.ok}catch(e){return false}}};
+    async fetch(day){if(!window.Boards)return null;const r=await Boards.get('typing',{day});return r?r.top:null},
+    async submit(rec){return window.Boards?Boards.post('typing',rec):false}};
   const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const myName=()=>{const n=G()&&G().name();return n||'Driver'};
 
@@ -232,7 +229,7 @@
     const rec={day,name:myName().slice(0,24),ms:r.ms,wpm:+r.wpm.toFixed(1),acc:+r.acc.toFixed(1),chars:r.chars,keys:r.keys,max_kmh:r.maxKmh};
     const ok=await Board.submit(rec);
     const rows=await Board.fetch(day);
-    note.textContent=ok?'Saved to the global board for '+day+' (UTC).':'Could not reach the board · your best is kept on this device.';
+    note.textContent=ok?'Saved to the global board for '+day+' (UTC).':'The board is offline right now · your best is saved and shown here.';
     if(rows){const mine=myName().toLowerCase(),others=rows.filter(x=>String(x.name).toLowerCase()!==mine),myBest=Math.min(r.ms,...rows.filter(x=>String(x.name).toLowerCase()===mine).map(x=>x.ms));
       const place=others.filter(x=>x.ms<myBest).length+1;posEl.textContent='#'+place;
       if(place===1&&r.ms===myBest)badges.innerHTML+='<span class="rs-badge one">🏆 You are today\'s fastest typer!</span>'}

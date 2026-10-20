@@ -3,7 +3,7 @@
    time and best lap, a new-record banner, F1 points or story stars, the race classification and the best times for
    this race, then Next race / Race again / Menu.
 
-   Records: every finish is posted to Supabase (table race_results, see supabase/race_results.sql) and kept on this
+   Records: every finish is posted to the global race board (Cloudflare D1, worker/src/boards.ts) and kept on this
    device; if the table is not there yet the device copy is used alone. */
 (function () {
   'use strict';
@@ -17,15 +17,11 @@
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   function myName() { try { return (localStorage.getItem('sl_name') || '').trim(); } catch (e) { return ''; } }
 
-  // ---------- records: Supabase table race_results, with this device as the fallback ----------
+  // ---------- records: the global race board (Cloudflare D1, via assets/boards-api.js) ----------
   var DB = {
-    h: function () { var S = window.__SUPA; return S ? { 'Content-Type': 'application/json', apikey: S.key, Authorization: 'Bearer ' + S.key } : null; },
-    url: function () { return window.__SUPA ? window.__SUPA.url + '/rest/v1/race_results' : null; },
-    submit: function (r) { var u = this.url(), h = this.h(); if (!u) return Promise.resolve(false);
-      return fetch(u, { method: 'POST', headers: Object.assign({ Prefer: 'return=minimal' }, h), body: JSON.stringify(r) }).then(function (x) { return x.ok; }).catch(function () { return false; }); },
-    top: function (track, mode, laps) { var u = this.url(), h = this.h(); if (!u) return Promise.resolve(null);
-      var q = '?select=name,ms,best_lap_ms,pos,field&track=eq.' + encodeURIComponent(track) + '&mode=eq.' + encodeURIComponent(mode) + '&laps=eq.' + laps + '&order=ms.asc&limit=10';
-      return fetch(u + q, { headers: h }).then(function (x) { return x.ok ? x.json() : null; }).catch(function () { return null; }); }
+    submit: function (r) { return window.Boards ? Boards.post('race', r) : Promise.resolve(false); },
+    // {top: global best per player, mine: this player's attempts, rank, players}
+    board: function (track, mode, laps, name) { return window.Boards ? Boards.get('race', { track: track, mode: mode, laps: laps, name: name }) : Promise.resolve(null); }
   };
 
   function close() { if (el) { el.remove(); el = null; } try { window.RaceEngine.closeResultsModal(); } catch (e) {} }
@@ -111,7 +107,7 @@
       '#rfin li+li{margin-top:2px}#rfin li b{font:700 17px/1 ' + CF + ';text-align:right;color:rgba(243,243,241,.85)}#rfin li i{height:20px;border-radius:2px}' +
       '#rfin li .cd{font:700 16px/1 ' + CF + ';letter-spacing:.06em}#rfin li .nm{color:rgba(243,243,241,.5);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#rfin li .tm{font:600 15px/1 ' + CF + ';color:rgba(243,243,241,.8)}' +
       '#rfin li:nth-child(odd){background:rgba(255,255,255,.035)}#rfin li.me{background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 30%,transparent),rgba(255,255,255,.03));}#rfin li.me .nm{color:#f3f3f1}' +
-      '#rfin .rf-src{font-size:11.5px;color:rgba(243,243,241,.38);margin-top:6px}' +
+      '#rfin .rf-src{font-size:11.5px;color:rgba(243,243,241,.38);margin-top:6px}#rfin .rf-rank{float:right;color:#f3f3f1;font-weight:700}' +
       '#rfin .rf-name{display:flex;gap:8px}#rfin .rf-name input{flex:1;min-width:0;padding:11px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;font:inherit;font-size:14px}' +
       '#rfin .acts{display:flex;gap:10px;margin-top:auto;padding-top:4px}' +
       '#rfin button{all:unset;box-sizing:border-box;cursor:pointer;height:48px;padding:0 20px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;font:600 15px/1 -apple-system,sans-serif;border:1px solid rgba(255,255,255,.16);color:#f3f3f1;transition:background .15s,border-color .15s,transform .15s}' +
@@ -127,7 +123,8 @@
       '<div class="pn">' + (banners ? '<div class="rf-bs">' + banners + '</div>' : '') +
       '<div class="st">' + stats.slice(0, 3).map(function (x) { return '<div><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>' +
       (tower && field > 1 ? '<div><h3>Classification</h3><ol>' + tower + '</ol></div>' : '') +
-      '<div><h3>Best times on this race</h3><ol id="rfTop"><li><b></b><i></i><span class="cd"></span><span class="nm">Loading…</span><span class="tm"></span></li></ol><div class="rf-src" id="rfSrc"></div></div>' +
+      '<div><h3>Global leaderboard <span class="rf-rank" id="rfRank"></span></h3><ol id="rfTop"><li><b></b><i></i><span class="cd"></span><span class="nm">Loading…</span><span class="tm"></span></li></ol><div class="rf-src" id="rfSrc"></div></div>' +
+      '<div><h3>Your times</h3><ol id="rfMine"></ol></div>' +
       (name ? '' : '<div class="rf-name"><input id="rfNm" maxlength="20" placeholder="Your name for the leaderboard" aria-label="Your name for the leaderboard"><button id="rfPost">Post time</button></div>') +
       '<div class="acts">' + (next ? '<button class="go" id="rfNext">Next · ' + esc(next.label) + '</button>' : '') +
       '<button' + (next ? '' : ' class="go"') + ' id="rfAgain">Race again</button><button id="rfMenu">Menu</button></div></div>';
@@ -138,16 +135,28 @@
     var first = el.querySelector('button.go'); if (first) try { first.focus({ preventScroll: true }); } catch (e) {}
 
     var rec = { track: ctx.track, mode: ctx.mode, laps: laps, ms: Math.round(total || 0), best_lap_ms: lap ? Math.round(lap) : null, pos: pos, field: field, story_level: story ? story.n : null };
-    function fill(list, src) { var ol = el && el.querySelector('#rfTop'); if (!ol) return;
-      ol.innerHTML = (list || []).slice(0, 6).map(function (r, k) { var me = r.me || (r.ms === rec.ms && r.name === (myName() || 'Driver'));
-        return '<li' + (me ? ' class="me"' : '') + '><b>' + (k + 1) + '</b><i style="background:' + (me ? accent : 'rgba(255,255,255,.18)') + '"></i><span class="cd">' + esc(String(r.name || 'Driver').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'DRV') + '</span><span class="nm">' + esc(r.name || 'Driver') + '</span><span class="tm">' + fmt(r.ms) + '</span></li>'; }).join('') || '<li><b></b><i></i><span class="cd"></span><span class="nm">No times yet</span><span class="tm"></span></li>';
-      var s = el.querySelector('#rfSrc'); if (s) s.textContent = src; }
+    function row(r, k, me) {
+      return '<li' + (me ? ' class="me"' : '') + '><b>' + (k + 1) + '</b><i style="background:' + (me ? accent : 'rgba(255,255,255,.18)') + '"></i><span class="cd">' + esc(String(r.name || 'Driver').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'DRV') + '</span><span class="nm">' + esc(r.name || 'Driver') + '</span><span class="tm">' + fmt(r.ms) + '</span></li>'; }
+    var empty = function (t) { return '<li><b></b><i></i><span class="cd"></span><span class="nm">' + t + '</span><span class="tm"></span></li>'; };
+    function fill(res, nm) { if (!el) return;
+      var ol = el.querySelector('#rfTop'), mine = el.querySelector('#rfMine'), src = el.querySelector('#rfSrc'), rk = el.querySelector('#rfRank');
+      var me = String(nm || '').toLowerCase();
+      if (res) {
+        ol.innerHTML = (res.top || []).slice(0, 8).map(function (r, k) { return row(r, k, me && String(r.name).toLowerCase() === me); }).join('') || empty('No times yet. Yours is the first.');
+        var m = (res.mine && res.mine.length) ? res.mine : hist;
+        mine.innerHTML = m.slice(0, 5).map(function (r, k) { return row(r, k, r.ms === rec.ms); }).join('') || empty('No times yet');
+        if (rk) rk.textContent = res.rank ? '#' + res.rank + ' of ' + res.players : '';
+        if (src) src.textContent = res.players ? res.players + ' driver' + (res.players > 1 ? 's' : '') + ' on this race' : '';
+      } else {
+        ol.innerHTML = empty('Leaderboard is offline right now. Try again in a bit.');
+        mine.innerHTML = hist.slice(0, 5).map(function (r, k) { return row(r, k, r.ms === rec.ms); }).join('') || empty('No times yet');
+        if (src) src.textContent = ''; if (rk) rk.textContent = '';
+      } }
     function post(nm) { rec.name = nm || 'Driver';
-      return DB.submit(rec).then(function (ok) { return DB.top(ctx.track, ctx.mode, laps).then(function (top) {
-        if (ok && top) fill(top, 'Everyone’s times, saved online'); else fill(hist, 'Times on this device (online board not reachable)'); }); }); }
-    if (!total) fill(hist, '');
+      return DB.submit(rec).then(function () { return DB.board(ctx.track, ctx.mode, laps, rec.name); }).then(function (res) { fill(res, rec.name); }); }
+    if (!total) DB.board(ctx.track, ctx.mode, laps, name).then(function (res) { fill(res, name); });
     else if (name) post(name);
-    else { fill(hist, 'Add your name to post this time online');
+    else { DB.board(ctx.track, ctx.mode, laps, '').then(function (res) { fill(res, ''); });
       el.querySelector('#rfPost').onclick = function () { var v = (el.querySelector('#rfNm').value || '').trim().slice(0, 20); if (!v) return;
         try { localStorage.setItem('sl_name', v); } catch (e) {} var box = el.querySelector('.rf-name'); if (box) box.remove(); post(v); }; }
   }

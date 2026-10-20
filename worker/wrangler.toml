@@ -20,5 +20,12 @@ class_name = "RaceRoom"
 tag = "v1"
 new_sqlite_classes = ["RaceRoom"]
 
+# Leaderboards (race, daily, typing). Schema: migrations/. Apply with: npx wrangler d1 migrations apply skr-db --remote
+[[d1_databases]]
+binding = "DB"
+database_name = "skr-db"
+database_id = "ef0846c0-ae07-4cde-88e0-d995ed1f1331"
+migrations_dir = "migrations"
+
 [observability]
 enabled = true
