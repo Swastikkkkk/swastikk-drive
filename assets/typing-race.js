@@ -103,7 +103,7 @@
 
   /* ---------- race HUD ---------- */
   const hud=mk('div',{id:'dtype'},`<div class="ty-card"><div class="ty-bar"></div>
-      <div class="ty-head"><span class="ty-tag">Daily Typing Race</span><span style="display:flex;gap:8px"><button class="ty-x ty-snd" type="button">Sound on</button><button class="ty-x" type="button" data-q="1">Quit · Esc</button></span></div>
+      <div class="ty-head"><span class="ty-tag">Daily Typing Race</span><span style="display:flex;gap:8px"><button class="ty-x ty-snd" type="button">Sound on</button><button class="ty-x" type="button" data-r="1">Restart · Tab</button><button class="ty-x" type="button" data-q="1">Quit · Esc</button></span></div>
       <div class="ty-text" aria-live="off"></div>
       <div class="ty-stats">
         <div class="ty-st speed"><b data-k="kmh">0</b><span>km/h</span></div>
@@ -118,6 +118,10 @@
   const input=hud.querySelector('input'),textEl=hud.querySelector('.ty-text'),bar=hud.querySelector('.ty-bar'),stat={};
   hud.querySelectorAll('[data-k]').forEach(b=>stat[b.dataset.k]=b);
   hud.querySelector('[data-q]').onclick=()=>quit();
+  /* restart, same as B on the race tracks: Tab while typing (B is a letter here), B once the results are up */
+  function restart(){if(st==='idle'&&!res.classList.contains('on'))return;closeResults();start(tfOpts)}
+  hud.querySelector('[data-r]').onclick=()=>restart();
+  addEventListener('keydown',e=>{if(e.code==='KeyB'&&!e.repeat&&res.classList.contains('on')&&!(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName)&&e.target!==input)){e.preventDefault();e.stopImmediatePropagation();restart()}},true);
   // the keyboard under the stats (assets/typing-keyboard.js); hidden on phones, which bring their own
   const KB=window.TypingKeyboard;
   if(KB){const wrap=document.createElement('div');wrap.className='ty-kbwrap';hud.querySelector('.ty-card').appendChild(wrap);KB.mount(wrap);
@@ -155,7 +159,7 @@
     const t=now();for(const ch of v)onChar(ch,t)});
   input.addEventListener('paste',e=>{e.preventDefault();toast('Pasting is switched off · type it')});
   input.addEventListener('drop',e=>e.preventDefault());
-  input.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();quit()}});
+  input.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();quit()}else if(e.key==='Tab'){e.preventDefault();restart()}});
   input.addEventListener('blur',()=>{if(st==='racing'||st==='ready')setTimeout(()=>{if(st==='racing'||st==='ready')input.focus()},50)});
 
   /* ---------- the speed model ---------- */
@@ -218,7 +222,7 @@
       <div class="rs-grid"><div><b>${Math.round(r.wpm)}</b><span>WPM</span></div><div><b>${r.acc.toFixed(1)}%</b><span>Accuracy</span></div>
         <div><b>${r.maxKmh}</b><span>Max km/h</span></div><div><b class="rs-pos">…</b><span>Today</span></div></div>
       <div class="rs-note"></div>
-      <div class="rs-btns"><button class="rs-board" type="button">View leaderboard</button><button class="pri rs-again" type="button">Try again</button></div></div>`;
+      <div class="rs-btns"><button class="rs-board" type="button">View leaderboard</button><button class="pri rs-again" type="button">Try again · B</button></div></div>`;
     res.classList.add('on');
     const badges=res.querySelector('.rs-badges'),note=res.querySelector('.rs-note'),posEl=res.querySelector('.rs-pos');
     res.querySelector('.rs-again').onclick=()=>{closeResults();start()};
