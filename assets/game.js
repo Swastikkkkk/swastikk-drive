@@ -5906,8 +5906,7 @@ const PLANETS={
   /* ---------- the valley, alive: rain fronts, a neon strip, hidden tokens ----------
      RAIN: in auto weather, every few minutes a rain front can roll in over ~20 s, last a minute or two and clear. While
      the road is wet, dark glossy puddles show on the tarmac and the tyres throw spray.
-     NEON STRIP: one stretch of the valley loop is a small night town: streetlights both sides, low buildings with lit
-     windows and neon signs. It is there all day; after dark it glows.
+     NEON STRIP: one stretch of the valley loop is lit: streetlights both sides that glow after dark.
      TOKENS: 12 gold tokens hidden off the road around the valley. Each one found unlocks a paint in the paint shop. */
   const WORLDX=(function(){if(LOW&&false)return {tick(){}};
     const root=new THREE.Group();S.add(root);let wet=0,front=null,nextFront=performance.now()+120000+Math.random()*120000;
@@ -5936,15 +5935,7 @@ const PLANETS={
         const lampM=new THREE.MeshBasicMaterial({color:0xfff1c8});const lamp=new THREE.Mesh(new THREE.BoxGeometry(.32,.12,.5),lampM);lamp.position.set(x-n.x*sd*1.4,y+6.02,z-n.z*sd*1.4);lamp.rotation.y=Math.atan2(n.x,n.z);city.add(lamp);
         const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffd99a,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));gl.position.copy(lamp.position);gl.scale.setScalar(4.5);city.add(gl);glows.push(gl);
         staticBox(x,y+3,z,.12,3,.12)}
-      // buildings behind the lights, every other step, where the ground is free
-      if((d/24|0)%2===0)for(const sd of[-1,1]){const dist=off+9+rnd()*8,x=p.x+n.x*sd*dist,z=p.z+n.z*sd*dist;if(roadNear(x,z).d<off+5||HF.slope(x,z)>.5)continue;{const sp2=spurAt(x,z);if(sp2&&sp2.d<14)continue}
-        const w=8+rnd()*6,h=6+rnd()*10,dp=7+rnd()*4,y=HF.h(x,z);const wt=winTex();wt.repeat.set(Math.round(w/4),Math.round(h/5));
-        const wm=new THREE.MeshLambertMaterial({color:bodyM[si%bodyM.length],emissive:0xffffff,emissiveMap:wt,emissiveIntensity:.15});winMats.push(wm);
-        const b=new THREE.Mesh(new THREE.BoxGeometry(dp,h,w),wm);b.position.set(x,y+h/2-.3,z);b.rotation.y=Math.atan2(tg.x,tg.z);b.castShadow=!LOW;b.receiveShadow=true;city.add(b);
-        staticBox(x,y+h/2,z,dp/2,h/2,w/2,Math.atan2(tg.x,tg.z));
-        const [txt,col]=NAMES[si%NAMES.length];si++;const nm=new THREE.MeshBasicMaterial({map:signTex(txt,col),transparent:true,depthWrite:false,opacity:.6});neonMats.push(nm);
-        const sign=new THREE.Mesh(new THREE.PlaneGeometry(6,1.9),nm);const fx=x-n.x*sd*(dp/2+.08),fz=z-n.z*sd*(dp/2+.08);sign.position.set(fx,y+Math.min(h-1.5,5.2),fz);sign.rotation.y=Math.atan2(-n.x*sd,-n.z*sd);city.add(sign);
-        const ng=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:new THREE.Color(col),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:0}));ng.position.copy(sign.position);ng.scale.set(9,4,1);city.add(ng);glows.push(ng)}}
+      }   // (the window-grid buildings that used to stand behind these lights are gone)
      WORLDX_U=[U0,U1]}
     // tokens
     const TOK_PAINTS=[0xff2d55,0x00c7be,0xffcc00,0x5856d6,0xff9500,0x34c759,0xaf52de,0x0a84ff,0xd4af37,0xe5e5ea,0x1c1c1e,0xff6f91];
@@ -6317,7 +6308,7 @@ const PLANETS={
           circU0=u}
         if(frameN%45===0&&circuit.hazeTo)circuit.hazeTo(S.fog.color);
         if(frameN%8===0&&circuit.LODCELLS)lodTick(circuit.LODCELLS,C.position.x,C.position.z);   // follow weather/time-of-day fog changes
-        if(frameN%20===0)hint.classList.remove('dim'),hint.textContent='Circuit · lap '+(circLap+1)+(circBest?' · best '+fmtT(circBest):'')+' · Track button to leave'}
+        if(frameN%20===0&&hint.textContent)hint.textContent=''}   // the lap HUD already shows lap and best; no hint pill on circuits
       CAI.update(dt,now);
       if(window.RaceEngine && window.RaceEngine.active){
         window.RaceEngine.update(now, dt, {
@@ -7058,20 +7049,33 @@ const PLANETS={
      BH=20;
      let base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5),BL=base.getLength();const K=Math.max(160,Math.min(2400,Math.round(BL/2.5)));let ds=BL/K;
      const P=[],Y=[];for(let k=0;k<K;k++){const q=base.getPointAt(k/K);P.push([q.x,q.z]);Y.push(q.y)}
+     /* no corner tighter than about one road width: on the inside of a hairpin drawn tighter than that, the inner edge
+        sat closer to another part of the same bend than to its own centreline and the road twisted across. Points on
+        too-tight bends are eased towards their neighbours until the radius is at least RMIN. */
+     {const RMIN=CIRC_W*.62;let eased=false;
+      for(let it=0;it<60;it++){let any=0;
+        for(let k=0;k<K;k++){const a=P[(k-2+K)%K],b=P[k],c=P[(k+2)%K],ab=Math.hypot(b[0]-a[0],b[1]-a[1]),bc=Math.hypot(c[0]-b[0],c[1]-b[1]),ca=Math.hypot(a[0]-c[0],a[1]-c[1]),
+            ar=Math.abs((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))/2;if(ar<1e-6)continue;
+          if(ab*bc*ca/(4*ar)<RMIN){b[0]+=((a[0]+c[0])/2-b[0])*.35;b[1]+=((a[1]+c[1])/2-b[1])*.35;any++}}
+        if(!any)break;eased=true}
+      if(eased){pts3=P.map((q,k)=>new THREE.Vector3(q[0],Y[k],q[1]));base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);BL=base.getLength();ds=BL/K;
+        for(let k=0;k<K;k++){const q=base.getPointAt(k/K);P[k][0]=q.x;P[k][1]=q.z;Y[k]=q.y}}}
      const D=CIRC_W+2*BARRIER_OFF+3,gapArc=Math.max(D*3,CIRC_W*3+30),G=new Map(),key=(x,z)=>(Math.floor(x/D)+4096)*8192+Math.floor(z/D)+4096;
      /* side by side: two stretches drawn next to each other, running the same way or opposite ways, are eased apart until
         they sit edge to edge with a concrete divider between them, instead of being stacked into a tower. Only real
         crossings (and stretches drawn right on top of each other) are left for the flyovers. */
      const nearStart=k=>Math.min(k,K-k)*ds<70,pairs=[];
-     const SEP=CIRC_W+1.8,tanAt=k=>{const a=P[(k-3+K)%K],b=P[(k+3)%K],dx=b[0]-a[0],dz=b[1]-a[1],l=Math.hypot(dx,dz)||1;return [dx/l,dz/l]},
+     const SEP=Math.max(CIRC_W+1.8,CIRC_W*1.24+1),tanAt=k=>{const a=P[(k-3+K)%K],b=P[(k+3)%K],dx=b[0]-a[0],dz=b[1]-a[1],l=Math.hypot(dx,dz)||1;return [dx/l,dz/l]},
        parl=(i,j)=>{const a=tanAt(i),b=tanAt(j);return Math.abs(a[0]*b[0]+a[1]*b[1])>.93};
      {let moved=false;const SK=v=>Math.floor(v/SEP);
       for(let it=0;it<24;it++){const G2=new Map();for(let k=0;k<K;k++){const c=(SK(P[k][0])+4096)*8192+SK(P[k][1])+4096;let L=G2.get(c);if(!L)G2.set(c,L=[]);L.push(k)}
         const OX=new Float32Array(K),OZ=new Float32Array(K);let any=0;
         for(let i=0;i<K;i++){const gx=SK(P[i][0]),gz=SK(P[i][1]);
           for(let a2=-1;a2<=1;a2++)for(let b2=-1;b2<=1;b2++){const L=G2.get((gx+a2+4096)*8192+gz+b2+4096);if(!L)continue;
-            for(const j of L){if(j===i)continue;const da=Math.min(Math.abs(j-i),K-Math.abs(j-i))*ds;if(da<gapArc)continue;
-              const dx=P[i][0]-P[j][0],dz=P[i][1]-P[j][1],d=Math.hypot(dx,dz);if(d>=SEP-.05||d<CIRC_W*.3)continue;if(!parl(i,j))continue;
+            for(const j of L){if(j===i)continue;const da=Math.min(Math.abs(j-i),K-Math.abs(j-i))*ds;
+              const dx=P[i][0]-P[j][0],dz=P[i][1]-P[j][1],d=Math.hypot(dx,dz);if(d>=SEP-.05)continue;
+              /* far apart along the lap, or the two legs of a hairpin (the road between them is much longer than the gap) */
+              const fold=da<gapArc&&da>Math.max(d*2.2,SEP*1.3);if(da<gapArc&&!fold)continue;if(!fold&&d<CIRC_W*.3)continue;if(!parl(i,j))continue;
               const f=(SEP-d)*.45/d;OX[i]+=dx*f;OZ[i]+=dz*f;any++}}}
         if(!any)break;moved=true;
         for(let pass=0;pass<2;pass++){const r=5,TX=new Float32Array(K),TZ=new Float32Array(K);for(let k=0;k<K;k++){let sx=0,sz=0,w=0;for(let d=-r;d<=r;d++){const q=(k+d+K)%K,ww=r+1-Math.abs(d);sx+=OX[q]*ww;sz+=OZ[q]*ww;w+=ww}TX[k]=sx/w;TZ[k]=sz/w}OX.set(TX);OZ.set(TZ)}
@@ -7079,6 +7083,26 @@ const PLANETS={
       window.__sepDbg={moved,SEP,W:CIRC_W,D};
       if(moved){pts3=P.map((q,k)=>new THREE.Vector3(q[0],Y[k],q[1]));base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);BL=base.getLength();ds=BL/K;
         for(let k=0;k<K;k++){const q=base.getPointAt(k/K);P[k][0]=q.x;P[k][1]=q.z;Y[k]=q.y}}}
+     /* side by side at different heights: two stretches of the lap running near each other used to keep their own hill
+        heights, so the ground between them became a dirt wall and the coarse terrain spilled over the lower road. Their
+        heights are pulled together until the ground between them is never steeper than 1 in 4 (the stacking below then
+        lifts real crossings clear on top of that). */
+     {const GAP=CIRC_W+2*BARRIER_OFF,R=GAP+34,SL=.25,SKL=v=>Math.floor(v/R);let lev=false;
+      for(let it=0;it<40;it++){const G3=new Map();for(let k=0;k<K;k++){const c=(SKL(P[k][0])+4096)*8192+SKL(P[k][1])+4096;let L=G3.get(c);if(!L)G3.set(c,L=[]);L.push(k)}
+        const DYk=new Float32Array(K),CN2=new Uint16Array(K);let any=0;
+        for(let i=0;i<K;i++){const gx=SKL(P[i][0]),gz=SKL(P[i][1]);
+          for(let a2=-1;a2<=1;a2++)for(let b2=-1;b2<=1;b2++){const L=G3.get((gx+a2+4096)*8192+gz+b2+4096);if(!L)continue;
+            for(const j of L){if(j===i)continue;const da=Math.min(Math.abs(j-i),K-Math.abs(j-i))*ds;
+              const d=Math.hypot(P[i][0]-P[j][0],P[i][1]-P[j][1]);if(d>=R)continue;if(da<gapArc&&da<=Math.max(d*2.2,SEP*1.3))continue;
+              const allow=Math.max(0,d-GAP)*SL,diff=Y[j]-Y[i];if(Math.abs(diff)<=allow+.05)continue;
+              DYk[i]+=(diff-Math.sign(diff)*allow)*.5;CN2[i]++;any++}}}
+        if(!any)break;lev=true;
+        const A=new Float32Array(K);for(let k=0;k<K;k++)A[k]=CN2[k]?DYk[k]/CN2[k]:0;
+        for(let pass=0;pass<2;pass++){const r=6,T=new Float32Array(K);for(let k=0;k<K;k++){let sm=0,w=0;for(let d=-r;d<=r;d++){const q=(k+d+K)%K,ww=r+1-Math.abs(d);sm+=A[q]*ww;w+=ww}T[k]=sm/w}A.set(T)}
+        for(let k=0;k<K;k++)Y[k]+=A[k]*.9}
+      if(lev){pts3=P.map((q,k)=>new THREE.Vector3(q[0],Y[k],q[1]));base=new THREE.CatmullRomCurve3(pts3,true,'catmullrom',.5);BL=base.getLength();ds=BL/K;
+        for(let k=0;k<K;k++){const q=base.getPointAt(k/K);P[k][0]=q.x;P[k][1]=q.z;Y[k]=q.y}}
+      if(window.__sepDbg)window.__sepDbg.levelled=lev}
      for(let k=0;k<K;k++){const c=key(P[k][0],P[k][1]);let L=G.get(c);if(!L)G.set(c,L=[]);L.push(k)}
           for(let i=0;i<K&&pairs.length<60000;i++){const gx=Math.floor(P[i][0]/D),gz=Math.floor(P[i][1]/D);
        for(let a2=-1;a2<=1;a2++)for(let b2=-1;b2<=1;b2++){const L=G.get((gx+a2+4096)*8192+gz+b2+4096);if(!L)continue;
@@ -7104,7 +7128,13 @@ const PLANETS={
        for(let k=0;k<K;k++)H[k]=Math.max(H[k],S2[k]);
        for(let q=0;q<pairs.length;q+=3){const u=pairs[q+2],l=u===pairs[q]?pairs[q+1]:pairs[q],need=(Y[l]+H[l]+BH)-(Y[u]+H[u]);if(need>.01)H[u]+=need}
        solved=best.mx<=120}
-     if(pairs.length&&!solved){if(!best)H.fill(0);else for(let k=0;k<K;k++)H[k]=Math.min(H[k],120);setTimeout(()=>toastMsg('Part of this drawing is too tight to stack cleanly · spread the loops out a little'),1200)}
+     /* no clean stacking found: never fall back to a flat crossing. Each crossing gets its own flyover instead (the later
+        pass goes over, the start straight stays down), with 20 % ramps either side. */
+     if(pairs.length&&!best){H.fill(0);const st=.2*ds;
+       for(let q=0;q<pairs.length;q+=3){const i=pairs[q],j=pairs[q+1],u=nearStart(j)?i:j,l=u===i?j:i;H[u]=Math.max(H[u],Math.max(0,(Y[l]+H[l]+BH)-Y[u]))}
+       for(let sw=0;sw<3;sw++){for(let k=0;k<K;k++){const p0=(k-1+K)%K;if(H[k]<H[p0]-st)H[k]=H[p0]-st}for(let k=K-1;k>=0;k--){const n0=(k+1)%K;if(H[k]<H[n0]-st)H[k]=H[n0]-st}}
+       for(let k=0;k<K;k++)H[k]=Math.min(H[k],120)}
+     if(pairs.length&&!solved){if(best)for(let k=0;k<K;k++)H[k]=Math.min(H[k],120);setTimeout(()=>toastMsg('Part of this drawing is too tight to stack cleanly · spread the loops out a little'),1200)}
      {let mn=1e9;for(let k=0;k<K;k++)mn=Math.min(mn,H[k]);if(mn>0&&mn<1e9)for(let k=0;k<K;k++)H[k]-=mn}   // the lowest point of the lap sits on the ground
      const Hat=u=>{u=((u%1)+1)%1;const f=u*K,i=Math.floor(f)%K,t=f-Math.floor(f);return H[i]*(1-t)+H[(i+1)%K]*t};
      // every lifted stretch is a bridge: centre and half-length in metres, the highest point, and a lower pass under it
@@ -7112,6 +7142,28 @@ const PLANETS={
        if(k0>=0){let k=k0;for(let n=0;n<K;n++){const i=(k0+n)%K;if(H[i]>=.05&&H[(i-1+K)%K]<.05){let e=i,mxh=0,len=0;while(H[e%K]>=.05&&len<K){mxh=Math.max(mxh,H[e%K]);e++;len++}
            const c=(i+len/2)%K,lowPair=(()=>{for(let q=0;q<pairs.length;q+=3){const u=pairs[q+2];if(((u-i+K)%K)<len)return (u===pairs[q]?pairs[q+1]:pairs[q])/K}return c/K})();
            BRIDGES.push({u:c/K,flat:len*ds/2+2,ramp:0,h:mxh,x:P[Math.floor(c)][0],z:P[Math.floor(c)][1],low:lowPair})}}}}
+     /* last pass, after every adjustment above: corners no tighter than about one road width and the ground road no
+        steeper than 14 %, so a push apart or a levelling never leaves a kink or a step in the finished road */
+     {const RMIN=CIRC_W*.62,GMAX=.14;let ch=false;
+      const W3=Math.max(2,Math.round(6/ds));   // chord of ~12 m either way, so a kink spread over a few samples is still seen
+      for(let it=0;it<400;it++){let any=0;
+        for(let k=0;k<K;k++){const a=P[(k-W3+K)%K],b=P[k],c=P[(k+W3)%K],ab=Math.hypot(b[0]-a[0],b[1]-a[1]),bc=Math.hypot(c[0]-b[0],c[1]-b[1]),ca=Math.hypot(a[0]-c[0],a[1]-c[1]),
+            ar=Math.abs((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))/2;if(ar<1e-6)continue;
+          if(ab*bc*ca/(4*ar)<RMIN){const m0=P[(k-1+K)%K],m1=P[(k+1)%K];b[0]+=((m0[0]+m1[0])/2-b[0])*.5;b[1]+=((m0[1]+m1[1])/2-b[1])*.5;any++}}
+        if(!any)break;ch=true}
+      for(let it=0;it<200;it++){let any=0;
+        for(let k=0;k<K;k++){const j=(k-1+K)%K,dd=Math.hypot(P[k][0]-P[j][0],P[k][1]-P[j][1])||ds,dy=Y[k]-Y[j],lim=GMAX*dd;
+          if(Math.abs(dy)>lim){const e=(Math.abs(dy)-lim)/2*Math.sign(dy);Y[k]-=e;Y[j]+=e;any++}}
+        if(!any)break;ch=true}
+      /* even spacing again: a uniform Catmull-Rom through unevenly spaced points (pushed apart, eased) overshoots into a
+         cusp, which is where the last tight kinks came from. H keeps its index, so it is resampled the same way. */
+      {const cum=new Float64Array(K+1);for(let k=1;k<=K;k++){const a=P[k-1],b=P[k%K];cum[k]=cum[k-1]+Math.hypot(b[0]-a[0],b[1]-a[1])}
+       const L=cum[K],NP=[],NY=[],NH=new Float32Array(K);let j=0;
+       for(let k=0;k<K;k++){const t=k*L/K;while(j<K-1&&cum[j+1]<t)j++;const f=(t-cum[j])/((cum[j+1]-cum[j])||1),a=P[j],b=P[(j+1)%K];
+         NP.push([a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f]);NY.push(Y[j]+(Y[(j+1)%K]-Y[j])*f);NH[k]=H[j]+(H[(j+1)%K]-H[j])*f}
+       for(let k=0;k<K;k++){P[k]=NP[k];Y[k]=NY[k]}H.set(NH);ch=true}
+      if(ch){const q3=P.map((q,k)=>new THREE.Vector3(q[0],Y[k],q[1]));base=new THREE.CatmullRomCurve3(q3,true,'catmullrom',.5);BL=base.getLength();ds=BL/K;
+        if(!BRIDGES.length)pts3=q3}}
      if(BRIDGES.length){const M2=Math.max(80,Math.round(BL/5));pts3=[];for(let k=0;k<M2;k++){const u=k/M2,q=base.getPointAt(u);pts3.push(new THREE.Vector3(q.x,q.y+Hat(u),q.z))}}
      CIRC_LEVEL=[];
      var liftAt=u=>BRIDGES.length?Hat(u):0}
@@ -7145,11 +7197,17 @@ const PLANETS={
     for(let a=0;a<GNX;a++)for(let b=0;b<GNZ;b++){if(!GRID[a*GNZ+b])continue;for(let da=-3;da<=3;da++)for(let db=-3;db<=3;db++){const aa=a+da,bb=b+db;if(aa>=0&&aa<GNX&&bb>=0&&bb<GNZ)NEAR[aa*GNZ+bb]=1}}
     const nearTrack=(x,z)=>{const gx=Math.floor(x/CELL)-GX0,gz=Math.floor(z/CELL)-GZ0;return gx>=0&&gx<GNX&&gz>=0&&gz<GNZ&&NEAR[gx*GNZ+gz]===1};
     const CUT=CIRC_W/2+BARRIER_OFF+1.5,CUTF=16;
-    const groundAt=(x,z)=>{if(!ELEV)return CIRC_Y;if(!nearTrack(x,z))return BASE(x,z);let ws=H0W,hs=H0W*(REAL?BASE(x,z):CIRC_Y),bq=1e9,by=0,bi=-1;
+    /* under a flyover the ground is cut away: within the deck's footprint (plus a margin for the barriers) it stays at
+       least a deck's depth below the road above. On hilly venues the neighbouring roads used to raise a hill straight
+       through a bridge, so a raised road ran into the hillside. */
+    let HAS_LIFT=false;for(let i=0;i<DN;i++)if(DL[i]>1.5){HAS_LIFT=true;break}
+    const DECKR=CIRC_W/2+BARRIER_OFF+2,underDeck=(x,z,g)=>{let m=g;nearIdx(x,z,DECKR,i=>{if(DL[i]<=1.5)return;const dx=DX[i]-x,dz=DZ[i]-z;if(dx*dx+dz*dz<DECKR*DECKR){const y=DY[i]+DL[i]-1.4;if(y<m)m=y}});return m};
+    const groundAt0=(x,z)=>{if(!ELEV)return CIRC_Y;if(!nearTrack(x,z))return BASE(x,z);let ws=H0W,hs=H0W*(REAL?BASE(x,z):CIRC_Y),bq=1e9,by=0,bi=-1;
       nearIdx(x,z,60,i=>{const dx=DX[i]-x,dz=DZ[i]-z,q=dx*dx+dz*dz+1,fw=1-SM(DL[i]/1.5),w=1/(q*q)*fw;ws+=w;hs+=w*DY[i];if(fw>.5&&q<bq){bq=q;bi=i}});
       const g=REAL?BASE(x,z):hs/ws;if(bq>=1e9)return g;
       {const seg=(a,b)=>{const ax=DX[a],az=DZ[a],ex=DX[b]-ax,ez=DZ[b]-az,L2=ex*ex+ez*ez||1,t=Math.max(0,Math.min(1,((x-ax)*ex+(z-az)*ez)/L2)),px=ax+ex*t-x,pz=az+ez*t-z;return [px*px+pz*pz,DY[a]+(DY[b]-DY[a])*t]};
-       const A=seg(bi,(bi+1)%DN),B=seg((bi-1+DN)%DN,bi),C=A[0]<=B[0]?A:B;by=C[1];bq=C[0]+1}const d=Math.sqrt(bq-1);if(d<=CUT)return by;if(REAL){const e=d-CUT,lim=.3*e+.008*e*e;return by+Math.max(-lim,Math.min(lim,g-by))}if(d<CUT+CUTF){const k=SM((d-CUT)/CUTF);return by*(1-k)+g*k}return g};   // a bridge in the air shapes no ground   // a bridge in the air shapes no ground
+       const A=seg(bi,(bi+1)%DN),B=seg((bi-1+DN)%DN,bi),C=A[0]<=B[0]?A:B;by=C[1];bq=C[0]+1}const d=Math.sqrt(bq-1);let out;if(d<=CUT)out=by;else if(REAL){const e=d-CUT,lim=.3*e+.008*e*e;out=by+Math.max(-lim,Math.min(lim,g-by))}else if(d<CUT+CUTF){const k=SM((d-CUT)/CUTF);out=by*(1-k)+g*k}else out=g;return out};
+    const groundAt=HAS_LIFT?((x,z)=>underDeck(x,z,groundAt0(x,z))):groundAt0;   // a bridge in the air shapes no ground   // a bridge in the air shapes no ground
     /* the road's surface: the ground on hills, except where a bridge lifts it, which follows its own planned line */
     /* on a flyover (any lift at all) the road height is the track's own smooth curve, never the ground below: near the
        crossing that ground belongs to the OTHER, lower road, and on hilly venues reading it made the ramp drop and then
@@ -7251,7 +7309,12 @@ const PLANETS={
        was the flat plane below it.) The physics slab / heightfield stays the collision body. */
     {
       const half2=r0+190,ES2=Math.max(LOW?9:5,half2*2/(LOW?110:REAL?200:210)),n2=Math.ceil(half2*2/ES2)+1,pos=new Float32Array(n2*n2*3),idx=new Uint32Array((n2-1)*(n2-1)*6);let ii=0;
-      const tH=(x,z,ex)=>{const dd=DF(x,z),sink=dd<CIRC_W/2+BARRIER_OFF+10?.35*(1-SM((dd-CIRC_W/2-BARRIER_OFF)/10)):0;return (ELEV?(REAL?groundAt(x,z):hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03-sink-ex+visH(x,z)};
+      /* the visible ground can never stand above a road: within reach of any road-level stretch (one coarse cell past
+         the asphalt, so no triangle touching the road has a vertex outside the clamp) it is held just under the lowest
+         road surface there. Under a bridge it stays below the deck. */
+      const CLAMP=CIRC_W/2+ES2*1.6,lowRoad=(x,z)=>{let m=1e9;nearIdx(x,z,CLAMP,i=>{const dx=DX[i]-x,dz=DZ[i]-z;if(dx*dx+dz*dz<CLAMP*CLAMP){const y=DY[i]+DL[i]-(DL[i]>1.5?1.3:0);if(y<m)m=y}});return m};   // a deck counts too, minus its own depth
+      const tH=(x,z,ex)=>{const dd=DF(x,z),sink=dd<CIRC_W/2+BARRIER_OFF+10?.35*(1-SM((dd-CIRC_W/2-BARRIER_OFF)/10)):0;let h=(ELEV?(REAL?groundAt(x,z):hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03-sink-ex+visH(x,z);
+        if(!REAL&&dd<CLAMP+2){const lr=lowRoad(x,z);if(lr<1e8)h=Math.min(h,lr-.12)}return h};
       /* real circuits: the measured ground can climb steeply right beside the road, and on this coarse grid (25+ m on a
          big lap) one triangle reached from a vertex on the road to one up the hillside, a pale slab standing over the
          kerb and burying the barrier. The band within ~60 m of the road is drawn by a fine grid below instead. */
@@ -8562,38 +8625,40 @@ const PLANETS={
       acc+=segLen}
     return out}
   function drawFail(msg){pendingTrack=null;if(circGoEl)circGoEl.disabled=true;if(circErrEl){circErrEl.style.color='';circErrEl.textContent=msg}drawPts=[];redrawPath()}
-  function finishDraw(){
-    if(drawPts.length<6){drawFail('Draw a larger loop.');return}
-    const first=drawPts[0],last=drawPts[drawPts.length-1];
-    let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;drawPts.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)});
-    const diag=Math.hypot(maxX-minX,maxY-minY);
-    if(diag<70){drawFail('Draw a larger circuit loop.');return}
-    
-    // Auto-close loop smoothly
-    const closed=drawPts.slice();
-    if(Math.hypot(last.x-first.x,last.y-first.y)>8){
-      closed.push({x:first.x,y:first.y});
-    }
-
+  /* the drawing becomes a clean loop: closed, evenly spaced, hand jitter relaxed out, and turned so it STARTS on the
+     longest straight (the grid lines up behind the line on a straight, never in a hairpin). Returns
+     {rs: closed loop (last point = first), crossings} or a string saying what is wrong. */
+  function prepDrawn(src){
+    if(src.length<6)return 'Draw a larger loop.';
+    const first=src[0],last=src[src.length-1];
+    let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;src.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)});
+    if(Math.hypot(maxX-minX,maxY-minY)<70)return 'Draw a larger circuit loop.';
+    const closed=src.slice();if(Math.hypot(last.x-first.x,last.y-first.y)>8)closed.push({x:first.x,y:first.y});
     let rawLen=0;for(let i=1;i<closed.length;i++)rawLen+=Math.hypot(closed[i].x-closed[i-1].x,closed[i].y-closed[i-1].y);
-    const step=Math.max(4,rawLen/110);
-    let rs=resamplePath(closed,step);
-    if(rs.length<8){drawFail('Draw a larger loop.');return}
+    let rs=resamplePath(closed,Math.max(4,rawLen/110));if(rs.length<8)return 'Draw a larger loop.';
     /* hand jitter out: two relax passes round the closed loop (each point pulled a quarter of the way to its neighbours'
        average), then even spacing again. Corners stay where they were drawn, the wobble between them goes. */
     {let q=rs.slice(0,rs.length-1);for(let pass=0;pass<2;pass++){const n=q.length;q=q.map((p,i)=>{const a=q[(i-1+n)%n],b=q[(i+1)%n];return {x:p.x*.5+(a.x+b.x)*.25,y:p.y*.5+(a.y+b.y)*.25}})}
-     q.push({x:q[0].x,y:q[0].y});let L2=0;for(let i=1;i<q.length;i++)L2+=Math.hypot(q[i].x-q[i-1].x,q[i].y-q[i-1].y);rs=resamplePath(q,Math.max(4,L2/110));if(rs.length<8){drawFail('Draw a larger loop.');return}}
-
-    /* crossings and overlaps are allowed: buildCircuit stacks the two passes at least 10 m apart as bridges (deck,
-       pillars, rails, collision), climbing as a spiral where loops are drawn over each other. */
-    let crossings=0;
-    {const n=rs.length-1,near0=Math.max(3,Math.round(n*.05));
-     for(let i=0;i<rs.length-1;i++)for(let j=i+2;j<rs.length-1;j++){
+     q.push({x:q[0].x,y:q[0].y});let L2=0;for(let i=1;i<q.length;i++)L2+=Math.hypot(q[i].x-q[i-1].x,q[i].y-q[i-1].y);rs=resamplePath(q,Math.max(4,L2/110));if(rs.length<8)return 'Draw a larger loop.'}
+    /* crossings are allowed: buildCircuit puts one pass over the other on a bridge */
+    let crossings=0;const nearX=new Set();
+    for(let i=0;i<rs.length-1;i++)for(let j=i+2;j<rs.length-1;j++){
       if(i===0&&j>=rs.length-2)continue;
       if(!segInt(rs[i],rs[i+1],rs[j],rs[j+1]))continue;
-      const ax=rs[i+1].x-rs[i].x,ay=rs[i+1].y-rs[i].y,bx=rs[j+1].x-rs[j].x,by=rs[j+1].y-rs[j].y,sin=Math.abs(ax*by-ay*bx)/(Math.hypot(ax,ay)*Math.hypot(bx,by)||1);
-      crossings++}   // any angle, anywhere: buildCircuit stacks the passes at least 10 m apart (spirals climb, the start straight stays on the ground)
-     if(crossings>24){drawFail('Too many crossings ('+crossings+'). Keep it under 25.');return}}
+      crossings++;for(let d=-3;d<=3;d++){nearX.add(i+d);nearX.add(j+d)}}
+    if(crossings>24)return 'Too many crossings ('+crossings+'). Keep it under 25.';
+    /* start line: the middle-to-late part of the longest straight that has no crossing on it */
+    {const n=rs.length-1,P=rs.slice(0,n),hd=k=>{const a=P[k],b=P[(k+1)%n];return Math.atan2(b.y-a.y,b.x-a.x)},
+       turn=k=>{let d=hd(k)-hd((k-1+n)%n);while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return Math.abs(d)},
+       ok=k=>turn(k)<.1&&!nearX.has(k)&&!nearX.has(k-n)&&!nearX.has(k+n);
+     let bestS=-1,bestL=0;
+     for(let k=0;k<n;k++){if(!ok(k)||ok((k-1+n)%n))continue;let L=0;while(L<n&&ok((k+L)%n))L++;if(L>bestL){bestL=L;bestS=k}}
+     if(bestS<0){let bs=1e9;for(let k=0;k<n;k++){let t=0;for(let d=-3;d<=3;d++)t+=turn((k+d+n)%n);if(nearX.has(k))t+=9;if(t<bs){bs=t;bestS=k;bestL=1}}}   // all round curves: the gentlest spot
+     const s0=(bestS+Math.floor(bestL*.6))%n,R=P.slice(s0).concat(P.slice(0,s0));R.push({x:R[0].x,y:R[0].y});rs=R}
+    return {rs,crossings}}
+  function finishDraw(){
+    const r=prepDrawn(drawPts);if(typeof r==='string'){drawFail(r);return}
+    const rs=r.rs,crossings=r.crossings;
     drawRS=rs.slice(0,rs.length-1);
     pendingTrack=normalizeLoop(drawRS,CIRC_SIZES[selVal('#dcircsize','large')]);
     redrawPath();
@@ -8606,8 +8671,13 @@ const PLANETS={
     if(testB)testB.disabled=false;
     if(saveB)saveB.disabled=false;
     if(shareB)shareB.disabled=false;
-    if(circErrEl){circErrEl.style.color='#7cff6b';circErrEl.textContent='Loop ready · '}if(circErrEl)circErrEl.textContent=(crossings?crossings+' crossing'+(crossings>1?'s':'')+' → flyover'+(crossings>1?'s':'')+' · ':'')+'Loop ready · '+(selVal('#dcircsize','large')==='huge'?'3.6':selVal('#dcircsize','large')==='medium'?'1.6':'2.4')+' km lap. Add obstacles, or press Test drive / GO.';
+    if(circErrEl)circErrEl.textContent=(crossings?crossings+' crossing'+(crossings>1?'s':'')+' → flyover'+(crossings>1?'s':'')+' · ':'')+'Loop ready · '+(selVal('#dcircsize','large')==='huge'?'3.6':selVal('#dcircsize','large')==='medium'?'1.6':'2.4')+' km lap. Add obstacles, or press Test drive / GO.';
+    if(circErrEl)circErrEl.style.color='#7cff6b';
   }
+  /* test hook (used by scripts/track-check.mjs): build a drawn loop headlessly and expose the live circuit */
+  window.__dbgDraw=(pts,o)=>{o=o||{};const pr=o.raw?null:prepDrawn(pts);if(typeof pr==='string')return pr;const loop=normalizeLoop(o.raw?pts:pr.rs.slice(0,pr.rs.length-1),CIRC_SIZES[o.size||'huge']||CIRC_LEN);
+    buildCircuit(loop,THEMES.find(t=>t.id===(o.scenery||'meadow'))||THEME_DEFAULT,o.seed||271828,{weather:'day',time:'day',width:o.width||16,elev:o.elev||'rolling',obstacles:[]});return !!circuit};
+  window.__circ=()=>circuit;
   function generateVenue(){
     if(!pendingTrack)return;
     const seed=Math.max(1,Math.min(2147483647,Math.floor(Number(circSeedEl&&circSeedEl.value)||271828)));
