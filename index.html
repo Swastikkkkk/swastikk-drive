@@ -573,22 +573,22 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
     <div id="dlnd-box" style="background:rgba(10,12,16,.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(238,240,243,.14);border-radius:12px;padding:10px;box-shadow:0 16px 40px rgba(0,0,0,.7);display:flex;flex-direction:column;gap:8px;pointer-events:auto;">
       
       <button id="dlnd-play" class="dbtn" style="background:rgba(238,240,243,.92);color:var(--ink);border-radius:8px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:2px;">
-        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">🏎️ Free Drive / Practice</span>
+        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">Free Drive / Practice</span>
         <span class="mono" style="font-size:9px;color:rgba(6,7,11,.65);letter-spacing:0;text-transform:none;">Toggles open valley exploration, stunt park & UFO</span>
       </button>
 
       <button id="dlnd-mp" class="dbtn" style="background:#1f4b82;color:#fff;border-radius:8px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:2px;">
-        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">👥 Multiplayer Lobby</span>
+        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">Multiplayer Lobby</span>
         <span class="mono" style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:0;text-transform:none;">Toggles room host/join, synced race, ghost cars & QR</span>
       </button>
 
       <button id="dlnd-daily" class="dbtn" style="background:#997320;color:#eef0f3;border-radius:8px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:2px;">
-        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">🏆 Daily Track Conqueror</span>
+        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">Daily Track Conqueror</span>
         <span class="mono" style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:0;text-transform:none;">Toggles today's procedural track & saved leaderboard</span>
       </button>
 
       <div id="dlnd-f1" style="background:#1d1d22;color:#eef0f3;border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
-        <span style="font-weight:700;font-size:13px;">🏁 Real F1 Circuits</span>
+        <span style="font-weight:700;font-size:13px;">Real F1 Circuits</span>
         <span class="mono" style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:0;text-transform:none;">Drive 25 real GPS layouts at real size, with elevation and landmarks</span>
         <div style="display:flex;gap:6px;align-items:center;">
           <select id="dlnd-f1-sel" aria-label="Choose an F1 circuit" style="flex:1;min-width:0;padding:6px;border-radius:6px;background:#0c0c0f;color:#eef0f3;border:1px solid rgba(255,255,255,.2);"></select>
@@ -597,7 +597,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
       </div>
 
       <button id="dlnd-editor" class="dbtn" style="background:rgba(255,255,255,.07);color:var(--paper);border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:2px;">
-        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">🛠️ Track Creator Studio</span>
+        <span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;">Track Creator Studio</span>
         <span class="mono" style="font-size:9px;color:var(--mute);letter-spacing:0;text-transform:none;">Toggles freehand drawing canvas & venue generator</span>
       </button>
 
@@ -611,7 +611,7 @@ select option,select optgroup{background:#15171c;color:#eef0f3}
   <!-- Daily Track: map preview and streak (filled by assets/daily-extras.js) -->
   <style>
     #ddaily-modal{overflow-y:auto}
-    #ddaily-modal .bd-in{margin:auto}
+    #ddaily-modal .bd-in{margin:auto;max-height:calc(100dvh - 48px);overflow-y:auto!important;overscroll-behavior:contain}
     #ddaily-extras{margin:-4px 0 16px}
     .dx-top{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:center}
     .dx-map{width:150px;height:118px;display:block;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
@@ -707,8 +707,8 @@ body:has(#dtyperes.on) #dtype{visibility:hidden}
       </div>
       <div id="ddaily-extras" style="display:none"></div>
       <div class="mono" style="color:var(--bone);margin-bottom:6px;">Daily Leaderboard</div>
-      <ol id="ddaily-list" style="list-style:none;margin:0 0 18px;padding:0;border-top:1px solid var(--line);max-height:220px;overflow-y:auto;"></ol>
-      <div style="display:flex;gap:10px;">
+      <ol id="ddaily-list" style="list-style:none;margin:0 0 6px;padding:0;border-top:1px solid var(--line);max-height:220px;overflow-y:auto;"></ol>
+      <div id="ddaily-acts" style="display:flex;gap:10px;position:sticky;bottom:0;margin:0 -4px;padding:14px 4px 4px;background:#0e0f12;border-top:1px solid rgba(255,255,255,.07);z-index:2">
         <button id="ddaily-start" class="dbtn mono" style="background:#4d8dff;color:#06070b;font-weight:700;flex:1;">Conquer Today's Track</button>
         <button id="ddaily-close" class="dbtn mono bd-x" style="margin-top:0;">Close</button>
       </div>
@@ -887,36 +887,36 @@ body:has(#dtyperes.on) #dtype{visibility:hidden}
 <script src="assets/vendor/cannon.min.js"></script>
 <script src="assets/vendor/GLTFLoader.js"></script>
 <script src="assets/vendor/OBJLoader.js"></script>
-<script src="assets/core-constants.js?v=1792489282"></script>
-<script src="assets/engine-audio.js?v=1792489282"></script>
-<script src="assets/radio.js?v=1792489282"></script>
-<script src="assets/settings.js?v=1792489282"></script>
-<script src="assets/car-builder.js?v=1792489282"></script>
-<script src="assets/vehicles.js?v=1792489282"></script>
-<script src="assets/track-drawer.js?v=1792489282"></script>
-<script src="assets/net-config.js?v=1792489282"></script>
-<script src="assets/room-net.js?v=1792489282"></script>
-<script src="assets/boards-api.js?v=1792489282"></script>
-<script src="assets/controller.js?v=1792489282"></script>
+<script src="assets/core-constants.js?v=1792490639"></script>
+<script src="assets/engine-audio.js?v=1792490639"></script>
+<script src="assets/radio.js?v=1792490639"></script>
+<script src="assets/settings.js?v=1792490639"></script>
+<script src="assets/car-builder.js?v=1792490639"></script>
+<script src="assets/vehicles.js?v=1792490639"></script>
+<script src="assets/track-drawer.js?v=1792490639"></script>
+<script src="assets/net-config.js?v=1792490639"></script>
+<script src="assets/room-net.js?v=1792490639"></script>
+<script src="assets/boards-api.js?v=1792490639"></script>
+<script src="assets/controller.js?v=1792490639"></script>
 <script src="assets/vendor/qrcode.js"></script>
-<script src="assets/qr.js?v=1792489282"></script>
-<script src="assets/race.js?v=1792489282"></script>
-<script src="assets/editor.js?v=1792489282"></script>
-<script src="assets/daily-maps.js?v=1792489282"></script>
-<script src="assets/daily-extras.js?v=1792489282"></script>
-<script src="assets/f1-circuits.js?v=1792489282"></script>
-<script src="assets/f1-landmarks.js?v=1792489282"></script>
-<script src="assets/f1-real.js?v=1792489282"></script>
-<script src="assets/f1car.js?v=1792489282"></script>
-<script src="assets/game.js?v=1792489282"></script>
-<script src="assets/story.js?v=1792489282"></script>
-<script src="assets/race-finish.js?v=1792489282"></script>
-<script src="assets/typing-sentences.js?v=1792489282"></script>
-<script src="assets/typing-keyboard.js?v=1792489282"></script>
-<script src="assets/venue-decor.js?v=1792489282"></script>
-<script src="assets/typing-bank.js?v=1792489282"></script>
-<script src="assets/typing-race.js?v=1792489282"></script>
-<script src="assets/ui-motion.js?v=1792489282"></script>
+<script src="assets/qr.js?v=1792490639"></script>
+<script src="assets/race.js?v=1792490639"></script>
+<script src="assets/editor.js?v=1792490639"></script>
+<script src="assets/daily-maps.js?v=1792490639"></script>
+<script src="assets/daily-extras.js?v=1792490639"></script>
+<script src="assets/f1-circuits.js?v=1792490639"></script>
+<script src="assets/f1-landmarks.js?v=1792490639"></script>
+<script src="assets/f1-real.js?v=1792490639"></script>
+<script src="assets/f1car.js?v=1792490639"></script>
+<script src="assets/game.js?v=1792490639"></script>
+<script src="assets/story.js?v=1792490639"></script>
+<script src="assets/race-finish.js?v=1792490639"></script>
+<script src="assets/typing-sentences.js?v=1792490639"></script>
+<script src="assets/typing-keyboard.js?v=1792490639"></script>
+<script src="assets/venue-decor.js?v=1792490639"></script>
+<script src="assets/typing-bank.js?v=1792490639"></script>
+<script src="assets/typing-race.js?v=1792490639"></script>
+<script src="assets/ui-motion.js?v=1792490639"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 <!-- Vercel Speed Insights (plain-HTML setup: there is no Next.js/npm build here, so the script tag replaces the <SpeedInsights/> component) -->
 <script>window.si=window.si||function(){(window.siq=window.siq||[]).push(arguments)};</script>

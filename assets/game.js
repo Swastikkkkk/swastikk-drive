@@ -1670,6 +1670,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     lapT.textContent='--:--.--';lapN.textContent='Cross the line';lapB.textContent='Best '+fmtT(bestMs);
     toastMsg('Timing armed · cross the start gate to begin');blip(700,.14)}
   function stopRace(){GHOSTLAP.stop();raceMode=false;lapArmed=false;lapEl.classList.remove('on');raceBtn.textContent='Time a lap'}
+  /* B in a timed lap on the valley loop: back behind the start gate, timing armed again (same as B on a race track) */
+  window.__restartLap=()=>{if(MODE!=='world'||!raceMode)return false;try{const u=1-40/TLEN,{p,tg}=at(u);stopRace();
+      if(window.resetCarTo)window.resetCarTo({pos:{x:p.x,y:p.y+1,z:p.z},tangent:tg});startRace();toastMsg('Restart · back behind the start gate');return true}catch(e){return false}};
   function lapRow(l,me){return '<li class="'+(me?'me pend':'')+'"><span class="p">'+l.p+'</span><span><span class="n">'+
     String(l.n||'Anon').replace(/[<>&]/g,'')+'</span> <span class="v">'+String(l.veh||'').replace(/[<>&]/g,'')+'</span></span><span class="t">'+fmtT(l.ms)+'</span></li>'}
   function renderBoard(){
@@ -3654,7 +3657,7 @@ t.bd.position.set(x,y+.86,z);
         if(bigmap.classList.contains('on'))drawMap(bmc.getContext('2d'),bmc.width,true);
       }else if(MODE==='circuit'||SPACE.state!=='earth')NAV.toggle();
       return
-    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyT'&&!e.repeat){radioCycle();return}if(/^Digit[1-4]$/.test(e.code)&&!e.repeat&&MP.on){MP.emote(+e.code.slice(5)-1);return}if(e.code==='KeyO'&&!e.repeat){if(window.Settings)Settings.open();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){if(!e.repeat&&!boardEl.classList.contains('on')&&window.__restartRace&&window.__restartRace())return;boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
+    }if(e.code==='KeyF'&&!e.repeat){toggleLights();return}if(e.code==='KeyT'&&!e.repeat){radioCycle();return}if(/^Digit[1-4]$/.test(e.code)&&!e.repeat&&MP.on){MP.emote(+e.code.slice(5)-1);return}if(e.code==='KeyO'&&!e.repeat){if(window.Settings)Settings.open();return}if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=true;return}if(e.code==='KeyZ'){rearMirrorOn=!rearMirrorOn;if(rearEl)rearEl.style.display=rearMirrorOn?'block':'none';setTimeout(layoutHud,0);toastMsg(rearMirrorOn?'Rearview mirror ON · Z to toggle':'Rearview mirror OFF');return}if(e.code==='KeyL'){startRace();return}if(e.code==='KeyB'){if(!e.repeat&&!boardEl.classList.contains('on')&&((window.__restartRace&&window.__restartRace())||(window.__restartLap&&window.__restartLap())))return;boardEl.classList.contains('on')?closeBoard():openBoard();return}const k=KMAP[e.code];if(!k)return;key[k]=1;e.preventDefault()});
   addEventListener('keyup',e=>{if(e.code==='KeyV'||e.code==='KeyQ'){lookBehind=false;return}const k=KMAP[e.code];if(k)key[k]=0});
   function hold(el,k){const on=e=>{e.preventDefault();key[k]=1;el.classList.add('dn');try{el.setPointerCapture(e.pointerId)}catch(_){}if(navigator.vibrate)navigator.vibrate(8)};const off=()=>{key[k]=0;el.classList.remove('dn')};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault())}
   hold($('#dL'),'l');hold($('#dR'),'r');hold($('#dgas'),'f');hold($('#dbrk'),'b');hold($('#dboost'),'boost');
@@ -4089,11 +4092,11 @@ t.bd.position.set(x,y+.86,z);
       const css=document.createElement('style');css.textContent=
         '#dnav{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3;display:none;pointer-events:none;'+
           'grid-template-columns:auto 1fr auto;align-items:center;gap:12px;min-width:min(380px,calc(100vw - 32px));max-width:calc(100vw - 32px);padding:8px 12px 8px 8px;border-radius:16px;'+
-          'background:linear-gradient(180deg,rgba(18,20,22,.86),rgba(10,11,12,.8));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 8px 28px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);color:#eef0f3}'+
+          'background:rgba(14,15,17,.9);box-shadow:0 8px 28px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);color:#eef0f3}'+
         '#dnav.on{display:grid}'+
         /* the 3D arrow: an extruded arrow lying on a tilted plane, turned every frame toward the next point of the route */
         '#dnav .a3{width:74px;height:62px;perspective:200px;perspective-origin:50% 20%;display:grid;place-items:center}'+
-        '#dnav .a3 .pl{position:relative;width:54px;height:54px;transform-style:preserve-3d;transform:rotateX(48deg)}'+
+        '#dnav .a3 .pl{position:relative;width:54px;height:54px;transform-style:preserve-3d;transform:rotateX(48deg);will-change:transform}'+
         '#dnav .a3 .pl svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}'+
         '#dnav .a3 .sh{position:absolute;inset:6px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.45),transparent);transform:translateZ(-9px)}'+
         '#dnav .md{font:700 22px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;letter-spacing:-.01em;white-space:nowrap}'+
@@ -4117,7 +4120,7 @@ t.bd.position.set(x,y+.86,z);
       /* every frame: ease toward the bearing of the route point ~30 m ahead (relative to the car's nose), a touch of
          springiness so it swings like a real needle, and a small wobble while moving */
       function arrow(rel,dt,off){needle+=wrap(rel-needle)*Math.min(1,dt*12);bob+=dt;
-        const tilt=48+Math.sin(bob*5)*1.2;pl.style.transform='rotateX('+tilt.toFixed(2)+'deg) rotateZ('+(-needle*180/Math.PI).toFixed(2)+'deg)';
+        const tf='rotateX(48deg) rotateZ('+(-needle*180/Math.PI).toFixed(1)+'deg)';if(tf!==pl._tf){pl._tf=tf;pl.style.transform=tf}
         if(off!==lastOff){lastOff=off;paintA(off)}}
       function render(R,g,dt){
         d.classList.toggle('off',!!R.off);
@@ -7376,7 +7379,12 @@ const PLANETS={
       for(let i=0;i<KN;i++){if(!bend[i])continue;const u=i/KN,{p,tg,n}=circAt(u,curve),yaw=Math.atan2(tg.x,tg.z),lf=liftAt(u),hl=Math.hypot(tg.x,tg.z)||1;
         const ry=roadY(u,p.x,p.z),pitch=-Math.atan2(tg.y,hl);
         for(const side of [-1,1]){const cxp=p.x+n.x*side*(CIRC_W/2+.7),czp=p.z+n.z*side*(CIRC_W/2+.7);if(trackDistL(cxp,czp,CIRC_W,lf)<CIRC_W/2-.5)continue;   // not across another road at this level
-          p0.set(cxp,CIRC_Y+.13+ry-(ELEV?groundAt(cxp,czp):CIRC_Y),czp);   // at the road's height; the settle pass adds the ground here back
+          /* on the inside of a tight bend the edge is much shorter than the centreline: full-length blocks laid along the
+             centreline fanned out into a staircase. Each block is cut to the edge's real length there, and left out where
+             the inner edge all but vanishes. */
+          {const dU=KL/TL,A=circAt((u-dU+1)%1,curve),B=circAt((u+dU)%1,curve),off=side*(CIRC_W/2+.7),
+             el=Math.hypot((B.p.x+B.n.x*off)-(A.p.x+A.n.x*off),(B.p.z+B.n.z*off)-(A.p.z+A.n.z*off))/(2*KL);if(el<.45)continue;s0.set(1,1,Math.min(1,el))}
+          p0.set(cxp,CIRC_Y+.13+roadY(u,cxp,czp)-(ELEV?groundAt(cxp,czp):CIRC_Y),czp);   // at the road's own height at the edge; the settle pass adds the ground here back
           te0.set(pitch,yaw,0);q0.setFromEuler(te0);mx0.compose(p0,q0,s0);
           if((i+(side>0?1:0))%2===0)curbRedIM.setMatrixAt(redN++,mx0);else curbWhiteIM.setMatrixAt(whiteN++,mx0)}}
       curbRedIM.count=redN;curbWhiteIM.count=whiteN;curbRedIM.instanceMatrix.needsUpdate=true;curbWhiteIM.instanceMatrix.needsUpdate=true}
@@ -9031,13 +9039,13 @@ updCircBtn();
         const head='<li style="display:grid;grid-template-columns:40px 1fr 92px 82px;gap:8px;padding:6px 4px;font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.5)"><span>RANK</span><span>DRIVER</span><span style="text-align:right">TIME</span><span style="text-align:right">BEST LAP</span></li>';
         dailyListEl.innerHTML=list.length?head+list.map((r,i)=>{const mine=me&&String(r.name).toLowerCase()===me.toLowerCase();
           return `<li style="display:grid;grid-template-columns:40px 1fr 92px 82px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;${mine?'background:rgba(77,141,255,.16);':''}">
-            <span style="color:#4d8dff;font-weight:700">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}${mine?' (you)':''}</span>
+            <span style="color:#4d8dff;font-weight:700">${(i===0?'<b style="color:#f0c14b">1</b>':i===1?'<b style="color:#c9ced6">2</b>':i===2?'<b style="color:#d08a4f">3</b>':'#'+(i+1))}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}${mine?' (you)':''}</span>
             <strong style="color:#eef0f3;font-family:monospace;text-align:right">${fmtT(r.time)}</strong><span style="font-family:monospace;text-align:right;opacity:.75">${r.best?fmtT(r.best):'--'}</span></li>`}).join('')+
           `<li style="padding:8px 4px;font-size:11px;color:rgba(255,255,255,.5)">${src}</li>`
           :'<li style="padding:12px;color:rgba(255,255,255,.5);font-size:13px;">No times yet for today\'s track. Be the first!</li>'};
       let local=[];try{local=JSON.parse(localStorage.getItem('sl_daily_'+dStr)||'[]').filter(r=>r.laps===DAILY_LAPS)}catch(_){}   // only runs over today's distance
       draw(local,'Loading the global board…');
-      if(window.DailyBoard)window.DailyBoard.fetch(dStr).then(rows=>{if(rows)draw(rows.concat(local),'Global board · '+dStr+' (UTC)');else draw(local,'Global board is offline right now · showing your runs')}).catch(()=>{});
+      if(window.DailyBoard)window.DailyBoard.fetch(dStr).then(rows=>{if(rows){const L=window.DailyBoard.last;draw(rows.concat(local),(L&&L.rank?'You are #'+L.rank+' of '+L.players+' today · ':L&&L.players?L.players+' driver'+(L.players>1?'s':'')+' today · ':'')+'Global board · '+dStr+' (UTC)')}else draw(local,'Global board is offline right now · showing your runs')}).catch(()=>{});
     }
     window.renderDailyBoard=renderDailyBoard;
 
@@ -9125,9 +9133,11 @@ updCircBtn();
   // --- Daily Track: the UTC day the track belongs to; results go to the global daily board (Cloudflare D1) ---
   function dailyDay(){return new Date().toISOString().slice(0,10)}
   window.DailyBoard=(function(){   // global daily board on Cloudflare D1 (worker/src/boards.ts)
-    async function fetch_(day){if(!window.Boards)return null;const r=await Boards.get('daily',{day,laps:1});return r?r.top.map(x=>({name:x.name,time:x.ms,best:x.best_ms})):null}
+    let last=null;
+    async function fetch_(day){if(!window.Boards)return null;let me='';try{me=(localStorage.getItem('sl_name')||'').trim()}catch(e){}
+      const r=await Boards.get('daily',{day,laps:1,name:me});last=r?{rank:r.rank,players:r.players}:null;return r?r.top.map(x=>({name:x.name,time:x.ms,best:x.best_ms})):null}
     async function submit(rec){if(!window.Boards)return false;return Boards.post('daily',{day:rec.day,name:String(rec.name).slice(0,24),ms:Math.round(rec.time),best_ms:rec.best?Math.round(rec.best):null,laps:rec.laps})}
-    return {fetch:fetch_,submit}})();
+    return {fetch:fetch_,submit,get last(){return last}}})();
   // --- Save Daily Leaderboard Time ---
   function saveDailyTime(name, time) {
     const dStr = new Date().toISOString().slice(0, 10);

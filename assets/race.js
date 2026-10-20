@@ -553,7 +553,7 @@
         var li = document.createElement('li');
         li.style.cssText = 'display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:12px 6px;border-bottom:1px solid rgba(255,255,255,0.1);font-weight:600;' + (r.isMe ? 'background:rgba(212,168,58,0.15);' : '');
         var done = !r.racing && r.finishTime;
-        var posBadge = !done ? '–' : r.position === 1 ? '🥇 1st' : r.position === 2 ? '🥈 2nd' : r.position === 3 ? '🥉 3rd' : (r.position + 'th');
+        var posBadge = !done ? '–' : r.position === 1 ? '1st' : r.position === 2 ? '2nd' : r.position === 3 ? '3rd' : (r.position + 'th');
         var label = r.isMe ? (me || 'You') + ' (you)' : (r.name || 'Driver');
         li.innerHTML = '<span style="font-size:14px;color:#d4a83a;">' + posBadge + '</span>' +
           '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(label) + '</span>' +

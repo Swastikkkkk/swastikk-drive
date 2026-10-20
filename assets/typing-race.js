@@ -217,7 +217,7 @@
   async function showResults(r){
     const day=G().day(),pbKey='sl_type_pb_'+day;let pb=0;try{pb=+localStorage.getItem(pbKey)||0}catch(e){}
     const newPb=!rejected&&(!pb||r.ms<pb);if(newPb)try{localStorage.setItem(pbKey,String(r.ms))}catch(e){}
-    res.innerHTML=`<div class="rs"><div class="rs-k">Daily Typing Race · ${day}</div><h2>🏁 Finished!</h2>
+    res.innerHTML=`<div class="rs"><div class="rs-k">Daily Typing Race · ${day}</div><h2>Finished</h2>
       <div class="rs-badges"></div><div class="rs-time">${(r.ms/1000).toFixed(2)}s</div>
       <div class="rs-grid"><div><b>${Math.round(r.wpm)}</b><span>WPM</span></div><div><b>${r.acc.toFixed(1)}%</b><span>Accuracy</span></div>
         <div><b>${r.maxKmh}</b><span>Max km/h</span></div><div><b class="rs-pos">…</b><span>Today</span></div></div>
@@ -227,7 +227,7 @@
     const badges=res.querySelector('.rs-badges'),note=res.querySelector('.rs-note'),posEl=res.querySelector('.rs-pos');
     res.querySelector('.rs-again').onclick=()=>{closeResults();start()};
     res.querySelector('.rs-board').onclick=()=>{closeResults();quit();openDaily('type')};
-    if(newPb)badges.innerHTML+='<span class="rs-badge pb">🔥 New personal best!</span> ';
+    if(newPb)badges.innerHTML+='<span class="rs-badge pb">New personal best</span> ';
     if(rejected){note.textContent='Not submitted: '+rejected+'.';posEl.textContent='—';return}
     note.textContent='Saving to today\'s board…';
     const rec={day,name:myName().slice(0,24),ms:r.ms,wpm:+r.wpm.toFixed(1),acc:+r.acc.toFixed(1),chars:r.chars,keys:r.keys,max_kmh:r.maxKmh};
@@ -236,7 +236,7 @@
     note.textContent=ok?'Saved to the global board for '+day+' (UTC).':'The board is offline right now · your best is saved and shown here.';
     if(rows){const mine=myName().toLowerCase(),others=rows.filter(x=>String(x.name).toLowerCase()!==mine),myBest=Math.min(r.ms,...rows.filter(x=>String(x.name).toLowerCase()===mine).map(x=>x.ms));
       const place=others.filter(x=>x.ms<myBest).length+1;posEl.textContent='#'+place;
-      if(place===1&&r.ms===myBest)badges.innerHTML+='<span class="rs-badge one">🏆 You are today\'s fastest typer!</span>'}
+      if(place===1&&r.ms===myBest)badges.innerHTML+='<span class="rs-badge one">You are today\'s fastest typer</span>'}
     else posEl.textContent='—'}
   function closeResults(){res.classList.remove('on')}
 
@@ -245,7 +245,7 @@
   let pane=null,tabBtns=[];
   if(inner){
     const orig=[...inner.children];
-    const tabs=mk('div',{className:'ty-tabs'},'<button type="button" data-t="track" class="on">Track of the Day</button><button type="button" data-t="type">🏎️ Typing Race</button>');
+    const tabs=mk('div',{className:'ty-tabs'},'<button type="button" data-t="track" class="on">Track of the Day</button><button type="button" data-t="type">Typing Race</button>');
     inner.prepend(tabs);tabBtns=[...tabs.children];
     pane=mk('div',{className:'ty-pane'},`<div class="mono" style="color:#4d8dff">Daily Typing Race</div>
       <h3 class="disp" style="font-size:34px;margin:4px 0 6px">Race with your keyboard</h3>
@@ -269,7 +269,7 @@
     ol.innerHTML=head+'<li><span></span><span style="opacity:.5">Loading…</span></li>';
     const rows=await Board.fetch(day),me=myName().toLowerCase();
     if(!rows){ol.innerHTML=head+'<li><span></span><span style="opacity:.55">Board unavailable right now.</span></li>';return}
-    ol.innerHTML=head+(rows.length?rows.slice(0,50).map((r,i)=>`<li class="${String(r.name).toLowerCase()===me?'me':''}"><span class="r">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</span><span class="n">${esc(r.name)}</span><span class="num">${(r.ms/1000).toFixed(2)}s</span><span class="num">${Math.round(r.wpm)}</span><span class="num acc">${Math.round(r.acc)}%</span></li>`).join('')
+    ol.innerHTML=head+(rows.length?rows.slice(0,50).map((r,i)=>`<li class="${String(r.name).toLowerCase()===me?'me':''}"><span class="r">${i+1}</span><span class="n">${esc(r.name)}</span><span class="num">${(r.ms/1000).toFixed(2)}s</span><span class="num">${Math.round(r.wpm)}</span><span class="num acc">${Math.round(r.acc)}%</span></li>`).join('')
       :'<li><span></span><span style="opacity:.55">No typists yet today. Set the pace.</span></li>')}
 
   /* ---------- Type Faster: practice with the 1000+ sentence bank (assets/typing-bank.js) ----------
@@ -300,8 +300,8 @@
     let best=null;try{best=JSON.parse(localStorage.getItem(bestKey())||'null')}catch(e){}
     const isBest=!rejected&&(!best||r.wpm>best.wpm);if(isBest)try{localStorage.setItem(bestKey(),JSON.stringify({wpm:r.wpm,acc:r.acc}))}catch(e){}
     const label=DIFFS.find(d=>d[0]===TF.diff)[1];
-    res.innerHTML=`<div class="rs"><div class="rs-k">Type Faster · ${label} · ${r.chars} characters · ${(r.chars*7/1000).toFixed(1)} km</div><h2>🏁 Finished!</h2>
-      <div class="rs-badges">${isBest?'<span class="rs-badge pb">🔥 New best for '+label+'!</span>':''}</div>
+    res.innerHTML=`<div class="rs"><div class="rs-k">Type Faster · ${label} · ${r.chars} characters · ${(r.chars*7/1000).toFixed(1)} km</div><h2>Finished</h2>
+      <div class="rs-badges">${isBest?'<span class="rs-badge pb">New best for '+label+'</span>':''}</div>
       <div class="rs-time" data-unit="wpm">${Math.round(r.wpm)} <span style="font-size:.4em">WPM</span></div>
       <div class="rs-grid"><div><b>${(r.ms/1000).toFixed(2)}s</b><span>Time</span></div><div><b>${r.acc.toFixed(1)}%</b><span>Accuracy</span></div>
         <div><b>${r.maxKmh}</b><span>Max km/h</span></div><div><b>${best&&!isBest?Math.round(best.wpm):Math.round(r.wpm)}</b><span>Best WPM</span></div></div>

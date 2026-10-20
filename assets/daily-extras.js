@@ -177,12 +177,13 @@
     if (m.time !== m.weather && m.time !== 'day') conds.push(WX[m.time] || m.time);
     var chips = [
       (m.lengthM / 1000).toFixed(1) + ' km',
-      m.elevLabel + (m.elev === 'flat' ? '' : ' hills'),
+      /hill|flat|mountain/i.test(m.elevLabel) ? m.elevLabel : m.elevLabel + ' hills',
       THEME[m.theme] || m.theme,
       conds.join(' · '),
       m.width + ' m wide'
     ];
     var ramps = m.obstacles.filter(function (o) { return o.t === 'ramp'; }).length, humps = m.obstacles.length - ramps;
+    chips = chips.filter(function (c, i) { return chips.findIndex(function (d) { return String(d).toLowerCase() === String(c).toLowerCase(); }) === i; });   // 'Sunset' scenery and 'Sunset' sky used to show twice
     if (ramps) chips.push(ramps + ' jump' + (ramps > 1 ? 's' : ''));
     if (humps) chips.push(humps + ' speed hump' + (humps > 1 ? 's' : ''));
 
