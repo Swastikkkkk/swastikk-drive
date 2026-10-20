@@ -17,7 +17,7 @@ A room holds eight drivers. A ninth person gets "Room is full · 8 drivers max" 
 
 Every player runs their own physics. Only a small pose is shared, so a ghost has no body in anyone else's world and nothing can collide.
 
-Transport is a Supabase Realtime broadcast channel named `drv-<CODE>`. The game speaks the Realtime websocket protocol directly, with no client library. There are no tables, no presence and nothing stored. A channel exists only while someone is on it.
+Transport is a Cloudflare Worker with one Durable Object per room, addressed by the room code. Players and phone controllers connect over a WebSocket to `/rooms/<CODE>/ws`. The Durable Object relays messages between members, enforces the 8-driver cap (phone controllers do not count), rejects a second socket with the same player id unless it carries the same secret token, validates message types, sizes, poses and finish times, and rate-limits each sender. There are still no tables and nothing stored.
 
 | Message | Sent | Carries |
 | --- | --- | --- |
@@ -47,8 +47,7 @@ At the top of the `MP` block in `assets/game.js`:
 
 | Constant | Default | Meaning |
 | --- | --- | --- |
-| `CFG.ws` | project websocket URL | Supabase Realtime endpoint |
-| `CFG.key` | public anon key | key sent with the connection |
+| `window.SKR_ROOMS_WS` in `assets/net-config.js` | empty | wss:// address of the deployed room server (empty means multiplayer is offline locally; on localhost the game uses ws://localhost:8787) |
 | `MAXP` | 8 | drivers per room |
 | `POSE_BUDGET` | 52 | pose messages per second for the whole room, split between drivers |
 | `HZ_MAX` / `HZ_MIN` | 20 / 6 | per-driver pose rate limits (rate = budget / drivers) |
@@ -59,7 +58,7 @@ The URL and anon key currently point at the `launchpad` Supabase project. The an
 
 ## Network budget
 
-Supabase Realtime's free tier allows roughly 100 messages a second per project/channel (check the current limits for your plan). The game is built to stay well under that at 8 drivers, counting messages *sent* by clients:
+The room server runs on Cloudflare Workers and Durable Objects, so the limit is now the Cloudflare plan's request and duration allowance (check your plan's current numbers). Each sender is rate limited to 60 messages a second, with bursts of 120 (see `worker/src/room.ts`). The game stays well under that at 8 drivers, counting messages *sent* by clients:
 
 | Source | Rate at 8 drivers |
 | --- | --- |
@@ -70,11 +69,13 @@ Supabase Realtime's free tier allows roughly 100 messages a second per project/c
 | Phone controller (`ctrl`) | ~3 per phone while idle, up to 20 per phone while steering (it used to be a constant 30 per phone) |
 | **Typical total** | **~60 a second** |
 
-The pose rate is `floor(52 / drivers)` clamped to 6..20, so a 2-driver room still gets 20 a second and an 8-driver room 6. A parked car sends 2 a second. Note that the server also fans every message out to every other member (7 deliveries per message with 8 drivers); if your plan counts deliveries against the limit, lower `POSE_BUDGET`. It has not been measured against a live 8-person room from this repository, so run one and watch the Realtime dashboard before relying on it.
+The pose rate is `floor(52 / drivers)` clamped to 6..20, so a 2-driver room still gets 20 a second and an 8-driver room 6. A parked car sends 2 a second. Note that the Durable Object sends each message to the other drivers (7 deliveries per message with 8 drivers); if your plan counts deliveries against the limit, lower `POSE_BUDGET`. It has not been measured against a live 8-person room from this repository, so run one and watch the Realtime dashboard before relying on it.
 
 ## Testing without a server
 
 Add `?net=local` and rooms link tabs in the same browser through a BroadcastChannel. Open up to eight tabs at `/?room=TEST&net=local` to see the ghosts.
+
+Run the room server locally with `cd worker && npm run dev`, then open the game on http://localhost:8000.
 
 ## Where the code is
 

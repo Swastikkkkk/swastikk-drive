@@ -6,11 +6,6 @@
  *    with automatic fallback to keyboard if phone disconnects or goes stale.
  */
 (function(window) {
-  var CFG = {
-    ws: 'wss://oceaylrebzflgyxfjqfb.supabase.co/realtime/v1/websocket',
-    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZWF5bHJlYnpmbGd5eGZqcWZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NDk5ODUsImV4cCI6MjEwNjAyNTk4NX0.RTdGpoSF7ZX8oaIrLEY4VAmV14GVHY8rYT1H5j18OHs'
-  };
-
   var PhoneController = {
     isControllerMode: false,
     activeConnection: false,
@@ -159,60 +154,46 @@
         '<div id="c-pedals"><button id="btn-brake" class="c-brake">BRAKE</button><div id="c-pedcol"><button id="btn-gas" class="c-gas">GAS</button></div></div>';
       container.appendChild(pad);
 
-      // Setup WebSocket connection to room channel
-      var topic = 'realtime:drv-' + room;
-      var ws = null;
       var statusEl = document.getElementById('c-status');
+      var conn = null;
       var joined = false;
-      var ref = 0;
 
       function connect() {
         if (!room) {
           if (statusEl) statusEl.textContent = 'NO ROOM SPECIFIED';
           return;
         }
+        if (conn) { try { conn.close(); } catch (_) {} }
         statusEl.textContent = 'CONNECTING...';
-        try {
-          ws = new WebSocket(CFG.ws + '?apikey=' + encodeURIComponent(CFG.key) + '&vsn=1.0.0');
-        } catch (e) {
-          statusEl.textContent = 'CONN ERROR';
-          return;
-        }
+        conn = window.RoomNet.open({
+          code: room,
+          pid: String(token).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32) || 'ctl' + Date.now().toString(36),
+          role: 'c',
+          onMsg: function() {},
+          onStatus: onStatus
+        });
+      }
 
-        ws.onopen = function() {
-          ref++;
-          ws.send(JSON.stringify({
-            topic: topic,
-            event: 'phx_join',
-            ref: String(ref),
-            join_ref: '1',
-            payload: {
-              config: { broadcast: { ack: false, self: false }, presence: { key: '' } },
-              access_token: CFG.key
-            }
-          }));
-        };
-
-        ws.onmessage = function(e) {
-          try {
-            var m = JSON.parse(e.data);
-            if (m.event === 'phx_reply' && m.payload && m.payload.status === 'ok') {
-              joined = true;
-              statusEl.style.color = '#3f8a56';
-              statusEl.textContent = (PhoneController.target && token) ? 'CONNECTED' : 'RESCAN QR ON LAPTOP';
-              // Send initial handshake
-              sendInput();
-            }
-          } catch (_) {}
-        };
-
-        ws.onclose = function() {
+      function onStatus(s) {
+        if (s === 'up') {
+          joined = true;
+          statusEl.style.color = '#3f8a56';
+          statusEl.textContent = (PhoneController.target && token) ? 'CONNECTED' : 'RESCAN QR ON LAPTOP';
+          sendInput();
+        } else if (s === 'full' || s === 'denied') {
           joined = false;
-          try { ws.onclose = null; } catch (_) {}
+          statusEl.style.color = '#ff3b30';
+          statusEl.textContent = s === 'full' ? 'ROOM IS FULL' : 'CAN NOT JOIN ROOM';
+        } else if (s === 'down') {
+          joined = false;
+          statusEl.style.color = '#ff3b30';
+          statusEl.textContent = 'CONTROLLER OFFLINE';
+          setTimeout(connect, 5000);
+        } else {
+          joined = false;
           statusEl.style.color = '#ff3b30';
           statusEl.textContent = 'CONTROLLER DISCONNECTED · RECONNECTING';
-          setTimeout(connect, 2000);
-        };
+        }
       }
 
       var inputState = {
@@ -220,25 +201,9 @@
       };
 
       function sendInput() {
-        if (!ws || ws.readyState !== 1 || !joined) return;
+        if (!conn || !joined) return;
         lastKey = JSON.stringify(inputState); lastSentAt = Date.now();
-        ref++;
-        ws.send(JSON.stringify({
-          topic: topic,
-          event: 'broadcast',
-          ref: String(ref),
-          payload: {
-            type: 'broadcast',
-            event: 'm',
-            payload: {
-              k: 'ctrl',
-              to: PhoneController.target,
-              token: token,
-              input: inputState,
-              ts: Date.now()
-            }
-          }
-        }));
+        conn.send({ k: 'ctrl', to: PhoneController.target, token: token, input: inputState, ts: Date.now() });
       }
 
       /* Input: sampled at 30 Hz but only sent when something changed (at most ~20 a second, so analog steering stays smooth), plus a

@@ -9082,8 +9082,6 @@ updCircBtn();
      channel, and anyone who opens the same channel is in the same room. There is no server
      code and nothing is stored; a channel exists only while somebody is on it. */
   const MP=(function(){
-    const CFG={ws:'wss://oceaylrebzflgyxfjqfb.supabase.co/realtime/v1/websocket',
-      key:SUPA.key};
     const MAXP=8,STALE=6500,PAL=[0x1f5fbf,0x2f9e5b,0xd9a12a,0x7a3fb0,0x12a8b8,0xe0559a,0xe8742a,0xc9ced6],
     /* network budget: Supabase Realtime (free tier) allows ~100 messages/s per room. Pose updates are the bulk, so the
        send rate shrinks as the room fills: ~52 pose msgs/s in total however many drivers (20 Hz for 2, 13 for 4, 6 for 8),
@@ -9092,7 +9090,7 @@ updCircBtn();
     hzFor=n=>Math.max(HZ_MIN,Math.min(HZ_MAX,Math.floor(POSE_BUDGET/Math.max(1,n)))),HEX=c=>'#'+c.toString(16).padStart(6,'0');
     const LOCAL=/[?&]net=local\b/.test(location.search);
     const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',rid=n=>{let s='';for(let i=0;i<n;i++)s+=ALPH[Math.random()*32|0];return s};
-    const me={id:rid(8),n:'',j:0},LOG=[],lg=(...a)=>{LOG.push(Math.round(performance.now())+' '+a.join(' '));if(LOG.length>60)LOG.shift()};
+    const me={id:rid(8),tok:rid(16),n:'',j:0},LOG=[],lg=(...a)=>{LOG.push(Math.round(performance.now())+' '+a.join(' '));if(LOG.length>60)LOG.shift()};
     let room=null,net=null,status='off',peers=new Map(),lastSend=0,lastHi=0,lastUI=0,lastPing=0,pingSeq=0,pendingPings=new Map(),
       race={id:'',st:0,t0:0,d0:0,rp:0,lastU:0,slot:0,ms:0,lastP:0,hold:null,cdN:-1,fins:0,endAt:0},
         myFin=0,myReady=false,autoStartAt=0;
@@ -9111,30 +9109,10 @@ updCircBtn();
     /* ----- the pipe: a Supabase Realtime broadcast channel, spoken to directly over a
        websocket. ?net=local swaps it for a BroadcastChannel, which links tabs on one device. ----- */
     function openNet(code,onMsg,onSt){
-      if(LOCAL||!window.WebSocket){
+      if(LOCAL){
         const bc=new BroadcastChannel('drv-'+code);bc.onmessage=e=>onMsg(e.data);setTimeout(()=>onSt('up'),0);
         return {send:m=>{try{bc.postMessage(m)}catch(e){}},close:()=>bc.close()}}
-      const topic='realtime:drv-'+code;let ws=null,ref=0,joined=false,closed=false,hb=0,tries=0,rt=0;
-      const out=o=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))};
-      function open(){
-        onSt(tries?'retry':'connecting');
-        try{ws=new WebSocket(CFG.ws+'?apikey='+encodeURIComponent(CFG.key)+'&vsn=1.0.0')}catch(e){onSt('down');return}
-        ws.onopen=()=>{out({topic,event:'phx_join',ref:String(++ref),join_ref:'1',
-          payload:{config:{broadcast:{ack:false,self:false},presence:{key:''},postgres_changes:[],private:false},access_token:CFG.key}});
-          clearInterval(hb);hb=setInterval(()=>out({topic:'phoenix',event:'heartbeat',payload:{},ref:String(++ref)}),20000)};
-        ws.onmessage=e=>{if(typeof e.data!=='string'||e.data.length>600000)return;   // nothing a real player sends is this big
-          let m;try{m=JSON.parse(e.data)}catch(_){return}
-          if(!m||m.topic!==topic)return;
-          if(m.event==='phx_reply'&&m.payload&&!joined){if(m.payload.status==='ok'){joined=true;tries=0;onSt('up')}else{onSt('down')}}
-          else if(m.event==='broadcast'&&m.payload&&m.payload.event==='m'){onMsg(m.payload.payload)}
-          else if(m.event==='phx_error'||m.event==='phx_close'){try{ws.close()}catch(_){}}};
-        ws.onclose=()=>{clearInterval(hb);joined=false;if(closed)return;tries++;
-          if(tries>8){onSt('down');return}
-          onSt('retry');rt=setTimeout(open,Math.min(5000,400*Math.pow(1.8,tries)))};
-        ws.onerror=()=>{}}
-      open();
-      return {send:m=>{if(joined)out({topic,event:'broadcast',ref:String(++ref),payload:{type:'broadcast',event:'m',payload:m}})},
-        close:()=>{closed=true;clearInterval(hb);clearTimeout(rt);try{ws&&ws.close()}catch(e){}}}}
+      return RoomNet.open({code,pid:me.id,tok:me.tok,role:'p',onMsg,onStatus:onSt})}
     /* ----- ghosts ----- */
     let blobTex=null;
     function blob(){if(blobTex)return blobTex;const c=document.createElement('canvas');c.width=64;c.height=128;const x=c.getContext('2d'),g=x.createRadialGradient(32,64,4,32,64,62);
@@ -9332,6 +9310,8 @@ updCircBtn();
       try{localStorage.setItem('sl_name',me.n)}catch(e){}
       room=code;me.j=Date.now();status='connecting';race.st=0;myFin=0;
       net=openNet(code,onMsg,s=>{const was=status;status=s;
+        if(s==='full'){leave('Room is full · '+MAXP+' drivers max');return}
+        if(s==='denied'){leave('Could not join this room');return}
         if(s==='up'){sendHi(false);sendCustom();lastHi=performance.now()}
         if(s==='down')toast2('Cannot reach the room right now');
         if(s==='up'&&was==='retry')toast2('Back online');ui()});

@@ -66,7 +66,7 @@ In a room, every player (host or guest) has **Connect phone** in the room panel.
 
 Open Menu, then Room. Create a room, or type a code someone sent you, and up to eight drivers share it. You see each other as see-through ghost cars — built with whichever car they actually picked in the Garage, not a generic default — with a name tag above them, so nothing collides. Anyone in the room can hit Start race; everyone's countdown is synchronized to the same shared clock, so 3, 2, 1 lands together instead of drifting by each person's own connection speed. One lap around the loop, then finish times show for everyone. Ping to each other player shows in the room list. Whoever's been in the room longest can remove another player with the × next to their name. An invite link looks like `?room=CODE`.
 
-Rooms run on a Supabase Realtime broadcast channel named after the code. Each player sends their car pose ten times a second and nothing is stored. The project URL and public anon key are at the top of the `MP` block in `assets/game.js`; swap them to use your own project. Add `?net=local` to link two tabs on one machine without any server.
+Rooms run on a Cloudflare Worker with one Durable Object per room code (see `worker/`). Each player sends their car pose about ten times a second and nothing is stored. Set the room server address in `assets/net-config.js`. Add `?net=local` to link two tabs on one machine without any server.
 
 ## Run it
 
@@ -77,6 +77,8 @@ python3 -m http.server 8000
 ```
 
 Then open http://localhost:8000. Three.js r128 and cannon.js 0.6.2 load from cdnjs.
+
+The racing friends feature needs the room server. Start it with `cd worker && npm install && npm run dev` (port 8787). Deploy it with `npm run deploy` (see `worker/README.md`).
 
 ## Files
 
