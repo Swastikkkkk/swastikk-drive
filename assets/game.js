@@ -9967,21 +9967,44 @@ body.homeon #drive>*:not(canvas){visibility:hidden!important}body.homeon #dlandi
    document.body.classList.add('homeon');const el=document.createElement('div');el.id='dstartscr';HOME.el=el;document.body.appendChild(el);
    /* type + motion pass: Saira (expanded, racing) for titles and labels, Manrope for the copy; GSAP brings each screen in */
    if(!document.getElementById('hmtype')){const ts=document.createElement('style');ts.id='hmtype';ts.textContent=`
-#dstartscr{font-family:Manrope,-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}
+#dstartscr{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif}
 #dstartscr h1{font-family:Saira,Manrope,sans-serif;font-stretch:118%;font-weight:800;font-style:normal;letter-spacing:-.01em;font-size:clamp(34px,4.4vw,50px);line-height:1.02;text-transform:none;transform:skewX(-8deg);transform-origin:left bottom;display:block}
 #dstartscr h1 .ch{display:inline-block;will-change:transform}#dstartscr h1 .w{display:inline-block;white-space:nowrap}#dstartscr .hd h1{white-space:nowrap}
 #dstartscr h1 .r{color:#e10600}
 #dstartscr .hd h1{margin-bottom:6px}
-#dstartscr .sub{font-family:Manrope,sans-serif;font-weight:500;font-size:14px;letter-spacing:.005em;line-height:1.45;color:rgba(245,245,247,.62);margin:4px 0 20px;display:flex;align-items:flex-start;gap:10px}#dstartscr .hd+.sub{font-family:Saira,Manrope,sans-serif;font-stretch:110%;font-weight:600;font-size:12px;letter-spacing:.22em;text-transform:uppercase;align-items:center}
+#dstartscr .sub{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif;font-weight:500;font-size:14px;letter-spacing:.005em;line-height:1.45;color:rgba(245,245,247,.62);margin:4px 0 20px;display:flex;align-items:flex-start;gap:10px}#dstartscr .hd+.sub{font-family:Saira,Manrope,sans-serif;font-stretch:110%;font-weight:600;font-size:12px;letter-spacing:.22em;text-transform:uppercase;align-items:center}
 #dstartscr .sub::before{content:'';width:26px;height:3px;border-radius:2px;background:#e10600;flex:none;transform:skewX(-20deg);margin-top:.6em}#dstartscr .hd+.sub::before{margin-top:0}
-#dstartscr button.t b{font-family:Saira,Manrope,sans-serif;font-stretch:108%;font-weight:700;font-size:16px;letter-spacing:.005em}
-#dstartscr button.t.sm b{font-size:14.5px}
-#dstartscr button.t span{font-family:Manrope,sans-serif;font-weight:500;font-size:12.5px;letter-spacing:.005em}
+#dstartscr button.t b{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif;font-weight:600;font-size:15.5px;letter-spacing:-.01em}
+#dstartscr button.t.sm b{font-size:14px}
+#dstartscr button.t span{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif;font-weight:400;font-size:12.5px;letter-spacing:0}
 #dstartscr .back{font-family:Saira,Manrope,sans-serif;font-stretch:110%;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:12px}
 #dstartscr h2{font-family:Saira,Manrope,sans-serif;font-stretch:112%;font-weight:700;letter-spacing:.01em}
 #dstartscr .laps{margin-top:14px}#dstartscr .laps>span{font-family:Saira,Manrope,sans-serif;font-stretch:110%}
 #dstartscr .laps button{font-family:Saira,Manrope,sans-serif;font-weight:700}
 #dstartscr.gs h1,#dstartscr.gs .sub,#dstartscr.gs .grid{animation:none}
+#dstartscr .glab{font:600 11px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:rgba(245,245,247,.42);padding:12px 12px 4px}
+#dstartscr .today{position:absolute;right:clamp(16px,5vw,64px);top:50%;transform:translateY(-50%);width:min(330px,calc(100vw - 32px));padding:18px;border-radius:22px;background:rgba(18,18,20,.55);backdrop-filter:blur(28px) saturate(1.4);-webkit-backdrop-filter:blur(28px) saturate(1.4);border:1px solid rgba(255,255,255,.09);box-shadow:0 20px 60px rgba(0,0,0,.35);cursor:default}
+#dstartscr .today .tk{font:600 11px/1 -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:rgba(245,245,247,.45);margin-bottom:12px}
+#dstartscr .today .tm{display:grid;grid-template-columns:76px 1fr;gap:14px;align-items:center}
+#dstartscr .today svg{width:76px;height:76px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07)}
+#dstartscr .today .tr2{fill:none;stroke:rgba(255,255,255,.12);stroke-width:7;stroke-linejoin:round}
+#dstartscr .today .tr1{fill:none;stroke:#f5f5f7;stroke-width:2.4;stroke-linejoin:round;stroke-dasharray:400;stroke-dashoffset:400;animation:hmtrace 2.2s .5s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes hmtrace{to{stroke-dashoffset:0}}
+#dstartscr .today .tm b{display:block;font-size:17px;font-weight:600;letter-spacing:-.015em;line-height:1.2}
+#dstartscr .today .tm span{display:block;font-size:12.5px;color:rgba(245,245,247,.55);margin-top:3px}
+#dstartscr .today .tm .cd{color:rgba(245,245,247,.75);font-variant-numeric:tabular-nums}
+#dstartscr .today .tb{list-style:none;margin:16px 0 0;padding:0;border-top:1px solid rgba(255,255,255,.08)}
+#dstartscr .today .tb li{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13.5px}
+#dstartscr .today .tb li i{font-style:normal;font-weight:700;color:rgba(245,245,247,.5);font-variant-numeric:tabular-nums}
+#dstartscr .today .tb li:first-child i{color:#f0c14b}
+#dstartscr .today .tb li span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#dstartscr .today .tb li b{font-weight:600;font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:13px}
+#dstartscr .today .tb li.you span{color:#fff;font-weight:600}#dstartscr .today .tb li.em{display:block;color:rgba(245,245,247,.5);font-size:12.5px}
+#dstartscr .today .me2{font-size:12.5px;color:rgba(245,245,247,.6);margin:10px 2px 0;min-height:1em}
+#dstartscr .today .go2{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;text-align:center;margin-top:14px;padding:12px;border-radius:12px;background:#f5f5f7;color:#1d1d1f;font-weight:600;font-size:14px;transition:transform .18s ease,background .18s ease}
+#dstartscr .today .go2:hover{background:#fff;transform:scale(1.01)}#dstartscr .today .go2:active{transform:scale(.985)}
+#dstartscr::after{right:auto;left:50%;transform:translateX(-50%)}
+@media (max-width:1060px){#dstartscr .today{display:none}}
 #dstartscr .sheen{position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.14) 50%,transparent 65%);background-size:250% 100%;background-position:120% 0;opacity:0}
 `;document.head.appendChild(ts)}
    const GS=window.gsap;if(GS)el.classList.add('gs');
@@ -10028,9 +10051,34 @@ if(!el.classList.contains('out'))el.style.backgroundPosition=x.toFixed(2)+'% '+y
    const T=(id,title,sub,wide)=>`<button class="t${wide?' wide':''}" data-go="${id}"><b>${title}</b><span>${sub}</span></button>`;const S=(id,title,sub)=>`<button class="t sm" data-go="${id}"><b>${title}</b><span>${sub}</span></button>`;
    const main=()=>{el.innerHTML='<div class="hm"><div class="hd"><h1>SketchRacer</h1><button class="gear" data-go="settings" aria-label="Settings" title="Settings"></button></div><p class="sub">Pick how you want to play.</p><div class="grid">'+
      T('free','Free drive','Open valley, ramps, the summit and the cable car',true)+
+     '<div class="glab">Race</div>'+
      `<button class="t f1" data-go="f1"><b>F1 circuits</b><span>25 real tracks at real size</span></button>`+
      `<button class="t story" data-go="story"><b>Story</b><span>50 levels in 5 chapters, earn stars</span></button>`+
-     '<div class="pair">'+S('mp','Multiplayer','Up to 8 friends')+S('daily','Daily track',"Today's leaderboard")+S('chill','Chillout room',"Your crew's room")+S('typing','Typing','Type to drive')+S('draw','Draw a track','Sketch it, race it')+S('garage','Garage','Pick or build a car')+'</div></div></div>'};
+     '<div class="pair">'+S('daily','Daily track',"Today's leaderboard")+S('mp','Multiplayer','Up to 8 friends')+'</div>'+
+     '<div class="glab">Create &amp; play</div>'+
+     '<div class="pair">'+S('draw','Draw a track','Sketch it, race it')+S('garage','Garage','Pick or build a car')+S('typing','Typing','Type to drive')+S('chill','Chillout room',"Your crew's room")+'</div></div></div>'+
+     '<aside class="today" aria-label="Today"></aside>';fillToday()};
+   /* the Today panel: today's daily track (its map, length, the countdown to the next one) and the live global board,
+      so the home screen always has something new on it */
+   function fillToday(){const box=el.querySelector('.today');if(!box)return;
+     const day=new Date().toISOString().slice(0,10);let dm=null;try{dm=window.DailyMaps&&DailyMaps.forDate(day)}catch(_){}
+     const ms=(()=>{const n=new Date(),m=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate()+1);return m-n.getTime()})();
+     const esc2=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+     let path='';if(dm&&dm.pts&&dm.pts.length){let a=1e9,b=-1e9,c=1e9,d=-1e9;dm.pts.forEach(q=>{a=Math.min(a,q.x);b=Math.max(b,q.x);c=Math.min(c,q.y);d=Math.max(d,q.y)});
+       const k=84/Math.max(b-a,d-c,1),ox=50-(a+b)/2*k,oy=50-(c+d)/2*k;path='M'+dm.pts.map(q=>(q.x*k+ox).toFixed(1)+' '+(q.y*k+oy).toFixed(1)).join(' L')+' Z'}
+     const fmt=t=>{const m=Math.floor(t/60000),s2=Math.floor(t%60000/1000),c2=Math.floor(t%1000/10);return m+':'+String(s2).padStart(2,'0')+'.'+String(c2).padStart(2,'0')};
+     box.innerHTML='<div class="tk">Today</div>'+
+       '<div class="tm"><svg viewBox="0 0 100 100" aria-hidden="true">'+(path?'<path d="'+path+'" class="tr2"/><path d="'+path+'" class="tr1"/>':'')+'</svg>'+
+       '<div><b>'+esc2(dm?dm.name:'Track of the Day')+'</b><span>'+(dm?(dm.lengthM/1000).toFixed(1)+' km · '+esc2(dm.familyLabel||''):'One lap, everyone races the same track')+'</span>'+
+       '<span class="cd">New track in '+Math.floor(ms/3600000)+'h '+String(Math.floor(ms/60000)%60).padStart(2,'0')+'m</span></div></div>'+
+       '<ol class="tb"><li class="em">Loading the global board…</li></ol><div class="me2"></div>'+
+       '<button class="go2" data-go="daily">Race today\'s track</button>';
+     let me='';try{me=(localStorage.getItem('sl_name')||'').trim()}catch(_){}
+     if(window.Boards)Boards.get('daily',{day,laps:1,name:me}).then(r=>{const ol=box.querySelector('.tb'),m2=box.querySelector('.me2');if(!ol)return;
+       if(!r){ol.innerHTML='<li class="em">Board offline right now</li>';return}
+       ol.innerHTML=r.top.length?r.top.slice(0,3).map((x,i)=>'<li'+(me&&x.name.toLowerCase()===me.toLowerCase()?' class="you"':'')+'><i>'+(i+1)+'</i><span>'+esc2(x.name)+'</span><b>'+fmt(x.ms)+'</b></li>').join(''):'<li class="em">No times yet today. Be the first.</li>';
+       m2.textContent=r.rank?'You are #'+r.rank+' of '+r.players+' today':r.players?r.players+' driver'+(r.players>1?'s':'')+' today':''});
+     if(GS)GS.fromTo(box,{y:18,opacity:0},{y:0,opacity:1,duration:.7,delay:.35,ease:'power3.out',clearProps:'transform,opacity'})}
    const typing=()=>{el.innerHTML='<div class="hm"><button class="back" data-go="home">‹ Back</button><h1>Typing</h1><p class="sub">Your typing speed is your car\'s speed.</p><div class="grid">'+
      T('tfast','Type faster','Practice with 1000+ sentences, pick the difficulty')+T('tdaily','Daily typing test',"Today's sentence, everyone's times")+'</div></div>'};
    const f1c=id=>{const c=window.F1&&F1.get(id);if(!c)return f1();if(window.F1Real)F1Real.load(id);el.innerHTML='<div class="hm"><button class="back" data-go="f1">‹ Back</button><h1>'+c.name+'</h1><p class="sub">'+c.country+' · '+(c.lengthM/1000).toFixed(3)+' km · '+c.turns+' turns</p><div class="grid" style="max-height:62vh;overflow-y:auto">'+T('f1p:'+id,'Practice','Drive the circuit on your own')+T('f1m:'+id,'Race a friend','Open a room on this circuit')+T('f1g:'+id,'Grand Prix',(()=>{const n=LapPick.laps(5);return n+' lap'+(n>1?'s':'')+' against the 2026 F1 grid'})())+'</div>'+LapPick.html('5')+'</div>';LapPick.bind(el)};
