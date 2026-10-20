@@ -4090,49 +4090,51 @@ t.bd.position.set(x,y+.86,z);
         '#dnav{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3;display:none;pointer-events:none;'+
           'grid-template-columns:auto 1fr auto;align-items:center;gap:12px;min-width:min(380px,calc(100vw - 32px));max-width:calc(100vw - 32px);padding:8px 12px 8px 8px;border-radius:16px;'+
           'background:linear-gradient(180deg,rgba(18,20,22,.86),rgba(10,11,12,.8));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 8px 28px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);color:#eef0f3}'+
-        '#dnav.on{display:grid}#dnav .ic{width:52px;height:52px;border-radius:12px;background:#1f7a4a;display:grid;place-items:center}#dnav.off .ic{background:#b5761a}'+
+        '#dnav.on{display:grid}'+
+        /* the 3D arrow: an extruded arrow lying on a tilted plane, turned every frame toward the next point of the route */
+        '#dnav .a3{width:74px;height:62px;perspective:200px;perspective-origin:50% 20%;display:grid;place-items:center}'+
+        '#dnav .a3 .pl{position:relative;width:54px;height:54px;transform-style:preserve-3d;transform:rotateX(48deg)}'+
+        '#dnav .a3 .pl svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}'+
+        '#dnav .a3 .sh{position:absolute;inset:6px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.45),transparent);transform:translateZ(-9px)}'+
         '#dnav .md{font:700 22px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;letter-spacing:-.01em;white-space:nowrap}'+
         '#dnav .mt{font:600 12px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;opacity:.85;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
         '#dnav .sub{font:500 10px/1.3 ui-monospace,Menlo,monospace;letter-spacing:.06em;opacity:.55;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase}'+
-        '@media (max-width:700px){#dnav{min-width:0;gap:8px;padding:6px 8px}#dnav .md{font-size:17px}#dnav .cp{display:none}}';
+        '@media (max-width:700px){#dnav{min-width:0;gap:8px;padding:6px 8px}#dnav .md{font-size:17px}}';
       document.head.appendChild(css);
       const d=document.createElement('div');d.id='dnav';
-      d.innerHTML='<div class="ic"><canvas width="96" height="96" style="width:48px;height:48px"></canvas></div><div style="min-width:0"><div class="md"></div><div class="mt"></div><div class="sub"></div></div><canvas class="cp" width="96" height="96" style="width:48px;height:48px"></canvas>';
+      /* extrusion: the same arrow stacked a pixel apart, darker toward the bottom, with a bright face on top */
+      const AR='M50 4 L88 52 L64 52 L64 94 L36 94 L36 52 L12 52 Z',LAY=7;
+      let layers='';for(let i=LAY;i>=1;i--)layers+='<svg viewBox="0 0 100 100" style="transform:translateZ('+(-i)+'px)"><path d="'+AR+'" fill="var(--a3s)"/></svg>';
+      d.innerHTML='<div class="a3"><div class="pl"><div class="sh"></div>'+layers+
+        '<svg viewBox="0 0 100 100"><defs><linearGradient id="a3g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--a3t)"/><stop offset="1" stop-color="var(--a3b)"/></linearGradient></defs>'+
+        '<path d="'+AR+'" fill="url(#a3g)" stroke="rgba(255,255,255,.85)" stroke-width="2.5" stroke-linejoin="round"/></svg></div></div>'+
+        '<div style="min-width:0"><div class="md"></div><div class="mt"></div><div class="sub"></div></div>';
       sec.appendChild(d);
-      const icon=d.querySelector('.ic canvas').getContext('2d'),comp=d.querySelector('.cp').getContext('2d'),
-        md=d.querySelector('.md'),mt=d.querySelector('.mt'),sub=d.querySelector('.sub');
+      const pl=d.querySelector('.a3 .pl'),md=d.querySelector('.md'),mt=d.querySelector('.mt'),sub=d.querySelector('.sub');
+      const paintA=off=>{d.style.setProperty('--a3t',off?'#ffd37a':'#7dffb8');d.style.setProperty('--a3b',off?'#e08a12':'#16b864');d.style.setProperty('--a3s',off?'#7a4a0a':'#0c5a33')};paintA(false);
       const fmtD=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.max(10,Math.round(m/10)*10)+' m';
-      let lastIcon='',needle=0;
-      // turn icon: a road arrow bent the way the next manoeuvre goes
-      function drawIcon(kind,dir){const key=kind+dir;if(key===lastIcon)return;lastIcon=key;const c=icon;c.clearRect(0,0,96,96);
-        c.strokeStyle='#fff';c.fillStyle='#fff';c.lineWidth=11;c.lineCap='round';c.lineJoin='round';
-        const head=(x,y,a)=>{c.save();c.translate(x,y);c.rotate(a);c.beginPath();c.moveTo(0,-14);c.lineTo(15,8);c.lineTo(-15,8);c.closePath();c.fill();c.restore()};
-        if(kind==='arrive'){c.beginPath();c.arc(48,40,16,0,6.283);c.stroke();c.beginPath();c.moveTo(48,58);c.lineTo(48,84);c.stroke();return}
-        if(kind==='straight'||kind==='rejoin'&&!dir){c.beginPath();c.moveTo(48,86);c.lineTo(48,30);c.stroke();head(48,22,0);return}
-        const s=dir>0?-1:1;   // dir>0 = left
-        if(kind==='uturn'){c.beginPath();c.moveTo(48-s*14,86);c.lineTo(48-s*14,40);c.arc(48,40,14,s>0?Math.PI:0,s>0?0:Math.PI,s<0);c.lineTo(48+s*14,58);c.stroke();head(48+s*14,66,Math.PI);return}
-        const ang=kind==='sharp'?2.2:kind==='rejoin'?.6:1.1,ex=48+s*Math.sin(ang)*30,ey=46-Math.cos(ang)*30;
-        c.beginPath();c.moveTo(48,86);c.lineTo(48,48);c.lineTo(ex,ey);c.stroke();head(ex+s*Math.sin(ang)*6,ey-Math.cos(ang)*6,s*ang)}
-      // compass: heading up, N marked, needle along the route (eased)
-      function drawCompass(h,rel,dt){const c=comp;c.clearRect(0,0,96,96);
-        c.fillStyle='rgba(255,255,255,.06)';c.beginPath();c.arc(48,48,44,0,6.283);c.fill();c.strokeStyle='rgba(255,255,255,.25)';c.lineWidth=2;c.stroke();
-        const n=wrap(Math.PI-h);c.fillStyle='#ff5a4a';c.font='700 16px ui-monospace,monospace';c.textAlign='center';c.textBaseline='middle';c.fillText('N',48-Math.sin(n)*33,48-Math.cos(n)*33);
-        needle+=wrap(rel-needle)*Math.min(1,dt*8);
-        c.save();c.translate(48,48);c.rotate(-needle);c.strokeStyle='#3ee08a';c.fillStyle='#3ee08a';c.lineWidth=6;c.lineCap='round';c.beginPath();c.moveTo(0,22);c.lineTo(0,-12);c.stroke();c.beginPath();c.moveTo(0,-32);c.lineTo(12,-10);c.lineTo(-12,-10);c.closePath();c.fill();c.restore();c.fillStyle='#eef0f3';c.beginPath();c.arc(48,48,4,0,6.283);c.fill()}   // arrow with a shaft: unmistakable which end is the front
+      let needle=0,lastOff=null,bob=0;
+      /* every frame: ease toward the bearing of the route point ~30 m ahead (relative to the car's nose), a touch of
+         springiness so it swings like a real needle, and a small wobble while moving */
+      function arrow(rel,dt,off){needle+=wrap(rel-needle)*Math.min(1,dt*12);bob+=dt;
+        const tilt=48+Math.sin(bob*5)*1.2;pl.style.transform='rotateX('+tilt.toFixed(2)+'deg) rotateZ('+(-needle*180/Math.PI).toFixed(2)+'deg)';
+        if(off!==lastOff){lastOff=off;paintA(off)}}
       function render(R,g,dt){
-        d.classList.toggle('off',!!R.off);drawIcon(g.kind,g.dir);drawCompass(R.h,g.rel,dt);
+        d.classList.toggle('off',!!R.off);
         md.textContent=g.kind==='straight'?fmtD(g.remain):g.manD?fmtD(g.manD):g.man;
         mt.textContent=g.kind==='straight'?'Follow the road':g.manD?g.man:(g.kind==='rejoin'?'Head for the green line':'');
         sub.textContent=R.label+' · '+fmtD(g.remain)}
       function show(on){if(d.classList.contains('on')!==on){d.classList.toggle('on',on);setTimeout(layoutHud,0)}}
-      return {render,show}})();
+      return {render,show,arrow}})();
     function tick(dt,now){
       if(frameN%10===0)layoutHud();
       if(now-lastCalc>350){lastCalc=now;try{route=compute()}catch(e){route=null}
         if(route&&route.target){const g=guidance(route);if(g.remain<22){toastMsg('Arrived · '+route.target.label);window.earthGpsTarget=null;route=null}}}
       const show=!!route&&!hidden&&active&&(driving||SPACE.state!=='earth');
       view.show(show);
-      if(show&&frameN%2===0){last=guidance(route);view.render(route,last,dt*2)}}
+      if(show){if(frameN%2===0){last=guidance(route);view.render(route,last,dt*2)}
+        if(last){let rel=last.rel;if(!route.off&&SPACE.state==='earth'){const P=carPose(),Sm=sampler(Object.assign({},route,{pos:[P.x,P.z]})),q=Sm.at(Math.min(Sm.total,30));rel=wrap(brg(P.x,P.z,q[0],q[1])-P.h)}
+          view.arrow(rel,dt,!!route.off)}}}
     // route, destination and next turn on a map already scaled so that world (x,z)*sc is the point
     function drawOnMap(c,sc,big){
       if(MODE==='world'&&window.earthGPS&&window.earthGPS.length){c.font='600 '+(big?11:9)+'px ui-monospace,monospace';c.textAlign='center';
@@ -6611,10 +6613,19 @@ const PLANETS={
         /* tall vehicles (the truck's box is 4 m high): pull back and up so the low chase sees over it, not its rear doors */
         camT.copy(car.position).addScaledVector(fwd,-dist*bigK).add(tmp.set(0,Math.max(hgt*bigK,CM.d>0?(FP.top||1.4)+.9:0),0));
         C.position.lerp(camT,1-Math.exp(-dt*(active?CM.lag:3.2)));
+        if(MODE==='circuit'&&circuit)carLapU=lapUAt(car.position.x,car.position.z);
         // driving under a flyover: keep the camera below the deck, or it rises through it and the deck hides the car
         if(MODE==='circuit'&&circuit&&circuit.decks&&circuit.decks.length){const fl=car.position.y+.8;
           let c=deckCeil(camT.x,camT.z,car.position.y);if(c<camT.y)camT.y=Math.max(fl,c);
           c=deckCeil(C.position.x,C.position.z,car.position.y);if(c<C.position.y)C.position.y=Math.max(fl,c)}
+        /* never under the road: down a hill or off a ramp at speed the camera trails over the crest behind the car and used
+           to end up inside the road there. It stays a clear 1.3 m over the road surface at its own spot (the stretch
+           just behind the car) and never below the car's roof line. */
+        {let floor=car.position.y+.9;
+         if(MODE==='circuit'&&circuit&&circuit.roadY&&carLapU>=0){const ub=((carLapU-dist/(circuit.TL||1))%1+1)%1;floor=Math.max(floor,circuit.roadY(ub,C.position.x,C.position.z)+1.3)}
+         else if(MODE==='world'&&typeof HF!=='undefined'&&HF.h){const gc=HF.h(car.position.x,car.position.z);if(car.position.y-gc<4)floor=Math.max(floor,HF.h(C.position.x,C.position.z)+1.1)}
+         const ceil=deckCeil(C.position.x,C.position.z,car.position.y);
+         if(C.position.y<floor)C.position.y=Math.min(floor,ceil<Infinity?Math.max(car.position.y+.8,ceil):floor)}
         lookT.copy(car.position).addScaledVector(fwd,CM.ahead).add(tmp.set(0,CM.ly,0))}
       if(!PHOTO&&CABLE.cam(camT,lookT,dt)){if(!CABLE.cine0){CABLE.cp.copy(C.position);CABLE.cine0=true}CABLE.cp.lerp(camT,1-Math.exp(-dt*2.5));C.position.copy(CABLE.cp)}else CABLE.cine0=false;
       if(PHOTO){/* dev only (?dev=1): a fixed shot of the car from its own frame, for checking the models */
@@ -6793,8 +6804,15 @@ const PLANETS={
   function circAt(u,curve){u=((u%1)+1)%1;const p=curve.getPointAt(u).clone();const tg=curve.getTangentAt(u);const hl=Math.hypot(tg.x,tg.z)||1;return {p,tg,n:new THREE.Vector3(-tg.z/hl,0,tg.x/hl)}}
   /* the lowest flyover deck overhead at (x,z) that is well above a car at height carY, minus clearance for the slab;
      Infinity when there is none. Used to keep the chase camera under a bridge the car is driving beneath. */
-  function deckCeil(x,z,carY){const D=circuit&&circuit.decks;if(!D||!D.length)return Infinity;const R=CIRC_W/2+BARRIER_OFF+2,R2=R*R;let c=Infinity;
-    for(let i=0;i<D.length;i++){const d=D[i],dx=d.x-x,dz=d.z-z;if(dx*dx+dz*dz<R2&&d.y>carY+2.5&&d.y-2<c)c=d.y-2}return c}
+  /* where the car is on the lap (0..1), refreshed once a frame by the camera */
+  let carLapU=-1;
+  function lapUAt(x,z){const C=circuit;if(!C||!C.CSAMP)return -1;const S=C.CSAMP,n=C.CN;let bi=0,bd=1e18;for(let i=0;i<n;i++){const d=(S[i].x-x)**2+(S[i].z-z)**2;if(d<bd){bd=d;bi=i}}return bi/n}
+  /* the lowest flyover deck over (x,z) that is really OVERHEAD: the deck of the stretch the car is driving (its own ramp
+     down, which sits above the car behind it) is not a ceiling, or the camera got pushed into the ramp */
+  function deckCeil(x,z,carY){const D=circuit&&circuit.decks;if(!D||!D.length)return Infinity;const R=CIRC_W/2+BARRIER_OFF+2,R2=R*R,TL=circuit.TL||1;let c=Infinity;
+    for(let i=0;i<D.length;i++){const d=D[i],dx=d.x-x,dz=d.z-z;if(dx*dx+dz*dz>=R2||d.y<=carY+2.5||d.y-2>=c)continue;
+      if(carLapU>=0&&d.u!=null){let du=Math.abs(d.u-carLapU);du=Math.min(du,1-du)*TL;if(du<120)continue}
+      c=d.y-2}return c}
   let circRoadM=null;
   function f1Road(){if(circRoadM)return circRoadM;const W=256,H=512,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
     x.fillStyle='#56585c';x.fillRect(0,0,W,H);const im=x.getImageData(0,0,W,H),d=im.data;
@@ -7215,7 +7233,7 @@ const PLANETS={
        so the hand-over at the foot of the ramp is seamless. */
     const roadY=(u,x,z)=>{const lf=liftAt(u);if(!ELEV)return CIRC_Y+lf;const g=groundAt(x,z)+lf;if(lf<.01)return g;const k=SM(Math.min(1,lf/.4));return g*(1-k)+curve.getPointAt(((u%1)+1)%1).y*k};
     // flyover decks as points every ~3 m, so the chase camera can stay under a bridge you are driving beneath (deckCeil)
-    const DECKS=[];if(BRIDGES.length){const n=Math.ceil(curve.getLength()/3);for(let i=0;i<n;i++){const u=i/n;if(liftAt(u)<.5)continue;const p=curve.getPointAt(u);DECKS.push({x:p.x,z:p.z,y:roadY(u,p.x,p.z)})}}
+    const DECKS=[];if(BRIDGES.length){const n=Math.ceil(curve.getLength()/3);for(let i=0;i<n;i++){const u=i/n;if(liftAt(u)<.5)continue;const p=curve.getPointAt(u);DECKS.push({u,x:p.x,z:p.z,y:roadY(u,p.x,p.z)})}}
     const hFn=ELEV?groundAt:null,hRoad=ELEV||BRIDGES.length?(x,z,u)=>roadY(u,x,z):null,liftEff=(u,x,z)=>roadY(u,x,z)-(ELEV?groundAt(x,z):CIRC_Y);
     let minY=CIRC_Y;for(let i=0;i<DN;i++)minY=Math.min(minY,DY[i]);
     BT('path+index');
@@ -8676,7 +8694,8 @@ const PLANETS={
   }
   /* test hook (used by scripts/track-check.mjs): build a drawn loop headlessly and expose the live circuit */
   window.__dbgDraw=(pts,o)=>{o=o||{};const pr=o.raw?null:prepDrawn(pts);if(typeof pr==='string')return pr;const loop=normalizeLoop(o.raw?pts:pr.rs.slice(0,pr.rs.length-1),CIRC_SIZES[o.size||'huge']||CIRC_LEN);
-    buildCircuit(loop,THEMES.find(t=>t.id===(o.scenery||'meadow'))||THEME_DEFAULT,o.seed||271828,{weather:'day',time:'day',width:o.width||16,elev:o.elev||'rolling',obstacles:[]});return !!circuit};
+    buildCircuit(loop,THEMES.find(t=>t.id===(o.scenery||'meadow'))||THEME_DEFAULT,o.seed||271828,{weather:'day',time:'day',width:o.width||16,elev:o.elev||'rolling',obstacles:[]});if(circuit&&o.enter)enterCircuit();return !!circuit};
+  window.__dbgCam=()=>({cy:C.position.y,cx:C.position.x,cz:C.position.z,car:{x:car.position.x,y:car.position.y,z:car.position.z},u:carLapU});
   window.__circ=()=>circuit;
   function generateVenue(){
     if(!pendingTrack)return;
