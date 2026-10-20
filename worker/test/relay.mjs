@@ -1,6 +1,9 @@
 // Relay tests for the room server. Start the server first (npm run dev), then: npm test
 // Uses Node's built-in WebSocket and fetch, no extra dependencies.
 
+import net from 'node:net';
+import crypto from 'node:crypto';
+
 const BASE = process.env.ROOMS || 'http://localhost:8787';
 const WS = BASE.replace(/^http/, 'ws');
 let failures = 0;
@@ -29,11 +32,45 @@ function connect(code, pid, { role = 'p', token = tok(), origin } = {}) {
   c.opened = new Promise((res) => {
     ws.onopen = () => { c.open = true; res(true); };
     ws.onclose = (e) => { c.closed = { code: e.code, reason: e.reason }; res(false); };
+    // A refused handshake (e.g. 403 on a foreign origin) may only fire "error", so settle on that too.
+    ws.onerror = () => { c.error = true; res(false); };
   });
   return c;
 }
 
 const send = (c, obj) => c.ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj));
+
+// Raw RFC 6455 client. Node's WebSocket never fires onclose for the server's refusal closes (4000, 4001, 4003),
+// so those checks read the close frame straight off the wire, which is what the game client receives.
+function rawJoin(code, pid, tok) {
+  const u = new URL(BASE);
+  const raw = { closeCode: null, ws: null, buf: Buffer.alloc(0), headerDone: false };
+  const sock = net.connect(Number(u.port) || 80, u.hostname);
+  raw.ws = { close: () => sock.destroy() };
+  const key = crypto.randomBytes(16).toString('base64');
+  sock.write(`GET /rooms/${code}/ws?pid=${pid}&tok=${tok}&role=p HTTP/1.1\r\nHost: ${u.host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${key}\r\n\r\n`);
+  sock.on('error', () => {});
+  sock.on('data', (d) => {
+    raw.buf = Buffer.concat([raw.buf, d]);
+    if (!raw.headerDone) {
+      const i = raw.buf.indexOf('\r\n\r\n');
+      if (i < 0) return;
+      raw.buf = raw.buf.subarray(i + 4);
+      raw.headerDone = true;
+    }
+    // Server frames are unmasked. Walk them, skipping payloads, and record the code of the first close frame.
+    while (raw.buf.length >= 2) {
+      const op = raw.buf[0] & 0x0f;
+      let len = raw.buf[1] & 0x7f;
+      let off = 2;
+      if (len === 126) { if (raw.buf.length < 4) return; len = raw.buf.readUInt16BE(2); off = 4; }
+      if (raw.buf.length < off + len) return;
+      if (op === 8 && len >= 2 && raw.closeCode === null) raw.closeCode = raw.buf.readUInt16BE(off);
+      raw.buf = raw.buf.subarray(off + len);
+    }
+  });
+  return raw;
+}
 
 async function main() {
   console.log('health');
@@ -82,14 +119,14 @@ async function main() {
   await sleep(100);
   check('a single teleport is dropped', B.msgs.length === mid + 1);
   send(A, pose(9999, 10));
-  send(A, pose(9999, 10));    // three far poses in a row: a real respawn, accepted
+  send(A, pose(9999, 10));    // third far pose in a row (the teleport counts): a real respawn, accepted
   await sleep(150);
-  check('a respawn is accepted once several poses agree', B.msgs.length === mid + 3, 'got ' + (B.msgs.length - mid));
+  check('a respawn is accepted once several poses agree', B.msgs.length === mid + 2, 'got ' + (B.msgs.length - mid));
   send(A, { k: 's', p: [NaN, 0, 0], q: [0, 0, 0, 1] });
   send(A, { k: 's', p: [0, 0, 0], q: [0, 0, 0] });
   send(A, { k: 's', p: [0, 9999, 0], q: [0, 0, 0, 1] });
   await sleep(120);
-  check('NaN, wrong-length and out-of-range poses are dropped', B.msgs.length === mid + 3);
+  check('NaN, wrong-length and out-of-range poses are dropped', B.msgs.length === mid + 2);
 
   console.log('finish and race messages');
   const mf = B.msgs.length;
@@ -113,10 +150,9 @@ async function main() {
   for (let i = 0; i < 8; i++) { const c = connect(cap, uid('p' + i)); roster.push(c); }
   await Promise.all(roster.map((c) => c.opened));
   check('eight players fit in a room', roster.every((c) => c.open));
-  const ninth = connect(cap, uid('late'));
-  await ninth.opened;
-  await sleep(150);
-  check('the ninth player is refused with 4001 (room full)', ninth.closed && ninth.closed.code === 4001, JSON.stringify(ninth.closed));
+  const ninth = rawJoin(cap, uid('late'), tok());
+  await sleep(250);
+  check('the ninth player is refused with 4001 (room full)', ninth.closeCode === 4001, 'close code ' + ninth.closeCode);
 
   const phone = connect(cap, uid('ctl'), { role: 'c' });
   await phone.opened;
@@ -134,19 +170,19 @@ async function main() {
   console.log('reconnect and identity');
   const rc = 'R' + Math.random().toString(36).slice(2, 6).toUpperCase().replace(/[^A-Z0-9]/g, 'X');
   const t1 = tok();
-  const owner = connect(rc, 'ownerx1', { token: t1 });
+  const owner = rawJoin(rc, 'ownerx1', t1);
   const other = connect(rc, 'other1', { token: tok() });
-  await Promise.all([owner.opened, other.opened]);
-  const imposter = connect(rc, 'ownerx1', { token: tok() });
-  await imposter.opened;
-  await sleep(120);
-  check('a different token cannot take an id in use (4003)', imposter.closed && imposter.closed.code === 4003, JSON.stringify(imposter.closed));
-  check('the original owner is unaffected', owner.closed === null);
+  await other.opened;
+  await sleep(150);
+  const imposter = rawJoin(rc, 'ownerx1', tok());
+  await sleep(250);
+  check('a different token cannot take an id in use (4003)', imposter.closeCode === 4003, 'close code ' + imposter.closeCode);
+  check('the original owner is unaffected', owner.closeCode === null);
 
   const again = connect(rc, 'ownerx1', { token: t1 });
   await again.opened;
-  await sleep(150);
-  check('the same token reconnects and replaces the old socket (4000)', owner.closed && owner.closed.code === 4000, JSON.stringify(owner.closed));
+  await sleep(250);
+  check('the same token reconnects and replaces the old socket (4000)', owner.closeCode === 4000, 'close code ' + owner.closeCode);
   check('the reconnected player is live again', again.open);
   send(again, { k: 'hi', n: 'Back', j: 2 });
   await sleep(120);

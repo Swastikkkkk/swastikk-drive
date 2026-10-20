@@ -19,6 +19,8 @@ interface Att {
   role: Role;
   code: string;
   j: number;
+  /** Refused at the door (room full or id in use). It is only open long enough to deliver its close code. */
+  ref?: boolean;
 }
 
 const MAX_MSG = 600_000;        // the game never sends more than this (a custom car photo is the largest message)
@@ -76,13 +78,13 @@ export class RaceRoom extends DurableObject<RoomEnv> {
     // on an id that is already in use is refused, so nobody can take over somebody else's seat.
     const same = this.ctx.getWebSockets().filter((s) => {
       const a = this.attOf(s);
-      return !!a && a.role === role && a.pid === pid;
+      return !!a && !a.ref && a.role === role && a.pid === pid;
     });
     if (role === 'p' && same.length) {
       const first = this.attOf(same[0]);
       if (!first || first.tok !== tok) {
         this.ctx.acceptWebSocket(server);
-        server.serializeAttachment(att);
+        server.serializeAttachment({ ...att, ref: true });
         server.close(4003, 'id in use');
         log('denied', { code, pid });
         return new Response(null, { status: 101, webSocket: client });
@@ -96,6 +98,7 @@ export class RaceRoom extends DurableObject<RoomEnv> {
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(att);
     if (role === 'p' && drivers >= this.max) {
+      server.serializeAttachment({ ...att, ref: true });
       server.close(4001, 'room full');
       log('full', { code, pid, max: this.max });
       return new Response(null, { status: 101, webSocket: client });
@@ -106,7 +109,7 @@ export class RaceRoom extends DurableObject<RoomEnv> {
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     const a = this.attOf(ws);
-    if (!a) return;
+    if (!a || a.ref) return; // refused sockets are closing; nothing they send is relayed
     if (typeof message !== 'string' || message.length > MAX_MSG) return this.drop(ws, a, 'size');
     if (!this.take(a.pid)) return this.drop(ws, a, 'rate');
 
@@ -142,7 +145,7 @@ export class RaceRoom extends DurableObject<RoomEnv> {
     const a = this.attOf(ws);
     try { ws.close(code === 1005 || code === 1006 ? 1000 : code, reason); } catch (_) { /* already closed */ }
     if (!a) return;
-    const stillHere = this.ctx.getWebSockets().some((s) => s !== ws && this.attOf(s)?.pid === a.pid);
+    const stillHere = this.ctx.getWebSockets().some((s) => s !== ws && !this.attOf(s)?.ref && this.attOf(s)?.pid === a.pid);
     if (!stillHere) {
       this.buckets.delete(a.pid);
       this.anchors.delete(a.pid);
@@ -161,7 +164,7 @@ export class RaceRoom extends DurableObject<RoomEnv> {
   }
 
   private drivers(): WebSocket[] {
-    return this.ctx.getWebSockets().filter((s) => this.attOf(s)?.role === 'p');
+    return this.ctx.getWebSockets().filter((s) => this.attOf(s)?.role === 'p' && !this.attOf(s)?.ref);
   }
 
   private take(pid: string): boolean {
