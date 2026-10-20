@@ -9,7 +9,7 @@ compatibility_date = "2025-09-01"
 # Players per room. Phone controllers don't count toward this.
 MAX_PLAYERS = "8"
 # Origins allowed to open a room socket. Add your own domain here before deploying (comma-separated).
-ALLOWED_ORIGINS = "https://sketchracer.com,https://swastikk-drive.vercel.app,http://localhost:8000,http://127.0.0.1:8000"
+ALLOWED_ORIGINS = "https://sketchracer.com,https://www.sketchracer.com,https://swastikk-drive.vercel.app,http://localhost:8000,http://127.0.0.1:8000"
 
 [[durable_objects.bindings]]
 name = "RACE_ROOM"
