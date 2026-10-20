@@ -14,7 +14,10 @@ function check(name, ok, detail = '') {
   else { failures++; console.log('  FAIL ' + name + (detail ? '  (' + detail + ')' : '')); }
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Remote servers are further away than localhost, so every wait is longer there.
+const REMOTE = !/^http:\/\/(localhost|127\.0\.0\.1)/.test(BASE);
+const SCALE = REMOTE ? 5 : 1;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * SCALE));
 let seq = 0;
 const tok = () => 'tok' + Date.now().toString(36) + (seq++) + 'abcdef';
 const uid = (p) => p + Math.random().toString(36).slice(2, 8);
