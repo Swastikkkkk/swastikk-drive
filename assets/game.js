@@ -158,7 +158,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      render nine times the pixels for a picture the same size. Everything else is kept
      cheap by construction (Lambert materials, instanced scatter, a shadow map redrawn
      every third frame, boards culled by distance) rather than by asking the player. */
-  const HIDPI=(devicePixelRatio||1)>=1.5,ULTRA={dpr:HIDPI?1.75:1.25,dprLow:HIDPI?1.4:1.1,shEvery:2};   // sharp edges on Retina/4K: render at the screen's real resolution (auto quality still steps down if fps drops)
+  const HIDPI=(devicePixelRatio||1)>=1.5,ULTRA={dpr:HIDPI?2:1.5,dprLow:HIDPI?1.5:1.1,shEvery:1};   // above the screen's own resolution when there is headroom: crisper edges than antialiasing alone   // sharp edges on Retina/4K: render at the screen's real resolution (auto quality still steps down if fps drops)
   /* Quality used to be decided once, from a coarse touch/mouse guess, and never
      revisited — so a weak laptop with a mouse got full shadows and 1.3 DPR for
      the entire drive regardless of actual frame rate. This instead watches the
@@ -173,16 +173,20 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      up once the charger is in). Chrome/Edge expose the battery; elsewhere this stays off. */
   let SAVE=false;
   try{navigator.getBattery&&navigator.getBattery().then(b=>{const f=()=>{SAVE=!b.charging;if(SAVE&&typeof setTier==='function'&&qTier<1&&!(window.Settings&&Settings.v.quality!=='auto'))setTier(1)};f();b.addEventListener('chargingchange',f)}).catch(()=>{})}catch(e){}
-  const qDownMs=()=>SAVE?200:qTier===0?450:900;
+  const qDownMs=()=>SAVE?400:qTier===0?900:1500;   // a sustained dip, not one slow frame
   function tierCfg(t){
-    return t===3?{dpr:HIDPI?.9:.75,shadow:false,shEvery:8,lite:true}   // last resort: no shadows, no grass tufts, lower resolution
-         : t===2?{dpr:HIDPI?1.1:.9,shadow:false,shEvery:8}
-         : t===1?{dpr:LOW?1.0:HIDPI?1.5:1.2,shadow:!LOW,shEvery:5}
-         :        {dpr:ULTRA.dpr,shadow:true,shEvery:2};
+    /* effects go before sharpness: the old ladder dropped resolution at every step (down to 0.75x on a 1080p laptop),
+       which is what made the picture go soft. Now a desktop never renders below the screen's own resolution and a
+       phone never below 1.25x; under load the shadows refresh less often, then switch off, then grass and dust go. */
+    const floor=LOW?1.25:1;
+    return t===3?{dpr:Math.max(floor,HIDPI?1.25:1),shadow:false,shEvery:8,lite:true}
+         : t===2?{dpr:Math.max(floor,HIDPI?1.5:1),shadow:false,shEvery:8}
+         : t===1?{dpr:LOW?Math.max(floor,1.5):HIDPI?1.75:1.25,shadow:!LOW,shEvery:4}
+         :        {dpr:ULTRA.dpr,shadow:true,shEvery:1};
   }
   function setTier(t){
     if(t===qTier)return;if(t>qTier)Q_UP_MS=Math.min(30000,Q_UP_MS*2);qTier=t;const c=tierCfg(t);
-    R.setPixelRatio(Math.min(devicePixelRatio||1,c.dpr));R.setSize(W,H,false);
+    R.setPixelRatio(Math.min((devicePixelRatio||1)*1.5,c.dpr));R.setSize(W,H,false);
     R.shadowMap.enabled=c.shadow;if(sun){sun.castShadow=c.shadow;sun.shadow.needsUpdate=true}
     if(carShadow)carShadow.visible=!c.shadow;
     ULTRA.shEvery=c.shEvery;
@@ -200,15 +204,20 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(window.Settings&&Settings.v.quality!=='auto')return;   // a quality picked in Settings stays put
     if(!active||!driving||dt<=0)return;
     const fps=1/dt;
-    if(fps<50){qGoodT=0;qBadT+=dt*1000;if(qBadT>qDownMs()&&qTier<3){setTier(qTier+1);qBadT=0}}
+    if(fps<45){qGoodT=0;qBadT+=dt*1000;if(qBadT>qDownMs()&&qTier<3){setTier(qTier+1);qBadT=0}}
     else if(fps>56){qBadT=0;qGoodT+=dt*1000;if(qGoodT>Q_UP_MS&&qTier>0){setTier(qTier-1);qGoodT=0}}
     else{qGoodT=0;qBadT=0}
   }
   const SCN={grass:null,dust:null,stars:null};
-  const DPR=()=>Math.min(devicePixelRatio||1,LOW?ULTRA.dprLow:ULTRA.dpr);
+  /* texture sharpness: every map at the GPU's best anisotropic filtering (the road and ground stay crisp to the
+     horizon instead of smearing at low angles). Swept again every few seconds so streamed-in props get it too. */
+  const MAXA=(R.capabilities&&R.capabilities.getMaxAnisotropy)?Math.min(16,R.capabilities.getMaxAnisotropy()):4;
+  const sharpen=root=>{root.traverse(o=>{const mm=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];for(const m of mm)for(const k of ['map','normalMap','roughnessMap','aoMap','emissiveMap']){const t=m[k];if(t&&t.anisotropy<MAXA&&t.image){t.anisotropy=MAXA;t.needsUpdate=true}}})};
+  setInterval(()=>{try{sharpen(S)}catch(e){}},4000);
+  const DPR=()=>Math.min((devicePixelRatio||1)*1.5,LOW?ULTRA.dprLow:ULTRA.dpr);   // up to 1.5x the screen: supersampled when there is headroom
   function applyQ(){
     const c=tierCfg(qTier);
-    R.setPixelRatio(Math.min(devicePixelRatio||1,c.dpr));R.setSize(W,H,false);
+    R.setPixelRatio(Math.min((devicePixelRatio||1)*1.5,c.dpr));R.setSize(W,H,false);
     R.shadowMap.enabled=c.shadow;
     if(typeof sun!=='undefined'&&sun){sun.castShadow=c.shadow;sun.shadow.needsUpdate=true}
     try{if(carShadow)carShadow.visible=!c.shadow}catch(e){}   // may run before the contact blob exists
@@ -250,7 +259,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let ZN={drag:0,fog:1,tint:[1,1,1]},fogFar0=170,fogNear0=55,hemi0=.55,sunI0=1.05;
   let progU=0;
   const hemi=new THREE.HemisphereLight(0xdfeaff,0x3c3a30,.55);S.add(hemi);
-  const sun=new THREE.DirectionalLight(0xfff2dd,1.05);sun.position.set(18,34,12);sun.castShadow=!LOW;sun.shadow.mapSize.set(LOW?512:1024,LOW?512:1024);sun.shadow.autoUpdate=false;sun.shadow.bias=-.0004;sun.shadow.normalBias=.035;Object.assign(sun.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:110});S.add(sun);S.add(sun.target);
+  const sun=new THREE.DirectionalLight(0xfff2dd,1.05);sun.position.set(18,34,12);sun.castShadow=!LOW;sun.shadow.mapSize.set(LOW?1024:2048,LOW?1024:2048);sun.shadow.autoUpdate=false;sun.shadow.bias=-.0004;sun.shadow.normalBias=.035;Object.assign(sun.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:110});S.add(sun);S.add(sun.target);
   const SUN_DIR=new THREE.Vector3(18,34,12).normalize();
   const MOON_DIR=new THREE.Vector3(-20,26,-14).normalize(); // rides opposite the sun
   const SUN_OFF_DEFAULT=new THREE.Vector3(18,34,12);
