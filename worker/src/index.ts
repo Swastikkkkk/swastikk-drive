@@ -1,5 +1,6 @@
 import type { RoomEnv } from './room';
 import { handleBoards, type BoardsEnv } from './boards';
+import { handleTracks } from './tracks';
 
 export { RaceRoom } from './room';
 
@@ -68,6 +69,10 @@ export default {
       // Leaderboards: /api/boards/race | daily | typing
       const board = path.match(/^\/api\/boards\/([a-z]+)$/);
       if (board) return cors(request, env, await handleBoards(request, env, board[1], json));
+
+      // Shared drawn tracks: POST /api/tracks, GET /api/tracks/:id
+      const trk = path.match(/^\/api\/tracks(?:\/([a-z2-7]{8}))?$/);
+      if (trk) return cors(request, env, await handleTracks(request, env, trk[1] || null, json));
 
       // Create a room: returns a code nobody is using yet. Joining is by code, the same way the game does it.
       if (path === '/api/rooms' && request.method === 'POST') {

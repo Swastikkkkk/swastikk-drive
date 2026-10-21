@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Architecture · SketchRacer</title>
+<meta name="description" content="How SketchRacer runs on Cloudflare: Workers, Durable Objects and D1, on the free plan.">
+<link rel="icon" href="/assets/icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b0c0f;--card:#14161a;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);--text:#f5f5f7;--mute:rgba(245,245,247,.6);--faint:rgba(245,245,247,.4);--ok:#3ee08a;--off:#8a8f98;--red:#e10600;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Poppins,"Helvetica Neue",Arial,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:1040px;margin:0 auto;padding:56px 24px 96px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:56px}
+.brand{font-weight:700;font-size:20px;letter-spacing:-.02em;text-decoration:none}.brand b{color:var(--red)}
+.back{font-size:14px;color:var(--mute);text-decoration:none;padding:8px 14px;border:1px solid var(--line2);border-radius:99px}.back:hover{color:var(--text);border-color:rgba(255,255,255,.3)}
+.k{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+h1{font-size:clamp(34px,5vw,54px);line-height:1.04;letter-spacing:-.035em;margin:10px 0 16px;font-weight:700}
+.lede{font-size:18px;line-height:1.6;color:var(--mute);max-width:640px;margin:0}
+section{margin-top:72px}
+h2{font-size:26px;letter-spacing:-.02em;margin:8px 0 18px;font-weight:600}
+.diagram{margin-top:40px;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:28px}
+.diagram svg{display:block;width:100%;height:auto}
+.node rect{fill:#1b1e23;stroke:var(--line2);stroke-width:1}
+.node.main rect{fill:#f5f5f7;stroke:none}
+.node text{font-family:var(--font);fill:var(--text);font-size:15px;font-weight:600}
+.node .s{font-size:12px;font-weight:400;fill:var(--mute)}
+.node.main text{fill:#111}.node.main .s{fill:rgba(17,17,17,.6)}
+.node.off rect{fill:none;stroke-dasharray:4 4}.node.off text{fill:var(--faint)}
+.edge{stroke:rgba(255,255,255,.28);stroke-width:1.4;fill:none}
+.edge.live{stroke:var(--ok);stroke-dasharray:6 6;animation:flow 1.4s linear infinite}
+.lbl{font-family:var(--font);font-size:11.5px;fill:var(--faint)}
+@keyframes flow{to{stroke-dashoffset:-24}}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px}
+.card h3{margin:0 0 4px;font-size:18px;letter-spacing:-.015em;font-weight:600;display:flex;align-items:center;gap:10px}
+.pill{font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:99px;border:1px solid var(--line2);color:var(--mute);white-space:nowrap}
+.pill.on{color:#0b0c0f;background:var(--ok);border-color:transparent}
+.row{display:grid;grid-template-columns:84px 1fr;gap:10px;margin-top:12px;font-size:14px;line-height:1.55}
+.row dt{color:var(--faint);font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding-top:3px}
+.row dd{margin:0;color:var(--mute)}
+.note{font-size:13px;color:var(--faint);line-height:1.6;margin-top:18px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--faint);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+td{color:var(--mute)}td:first-child{color:var(--text);font-weight:600;white-space:nowrap}
+.tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:6px 14px}
+footer{margin-top:72px;font-size:13px;color:var(--faint);line-height:1.7}
+@media (max-width:640px){.wrap{padding:32px 16px 72px}.top{margin-bottom:36px}.row{grid-template-columns:1fr}.diagram{padding:14px;overflow-x:auto}.diagram svg{min-width:660px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><a class="brand" href="/">Sketch<b>Racer</b></a><a class="back" href="/">Back to the game</a></div>
+
+  <div class="k">Architecture</div>
+  <h1>Built on Cloudflare,<br>on the free plan.</h1>
+  <p class="lede">The game itself is plain HTML and JavaScript, served by Vercel. Everything that has to be shared between players runs on Cloudflare: one Worker for the API, one Durable Object per race room, and a D1 database for leaderboards and shared tracks.</p>
+
+  <div class="diagram" aria-label="Architecture diagram">
+    <svg viewBox="0 0 980 490" role="img" aria-labelledby="dgt"><title id="dgt">Browser to Cloudflare Worker, which talks to D1 and routes WebSockets to one Durable Object per race room</title>
+      <!-- edges -->
+      <path class="edge" d="M490 92 V150"/><text class="lbl" x="500" y="128">HTTPS · WebSocket</text>
+      <path class="edge" d="M490 222 V292"/><text class="lbl" x="500" y="262">WebSocket, one room per code</text>
+      <path class="edge" d="M600 186 H720"/><text class="lbl" x="612" y="176">boards, tracks</text>
+      <path class="edge live" d="M490 364 V384 H230 V404"/><path class="edge live" d="M490 384 H750 V404"/><path class="edge live" d="M490 364 V404"/>
+      <path class="edge" style="stroke-dasharray:3 5" d="M380 186 H262"/><text class="lbl" x="276" y="176">not used</text>
+      <!-- nodes -->
+      <g class="node main"><rect x="370" y="22" width="240" height="70" rx="16"/><text x="490" y="52" text-anchor="middle">Browser</text><text class="s" x="490" y="72" text-anchor="middle">the game · three.js · cannon.js</text></g>
+      <g class="node"><rect x="380" y="150" width="220" height="72" rx="16"/><text x="490" y="181" text-anchor="middle">Cloudflare Worker</text><text class="s" x="490" y="202" text-anchor="middle">API · routing · validation</text></g>
+      <g class="node"><rect x="720" y="150" width="200" height="72" rx="16"/><text x="820" y="181" text-anchor="middle">D1</text><text class="s" x="820" y="202" text-anchor="middle">race, daily, typing, tracks</text></g>
+      <g class="node off"><rect x="62" y="150" width="200" height="72" rx="16"/><text x="162" y="181" text-anchor="middle">R2</text><text class="s" x="162" y="202" text-anchor="middle">not needed yet</text></g>
+      <g class="node"><rect x="382" y="292" width="216" height="72" rx="16"/><text x="490" y="323" text-anchor="middle">Durable Object</text><text class="s" x="490" y="344" text-anchor="middle">RaceRoom · one per code</text></g>
+      <g class="node"><rect x="150" y="404" width="160" height="64" rx="14"/><text x="230" y="431" text-anchor="middle">Player A</text><text class="s" x="230" y="451" text-anchor="middle">car pose, events</text></g>
+      <g class="node"><rect x="670" y="404" width="160" height="64" rx="14"/><text x="750" y="431" text-anchor="middle">Player B … H</text><text class="s" x="750" y="451" text-anchor="middle">up to 8 drivers</text></g>
+      <g class="node"><rect x="410" y="404" width="160" height="64" rx="14"/><text x="490" y="431" text-anchor="middle">Phone controller</text><text class="s" x="490" y="451" text-anchor="middle">joins as a gamepad</text></g>
+    </svg>
+  </div>
+
+  <section>
+    <div class="k">Core</div>
+    <h2>What runs, and why</h2>
+    <div class="grid">
+      <div class="card"><h3>Workers <span class="pill on">In use</span></h3><dl>
+        <div class="row"><dt>What</dt><dd>The single entry point: health check, leaderboard and track APIs, and the WebSocket route into a room.</dd></div>
+        <div class="row"><dt>Why</dt><dd>Runs close to every player, checks the origin and validates every request before it touches the database.</dd></div>
+        <div class="row"><dt>Free tier</dt><dd>100,000 requests a day, 10 ms CPU per request. A room join is one request.</dd></div></dl></div>
+      <div class="card"><h3>Durable Objects <span class="pill on">In use</span></h3><dl>
+        <div class="row"><dt>What</dt><dd>One RaceRoom per room code. It holds that room's sockets and relays poses, countdowns, finishes and chat.</dd></div>
+        <div class="row"><dt>Why</dt><dd>Everyone with the same code reaches the same object, so it can enforce the 8 driver cap, stop one player posing as another, and rate limit floods.</dd></div>
+        <div class="row"><dt>Free tier</dt><dd>100,000 requests a day; incoming WebSocket messages count 20 to 1, outgoing are free.</dd></div></dl></div>
+      <div class="card"><h3>WebSockets <span class="pill on">In use</span></h3><dl>
+        <div class="row"><dt>What</dt><dd>The live link between each player and their room. Poses go 6 to 20 times a second depending on room size.</dd></div>
+        <div class="row"><dt>Why</dt><dd>Low latency both ways without polling. HTTP is only used for things that happen once, like posting a time.</dd></div>
+        <div class="row"><dt>Limits</dt><dd>600 KB per message, 60 messages a second per sender with bursts of 120.</dd></div></dl></div>
+      <div class="card"><h3>D1 <span class="pill on">In use</span></h3><dl>
+        <div class="row"><dt>What</dt><dd>Race results, the daily track board, the daily typing board, and shared drawn tracks behind short links.</dd></div>
+        <div class="row"><dt>Why</dt><dd>Small relational data with rankings that have to be computed on the server, never on the client.</dd></div>
+        <div class="row"><dt>Free tier</dt><dd>5 million rows read and 100,000 written a day. A finished race writes one row.</dd></div></dl></div>
+      <div class="card"><h3>R2 <span class="pill">Not used</span></h3><dl>
+        <div class="row"><dt>What</dt><dd>Object storage for large files: replays, uploaded assets.</dd></div>
+        <div class="row"><dt>Why not</dt><dd>A shared track is about 2 KB, which fits in D1. R2 also needs an R2 subscription added in the dashboard first.</dd></div>
+        <div class="row"><dt>Free tier</dt><dd>10 GB-month storage, 1 million Class A and 10 million Class B operations a month, free egress.</dd></div></dl></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="k">Optional</div>
+    <h2>Left out on purpose</h2>
+    <div class="grid">
+      <div class="card"><h3>Turnstile <span class="pill">Not used</span></h3><dl>
+        <div class="row"><dt>What</dt><dd>Bot check for public actions.</dd></div>
+        <div class="row"><dt>Why not</dt><dd>Needs a site key created in the dashboard. Results are already checked by the server and rate limited per IP.</dd></div>
+        <div class="row"><dt>Free tier</dt><dd>Unlimited challenges, up to 20 widgets.</dd></div></dl></div>
+      <div class="card"><h3>Queues <span class="pill">Not used</span></h3><dl>
+        <div class="row"><dt>What</dt><dd>Background jobs.</dd></div>
+        <div class="row"><dt>Why not</dt><dd>Nothing in the game needs to happen later. Gameplay never goes through a queue.</dd></div>
+        <div class="row"><dt>Free tier</dt><dd>10,000 operations a day.</dd></div></dl></div>
+      <div class="card"><h3>KV <span class="pill">Not used</span></h3><dl>
+        <div class="row"><dt>What</dt><dd>Small cached values.</dd></div>
+        <div class="row"><dt>Why not</dt><dd>The daily track is generated from the date in the browser, so there is nothing to cache.</dd></div>
+        <div class="row"><dt>Free tier</dt><dd>100,000 reads and 1,000 writes a day.</dd></div></dl></div>
+      <div class="card"><h3>Workers AI <span class="pill">Not used</span></h3><dl>
+        <div class="row"><dt>What</dt><dd>A possible post-race coach.</dd></div>
+        <div class="row"><dt>Why not</dt><dd>Kept out of the game loop. A future feature, if it adds real value.</dd></div>
+        <div class="row"><dt>Free tier</dt><dd>10,000 Neurons a day.</dd></div></dl></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="k">Budget</div>
+    <h2>Expected usage per race</h2>
+    <div class="tw"><table>
+      <tr><th>Action</th><th>Workers</th><th>Durable Objects</th><th>D1</th></tr>
+      <tr><td>Join a room</td><td>1 request</td><td>1 request</td><td>none</td></tr>
+      <tr><td>Drive a 3 minute room race</td><td>none</td><td>about 1 request per 20 messages a player sends</td><td>none</td></tr>
+      <tr><td>Finish a race</td><td>1 request</td><td>none</td><td>1 row written</td></tr>
+      <tr><td>Open a leaderboard</td><td>1 request</td><td>none</td><td>reads that day's rows once</td></tr>
+      <tr><td>Share a drawn track</td><td>1 request</td><td>none</td><td>1 row written (none if already shared)</td></tr>
+    </table></div>
+    <p class="note">Free plan figures from Cloudflare's own pages, checked on 20 October 2026: Workers limits, Durable Objects, D1, R2, Turnstile, Queues, KV and Workers AI pricing. Re-check them before relying on them.</p>
+  </section>
+
+  <footer>SketchRacer · game on Vercel, multiplayer and leaderboards on Cloudflare Workers, Durable Objects and D1.</footer>
+</div>
+<script src="/assets/vendor/gsap.min.js"></script>
+<script>
+if(window.gsap&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+  gsap.from('.k,h1,.lede',{y:16,opacity:0,duration:.7,stagger:.07,ease:'power3.out'});
+  gsap.from('.diagram',{y:24,opacity:0,duration:.8,delay:.2,ease:'power3.out'});
+  gsap.from('.node',{opacity:0,scale:.96,transformOrigin:'50% 50%',duration:.5,stagger:.06,delay:.35,ease:'power2.out'});
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){gsap.from(e.target.querySelectorAll('.card,tr'),{y:14,opacity:0,duration:.5,stagger:.05,ease:'power2.out'});io.unobserve(e.target)}}),{threshold:.15});
+  document.querySelectorAll('section').forEach(s=>io.observe(s));
+}
+</script>
+</body>
+</html>

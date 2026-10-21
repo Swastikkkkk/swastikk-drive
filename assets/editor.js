@@ -376,7 +376,7 @@
       /* short enough for a QR code: whole pixels, each point stored as the step from the one before, in base 36 */
       var px = 0, py = 0;
       data.points = data.points.map(function (p, i) { var x = Math.round(p[0]), y = Math.round(p[1]), s = (x - px).toString(36) + ',' + (y - py).toString(36); px = x; py = y; return s; }).join(';');
-      delete data.createdAt;
+      delete data.createdAt; delete data.id;   // stable: the same track always makes the same code (and the same short link)
       return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
     },
     importTrackCode: function(code) {

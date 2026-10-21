@@ -21,5 +21,15 @@
     return fetch(b + '/api/boards/' + board, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row) })
       .then(function (r) { return r.ok; }).catch(function () { return false; });
   }
-  window.Boards = { get: get, post: post, base: base };
+  /* shared drawn tracks: a short id for a track code, and the code back for an id */
+  function shareTrack(code) {
+    var b = base(); if (!b) return Promise.resolve(null);
+    return fetch(b + '/api/tracks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code }) })
+      .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { return j && j.id || null; }).catch(function () { return null; });
+  }
+  function getTrack(id) {
+    var b = base(); if (!b) return Promise.resolve(null);
+    return fetch(b + '/api/tracks/' + encodeURIComponent(id)).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }
+  window.Boards = { get: get, post: post, base: base, shareTrack: shareTrack, getTrack: getTrack };
 })();

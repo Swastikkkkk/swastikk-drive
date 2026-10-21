@@ -16,6 +16,10 @@ Files:
 | GET | `/health` | `ok` |
 | POST | `/api/rooms` | `201` with `{ "code", "ws" }`. Picks a code with no members. Returns `503` if 5 tries all hit used codes. |
 | GET | `/api/rooms/:code` | `{ "code", "members", "max" }`. `members` counts drivers only. |
+| GET | `/api/boards/race\|daily\|typing` | Global board (best time per player), the caller's own times (`name=`) and their rank. |
+| POST | `/api/boards/race\|daily\|typing` | Adds one finished result, validated here and by table CHECKs. 20 posts/min per IP. |
+| POST | `/api/tracks` | `{ "code" }` → `{ "id" }`: an 8-character short link for a drawn track (same track, same id). 6 posts/min per IP. |
+| GET | `/api/tracks/:id` | `{ "code", "name" }` for a shared track. |
 | GET | `/rooms/:code/ws` | WebSocket upgrade for joining a room. Returns `403` if the Origin is not allowed. |
 
 Room codes are 4 to 8 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I, O, 0 or 1). Lowercase input is uppercased.

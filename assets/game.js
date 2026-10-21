@@ -8799,14 +8799,16 @@ updCircBtn();
       if(window.TrackEditor){
         const code=window.TrackEditor.exportTrackCode?window.TrackEditor.exportTrackCode():null;
         if(code){
-          const url=location.origin+'/track/'+code;
-          if(window.AppQR&&$('#dqr-modal')){
+          /* a short link (sketchracer.com/track/ab12cd34) from the server; the long self-contained link if it can't be reached */
+          const show=url=>{if(window.AppQR&&$('#dqr-modal')){
             window.AppQR.render($('#dqrcanvas'),url);
             $('#dqr-modal').dataset.mode='track';
             $('#dqrdesc').textContent='Scan with your phone, or copy the link and send it.';
             $('#dqrcode-text').value=url;
             $('#dqr-modal').classList.add('on');
-          }else prompt('Copy track share code:',code);
+          }else prompt('Copy this link:',url)};
+          const long=location.origin+'/track/'+code;
+          if(window.Boards&&Boards.shareTrack){toastMsg('Making a share link…');Boards.shareTrack(code).then(id=>show(id?location.origin+'/track/'+id:long))}else show(long);
         }else toastMsg('Draw and close a track first');
       }
     };
@@ -8917,16 +8919,18 @@ updCircBtn();
   {
     const trkParam=new URLSearchParams(location.search).get('track')||((/^\/track\/([^/?#]+)/.exec(location.pathname)||[])[1]&&decodeURIComponent(/^\/track\/([^/?#]+)/.exec(location.pathname)[1]));
     if(trkParam&&window.TrackEditor){
-      setTimeout(()=>{
-        if(window.TrackEditor.importTrackCode(trkParam)){
+      const loadCode=code=>{
+        if(window.TrackEditor.importTrackCode(code)){
           toastMsg('Loaded shared track!');
           if(window.TrackEditor.points.length>=6){
             drawPts=window.TrackEditor.points.map(p=>({x:p.x,y:p.y}));
             finishDraw();
             generateVenue();
           }
-        }
-      },600);
+        }else toastMsg('That track link is broken');};
+      setTimeout(()=>{
+        if(/^[a-z2-7]{8}$/.test(trkParam)&&window.Boards&&Boards.getTrack)Boards.getTrack(trkParam).then(t=>{if(t&&t.code)loadCode(t.code);else toastMsg('Could not find that track')});   // a short link
+        else loadCode(trkParam)},600);
     }
   }
 

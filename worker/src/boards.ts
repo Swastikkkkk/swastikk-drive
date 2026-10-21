@@ -149,12 +149,11 @@ export async function handleBoards(request: Request, env: BoardsEnv, which: stri
       if (!w) return json({ error: 'bad query' }, 400);
       const name = cleanName(q.get('name'));
 
-      // One row per player on the global board: each player's best time only.
+      // One row per player on the global board: each player's best time only. One grouped pass over the day's rows
+      // (SQLite takes the bare columns from the row that holds MIN(ms)); the old per-row subquery read N² rows.
+      const sel = board.cols.split(',').map((c) => c.trim()).map((c) => (c === 'ms' ? 'MIN(ms) AS ms' : c)).join(', ');
       const top = await env.DB.prepare(
-        `SELECT ${board.cols} FROM ${board.table} t
-         WHERE ${w.sql} AND id = (SELECT id FROM ${board.table} s WHERE ${w.sql.replace(/(\w+) = \?/g, 's.$1 = t.$1')}
-                                  AND lower(s.name) = lower(t.name) ORDER BY s.ms ASC, s.id ASC LIMIT 1)
-         ORDER BY ms ASC LIMIT ?`,
+        `SELECT ${sel} FROM ${board.table} WHERE ${w.sql} GROUP BY lower(name) ORDER BY ms ASC LIMIT ?`,
       ).bind(...w.args, board.top).all();
 
       let mine: unknown[] = [];

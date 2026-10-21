@@ -80,6 +80,36 @@ Then open http://localhost:8000. Three.js r128 and cannon.js 0.6.2 load from cdn
 
 The racing friends feature needs the room server. Start it with `cd worker && npm install && npm run dev` (port 8787). Deploy it with `npm run deploy` (see `worker/README.md`).
 
+## Cloudflare architecture
+
+The game is static HTML and JavaScript on Vercel. Everything shared between players runs on Cloudflare, in `worker/`:
+
+```
+Browser ──HTTPS──> Cloudflare Worker ──> D1 (race, daily, typing boards; shared tracks)
+   │                     │
+   └──WebSocket──────────┴──> Durable Object "RaceRoom", one per room code ──> up to 8 players + phone controllers
+```
+
+- **Workers** (`worker/src/index.ts`): the API and router. Checks the origin, validates every request, adds CORS for the game's domains.
+- **Durable Objects** (`worker/src/room.ts`): one room per code. Holds the sockets, caps rooms at 8 drivers, stops one player posing as another, rate limits senders (60/s, bursts of 120) and drops malformed or impossible messages (teleports, bad finish times).
+- **WebSockets**: poses 6 to 20 times a second per player, events as they happen. Nothing per frame goes over HTTP.
+- **D1** (`worker/src/boards.ts`, `worker/src/tracks.ts`, `worker/migrations/`): leaderboards with rankings computed on the server, and drawn tracks behind short links (`/track/ab12cd34`). A finished race writes one row.
+- **R2, Turnstile, Queues, KV, Workers AI**: not used. A shared track is about 2 KB and fits in D1; R2 would also need an R2 subscription added in the dashboard. See `/architecture` for the reasons in full.
+
+Local: `cd worker && npm install && npx wrangler d1 migrations apply skr-db --local && npm run dev`, then serve the repo root on port 8000. Deploy: `npx wrangler d1 migrations apply skr-db --remote && npm run deploy`. Tests: `npm test` (relay, needs the dev server), `node --test test/room-net.test.mjs`, and `node scripts/track-check.mjs` from the repo root for drawn-track geometry.
+
+## Cloudflare free tier
+
+Checked against Cloudflare's own pages on 2026-10-20 (links in `worker/FREE-TIER.md`). Re-check before relying on them.
+
+| Service | Purpose | Free allocation | Expected use | At the limit |
+| --- | --- | --- | --- | --- |
+| Workers | API, routing | 100,000 requests/day, 10 ms CPU each | 1 per room join, finish, board view or share | requests fail until 00:00 UTC |
+| Durable Objects | race rooms | 100,000 requests/day, 13,000 GB-s/day | 1 per socket, incoming messages count 20:1 | room joins and messages fail until reset |
+| D1 | boards, shared tracks | 5M rows read/day, 100k rows written/day, 5 GB | 1 row written per finish or new share; a board view reads that day's rows once | not stated on the pricing page |
+| R2 | (not used) | 10 GB-month, 1M Class A + 10M Class B ops/month | none | n/a |
+| Turnstile, Queues, KV, Workers AI | (not used) | see `worker/FREE-TIER.md` | none | n/a |
+
 ## Files
 
 - `index.html` the page, HUD and styles

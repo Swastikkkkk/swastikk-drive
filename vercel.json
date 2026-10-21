@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/architecture",
+      "destination": "/architecture.html"
+    },
+    {
+      "source": "/architecture/",
+      "destination": "/architecture.html"
+    },
+    {
       "source": "/play",
       "destination": "/index.html"
     },
