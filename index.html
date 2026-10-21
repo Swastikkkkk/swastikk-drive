@@ -27,7 +27,12 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2306070b'/%3E%3Cpath d='M6 20l3-7h14l3 7v4H6z' fill='%23f2eee6'/%3E%3Ccircle cx='11' cy='24' r='3' fill='%2306070b' stroke='%23f2eee6' stroke-width='2'/%3E%3Ccircle cx='21' cy='24' r='3' fill='%2306070b' stroke='%23f2eee6' stroke-width='2'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@100..125,500..800&family=Manrope:wght@400..800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
+<style id="sr-font">/* one typeface everywhere: Apple SF on Apple devices, Poppins on everything else */
+:root{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Poppins,"Helvetica Neue",Arial,sans-serif}
+html body,html body *{font-family:var(--font)!important}
+html body{font-variant-numeric:tabular-nums}</style>
+<script>try{document.fonts&&['400','600','700','800'].forEach(w=>document.fonts.load(w+' 16px Poppins'))}catch(e){}</script>
 <style>
 :root{
   --ink:#06070b;--ink2:#0c0e13;--line:#1b1f28;
@@ -36,9 +41,9 @@
   --ox:#8f2a2a;
   /* One typeface: SF. -apple-system first so Apple devices get real SF Pro with
      automatic optical sizing; Inter carries the same metrics everywhere else. */
-  --serif:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","SF Pro Icons","Segoe UI Variable","Segoe UI",Inter,"Helvetica Neue",Arial,sans-serif;
-  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","SF Pro Icons","Segoe UI Variable","Segoe UI",Inter,"Helvetica Neue",Arial,sans-serif;
-  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --serif:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Poppins,"Helvetica Neue",Arial,sans-serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Poppins,"Helvetica Neue",Arial,sans-serif;
+  --mono:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Poppins,"Helvetica Neue",Arial,sans-serif;
   --gut:clamp(20px,5vw,72px);
   color-scheme:dark;
 }
@@ -338,7 +343,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
 /* Out of bounds banner */
 #doob{position:absolute;left:50%;top:24%;transform:translateX(-50%);background:rgba(184,50,47,.92);color:#fff;padding:12px 24px;font-weight:700;font-size:15px;letter-spacing:.08em;border-radius:10px;box-shadow:0 8px 30px rgba(184,50,47,.5);display:none;z-index:5;text-align:center;pointer-events:none}
 #dpos.tower{padding:0;border-left:0;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;font-size:13px;min-width:150px}
-#dpos .tw-h{display:flex;align-items:baseline;gap:6px;background:#e10600;color:#fff;padding:5px 10px 4px;border-radius:8px 8px 0 0;font-family:'Barlow Condensed',system-ui,sans-serif;letter-spacing:.02em}
+#dpos .tw-h{display:flex;align-items:baseline;gap:6px;background:#e10600;color:#fff;padding:5px 10px 4px;border-radius:8px 8px 0 0;font-family:var(--font);letter-spacing:.02em}
 #dpos .tw-h b{font-size:26px;line-height:1;font-weight:800;font-style:italic}#dpos .tw-h span{font-size:14px;opacity:.85;font-weight:600}
 #dpos ol.tw{list-style:none;margin:0;padding:3px 0;background:rgba(12,13,16,.78);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-radius:0 0 8px 8px}
 #dpos ol.tw li{display:grid;grid-template-columns:22px 4px 1fr auto;align-items:center;gap:7px;padding:2px 9px;height:20px;color:#eef0f3}
@@ -360,10 +365,10 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter
    for the primary action. Declared last so it restyles every screen.
    ===================================================================== */
 :root{
-  /* Saira (wide, motorsport) for display and figures, Manrope for everything you read */
-  --serif:"Saira","Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",sans-serif;
-  --sans:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",sans-serif;
-  --mono:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",sans-serif;
+  /* one typeface: Apple SF on Apple devices, Poppins elsewhere */
+  --serif:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Poppins,"Helvetica Neue",Arial,sans-serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Poppins,"Helvetica Neue",Arial,sans-serif;
+  --mono:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Poppins,"Helvetica Neue",Arial,sans-serif;
   --code:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   /* graphite and white; one cool blue for small highlights only */
   --paper:#eef0f3;--bone:#b9bec8;--mute:#7d8592;--ink:#0a0b0e;
@@ -887,36 +892,36 @@ body:has(#dtyperes.on) #dtype{visibility:hidden}
 <script src="assets/vendor/cannon.min.js"></script>
 <script src="assets/vendor/GLTFLoader.js"></script>
 <script src="assets/vendor/OBJLoader.js"></script>
-<script src="assets/core-constants.js?v=1792499249"></script>
-<script src="assets/engine-audio.js?v=1792499249"></script>
-<script src="assets/radio.js?v=1792499249"></script>
-<script src="assets/settings.js?v=1792499249"></script>
-<script src="assets/car-builder.js?v=1792499249"></script>
-<script src="assets/vehicles.js?v=1792499249"></script>
-<script src="assets/track-drawer.js?v=1792499249"></script>
-<script src="assets/net-config.js?v=1792499249"></script>
-<script src="assets/room-net.js?v=1792499249"></script>
-<script src="assets/boards-api.js?v=1792499249"></script>
-<script src="assets/controller.js?v=1792499249"></script>
+<script src="assets/core-constants.js?v=1792579360"></script>
+<script src="assets/engine-audio.js?v=1792579360"></script>
+<script src="assets/radio.js?v=1792579360"></script>
+<script src="assets/settings.js?v=1792579360"></script>
+<script src="assets/car-builder.js?v=1792579360"></script>
+<script src="assets/vehicles.js?v=1792579360"></script>
+<script src="assets/track-drawer.js?v=1792579360"></script>
+<script src="assets/net-config.js?v=1792579360"></script>
+<script src="assets/room-net.js?v=1792579360"></script>
+<script src="assets/boards-api.js?v=1792579360"></script>
+<script src="assets/controller.js?v=1792579360"></script>
 <script src="assets/vendor/qrcode.js"></script>
-<script src="assets/qr.js?v=1792499249"></script>
-<script src="assets/race.js?v=1792499249"></script>
-<script src="assets/editor.js?v=1792499249"></script>
-<script src="assets/daily-maps.js?v=1792499249"></script>
-<script src="assets/daily-extras.js?v=1792499249"></script>
-<script src="assets/f1-circuits.js?v=1792499249"></script>
-<script src="assets/f1-landmarks.js?v=1792499249"></script>
-<script src="assets/f1-real.js?v=1792499249"></script>
-<script src="assets/f1car.js?v=1792499249"></script>
-<script src="assets/game.js?v=1792499249"></script>
-<script src="assets/story.js?v=1792499249"></script>
-<script src="assets/race-finish.js?v=1792499249"></script>
-<script src="assets/typing-sentences.js?v=1792499249"></script>
-<script src="assets/typing-keyboard.js?v=1792499249"></script>
-<script src="assets/venue-decor.js?v=1792499249"></script>
-<script src="assets/typing-bank.js?v=1792499249"></script>
-<script src="assets/typing-race.js?v=1792499249"></script>
-<script src="assets/ui-motion.js?v=1792499249"></script>
+<script src="assets/qr.js?v=1792579360"></script>
+<script src="assets/race.js?v=1792579360"></script>
+<script src="assets/editor.js?v=1792579360"></script>
+<script src="assets/daily-maps.js?v=1792579360"></script>
+<script src="assets/daily-extras.js?v=1792579360"></script>
+<script src="assets/f1-circuits.js?v=1792579360"></script>
+<script src="assets/f1-landmarks.js?v=1792579360"></script>
+<script src="assets/f1-real.js?v=1792579360"></script>
+<script src="assets/f1car.js?v=1792579360"></script>
+<script src="assets/game.js?v=1792579360"></script>
+<script src="assets/story.js?v=1792579360"></script>
+<script src="assets/race-finish.js?v=1792579360"></script>
+<script src="assets/typing-sentences.js?v=1792579360"></script>
+<script src="assets/typing-keyboard.js?v=1792579360"></script>
+<script src="assets/venue-decor.js?v=1792579360"></script>
+<script src="assets/typing-bank.js?v=1792579360"></script>
+<script src="assets/typing-race.js?v=1792579360"></script>
+<script src="assets/ui-motion.js?v=1792579360"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 <!-- Vercel Speed Insights (plain-HTML setup: there is no Next.js/npm build here, so the script tag replaces the <SpeedInsights/> component) -->
 <script>window.si=window.si||function(){(window.siq=window.siq||[]).push(arguments)};</script>

@@ -12,7 +12,7 @@
   .tkb-k{position:relative;height:var(--k);width:var(--k);flex:0 0 auto;border-radius:calc(var(--k)*.16);
     background:linear-gradient(180deg,#0d0d0f,#08080a);color:#c9ccd3;
     box-shadow:0 0 0 1px rgba(255,255,255,.04),0 1px 0 rgba(0,0,0,.9),0 calc(var(--k)*.06) 0 #050506,inset 0 1px 0 rgba(255,255,255,.07),inset 0 -2px 3px rgba(0,0,0,.6);
-    font:500 calc(var(--k)*.28)/1 "Manrope","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.01em;
+    font:500 calc(var(--k)*.28)/1 -apple-system,BlinkMacSystemFont,"SF Pro Text",Poppins,"Helvetica Neue",Arial,sans-serif;letter-spacing:.01em;
     display:flex;align-items:center;justify-content:center;transition:transform .07s ease,box-shadow .07s ease,background .12s ease,color .12s}
   .tkb-k.sm{height:calc(var(--k)*.62)}
   .tkb-k .t2{display:flex;flex-direction:column;align-items:center;gap:calc(var(--k)*.06);font-size:calc(var(--k)*.25)}

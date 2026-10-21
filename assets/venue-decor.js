@@ -54,7 +54,7 @@
     g.fillStyle = bg; g.fillRect(0, 0, 128, 128); g.fillStyle = fg;
     if (text === '>') {           // chevron arrow
       g.beginPath(); g.moveTo(30, 18); g.lineTo(86, 64); g.lineTo(30, 110); g.lineTo(52, 110); g.lineTo(108, 64); g.lineTo(52, 18); g.closePath(); g.fill();
-    } else { g.font = 'bold 64px Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 64, 68); }
+    } else { g.font = 'bold 64px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 64, 68); }
     g.strokeStyle = fg; g.lineWidth = 6; g.strokeRect(5, 5, 118, 118);
     var t = new THREE.CanvasTexture(c); t.__shared = true; NUM_TEX[k] = t; return t;
   }

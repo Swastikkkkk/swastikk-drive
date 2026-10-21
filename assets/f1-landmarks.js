@@ -1653,7 +1653,7 @@ window.F1Landmarks['ca'] = function (ctx) {
   signCv.width = 1024; signCv.height = 64;
   const sg = signCv.getContext('2d');
   sg.fillStyle = '#d8d4cc'; sg.fillRect(0, 0, 1024, 64);
-  sg.fillStyle = '#1d3f8a'; sg.font = 'bold 44px Arial'; sg.textAlign = 'center'; sg.textBaseline = 'middle';
+  sg.fillStyle = '#1d3f8a'; sg.font = 'bold 44px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif'; sg.textAlign = 'center'; sg.textBaseline = 'middle';
   sg.fillText('BIENVENUE AU QUEBEC', 512, 34);
   const signTex = new T.CanvasTexture(signCv);
   const concrete = ctx.mat(0xb9b6ae, { roughness: 0.9 });
@@ -2643,7 +2643,7 @@ window.F1Landmarks['im'] = function (ctx) {
     const c2 = cv.getContext('2d');
     c2.fillStyle = '#2b2d31'; c2.fillRect(0, 0, 512, 160);
     c2.strokeStyle = '#d4b35a'; c2.lineWidth = 8; c2.strokeRect(10, 10, 492, 140);
-    c2.fillStyle = '#ecd98e'; c2.font = 'bold 60px Arial, sans-serif'; c2.textAlign = 'center'; c2.textBaseline = 'middle';
+    c2.fillStyle = '#ecd98e'; c2.font = 'bold 60px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif'; c2.textAlign = 'center'; c2.textBaseline = 'middle';
     c2.fillText('AYRTON SENNA', 256, 82);
     part(new T.PlaneGeometry(1.3, .42), mat(0xffffff, { map: new T.CanvasTexture(cv), roughness: .5, metalness: .2 }), 0, .95, 1.21);
     const flowers = [0xd7263d, 0xf4d03f, 0xffffff, 0xe67e22, 0x8e44ad], fi = [];
@@ -3030,7 +3030,7 @@ window.F1Landmarks['jp'] = function (ctx) {
   place(mesh(new T.BoxGeometry(16, 0.8, 11), mat(RED)), pl(26, 7.4, -52));
   const bc = document.createElement('canvas'); bc.width = 512; bc.height = 128;
   const bg = bc.getContext('2d'); bg.fillStyle = '#d8322f'; bg.fillRect(0, 0, 512, 128);
-  bg.fillStyle = '#ffffff'; bg.font = 'bold 80px sans-serif'; bg.textAlign = 'center'; bg.textBaseline = 'middle'; bg.fillText('MOTOPIA', 256, 66);
+  bg.fillStyle = '#ffffff'; bg.font = 'bold 80px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif'; bg.textAlign = 'center'; bg.textBaseline = 'middle'; bg.fillText('MOTOPIA', 256, 66);
   const board = mesh(new T.PlaneGeometry(10, 2.5), ctx.basic(0xffffff, { map: new T.CanvasTexture(bc) }));
   board.position.set(pl(26, 5, -56.7).x, pl(26, 5, -56.7).y, pl(26, 5, -56.7).z); board.rotation.set(0, FY + Math.PI, 0, 'YXZ');
 
@@ -3362,7 +3362,7 @@ window.F1Landmarks['lv'] = function (ctx) {
   function signTex(text, col) {
     return canvasTex(768, 128, function (g, w, h) {
       g.fillStyle = '#080812'; g.fillRect(0, 0, w, h);
-      g.font = 'bold 64px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = 'bold 64px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.shadowColor = col; g.shadowBlur = 22; g.fillStyle = col;
       g.fillText(text, w / 2, h / 2 + 4);
     });
@@ -4463,7 +4463,7 @@ window.F1Landmarks['qa'] = function (ctx) {
   inst(sg, new THREE.CylinderGeometry(0.4, 0.4, 1, 8), roofMat, stCols);                 // roof columns, behind the tiers
   var boardTex = canvasTex(512, 40, function (g, w, h) {
     g.fillStyle = '#0b0d10'; g.fillRect(0, 0, w, h);
-    g.fillStyle = '#ffd24a'; g.font = 'bold 30px Arial, sans-serif';
+    g.fillStyle = '#ffd24a'; g.font = 'bold 30px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText('LUSAIL', w / 2, h / 2 + 1);
   });

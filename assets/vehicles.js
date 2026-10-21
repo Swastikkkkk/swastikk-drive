@@ -505,10 +505,10 @@
   }
   var roundel = function (num) {
     return decal('n' + num, function (g, w, h) { g.clearRect(0, 0, w, h); g.fillStyle = '#ffffff'; g.beginPath(); g.arc(w / 2, h / 2, h * 0.46, 0, 6.283); g.fill();
-      g.lineWidth = 6; g.strokeStyle = '#111317'; g.stroke(); g.fillStyle = '#111317'; g.font = 'bold ' + Math.round(h * 0.56) + 'px Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(num, w / 2, h / 2 + 4); }, 128, 128);
+      g.lineWidth = 6; g.strokeStyle = '#111317'; g.stroke(); g.fillStyle = '#111317'; g.font = 'bold ' + Math.round(h * 0.56) + 'px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(num, w / 2, h / 2 + 4); }, 128, 128);
   };
   var sponsor = function (word) {
-    return decal('s' + word, function (g, w, h) { g.clearRect(0, 0, w, h); g.fillStyle = '#ffffff'; g.font = 'bold italic ' + Math.round(h * 0.62) + 'px Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(word, w / 2, h / 2 + 3); }, 256, 64);
+    return decal('s' + word, function (g, w, h) { g.clearRect(0, 0, w, h); g.fillStyle = '#ffffff'; g.font = 'bold italic ' + Math.round(h * 0.62) + 'px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(word, w / 2, h / 2 + 3); }, 256, 64);
   };
   function plane(w, h, mat, x, y, z, ry, parent, rx) { var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.rotation.set(rx || 0, ry || 0, 0); parent.add(m); return m; }
   // a helmet with a visor and a stripe in the accent colour, at (x, y, z), looking forward (+z)

@@ -298,7 +298,7 @@
   function drawTooLong(canvas) {
     canvas.width = 240; canvas.height = 240; var g = canvas.getContext('2d');
     g.fillStyle = '#16171b'; g.fillRect(0, 0, 240, 240); g.fillStyle = 'rgba(238,240,243,.75)';
-    g.font = '600 14px -apple-system,Segoe UI,Inter,Arial,sans-serif'; g.textAlign = 'center';
+    g.font = '600 14px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif'; g.textAlign = 'center';
     g.fillText('Link too long for a QR code', 120, 112); g.fillStyle = 'rgba(238,240,243,.5)'; g.fillText('Use Copy below instead', 120, 134);
   }
   window.AppQR = {

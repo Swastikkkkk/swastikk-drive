@@ -82,8 +82,8 @@
       return '<li' + (r.isMe ? ' class="me"' : '') + '><b>' + (done ? r.position : '·') + '</b><i style="background:' + c + '"></i><span class="cd">' + esc(r.isMe ? code(name || 'You') : code(r.name)) + '</span><span class="nm">' + esc(r.isMe ? (name || 'You') : r.name) + '</span><span class="tm">' + t + '</span></li>'; }).join('');
 
     el = document.createElement('div'); el.id = 'rfin';
-    if (!document.getElementById('rfFont')) { var lk = document.createElement('link'); lk.id = 'rfFont'; lk.rel = 'stylesheet'; lk.href = 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,800&display=swap'; document.head.appendChild(lk); }
-    var CF = '"Barlow Condensed","Arial Narrow",-apple-system,BlinkMacSystemFont,sans-serif';
+    
+    var CF = '-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Poppins,"Helvetica Neue",Arial,sans-serif';
     el.innerHTML = '<style>' +
       '#rfin{--ac:' + accent + ';position:fixed;inset:0;z-index:2147482500;color:#f3f3f1;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;background:#07080a;overflow:hidden;animation:rfFade .5s ease both}' +
       '@keyframes rfFade{from{opacity:0}}@keyframes rfSettle{from{transform:scale(1.07)}to{transform:scale(1)}}@keyframes rfRise{from{opacity:0;transform:translateY(18px)}}@keyframes rfGlow{0%{box-shadow:0 0 0 0 rgba(232,163,23,.55)}100%{box-shadow:0 0 0 14px rgba(232,163,23,0)}}' +

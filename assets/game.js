@@ -908,7 +908,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     lilies.forEach(([x,z,s],i)=>{o.position.set(x,WATER_Y+.03,z);o.scale.set(s,s,s);o.rotation.set(-Math.PI/2,0,i);o.updateMatrix();lilyIM.setMatrixAt(i,o.matrix)});S.add(lilyIM)})();
   SCN.grass=null;
   /* ---------- labels ---------- */
-  function label(txt,sub,w=1024,h=256,dark=false){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle=dark?'#eef0f3':'#15140f';x.fillRect(0,0,w,h);x.fillStyle=dark?'#15140f':'#eef0f3';x.textAlign='center';x.textBaseline='middle';x.font=`600 ${sub?h*.4:h*.5}px -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Inter,"Helvetica Neue",Arial,sans-serif`;x.fillText(txt,w/2,sub?h*.38:h*.5,w*.94);if(sub){x.font=`600 ${h*.12}px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace`;x.fillStyle=dark?'#6b675f':'#9a958c';x.fillText(sub.toUpperCase(),w/2,h*.78,w*.94)}const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t}
+  function label(txt,sub,w=1024,h=256,dark=false){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle=dark?'#eef0f3':'#15140f';x.fillRect(0,0,w,h);x.fillStyle=dark?'#15140f':'#eef0f3';x.textAlign='center';x.textBaseline='middle';x.font=`600 ${sub?h*.4:h*.5}px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif`;x.fillText(txt,w/2,sub?h*.38:h*.5,w*.94);if(sub){x.font=`600 ${h*.12}px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif`;x.fillStyle=dark?'#6b675f':'#9a958c';x.fillText(sub.toUpperCase(),w/2,h*.78,w*.94)}const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t}
   function signPost(x,z,y,txt,sub,dark,ry){const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=ry;S.add(g);const post=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,3.2,6),steel);post.position.y=1.6;g.add(post);const b=new THREE.Mesh(new THREE.BoxGeometry(6.4,1.8,.2),dark?paper:ink);b.position.y=3.8;g.add(b);const pl=new THREE.Mesh(new THREE.PlaneGeometry(6.2,1.6),new THREE.MeshBasicMaterial({map:label(txt,sub,1024,264,dark)}));pl.position.set(0,3.8,.12);g.add(pl);const p2=pl.clone();p2.rotation.y=Math.PI;p2.position.z=-.12;g.add(p2);staticBox(x,y+1.6,z,.15,1.6,.15);return g}
   signPost(POND.x+POND.r+2,POND.z,0,'The pond','drive in · you can swim',false,-Math.PI/2);
   signPost(RAMPYARD.x,RAMPYARD.z+13,BR_H,'Ramp rush','clear all three hoops · beat the clock',false,0);
@@ -991,9 +991,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      stroke(.45,'rgba(255,206,64,.95)');x.beginPath();x.arc(px(DR.x),px(DR.z),DR.r*k,0,6.283);x.stroke();
      stroke(.25,'rgba(255,206,64,.6)',[14,12]);x.beginPath();x.arc(px(DR.x),px(DR.z),(DR.r-4.5)*k,0,6.283);x.stroke();
      stroke(.3,'rgba(255,255,255,.55)',[18,14]);x.beginPath();x.moveTo(px(10),px(-26));x.lineTo(px(10),px(5));x.stroke();   // slalom lane
-     x.setLineDash([]);x.fillStyle='rgba(255,255,255,.82)';x.font='bold 54px Arial';x.textAlign='center';
+     x.setLineDash([]);x.fillStyle='rgba(255,255,255,.82)';x.font='bold 54px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='center';
      x.save();x.translate(px(DR.x),px(DR.z)+8);x.fillText('DRIFT',0,0);x.restore();
-     x.save();x.translate(px(30),px(-15));x.rotate(Math.PI/2);x.font='bold 40px Arial';x.fillText('JUMP  ▸',0,0);x.restore();
+     x.save();x.translate(px(30),px(-15));x.rotate(Math.PI/2);x.font='bold 40px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillText('JUMP  ▸',0,0);x.restore();
      stroke(1.1,'rgba(232,184,74,.95)');x.beginPath();x.arc(T/2,T/2,T/2-8,0,6.283);x.stroke();
      const tx=new THREE.CanvasTexture(cv);tx.anisotropy=8;
      const pad=new THREE.Mesh(new THREE.CircleGeometry(PGR,80),new THREE.MeshLambertMaterial({map:tx,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
@@ -1114,7 +1114,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {const c=new THREE.Vector3(TOP.x,topY-3,TOP.z);box(DECK,6,DECK,c,concrete);
      const deckT=(()=>{const cv=document.createElement('canvas');cv.width=cv.height=512;const x=cv.getContext('2d');x.fillStyle='#8f8a80';x.fillRect(0,0,512,512);
        for(let i=0;i<512;i+=32){x.fillStyle=i%64?'#958f84':'#8a857b';x.fillRect(0,i,512,32)}x.strokeStyle='#e1b33a';x.lineWidth=10;x.strokeRect(20,20,472,472);
-       x.fillStyle='rgba(255,255,255,.85)';x.font='bold 54px Arial';x.textAlign='center';x.fillText(Math.round(topY)+' m',256,270);return new THREE.CanvasTexture(cv)})();
+       x.fillStyle='rgba(255,255,255,.85)';x.font='bold 54px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='center';x.fillText(Math.round(topY)+' m',256,270);return new THREE.CanvasTexture(cv)})();
      const top=new THREE.Mesh(new THREE.PlaneGeometry(DECK,DECK),new THREE.MeshLambertMaterial({map:deckT}));top.rotation.set(-Math.PI/2,0,-YAW);top.position.set(TOP.x,topY+.02,TOP.z);S.add(top);
      for(const s of [-1,1]){box(.25,1.1,DECK,at3(TOP,0,s*(DECK/2-.15),topY+.55),yellowM);box(DECK,1.1,.25,at3(TOP,s*(DECK/2-.15),0,topY+.55),yellowM)}
      for(const s of [-1,1])for(const a of [-4,4])box(.5,9,.5,at3(D1,a,s*4.6,topY+4.5),steelD,null,true);
@@ -1293,16 +1293,16 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       out.push(f.length===2||f[0]===10?tot:null)}
     return out}
   function drawBowl(){const B=BOWL,c=B.sc,x=c.getContext('2d');x.fillStyle='#0b0c0e';x.fillRect(0,0,1024,300);x.textBaseline='top';
-    x.fillStyle='#e8c28a';x.font='600 30px ui-monospace,"SF Mono",Menlo,Consolas,monospace';x.fillText('LANE 1 · GIANT BOWLING',40,24);
-    x.fillStyle='rgba(238,240,243,.55)';x.font='500 24px ui-monospace,"SF Mono",Menlo,Consolas,monospace';x.textAlign='right';x.fillText('BEST GAME '+B.bestGame,984,28);x.textAlign='left';
+    x.fillStyle='#e8c28a';x.font='600 30px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillText('LANE 1 · GIANT BOWLING',40,24);
+    x.fillStyle='rgba(238,240,243,.55)';x.font='500 24px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='right';x.fillText('BEST GAME '+B.bestGame,984,28);x.textAlign='left';
     const sc=bowlScores(B.frames),W0=40,FW=188;
     for(let i=0;i<B.nf;i++){const x0=W0+i*FW,f=B.frames[i]||[],cur=i===B.fi&&!B.over;
       x.strokeStyle=cur?'#8db7ff':'rgba(238,240,243,.35)';x.lineWidth=cur?4:2;x.strokeRect(x0,80,FW-14,190);
-      x.fillStyle='rgba(238,240,243,.45)';x.font='500 20px ui-monospace,monospace';x.fillText(String(i+1),x0+10,88);
+      x.fillStyle='rgba(238,240,243,.45)';x.font='500 20px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillText(String(i+1),x0+10,88);
       const mark=(r,k)=>{if(r==null)return '';if(k===0&&r===10)return 'X';if(k===1&&f[0]+r===10)return '/';return r===0?'–':String(r)};
-      x.font='700 40px ui-monospace,monospace';x.fillStyle=f[0]===10?'#ff6a4a':'#eef0f3';x.fillText(mark(f[0],0),x0+70,90);
+      x.font='700 40px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillStyle=f[0]===10?'#ff6a4a':'#eef0f3';x.fillText(mark(f[0],0),x0+70,90);
       x.fillStyle=f.length===2&&f[0]+f[1]===10?'#ffd257':'#eef0f3';x.fillText(mark(f[1],1),x0+122,90);
-      x.fillStyle='#eef0f3';x.font='700 76px -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif';if(sc[i]!=null)x.fillText(String(sc[i]),x0+14,160)}
+      x.fillStyle='#eef0f3';x.font='700 76px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';if(sc[i]!=null)x.fillText(String(sc[i]),x0+14,160)}
     B.tex.needsUpdate=true}
   function pinsDown(){let n=0;const up=new CANNON.Vec3(),Y=new CANNON.Vec3(0,1,0);PINS.forEach(P=>{if(P.out){n++;return}P.b.quaternion.vmult(Y,up);if(up.y<.8||Math.hypot(P.b.position.x-P.x,P.b.position.z-P.z)>1.3)n++});return n}
   // full: all ten back up. Otherwise the pinsetter sweeps the fallen ones away and re-spots the ones still standing
@@ -1626,13 +1626,13 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       [-1,1].forEach(s=>{const p=new THREE.Mesh(new THREE.BoxGeometry(.25,3.4,.25),M(0x121316));p.position.set(s*3.4,1.5,0);g.add(p)});
       return {c,t}})();
     function drawBoard(live){const x=board.c.getContext('2d');x.fillStyle='#0b0c0e';x.fillRect(0,0,1024,420);x.textBaseline='top';
-      x.fillStyle='#e8c28a';x.font='600 40px ui-monospace,"SF Mono",Menlo,Consolas,monospace';x.fillText('RAMP RUSH',44,36);
-      x.fillStyle='rgba(238,240,243,.6)';x.font='500 26px ui-monospace,"SF Mono",Menlo,Consolas,monospace';x.fillText('clear all three hoops against the clock',44,92);
+      x.fillStyle='#e8c28a';x.font='600 40px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillText('RAMP RUSH',44,36);
+      x.fillStyle='rgba(238,240,243,.6)';x.font='500 26px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillText('clear all three hoops against the clock',44,92);
       x.fillText('BEST',44,160);x.fillText(live!=null?'NOW':'MEDAL',560,160);
-      x.fillStyle='#eef0f3';x.font='700 120px -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif';
+      x.fillStyle='#eef0f3';x.font='700 120px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';
       x.fillText(SAVE.rush?SAVE.rush.toFixed(2)+'s':'–',40,196);
       x.fillStyle=live!=null?'#8db7ff':(SAVE.medal?MEDALS[3-SAVE.medal][3]:'#6d7280');x.fillText(live!=null?live.toFixed(1):(SAVE.medal?MEDALS[3-SAVE.medal][1]:'–'),556,196);
-      x.fillStyle='rgba(238,240,243,.45)';x.font='500 22px ui-monospace,"SF Mono",Menlo,Consolas,monospace';x.fillText('gold '+MEDALS[0][0]+'s · silver '+MEDALS[1][0]+'s · bronze '+MEDALS[2][0]+'s',44,360);
+      x.fillStyle='rgba(238,240,243,.45)';x.font='500 22px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillText('gold '+MEDALS[0][0]+'s · silver '+MEDALS[1][0]+'s · bronze '+MEDALS[2][0]+'s',44,360);
       board.t.needsUpdate=true}
     drawBoard();
     function setHoops(state){HOOPS.forEach(h=>{const c=state==='idle'?0xffb04a:h.done?0x6aff8a:0x4ad8ff;h.m.color.setHex(c);h.bm.color.setHex(c)})}
@@ -2683,19 +2683,19 @@ t.bd.position.set(x,y+.86,z);
       {const x=clus.x,w=512,h=192;x.fillStyle='#05060a';x.fillRect(0,0,w,h);
        const gauge=(cx,v,label)=>{x.lineWidth=10;x.strokeStyle='rgba(138,75,255,.22)';x.beginPath();x.arc(cx,96,70,Math.PI*.75,Math.PI*2.25);x.stroke();
          x.strokeStyle='#8a4bff';x.shadowColor='#8a4bff';x.shadowBlur=16;x.beginPath();x.arc(cx,96,70,Math.PI*.75,Math.PI*(.75+1.5*Math.max(0,Math.min(1,v))));x.stroke();x.shadowBlur=0;
-         x.fillStyle='rgba(200,190,255,.7)';x.font='600 16px Arial';x.textAlign='center';x.fillText(label,cx,170)};
+         x.fillStyle='rgba(200,190,255,.7)';x.font='600 16px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='center';x.fillText(label,cx,170)};
        {const rf=Math.min(1,(SND&&SND.rpm?SND.rpm:0)/((SND&&SND.prof&&SND.prof.red)||8000)||kmh/220),lit=Math.round(Math.max(0,(rf-.55)/.4)*10);revLeds.forEach((l,i)=>{l.material=i<lit?l.userData.on:l.userData.off})}
        gauge(90,kmh/300,'KM/H');gauge(422,(SND&&SND.rpm?SND.rpm:0)/((SND&&SND.prof&&SND.prof.red)||8000)||Math.min(1,kmh/200),'RPM');
-       x.fillStyle='#e9e4ff';x.font='bold 64px Arial';x.textAlign='center';x.shadowColor='#3fa9ff';x.shadowBlur=12;x.fillText(String(Math.round(kmh)),256,108);x.shadowBlur=0;
-       x.fillStyle='#8a4bff';x.font='600 15px Arial';x.fillText('KM/H',256,134);x.font='bold 26px Arial';x.fillStyle=GEAR.now==='R'?'#ff3b3b':'#e9e4ff';x.fillText(GEAR.now||'D',256,176);clus.t.needsUpdate=true}
+       x.fillStyle='#e9e4ff';x.font='bold 64px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='center';x.shadowColor='#3fa9ff';x.shadowBlur=12;x.fillText(String(Math.round(kmh)),256,108);x.shadowBlur=0;
+       x.fillStyle='#8a4bff';x.font='600 15px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillText('KM/H',256,134);x.font='bold 26px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillStyle=GEAR.now==='R'?'#ff3b3b':'#e9e4ff';x.fillText(GEAR.now||'D',256,176);clus.t.needsUpdate=true}
       // centre screen: the song, the station and the time
       {const x=scr.x,w=384,h=224;const gr=x.createLinearGradient(0,0,w,h);gr.addColorStop(0,'#101a2e');gr.addColorStop(1,'#1d0f33');x.fillStyle=gr;x.fillRect(0,0,w,h);
        const d=new Date(),P=(window.__musicLabel&&window.__musicLabel())||(window.Radio&&Radio.playing?Radio.playing():null);
-       x.fillStyle='#bfe3ff';x.font='600 22px Arial';x.textAlign='left';x.fillText(String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),18,34);
-       x.fillStyle='rgba(191,227,255,.6)';x.font='600 14px Arial';x.textAlign='right';x.fillText(P?(P.fm?'FM '+P.fm+' · ':'')+P.station:'RADIO OFF',w-16,32);
-       x.fillStyle='#ffffff';x.textAlign='left';x.font='bold 26px Arial';x.fillText(P?P.title:'—',18,110);x.fillStyle='rgba(255,255,255,.65)';x.font='18px Arial';x.fillText(P?P.artist:'Press T for the radio',18,138);
+       x.fillStyle='#bfe3ff';x.font='600 22px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='left';x.fillText(String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),18,34);
+       x.fillStyle='rgba(191,227,255,.6)';x.font='600 14px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='right';x.fillText(P?(P.fm?'FM '+P.fm+' · ':'')+P.station:'RADIO OFF',w-16,32);
+       x.fillStyle='#ffffff';x.textAlign='left';x.font='bold 26px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillText(P?P.title:'—',18,110);x.fillStyle='rgba(255,255,255,.65)';x.font='18px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.fillText(P?P.artist:'Press T for the radio',18,138);
        x.fillStyle='rgba(255,255,255,.15)';x.fillRect(18,170,w-36,5);x.fillStyle='#8a4bff';x.fillRect(18,170,(w-36)*(P?P.progress:0),5);
-       x.fillStyle='rgba(255,255,255,.75)';x.font='22px Arial';x.textAlign='center';x.fillText('⏮      ⏯      ⏭',w/2,208);scr.t.needsUpdate=true}}
+       x.fillStyle='rgba(255,255,255,.75)';x.font='22px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='center';x.fillText('⏮      ⏯      ⏭',w/2,208);scr.t.needsUpdate=true}}
     return {g,eye,build,draw,mirror,setSteer(a){if(wheel){wheel.rotation.z=a;placeArms()}}}})();
   vis.car.add(COCK.g);
   /* ---------- nitro ----------
@@ -3425,7 +3425,7 @@ t.bd.position.set(x,y+.86,z);
     const get=()=>{try{return Object.assign({},DEF,JSON.parse(localStorage.getItem('sl_livery')||'{}'))}catch(e){return Object.assign({},DEF)}};
     const set=L=>{try{localStorage.setItem('sl_livery',JSON.stringify(L))}catch(e){}};
     function numTex(n){const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');x.fillStyle='#f5f5f7';x.beginPath();x.arc(64,64,60,0,6.283);x.fill();
-      x.fillStyle='#111';x.font='800 78px -apple-system,BlinkMacSystemFont,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(n,64,70);return new THREE.CanvasTexture(c)}
+      x.fillStyle='#111';x.font='800 78px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(n,64,70);return new THREE.CanvasTexture(c)}
     function apply(){if(grp){grp.parent&&grp.parent.remove(grp);grp=null}const L=get();
       // rims: every light-coloured part of the wheels takes the colour (tyres stay black)
       try{(wv&&wv.car||[]).forEach(k=>k.spin.traverse(o=>{if(!o.isMesh||!o.material||!o.material.color)return;if(!o.userData.rimBase){const c=o.material.color;if(c.r*.3+c.g*.59+c.b*.11<.3)return;o.material=o.material.clone();o.userData.rimBase=1}o.material.color.set(L.rim)}))}catch(e){}
@@ -3872,7 +3872,7 @@ t.bd.position.set(x,y+.86,z);
     c.lineWidth=Math.max(4,12*px);path(MAPS,true);c.stroke();path(BSAMP,false);c.stroke();c.beginPath();c.arc(RING.x*sc,RING.z*sc,RING.r*sc,0,6.283);c.stroke();
     c.strokeStyle='#b08f5c';c.lineWidth=Math.max(1.6,6*px);spurPts.forEach(p=>{path(p,false);c.stroke()});
     c.strokeStyle="#9a958b";c.lineWidth=Math.max(2.4,8.5*px);path(MAPS,true);c.stroke();path(BSAMP,false);c.stroke();c.beginPath();c.arc(RING.x*sc,RING.z*sc,RING.r*sc,0,6.283);c.stroke()}
-  function mapLabel(c,t,x,y,col){c.font='700 '+(t.length>8?10:11)+'px ui-monospace,"SF Mono",Menlo,Consolas,monospace';const w=c.measureText(t).width+12;
+  function mapLabel(c,t,x,y,col){c.font='700 '+(t.length>8?10:11)+'px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';const w=c.measureText(t).width+12;
     c.fillStyle='rgba(10,11,14,.78)';c.beginPath();if(c.roundRect)c.roundRect(x-w/2,y-9,w,18,9);else c.rect(x-w/2,y-9,w,18);c.fill();
     c.fillStyle=col;c.textAlign='center';c.textBaseline='middle';c.fillText(t,x,y+.5);c.textBaseline='alphabetic';c.textAlign='left'}
   function buildPlanetMapCache(cfg){
@@ -3907,7 +3907,7 @@ t.bd.position.set(x,y+.86,z);
   /* friends in your room on the map: a dot in their colour with a name tag (kept upright on the turning minimap) */
   let mpMapTags=null;
   function drawPeerTags(c,sc,big){if(!mpMapTags)return;const L=mpMapTags();if(!L.length)return;
-    c.font='600 '+(big?12:10)+'px -apple-system,BlinkMacSystemFont,Arial,sans-serif';c.textAlign='center';c.textBaseline='middle';
+    c.font='600 '+(big?12:10)+'px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.textAlign='center';c.textBaseline='middle';
     for(const p of L){const x=p.x*sc,z=p.z*sc;c.save();c.translate(x,z);if(!big)c.rotate(-mapRot);
       c.fillStyle=p.col;c.strokeStyle='#fff';c.lineWidth=1.5;c.beginPath();c.arc(0,0,big?5.5:4,0,6.283);c.fill();c.stroke();
       const t=p.n.slice(0,12),w=c.measureText(t).width+10,h=big?17:14,y=-(big?16:13);
@@ -3915,7 +3915,7 @@ t.bd.position.set(x,y+.86,z);
       c.fillStyle='#fff';c.fillText(t,0,y+.5);c.restore()}}
   function drawMap(c,size,big){
     if(SPACE.state!=='earth'){   // off Earth: this planet's map, or nothing in flight; never Earth's valley
-      if(!(SPACE.drawBigMap&&SPACE.drawBigMap(c,size))){c.clearRect(0,0,size,size);c.fillStyle='rgba(238,240,243,.7)';c.font='600 '+Math.round(size/30)+'px ui-monospace,monospace';c.textAlign='center';c.fillText('No map in flight',size/2,size/2)}
+      if(!(SPACE.drawBigMap&&SPACE.drawBigMap(c,size))){c.clearRect(0,0,size,size);c.fillStyle='rgba(238,240,243,.7)';c.font='600 '+Math.round(size/30)+'px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.textAlign='center';c.fillText('No map in flight',size/2,size/2)}
       return}
     const q=chassisB.quaternion, yaw=Math.atan2(2*(q.w*q.y+q.x*q.z),1-2*(q.y*q.y+q.z*q.z));
     // circuit mode: draw custom track
@@ -3945,7 +3945,7 @@ t.bd.position.set(x,y+.86,z);
       {const s=8000*sc;c.drawImage(planetMapCache,-s,-s,s*2,s*2)}
       // GPS waypoints
       if(S.gpsPins && S.gpsPins.length){
-        c.fillStyle='#00ff88';c.font='600 10px ui-monospace,monospace';c.textAlign='center';
+        c.fillStyle='#00ff88';c.font='600 10px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.textAlign='center';
         S.gpsPins.forEach((pin,i)=>{
           const px=(pin.x-chassisB.position.x)*sc, pz=(pin.z-chassisB.position.z)*sc;
           c.beginPath();c.arc(px,pz,big?6:4,0,6.283);c.fill();
@@ -3959,7 +3959,7 @@ t.bd.position.set(x,y+.86,z);
         c.beginPath();c.moveTo(0,0);c.lineTo(tx,tz);c.stroke();c.setLineDash([]);
         // compass bearing
         const bearing=Math.atan2(S.gpsTarget.x-chassisB.position.x, S.gpsTarget.z-chassisB.position.z);
-        c.fillStyle='#00ff88';c.font='600 11px ui-monospace,monospace';c.textAlign='right';
+        c.fillStyle='#00ff88';c.font='600 11px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.textAlign='right';
         c.fillText('→ '+Math.round(bearing*180/Math.PI)+'°',size/2-8,-size/2+18);
       }
       c.translate(chassisB.position.x*sc,chassisB.position.z*sc);c.rotate(Math.PI-yaw);
@@ -3979,7 +3979,7 @@ t.bd.position.set(x,y+.86,z);
      // traffic shows up on the map so you can see what you are racing into
      c.fillStyle='rgba(238,240,243,.75)';traffic.forEach(tc=>{const pt=at(tc.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?3.4:2.2,0,6.283);c.fill()})}
 // AI racers on map
-      {c.fillStyle='rgba(255,100,100,.9)';aiRacers.forEach(ai=>{const pt=at(ai.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?4:2.5,0,6.283);c.fill();if(big){c.fillStyle='#fff';c.font='600 8px ui-monospace,monospace';c.textAlign='center';c.fillText(ai.skill.charAt(0).toUpperCase(),pt.x*sc,pt.z*sc+2);c.fillStyle='rgba(255,100,100,.9)'}})}
+      {c.fillStyle='rgba(255,100,100,.9)';aiRacers.forEach(ai=>{const pt=at(ai.u).p;c.beginPath();c.arc(pt.x*sc,pt.z*sc,big?4:2.5,0,6.283);c.fill();if(big){c.fillStyle='#fff';c.font='600 8px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.textAlign='center';c.fillText(ai.skill.charAt(0).toUpperCase(),pt.x*sc,pt.z*sc+2);c.fillStyle='rgba(255,100,100,.9)'}})}
     // the summit
     {c.fillStyle=atSummit?'#f2b26b':'#c98a4a';c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,big?5:3.4,0,6.283);c.fill();
      if(atSummit){c.strokeStyle='rgba(242,178,107,.8)';c.lineWidth=1.5;c.beginPath();c.arc(PEAK.x*sc,PEAK.z*sc,(big?9:6)+Math.sin(t)*2,0,6.283);c.stroke()}
@@ -4140,7 +4140,7 @@ t.bd.position.set(x,y+.86,z);
           view.arrow(rel,dt,!!route.off)}}}
     // route, destination and next turn on a map already scaled so that world (x,z)*sc is the point
     function drawOnMap(c,sc,big){
-      if(MODE==='world'&&window.earthGPS&&window.earthGPS.length){c.font='600 '+(big?11:9)+'px ui-monospace,monospace';c.textAlign='center';
+      if(MODE==='world'&&window.earthGPS&&window.earthGPS.length){c.font='600 '+(big?11:9)+'px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.textAlign='center';
         window.earthGPS.forEach(p=>{const on=p===window.earthGpsTarget;c.fillStyle=on?'#00ff88':'rgba(0,255,136,.45)';c.beginPath();c.arc(p.x*sc,p.z*sc,(big?6:3.5)*(on?1.3:1),0,6.283);c.fill();
           if(big){c.fillStyle=on?'#00ff88':'rgba(200,255,220,.75)';c.fillText(p.label,p.x*sc,p.z*sc-11)}})}
       if(!route||hidden)return;
@@ -4717,7 +4717,7 @@ const F=chassisB.force,T=chassisB.torque;
       road(S.s-span*1.5,S.s+span*1.5,'rgba(238,240,243,.85)',Math.max(3,size/160));
       road(0,S.s,'rgba(77,141,255,.9)',Math.max(2,size/220));                        // the stretch you've already driven
       if(api.gpsOn)road(S.s,(Math.floor(S.s/cfg.ufoEvery)+1)*cfg.ufoEvery,'rgba(0,255,136,.9)',Math.max(3,size/150));   // route to the next UFO, with GPS on
-      const every=cfg.ufoEvery;c.font='600 '+Math.round(size/48)+'px ui-monospace,monospace';c.textAlign='center';
+      const every=cfg.ufoEvery;c.font='600 '+Math.round(size/48)+'px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.textAlign='center';
       if(api.gpsOn)for(let k=Math.max(1,Math.floor((S.s-span*1.5)/every));k<=Math.floor((S.s+span*1.5)/every)+1;k++){
         const r=roadAt(cfg,S.road,k*every),q=P(r.x,r.z),ahead=k*every>S.s;
         c.fillStyle=ahead?'#5cf2ff':'rgba(92,242,255,.45)';c.beginPath();c.arc(q[0],q[1],size/90,0,6.283);c.fill();
@@ -4725,9 +4725,9 @@ const F=chassisB.force,T=chassisB.torque;
       c.translate(R0,R0);c.rotate(Math.atan2(Math.sin(S.yaw),-Math.cos(S.yaw)));const a=size/60;
       c.fillStyle='#eef0f3';c.beginPath();c.moveTo(0,-a*1.4);c.lineTo(a,a);c.lineTo(0,a*.45);c.lineTo(-a,a);c.closePath();c.fill();c.restore();
       c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=2;c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.stroke();
-      c.fillStyle='rgba(238,240,243,.85)';c.font='600 '+Math.round(size/36)+'px ui-monospace,monospace';c.textAlign='center';
+      c.fillStyle='rgba(238,240,243,.85)';c.font='600 '+Math.round(size/36)+'px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.textAlign='center';
       c.fillText(cfg.name.toUpperCase()+' · '+(S.maxS/1000).toFixed(2)+' km driven',R0,size*.08);
-      c.fillStyle='rgba(238,240,243,.6)';c.font='500 '+Math.round(size/52)+'px ui-monospace,monospace';c.fillText('rings every 500 m · N up',R0,size*.94);
+      c.fillStyle='rgba(238,240,243,.6)';c.font='500 '+Math.round(size/52)+'px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.fillText('rings every 500 m · N up',R0,size*.94);
       return true};
     function drawSurfMap(S){
       const cfg=S.cfg,c=pmx,N=180,R0=N/2,sc=R0/1100,yaw=S.yaw,cs=Math.cos(yaw),sn=Math.sin(yaw),px=S.pos.x,pz=S.pos.z;
@@ -4743,8 +4743,8 @@ const F=chassisB.force,T=chassisB.torque;
       c.restore();
       c.strokeStyle='rgba(238,240,243,.5)';c.lineWidth=2;c.beginPath();c.arc(R0,R0,R0-1,0,6.283);c.stroke();
       c.fillStyle='#eef0f3';c.beginPath();c.moveTo(R0,R0-9);c.lineTo(R0+6,R0+7);c.lineTo(R0,R0+3);c.lineTo(R0-6,R0+7);c.closePath();c.fill();
-      const toNext=Math.max(0,kNext*every-S.s);c.font='600 13px ui-monospace,monospace';c.textAlign='center';c.fillStyle='#5cf2ff';if(api.gpsOn)c.fillText('UFO '+(toNext/1000).toFixed(2)+' km',R0,N-16);
-      c.fillStyle='rgba(238,240,243,.75)';c.font='600 11px ui-monospace,monospace';c.fillText(cfg.name.toUpperCase(),R0,22);
+      const toNext=Math.max(0,kNext*every-S.s);c.font='600 13px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.textAlign='center';c.fillStyle='#5cf2ff';if(api.gpsOn)c.fillText('UFO '+(toNext/1000).toFixed(2)+' km',R0,N-16);
+      c.fillStyle='rgba(238,240,243,.75)';c.font='600 11px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';c.fillText(cfg.name.toUpperCase(),R0,22);
     }
     // gravity toggle: default Earth gravity on every surface; this button enables the real planet g
     const gravBtn=document.createElement('button');
@@ -5927,7 +5927,7 @@ const PLANETS={
     const city=new THREE.Group();root.add(city);const glows=[],winMats=[],neonMats=[];
     {const glowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.3,'rgba(255,255,255,.35)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
      const winTex=()=>{const c=document.createElement('canvas');c.width=64;c.height=128;const x=c.getContext('2d');x.fillStyle='#000';x.fillRect(0,0,64,128);for(let yy=6;yy<124;yy+=14)for(let xx=5;xx<60;xx+=12){if(Math.random()<.42){x.fillStyle=['#ffd98a','#ffe9b8','#bfe4ff','#ffc06a'][Math.random()*4|0];x.fillRect(xx,yy,7,8)}}const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t};
-     const signTex=(txt,col)=>{const c=document.createElement('canvas');c.width=512;c.height=160;const x=c.getContext('2d');x.font='800 92px -apple-system,BlinkMacSystemFont,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.shadowColor=col;x.shadowBlur=26;x.fillStyle=col;x.fillText(txt,256,84);x.shadowBlur=0;x.fillStyle='#fff';x.globalAlpha=.85;x.fillText(txt,256,84);return new THREE.CanvasTexture(c)};
+     const signTex=(txt,col)=>{const c=document.createElement('canvas');c.width=512;c.height=160;const x=c.getContext('2d');x.font='800 92px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.shadowColor=col;x.shadowBlur=26;x.fillStyle=col;x.fillText(txt,256,84);x.shadowBlur=0;x.fillStyle='#fff';x.globalAlpha=.85;x.fillText(txt,256,84);return new THREE.CanvasTexture(c)};
      const poleM=M(0x2a2b2e,{roughness:.6}),bodyM=[0x2b2d33,0x3a3530,0x23272e,0x40382f,0x2e2a33];
      const NAMES=[['DINER','#ff4fa3'],['ARCADE','#4fd8ff'],['24/7','#ffe24f'],['MOTEL','#ff6a3d'],['GARAGE','#7dff6a'],['NOODLES','#ff4f6a'],['DRIVE-IN','#b26bff'],['SKETCH','#4fffd2']];
      // the straightest flat stretch of the loop, clear of the traffic lights
@@ -5999,7 +5999,7 @@ const PLANETS={
     // 3. signs: a bend warning before each bend, speed limits along the straights, km posts
     const signs=[];
     const warnT=tex(128,128,(x,w,h)=>{x.fillStyle='#fff';x.beginPath();x.moveTo(64,6);x.lineTo(122,116);x.lineTo(6,116);x.closePath();x.fill();x.strokeStyle='#d8322f';x.lineWidth=12;x.stroke();x.strokeStyle='#111';x.lineWidth=9;x.lineCap='round';x.beginPath();x.moveTo(52,100);x.quadraticCurveTo(52,58,80,52);x.stroke();x.fillStyle='#111';x.beginPath();x.moveTo(78,40);x.lineTo(94,52);x.lineTo(78,64);x.fill()});
-    const limT=v=>tex(128,128,(x,w,h)=>{x.fillStyle='#fff';x.beginPath();x.arc(64,64,60,0,6.283);x.fill();x.strokeStyle='#d8322f';x.lineWidth=12;x.stroke();x.fillStyle='#111';x.font='800 52px -apple-system,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(v,64,68)});
+    const limT=v=>tex(128,128,(x,w,h)=>{x.fillStyle='#fff';x.beginPath();x.arc(64,64,60,0,6.283);x.fill();x.strokeStyle='#d8322f';x.lineWidth=12;x.stroke();x.fillStyle='#111';x.font='800 52px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(v,64,68)});
     const kmT=tex(64,96,(x,w,h)=>{x.fillStyle='#1f6f3f';x.fillRect(0,0,w,h);x.strokeStyle='#fff';x.lineWidth=4;x.strokeRect(4,4,w-8,h-8)});
     const mkSign=(u,side,t,size,h)=>{const {p,n,ry}=at(u),off=HALF+2.4,x=p.x+n.x*side*off,z=p.z+n.z*side*off;if(!clear(x,z,HALF+1.5))return;const y=HF.h(x,z),g=new THREE.Group();
       const post=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,h,6),postM);post.position.y=h/2;g.add(post);
@@ -6839,7 +6839,7 @@ const PLANETS={
     x.fillStyle='#cfcec8';x.fillRect(0,0,W,H);
     for(let i=0;i<8;i++){const px=i*256;
       x.fillStyle=bgs[i];x.fillRect(px+2,16,252,64);
-      x.fillStyle=fgs[i];x.font='italic 800 34px Arial,Helvetica,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(names[i],px+128,50);
+      x.fillStyle=fgs[i];x.font='italic 800 34px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(names[i],px+128,50);
       x.fillStyle='#f4f3ef';x.fillRect(px,82,256,14);x.fillStyle=acc;x.fillRect(px,96,256,24);x.fillStyle='#f4f3ef';x.fillRect(px,120,256,3);
       x.fillStyle='rgba(30,30,28,.55)';x.fillRect(px,0,2,H);x.fillRect(px+128,16,1,104)}
     const g=x.createLinearGradient(0,60,0,H);g.addColorStop(0,'rgba(40,36,30,0)');g.addColorStop(1,'rgba(40,36,30,.38)');x.fillStyle=g;x.fillRect(0,60,W,H-60);
@@ -7458,7 +7458,7 @@ const PLANETS={
           body.setColorAt(cn,cc.setHex(i%2?kerbOf(theme):0x2f6fde));head.setColorAt(cn,cc.setHex(0xf2f2f2));cn++}});
         body.count=head.count=cn;body.userData.fixedY=head.userData.fixedY=body.userData.onTrack=head.userData.onTrack=true;body.instanceMatrix.needsUpdate=head.instanceMatrix.needsUpdate=true;root.add(body,head);PIT.crew=body}
       // PIT IN board at the entry and a 60 limit board
-      {const mk=(txt,bg,fg,d)=>{const c=document.createElement('canvas');c.width=256;c.height=128;const g=c.getContext('2d');g.fillStyle=bg;g.fillRect(0,0,256,128);g.fillStyle=fg;g.font='bold 60px Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(txt,128,68);
+      {const mk=(txt,bg,fg,d)=>{const c=document.createElement('canvas');c.width=256;c.height=128;const g=c.getContext('2d');g.fillStyle=bg;g.fillRect(0,0,256,128);g.fillStyle=fg;g.font='bold 60px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(txt,128,68);
           const t=new THREE.CanvasTexture(c),m=new THREE.MeshBasicMaterial({map:t,side:THREE.DoubleSide});ownedMats.push(m);const u=((d/TL)%1+1)%1,a=circAt(u,curve),o=EDGE+1.5,x=a.p.x+a.n.x*sd*o,z=a.p.z+a.n.z*sd*o,y=roadY(u,a.p.x,a.p.z);
           const b=new THREE.Mesh(new THREE.PlaneGeometry(3.2,1.6),m);b.position.set(x,y+3.2,z);b.rotation.y=Math.atan2(-a.tg.x,-a.tg.z);b.userData.fixedY=b.userData.onTrack=true;root.add(b);
           const post=new THREE.Mesh(new THREE.BoxGeometry(.16,2.4,.16),wallM);post.position.set(x,y+1.2,z);post.userData.fixedY=post.userData.onTrack=true;root.add(post)};
@@ -7697,7 +7697,7 @@ const PLANETS={
           const rail=tag(new THREE.Mesh(new THREE.BoxGeometry(span,.9,.12),trimM));rail.position.set(0,7.9,s*1.75);g.add(rail)}
         // the name, on the face the cars drive towards
         const label=String(o[1]||'').toUpperCase().slice(0,28);if(label){const c=document.createElement('canvas');c.width=1024;c.height=96;const x=c.getContext('2d');x.fillStyle='#1d1f24';x.fillRect(0,0,1024,96);
-          x.fillStyle='#f2efe6';x.font='700 54px -apple-system,Segoe UI,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(label,512,52);
+          x.fillStyle='#f2efe6';x.font='700 54px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(label,512,52);
           const tx=new THREE.CanvasTexture(c),sm=new THREE.MeshBasicMaterial({map:tx});ownedMats.push(sm);const sign=tag(new THREE.Mesh(new THREE.PlaneGeometry(Math.min(span-2,14),1.3),sm));sign.position.set(0,6.9,-1.83);sign.rotation.y=Math.PI;g.add(sign)}
         root.add(g)})}
     JOB(()=>{
@@ -7852,7 +7852,7 @@ const PLANETS={
       // START · FINISH board on both faces
       {const c=document.createElement('canvas');c.width=1024;c.height=128;const g=c.getContext('2d');g.fillStyle='#111317';g.fillRect(0,0,1024,128);
        for(let i=0;i<16;i++){g.fillStyle=i%2?'#f2f2f2':'#111317';g.fillRect(i*16,0,16,64);g.fillRect(1008-i*16,0,16,64);g.fillStyle=i%2?'#111317':'#f2f2f2';g.fillRect(i*16,64,16,64);g.fillRect(1008-i*16,64,16,64)}
-       g.fillStyle='#ffffff';g.font='bold 76px Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('START  ·  FINISH',512,68);
+       g.fillStyle='#ffffff';g.font='bold 76px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('START  ·  FINISH',512,68);
        const tx=new THREE.CanvasTexture(c);tx.anisotropy=4;const bm=new THREE.MeshBasicMaterial({map:tx});ownedMats.push(bm);
        for(const f of [1,-1]){const b=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(span*2-1,CIRC_W+2),Math.min(span*2-1,CIRC_W+2)/8),bm);b.position.set(0,H+.4,f*.67);b.rotation.y=f>0?0:Math.PI;gantry.add(b)}}
       // five start lights hanging under the truss, facing the grid (behind the line)
@@ -7901,7 +7901,7 @@ const PLANETS={
       const straightMid=(bStart+Math.floor(Math.min(bLen,SN)/2))%SN;
       // a bright sign/banner texture drawn procedurally (no external assets, no real brands)
       const signTex=(word,bg,fg)=>{const key=word+bg+fg;if(SIGN_CACHE.has(key))return SIGN_CACHE.get(key);const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');
-        g.fillStyle=bg;g.fillRect(0,0,256,64);g.fillStyle=fg;g.font='bold 42px Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';
+        g.fillStyle=bg;g.fillRect(0,0,256,64);g.fillStyle=fg;g.font='bold 42px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';
         g.fillText(word,128,36);g.strokeStyle=fg;g.lineWidth=4;g.strokeRect(6,6,244,52);
         const t=new THREE.CanvasTexture(c);if(R&&R.capabilities&&R.capabilities.getMaxAnisotropy)t.anisotropy=Math.min(4,R.capabilities.getMaxAnisotropy());t.__shared=true;SIGN_CACHE.set(key,t);return t};
       const WORDS=['SPEED','TURBO','RACING','DRIVE','MOTORSPORT','GRAND PRIX','CIRCUIT','APEX','V12','NITRO','PODIUM','CHAMPIONSHIP'];
@@ -8581,7 +8581,7 @@ const PLANETS={
   function redrawPath(){if(!circCx)return;const g=circCx,W=circCv.width,H=circCv.height;g.clearRect(0,0,W,H);
     const scen=selVal('#dcircscenery','meadow'),tag=THEME_TAG[scen]||'#4f8a2e',sizeKm=(CIRC_SIZES[selVal('#dcircsize','large')]||CIRC_LEN)/1000;
     // scenery tag, bottom left
-    {const label='Scenery · '+((THEMES.find(t=>t.id===scen)||{}).name||scen);g.font='600 12px ui-monospace,Menlo,monospace';const w=g.measureText(label).width+38;
+    {const label='Scenery · '+((THEMES.find(t=>t.id===scen)||{}).name||scen);g.font='600 12px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';const w=g.measureText(label).width+38;
      g.fillStyle='rgba(12,13,16,.82)';g.beginPath();if(g.roundRect)g.roundRect(14,H-50,w,30,15);else g.rect(14,H-50,w,30);g.fill();
      g.fillStyle=tag;g.beginPath();g.arc(31,H-35,7,0,6.283);g.fill();g.fillStyle='#eef0f3';g.textBaseline='middle';g.fillText(label,44,H-34.5);g.textBaseline='alphabetic'}
     const closedNow=!drawingNow&&drawRS.length>0,line=closedNow?drawRS.concat([drawRS[0]]):drawPts;
@@ -8589,7 +8589,7 @@ const PLANETS={
     // bounds + lap length
     {let a=1e9,b=-1e9,c=1e9,d=-1e9;line.forEach(p=>{a=Math.min(a,p.x);b=Math.max(b,p.x);c=Math.min(c,p.y);d=Math.max(d,p.y)});
      g.save();g.setLineDash([6,6]);g.strokeStyle='rgba(238,240,243,.22)';g.lineWidth=1;g.strokeRect(a-22,c-22,b-a+44,d-c+44);g.restore();
-     if(closedNow){g.fillStyle='rgba(238,240,243,.55)';g.font='600 11px ui-monospace,Menlo,monospace';g.fillText(sizeKm.toFixed(1)+' km lap',a-22,c-30)}}
+     if(closedNow){g.fillStyle='rgba(238,240,243,.55)';g.font='600 11px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';g.fillText(sizeKm.toFixed(1)+' km lap',a-22,c-30)}}
     // the road: edge, asphalt, dashed centre line
     const path=()=>{g.beginPath();g.moveTo(line[0].x,line[0].y);for(let i=1;i<line.length;i++)g.lineTo(line[i].x,line[i].y)};
     g.lineJoin='round';g.lineCap='round';
@@ -8603,7 +8603,7 @@ const PLANETS={
       const last=line[line.length-1],dc=Math.hypot(last.x-a0.x,last.y-a0.y),near=line.length>12&&dc<44;
       g.fillStyle='#3f8a56';g.beginPath();g.arc(a0.x,a0.y,9,0,6.283);g.fill();
       g.strokeStyle=near?'#7cff6b':'rgba(238,240,243,.35)';g.lineWidth=near?3:1.5;g.beginPath();g.arc(a0.x,a0.y,near?20:16,0,6.283);g.stroke();
-      if(near){g.fillStyle='#7cff6b';g.font='600 12px ui-monospace,Menlo,monospace';g.fillText('release to close the loop',a0.x+26,a0.y-14)}
+      if(near){g.fillStyle='#7cff6b';g.font='600 12px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';g.fillText('release to close the loop',a0.x+26,a0.y-14)}
       g.fillStyle='#eef0f3';g.beginPath();g.arc(last.x,last.y,5,0,6.283);g.fill();return}
     // start / finish: a chequered mark across the road and the direction of travel
     {const b0=drawRS[1],ang=Math.atan2(b0.y-a0.y,b0.x-a0.x);g.save();g.translate(a0.x,a0.y);g.rotate(ang);
@@ -8612,7 +8612,7 @@ const PLANETS={
     // obstacle markers, offset to the side of the line they block
     drawObs.forEach(o=>{const q=obsCanvasPos(o),L=OBS_LOOK[o.t]||OBS_LOOK.speed_breaker;
       g.fillStyle=L.c;g.beginPath();g.arc(q.x,q.y,10,0,6.283);g.fill();
-      g.fillStyle='#06070b';g.font='bold 11px monospace';g.textAlign='center';g.textBaseline='middle';g.fillText(L.l,q.x,q.y+.5);g.textAlign='left';g.textBaseline='alphabetic'})}
+      g.fillStyle='#06070b';g.font='bold 11px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(L.l,q.x,q.y+.5);g.textAlign='left';g.textBaseline='alphabetic'})}
   function rsNormal(i){const n=drawRS.length,a=drawRS[(i-1+n)%n],b=drawRS[(i+1)%n];let tx=b.x-a.x,ty=b.y-a.y;const l=Math.hypot(tx,ty)||1;return {x:-ty/l,y:tx/l}}
   function obsCanvasPos(o){const i=Math.round(o.u*drawRS.length)%drawRS.length,p=drawRS[i],n=rsNormal(i);return {x:p.x+n.x*o.s*9,y:p.y+n.y*o.s*9}}
   function placeObstacle(pt){
@@ -9208,7 +9208,7 @@ updCircBtn();
     function tagTex(name,col){const c=document.createElement('canvas');c.width=256;c.height=64;const x=c.getContext('2d');
       x.fillStyle='rgba(10,10,9,.78)';const r=26;x.beginPath();x.moveTo(r,6);x.lineTo(256-r,6);x.arc(256-r,32,26,-Math.PI/2,Math.PI/2);x.lineTo(r,58);x.arc(r,32,26,Math.PI/2,Math.PI*1.5);x.fill();
       x.fillStyle=HEX(col);x.beginPath();x.arc(30,32,9,0,6.283);x.fill();
-      x.fillStyle='#eef0f3';x.font='700 27px -apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif';x.textBaseline='middle';
+      x.fillStyle='#eef0f3';x.font='700 27px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';x.textBaseline='middle';
       let t=name;while(x.measureText(t).width>176&&t.length>2)t=t.slice(0,-1);x.fillText(t,50,34);
       const tx=new THREE.CanvasTexture(c);tx.minFilter=THREE.LinearFilter;return tx}
     function makeGhost(carId,col,name,own){
@@ -9274,7 +9274,7 @@ updCircBtn();
     function send(m){if(net&&status==='up'){m.id=me.id;net.send(m)}}
     /* ----- emotes: keys 1-4 put a bubble over your car for everyone in the room ----- */
     const EMO=['gg','nice!','wait up','HONK HONK'],bubbles=[];
-    function bubble(parent,txt,col){const c=document.createElement('canvas');c.width=512;c.height=160;const x=c.getContext('2d');x.font='700 64px -apple-system,BlinkMacSystemFont,Arial,sans-serif';
+    function bubble(parent,txt,col){const c=document.createElement('canvas');c.width=512;c.height=160;const x=c.getContext('2d');x.font='700 64px -apple-system,BlinkMacSystemFont,SF Pro Text,Poppins,Helvetica Neue,Arial,sans-serif';
       const w=Math.min(500,x.measureText(txt).width+70);x.fillStyle='rgba(14,14,16,.88)';x.beginPath();if(x.roundRect)x.roundRect((512-w)/2,20,w,100,50);else x.rect((512-w)/2,20,w,100);x.fill();
       x.strokeStyle=col;x.lineWidth=6;x.stroke();x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';x.fillText(txt,256,72);
       const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));sp.scale.set(4,1.25,1);sp.position.set(0,3.6,0);sp.renderOrder=20;parent.add(sp);bubbles.push({sp,t:2.6})}
@@ -9965,22 +9965,22 @@ function carChanged(){if(room){sendHi(true);sendCustom()}}
 body.homeon #drive>*:not(canvas){visibility:hidden!important}body.homeon #dlanding{display:none!important}
 @media (max-width:520px){#dstartscr{align-items:flex-end}#dstartscr .hm{align-self:flex-end}#dstartscr button.t span{display:none}#dstartscr button.t{padding:8px 10px}#dstartscr::after{display:none}}`;document.head.appendChild(st);
    document.body.classList.add('homeon');const el=document.createElement('div');el.id='dstartscr';HOME.el=el;document.body.appendChild(el);
-   /* type + motion pass: Saira (expanded, racing) for titles and labels, Manrope for the copy; GSAP brings each screen in */
+   /* type + motion pass: SF / Poppins throughout; GSAP brings each screen in */
    if(!document.getElementById('hmtype')){const ts=document.createElement('style');ts.id='hmtype';ts.textContent=`
 #dstartscr{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif}
-#dstartscr h1{font-family:Saira,Manrope,sans-serif;font-stretch:118%;font-weight:800;font-style:normal;letter-spacing:-.01em;font-size:clamp(34px,4.4vw,50px);line-height:1.02;text-transform:none;transform:skewX(-8deg);transform-origin:left bottom;display:block}
+#dstartscr h1{font-family:var(--font);font-stretch:118%;font-weight:800;font-style:normal;letter-spacing:-.01em;font-size:clamp(34px,4.4vw,50px);line-height:1.02;text-transform:none;transform:skewX(-8deg);transform-origin:left bottom;display:block}
 #dstartscr h1 .ch{display:inline-block;will-change:transform}#dstartscr h1 .w{display:inline-block;white-space:nowrap}#dstartscr .hd h1{white-space:nowrap}
 #dstartscr h1 .r{color:#e10600}
 #dstartscr .hd h1{margin-bottom:6px}
-#dstartscr .sub{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif;font-weight:500;font-size:14px;letter-spacing:.005em;line-height:1.45;color:rgba(245,245,247,.62);margin:4px 0 20px;display:flex;align-items:flex-start;gap:10px}#dstartscr .hd+.sub{font-family:Saira,Manrope,sans-serif;font-stretch:110%;font-weight:600;font-size:12px;letter-spacing:.22em;text-transform:uppercase;align-items:center}
+#dstartscr .sub{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif;font-weight:500;font-size:14px;letter-spacing:.005em;line-height:1.45;color:rgba(245,245,247,.62);margin:4px 0 20px;display:flex;align-items:flex-start;gap:10px}#dstartscr .hd+.sub{font-family:var(--font);font-stretch:110%;font-weight:600;font-size:12px;letter-spacing:.22em;text-transform:uppercase;align-items:center}
 #dstartscr .sub::before{content:'';width:26px;height:3px;border-radius:2px;background:#e10600;flex:none;transform:skewX(-20deg);margin-top:.6em}#dstartscr .hd+.sub::before{margin-top:0}
 #dstartscr button.t b{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif;font-weight:600;font-size:15.5px;letter-spacing:-.01em}
 #dstartscr button.t.sm b{font-size:14px}
 #dstartscr button.t span{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif;font-weight:400;font-size:12.5px;letter-spacing:0}
-#dstartscr .back{font-family:Saira,Manrope,sans-serif;font-stretch:110%;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:12px}
-#dstartscr h2{font-family:Saira,Manrope,sans-serif;font-stretch:112%;font-weight:700;letter-spacing:.01em}
-#dstartscr .laps{margin-top:14px}#dstartscr .laps>span{font-family:Saira,Manrope,sans-serif;font-stretch:110%}
-#dstartscr .laps button{font-family:Saira,Manrope,sans-serif;font-weight:700}
+#dstartscr .back{font-family:var(--font);font-stretch:110%;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:12px}
+#dstartscr h2{font-family:var(--font);font-stretch:112%;font-weight:700;letter-spacing:.01em}
+#dstartscr .laps{margin-top:14px}#dstartscr .laps>span{font-family:var(--font);font-stretch:110%}
+#dstartscr .laps button{font-family:var(--font);font-weight:700}
 #dstartscr.gs h1,#dstartscr.gs .sub,#dstartscr.gs .grid{animation:none}
 #dstartscr .glab{font:600 11px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:rgba(245,245,247,.42);padding:12px 12px 4px}
 #dstartscr .today{position:absolute;right:clamp(16px,5vw,64px);top:50%;transform:translateY(-50%);width:min(330px,calc(100vw - 32px));padding:18px;border-radius:22px;background:rgba(18,18,20,.55);backdrop-filter:blur(28px) saturate(1.4);-webkit-backdrop-filter:blur(28px) saturate(1.4);border:1px solid rgba(255,255,255,.09);box-shadow:0 20px 60px rgba(0,0,0,.35);cursor:default}
