@@ -6627,8 +6627,17 @@ const PLANETS={
         {let floor=car.position.y+.9;
          if(MODE==='circuit'&&circuit&&circuit.roadY&&carLapU>=0){const ub=((carLapU-dist/(circuit.TL||1))%1+1)%1;floor=Math.max(floor,circuit.roadY(ub,C.position.x,C.position.z)+1.3)}
          else if(MODE==='world'&&typeof HF!=='undefined'&&HF.h){const gc=HF.h(car.position.x,car.position.z);if(car.position.y-gc<4)floor=Math.max(floor,HF.h(C.position.x,C.position.z)+1.1)}
+         /* line of sight: over a crest or off the end of a flyover the road (and its parapets) rise between the camera and
+            the car. Sample the road along the stretch between them and lift the camera until the line from the car's roof
+            to the camera clears it with room for the parapets. */
+         if(MODE==='circuit'&&circuit&&circuit.roadY&&carLapU>=0){const TLc=circuit.TL||1,y0=car.position.y+1.1,cx=C.position.x,cz=C.position.z,dx=cx-car.position.x,dz=cz-car.position.z,hd=Math.hypot(dx,dz)||1;
+           for(let k=1;k<=8;k++){const t=k/9,sx=car.position.x+dx*t,sz=car.position.z+dz*t,us=((carLapU-t*hd/TLc)%1+1)%1,h=circuit.roadY(us,sx,sz)+1.6;
+             if(h>y0){const need=y0+(h-y0)/t;if(need>floor)floor=Math.min(need,car.position.y+14)}}}
          const ceil=deckCeil(C.position.x,C.position.z,car.position.y);
-         if(C.position.y<floor)C.position.y=Math.min(floor,ceil<Infinity?Math.max(car.position.y+.8,ceil):floor)}
+         if(C.position.y<floor){const tgt=Math.min(floor,ceil<Infinity?Math.max(car.position.y+.8,ceil):floor);C.position.y+=(tgt-C.position.y)*Math.min(1,dt*10+.35)}
+         /* lifted well above its usual height, the camera also comes in closer, so the car keeps its size on screen
+            instead of turning into a dot far below */
+         {const ex=(C.position.y-car.position.y)-(hgt*bigK+.8);if(ex>0){const f=Math.min(.5,ex/7);C.position.x+=(car.position.x-C.position.x)*f*Math.min(1,dt*8);C.position.z+=(car.position.z-C.position.z)*f*Math.min(1,dt*8)}}}
         lookT.copy(car.position).addScaledVector(fwd,CM.ahead).add(tmp.set(0,CM.ly,0))}
       if(!PHOTO&&CABLE.cam(camT,lookT,dt)){if(!CABLE.cine0){CABLE.cp.copy(C.position);CABLE.cine0=true}CABLE.cp.lerp(camT,1-Math.exp(-dt*2.5));C.position.copy(CABLE.cp)}else CABLE.cine0=false;
       if(PHOTO){/* dev only (?dev=1): a fixed shot of the car from its own frame, for checking the models */
@@ -7156,6 +7165,29 @@ const PLANETS={
        for(let sw=0;sw<3;sw++){for(let k=0;k<K;k++){const p0=(k-1+K)%K;if(H[k]<H[p0]-st)H[k]=H[p0]-st}for(let k=K-1;k>=0;k--){const n0=(k+1)%K;if(H[k]<H[n0]-st)H[k]=H[n0]-st}}
        for(let k=0;k<K;k++)H[k]=Math.min(H[k],120)}
      if(pairs.length&&!solved){if(best)for(let k=0;k<K;k++)H[k]=Math.min(H[k],120);setTimeout(()=>toastMsg('Part of this drawing is too tight to stack cleanly · spread the loops out a little'),1200)}
+     /* smooth ramps: the planner above decides WHO goes over whom; the lift itself is rebuilt here as a set of smooth
+        humps, one per point that must clear a road below: full height over the crossing, easing down on a smoothstep
+        ramp long enough to stay under ~12 % (12.5 m of ramp per metre of lift). The lift is the highest hump at each
+        point, so every gap still holds, and the joins where two humps meet are rounded off. (Its trapezoids and the
+        fallback's jumps used to drive like kerbs at the foot and top of every ramp.) */
+     if(pairs.length){const H0=H.slice(),req=new Float32Array(K),E=new Float32Array(K),T=new Float32Array(K),SMs=t=>t<=0?0:t>=1?1:t*t*(3-2*t);
+      for(let it=0;it<30;it++){req.fill(0);
+        for(let q=0;q<pairs.length;q+=3){const u=pairs[q+2],l=u===pairs[q]?pairs[q+1]:pairs[q],need=Y[l]+H[l]+BH-Y[u];if(need>req[u])req[u]=need}
+        E.fill(0);
+        for(let k=0;k<K;k++){const h=req[k];if(h<=.01)continue;const Lr=Math.max(40,h*12.5),n=Math.ceil(Lr/ds);
+          for(let d=-n;d<=n;d++){const v=h*(1-SMs(Math.abs(d)*ds/Lr)),q=(k+d+K)%K;if(v>E[q])E[q]=v}}
+        let moved=0;for(let k=0;k<K;k++){if(Math.abs(E[k]-H[k])>.02)moved=1;H[k]=E[k]}if(!moved)break}
+      for(const rm of [14,32])for(let pass=0;pass<2;pass++){const r=Math.max(2,Math.round(rm/ds));{for(let k=0;k<K;k++){let sm=0;for(let d=-r;d<=r;d++)sm+=H[(k+d+K)%K];T[k]=sm/(2*r+1)}for(let k=0;k<K;k++)H[k]=Math.max(H[k],T[k])}}   // only adds height: the gaps stay
+      for(let k=0;k<K;k++)H[k]=Math.min(H[k],120);
+      /* safety net: loops stacked on loops can leave the humps short somewhere. Then the planner's own profile (which
+         holds every gap) is kept instead, only rounded off where that adds height. */
+      let bad=0;for(let q=0;q<pairs.length;q+=3){const u=pairs[q+2],l=u===pairs[q]?pairs[q+1]:pairs[q];if((Y[l]+H[l]+BH)-(Y[u]+H[u])>1){bad++;break}}
+      if(bad){H.set(H0);const r=Math.max(2,Math.round(14/ds)),hump=(c,h)=>{const Lr=Math.max(30,h*12.5),n=Math.ceil(Lr/ds);for(let d=-n;d<=n;d++){const q=(c+d+K)%K;H[q]+=h*(1-SMs(Math.abs(d)*ds/Lr))}};
+        for(let it=0;it<40;it++){for(let k=0;k<K;k++){let sm=0;for(let d=-r;d<=r;d++)sm+=H[(k+d+K)%K];T[k]=sm/(2*r+1)}H.set(T);   // round it off...
+          let short=0;for(let q=0;q<pairs.length;q+=3){const u=pairs[q+2],l=u===pairs[q]?pairs[q+1]:pairs[q],need=(Y[l]+H[l]+BH)-(Y[u]+H[u]);if(need>.05){hump(u,need*1.02);short++}}   // ...and lift any crossing that came up short, smoothly
+          if(!short&&it>3)break}
+        for(let k=0;k<K;k++)H[k]=Math.max(0,Math.min(H[k],120))}
+      if(window.__sepDbg)window.__sepDbg.humps=bad?'fallback':'smooth'}
      {let mn=1e9;for(let k=0;k<K;k++)mn=Math.min(mn,H[k]);if(mn>0&&mn<1e9)for(let k=0;k<K;k++)H[k]-=mn}   // the lowest point of the lap sits on the ground
      const Hat=u=>{u=((u%1)+1)%1;const f=u*K,i=Math.floor(f)%K,t=f-Math.floor(f);return H[i]*(1-t)+H[(i+1)%K]*t};
      // every lifted stretch is a bridge: centre and half-length in metres, the highest point, and a lower pass under it
@@ -7176,6 +7208,8 @@ const PLANETS={
         for(let k=0;k<K;k++){const j=(k-1+K)%K,dd=Math.hypot(P[k][0]-P[j][0],P[k][1]-P[j][1])||ds,dy=Y[k]-Y[j],lim=GMAX*dd;
           if(Math.abs(dy)>lim){const e=(Math.abs(dy)-lim)/2*Math.sign(dy);Y[k]-=e;Y[j]+=e;any++}}
         if(!any)break;ch=true}
+      /* the grade limiter works in steps; a light rolling average over ~16 m takes the kinks out of the ground profile */
+      {const r=Math.max(2,Math.round(8/ds)),T2=new Float32Array(K);for(let pass=0;pass<3;pass++){for(let k=0;k<K;k++){let sm=0;for(let d=-r;d<=r;d++)sm+=Y[(k+d+K)%K];T2[k]=sm/(2*r+1)}for(let k=0;k<K;k++)Y[k]=T2[k]}ch=true}
       /* even spacing again: a uniform Catmull-Rom through unevenly spaced points (pushed apart, eased) overshoots into a
          cusp, which is where the last tight kinks came from. H keeps its index, so it is resampled the same way. */
       {const cum=new Float64Array(K+1);for(let k=1;k<=K;k++){const a=P[k-1],b=P[k%K];cum[k]=cum[k-1]+Math.hypot(b[0]-a[0],b[1]-a[1])}
@@ -7335,7 +7369,7 @@ const PLANETS={
          road surface there. Under a bridge it stays below the deck. */
       const CLAMP=CIRC_W/2+ES2*1.6,lowRoad=(x,z)=>{let m=1e9;nearIdx(x,z,CLAMP,i=>{const dx=DX[i]-x,dz=DZ[i]-z;if(dx*dx+dz*dz<CLAMP*CLAMP){const y=DY[i]+DL[i]-(DL[i]>1.5?1.3:0);if(y<m)m=y}});return m};   // a deck counts too, minus its own depth
       const tH=(x,z,ex)=>{const dd=DF(x,z),sink=dd<CIRC_W/2+BARRIER_OFF+10?.35*(1-SM((dd-CIRC_W/2-BARRIER_OFF)/10)):0;let h=(ELEV?(REAL?groundAt(x,z):hfGround?hfGround(x,z):groundAt(x,z)):CIRC_Y)-.03-sink-ex+visH(x,z);
-        if(!REAL&&dd<CLAMP+2){const lr=lowRoad(x,z);if(lr<1e8)h=Math.min(h,lr-.12)}return h};
+        if(dd<CLAMP+2){const lr=lowRoad(x,z);if(lr<1e8)h=Math.min(h,lr-.12)}return h};   // real circuits too (Monaco's terrain poked through)
       /* real circuits: the measured ground can climb steeply right beside the road, and on this coarse grid (25+ m on a
          big lap) one triangle reached from a vertex on the road to one up the hillside, a pale slab standing over the
          kerb and burying the barrier. The band within ~60 m of the road is drawn by a fine grid below instead. */
@@ -7542,7 +7576,7 @@ const PLANETS={
           if(i===DSN){put(A,P,(uA+u)/2,uA,u);break}
           if(prev)mid.push(prev);prev=P;uPrev=u}}
       railIM.count=postIM.count=nr;railIM.instanceMatrix.needsUpdate=postIM.instanceMatrix.needsUpdate=true;
-      if(railIM.setColorAt){const ca=new THREE.Color(0xd2d6db),cb=new THREE.Color(0xb3b8bf);for(let i=0;i<nr;i++)railIM.setColorAt(i,i%2?cb:ca);railIM.instanceColor.needsUpdate=true}
+      if(railIM.setColorAt){const ca=new THREE.Color(0xd2d6db),cb=new THREE.Color(0xb3b8bf);for(let i=0;i<nr;i++)railIM.setColorAt(i,i%2?cb:ca);if(railIM.instanceColor)railIM.instanceColor.needsUpdate=true}
       const flatMesh=(pos,uv,idx,m)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
         const o=new THREE.Mesh(g,m);o.receiveShadow=true;o.userData.fixedY=o.userData.onTrack=true;root.add(o);return o};
       if(wIdx.length)flatMesh(wPos,wUv,wIdx,wallM);
