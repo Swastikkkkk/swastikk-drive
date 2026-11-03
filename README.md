@@ -1,4 +1,4 @@
-# swastikk-drive
+# SketchRacer
 
 A small driving game that runs in the browser. It opens straight into the game and the main road is a closed loop, so you can keep going for as long as you like.
 
@@ -111,6 +111,10 @@ Checked against Cloudflare's own pages on 2026-10-20 (links in `worker/FREE-TIER
 | Turnstile, Queues, KV, Workers AI | (not used) | see `worker/FREE-TIER.md` | none | n/a |
 
 ## Files
+
+**Play:** [sketchracer.com](https://www.sketchracer.com) · runs in any modern browser, no install
+
+![SketchRacer menu over the open-world map](.github/assets/screenshot.jpg)
 
 - `index.html` the page, HUD and styles
 - `assets/game.js` the whole game
