@@ -119,7 +119,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const FREE_CARS=true;
   if(FREE_CARS)GARAGE.forEach(c=>unlocked.add(c.id));
   const WEATHERS=[
-    {id:'day',label:'Day',bg:0x9dc0dd,fog:[110,300],hemi:.62,sun:0xfff7e8,sunI:1.12,ground:0x5c6b44,leaf:0x39672b,part:null,slip:1,skyTop:0x4a86c6,skyBottom:0xc3d9ea,star:0,sunA:.7,terr:[1.06,1.1,.98],snow:0,water:0x2f6f8c,ridge:[.46,.53,.62]},
+    {id:'day',label:'Day',bg:0x9dc0dd,fog:[110,300],hemi:.6,sun:0xfff4e2,sunI:1.28,ground:0x5c6b44,leaf:0x39672b,part:null,slip:1,skyTop:0x4a86c6,skyBottom:0xc3d9ea,star:0,sunA:.7,terr:[1.06,1.1,.98],snow:0,water:0x2f6f8c,ridge:[.46,.53,.62]},
     {id:'dusk',label:'Dusk',bg:0x2e2418,fog:[80,240],hemi:.5,sun:0xffcf92,sunI:1.0,ground:0x3a3124,leaf:0x3d4a2c,part:null,slip:1,skyTop:0x3d4a72,skyBottom:0xd98f4e,star:.72,sunA:1,terr:[1.16,1,.82],snow:0,water:0x3c4f5e,ridge:[.3,.28,.3]},
     {id:'rain',label:'Rain',bg:0x5b656d,fog:[45,175],hemi:.52,sun:0xc3d0dc,sunI:.42,ground:0x15171a,leaf:0x27342c,part:'rain',slip:.75,skyTop:0x4d5760,skyBottom:0x707a82,star:.04,sunA:.25,terr:[.8,.88,.96],snow:0,water:0x25404e,ridge:[.16,.18,.22]},
     {id:'snow',label:'Snow',bg:0xc4cad0,fog:[38,160],hemi:.66,sun:0xffffff,sunI:.62,ground:0xd8dde1,leaf:0xdfe6ea,part:'snow',slip:.55,skyTop:0xf0f4f8,skyBottom:0xc4cad0,star:0,sunA:.5,terr:[1.02,1.04,1.08],snow:.88,water:0x5d7581,ridge:[.62,.66,.72]},
@@ -226,7 +226,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(typeof pGeo!=='undefined'&&pGeo)pGeo.setDrawRange(0,PCOUNT);
   }
 
-  if('outputEncoding' in R)R.outputEncoding=THREE.sRGBEncoding;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=.98;
+  if('outputEncoding' in R)R.outputEncoding=THREE.sRGBEncoding;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.02;
   const S=new THREE.Scene();S.background=new THREE.Color(0x0e0e0d);S.fog=new THREE.Fog(0x0e0e0d,55,170);
   const C=new THREE.PerspectiveCamera(50,W/H,.1,320);
   /* ---------- rearview mirror camera ---------- */
@@ -660,13 +660,34 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const rockPts=[];
   /* ground: per-pixel lit (Lambert lights per vertex, which is what made the hills look faceted and banded), a sharp
      512 px grain and a fine relief map so the grass has texture up close. Low-end devices keep the cheap material. */
+  /* grass detail: soft noise base plus thousands of short blade strokes, kept near-neutral so the terrain's vertex colours
+     still carry the hue. Mean brightness matches the old grain map so lighting balance is unchanged. */
+  function bladeTex(px,rep){const c=document.createElement('canvas');c.width=c.height=px;const x=c.getContext('2d');
+    const im=x.createImageData(px,px);for(let j=0;j<px;j++)for(let i=0;i<px;i++){const n=noise2(i*.02,j*.02)*.55+noise2(i*.09,j*.09)*.3+noise2(i*.3,j*.3)*.15,v=Math.min(1,.44+n*.42)*255,k=(j*px+i)*4;
+      im.data[k]=v*.97;im.data[k+1]=v;im.data[k+2]=v*.9;im.data[k+3]=255}x.putImageData(im,0,0);
+    x.lineCap='round';let r=1234567;const rnd=()=>((r=(r*16807)%2147483647)/2147483647);
+    for(let n=0;n<px*px/48;n++){const bx=rnd()*px,by=rnd()*px,L=4+rnd()*px/44,a=-Math.PI/2+(rnd()-.5)*1.2,l=Math.min(1,.5+rnd()*.6),warm=rnd()<.14;
+      x.strokeStyle=warm?`rgba(${255*l|0},${236*l|0},${170*l|0},.7)`:`rgba(${232*l|0},${255*l|0},${205*l|0},.65)`;x.lineWidth=1+rnd()*1.4;
+      for(const ox of [0,-px,px])for(const oy of [0,-px,px]){x.beginPath();x.moveTo(bx+ox,by+oy);x.quadraticCurveTo(bx+ox+Math.cos(a)*L*.5+1,by+oy+Math.sin(a)*L*.5,bx+ox+Math.cos(a)*L,by+oy+Math.sin(a)*L);x.stroke()}}
+    const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep,rep);t.anisotropy=8;return t}
+  /* anti-tiling: blend the detail map with a rotated, rescaled copy of itself and modulate both by a very low-frequency
+     sample, so the repeat grid disappears at distance. Two extra texture reads, no extra draw calls. */
+  function antiTile(m){m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <map_fragment>',`
+    #ifdef USE_MAP
+      vec2 uvB=mat2(.8,-.6,.6,.8)*vUv*.37+vec2(.31,.17);
+      vec4 tA=mapTexelToLinear(texture2D(map,vUv)),tB=mapTexelToLinear(texture2D(map,uvB));
+      float macro=mapTexelToLinear(texture2D(map,vUv*.043)).g;
+      float w=smoothstep(.35,.65,macro);
+      vec4 texelColor=mix(tA,tB,w)*(.86+.3*macro)*1.06;
+      diffuseColor*=texelColor;
+    #endif`)};m.customProgramCacheKey=()=>'antitile';return m}
   function reliefTex(px,rep){const c=document.createElement('canvas');c.width=c.height=px;const x=c.getContext('2d'),im=x.createImageData(px,px),h=new Float32Array(px*px);
     for(let j=0;j<px;j++)for(let i=0;i<px;i++)h[j*px+i]=noise2(i*.11,j*.11)*.5+noise2(i*.37,j*.37)*.35+hash2(i*1.7,j*1.3)*.15;
     for(let j=0;j<px;j++)for(let i=0;i<px;i++){const l=h[j*px+(i-1+px)%px],r=h[j*px+(i+1)%px],u=h[((j-1+px)%px)*px+i],d=h[((j+1)%px)*px+i],nx=(l-r)*2.2,ny=(u-d)*2.2,nz=1,L=Math.hypot(nx,ny,nz),k=(j*px+i)*4;
       im.data[k]=(nx/L*.5+.5)*255;im.data[k+1]=(ny/L*.5+.5)*255;im.data[k+2]=(nz/L*.5+.5)*255;im.data[k+3]=255}
     x.putImageData(im,0,0);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep,rep);t.anisotropy=16;return t}
   const terrainM=LOW?new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(160,.07,Math.round(120*MK*LAND),.55)})
-    :new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.96,metalness:0,map:grainTex(512,.035,Math.round(120*MK*LAND),.6),normalMap:reliefTex(256,Math.round(480*MK*LAND)),normalScale:new THREE.Vector2(.55,.55)});
+    :antiTile(new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.96,metalness:0,map:bladeTex(512,Math.round(70*MK*LAND)),normalMap:reliefTex(256,Math.round(480*MK*LAND)),normalScale:new THREE.Vector2(.55,.55)}));
   if(!LOW&&terrainM.map){terrainM.map.anisotropy=16;if('encoding' in terrainM.map)terrainM.map.encoding=THREE.LinearEncoding}
   const HF=(function(){
     const nx=Math.round(WS*2/ES)+1,nz=nx,minX=-WS,maxZ=WS;
@@ -7346,7 +7367,7 @@ const PLANETS={
       const d=Math.min(DF(x,z),110),ramp=SM((d-70)/60),rr=Math.hypot(x-cx,z-cz);
       const bowl=SM((rr-r0)/60)*(1-SM((rr-r0-80)/60))*16;       // hills around the arena that settle back to the plain
       return ramp*((fbm2(x*.011+nOff,z*.011-nOff)-.86)*13+(fbm2(x*.04-nOff,z*.04+nOff)-.86)*3)+bowl*(.55+.9*noise2(x*.02+nOff,z*.02))};
-    const terrainMat=LOW?new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(128,.08,1,.56)}):new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.96,metalness:0,map:grainTex(512,.04,1,.6),normalMap:terrainM.normalMap,normalScale:new THREE.Vector2(.5,.5)});if(!LOW)terrainMat.map.anisotropy=16;ownedMats.push(terrainMat);
+    const terrainMat=LOW?new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(128,.08,1,.56)}):antiTile(new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.96,metalness:0,map:bladeTex(512,1),normalMap:terrainM.normalMap,normalScale:new THREE.Vector2(.5,.5)}));if(!LOW)terrainMat.map.anisotropy=16;ownedMats.push(terrainMat);
     /* a distance-to-road field on a 6 m grid (exact near the road, chamfer-propagated outward) for the visual
        terrain's hills and colours: one lookup per vertex instead of two exact searches over 13x13 cells */
     const DF=(function(){const C6=6,half=r0+200,x0=cx-half,z0=cz-half,n=Math.ceil(half*2/C6)+1,F=new Float32Array(n*n).fill(1e9);
