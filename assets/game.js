@@ -173,21 +173,23 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      up once the charger is in). Chrome/Edge expose the battery; elsewhere this stays off. */
   let SAVE=false;
   try{navigator.getBattery&&navigator.getBattery().then(b=>{const f=()=>{SAVE=!b.charging;if(SAVE&&typeof setTier==='function'&&qTier<1&&!(window.Settings&&Settings.v.quality!=='auto'))setTier(1)};f();b.addEventListener('chargingchange',f)}).catch(()=>{})}catch(e){}
-  const qDownMs=()=>SAVE?300:qTier===0?600:900;   // a sustained dip, not one slow frame
+  const qDownMs=()=>SAVE?400:qTier===0?900:1500;   // a sustained dip, not one slow frame
   function tierCfg(t){
     /* effects go before sharpness: the old ladder dropped resolution at every step (down to 0.75x on a 1080p laptop),
        which is what made the picture go soft. Now a desktop never renders below the screen's own resolution and a
        phone never below 1.25x; under load the shadows refresh less often, then switch off, then grass and dust go. */
-    return t===3?{dpr:1,shadow:false,shEvery:8,lite:true}
-         : t===2?{dpr:1,shadow:false,shEvery:8,lite:true}
+    return t===3?{dpr:1,shadow:!LOW,shEvery:8,lite:true}
+         : t===2?{dpr:1,shadow:!LOW,shEvery:6,lite:true}
          : t===1?{dpr:LOW?1.25:HIDPI?1.25:1,shadow:!LOW,shEvery:4}
          :        {dpr:LOW?ULTRA.dprLow:ULTRA.dpr,shadow:!LOW,shEvery:1};
   }
   function setTier(t){
     if(t===qTier)return;if(t>qTier)Q_UP_MS=Math.min(30000,Q_UP_MS*2);qTier=t;const c=tierCfg(t);
     R.setPixelRatio(Math.min(devicePixelRatio||1,c.dpr));R.setSize(W,H,false);
-    R.shadowMap.enabled=c.shadow;if(sun){sun.castShadow=c.shadow;sun.shadow.needsUpdate=true}
-    if(carShadow)carShadow.visible=!c.shadow;
+    /* shadows are never switched on/off here: that changes every shader's light setup and three.js recompiles them
+       all on the next frame, a freeze of half a second or more each time auto quality stepped. Lower tiers keep
+       the shadow but with a smaller map that refreshes less often, which costs nothing to switch. */
+    if(sun&&!LOW){const sz=t>=2?1024:2048;if(sun.shadow.mapSize.x!==sz){sun.shadow.mapSize.set(sz,sz);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null}}sun.shadow.needsUpdate=true}
     ULTRA.shEvery=c.shEvery;
     if(SCN.grass)SCN.grass.visible=!c.lite;if(SCN.dust)SCN.dust.visible=!c.lite;
   }
@@ -202,7 +204,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function watchFps(dt){
     if(window.Settings&&Settings.v.quality!=='auto')return;   // a quality picked in Settings stays put
     if(!active||!driving||dt<=0)return;
-    const fps=1/dt;
+    const fps=watchFps.f=watchFps.f?watchFps.f*.9+(1/Math.min(dt,.25))*.1:1/dt;
     if(fps<45){qGoodT=0;qBadT+=dt*1000;if(qBadT>qDownMs()&&qTier<3){setTier(qTier+1);qBadT=0}}
     else if(fps>56){qBadT=0;qGoodT+=dt*1000;if(qGoodT>Q_UP_MS&&qTier>0){setTier(qTier-1);qGoodT=0}}
     else{qGoodT=0;qBadT=0}
@@ -6751,13 +6753,17 @@ const PLANETS={
      hemi.intensity+=((hemi0*lt+flashV*1.5)-hemi.intensity)*(flashV>.02?.7:e);sun.intensity+=(sunI0*Math.min(1.25,lt)-sun.intensity)*e}
     /* the car's own shadow has to be redrawn every frame while it moves, or it trails behind the car and jumps when
        the map is next refreshed; a parked car only needs the slower refresh. The lowest quality tier halves it. */
-    if(R.shadowMap.enabled){const se=ULTRA.shEvery,moving=chassisB.velocity.length()>.4||Math.abs(chassisB.angularVelocity.y)>.05,every=moving?(qTier>=2?2:1):se;
+    if(R.shadowMap.enabled){const se=ULTRA.shEvery,moving=chassisB.velocity.length()>.4||Math.abs(chassisB.angularVelocity.y)>.05,every=moving?(qTier>=2?3:1):se;
       if(every&&frameN%every===0)sun.shadow.needsUpdate=true}
     /* reflections are captured whole, only when the light changes or you have driven somewhere new:
        no per-frame cost, and no half-updated cube that flickers as you move */
     if(cubeCam&&active&&(!cubeInit||(frameN%90===0&&(Math.abs(sun.intensity-cubeSun)>.12||Math.hypot(car.position.x-cubeX,car.position.z-cubeZ)>140)))){
-      cubeCam.position.set(car.position.x,car.position.y+1.6,car.position.z);cubeCam.updateMatrixWorld();hideCars(false);cubeCam.update(R,S);hideCars(true);
+      cubeCam.position.set(car.position.x,car.position.y+1.6,car.position.z);cubeCam.updateMatrixWorld();
+      if(!cubeInit){hideCars(false);cubeCam.update(R,S);hideCars(true)}else cubeFace=6;   // first capture whole, later ones spread out
       cubeInit=true;cubeSun=sun.intensity;cubeX=car.position.x;cubeZ=car.position.z}
+    else if(cubeCam&&cubeFace>0){const f=6-cubeFace--,cams=cubeCam.children,prevT=R.getRenderTarget(),se=R.shadowMap.autoUpdate,gm=cubeRT.texture.generateMipmaps;
+      cubeRT.texture.generateMipmaps=cubeFace===0&&gm;R.shadowMap.autoUpdate=false;hideCars(false);
+      R.setRenderTarget(cubeRT,f);R.render(S,cams[f]);R.setRenderTarget(prevT);hideCars(true);R.shadowMap.autoUpdate=se;cubeRT.texture.generateMipmaps=gm}
     if(active){ANOMALY.update(dt,now);SPACE.updateEarth()}
     /* typing race: the panel fills the bottom of the screen, so the picture slides up to keep the car above it */
     /* The shift is measured, not fixed: the car is projected to the screen every frame and the picture is slid until
