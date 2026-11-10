@@ -150,7 +150,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(document.getElementById('dgfxlost'))return;const o=document.createElement('div');o.id='dgfxlost';
     o.innerHTML='<div><b>The graphics card reset</b><p>This happens after sleep or when a laptop switches GPUs. Reload to keep playing.</p><button type="button">Reload</button></div>';
     o.querySelector('button').onclick=()=>location.reload();document.body.appendChild(o)},false);
-  R.shadowMap.enabled=!LOW;R.shadowMap.type=THREE.PCFSoftShadowMap;R.debug.checkShaderErrors=false;
+  R.shadowMap.enabled=!LOW;R.shadowMap.type=THREE.PCFShadowMap;R.debug.checkShaderErrors=false;
   /* One quality: Ultra, and it is not a menu. Everything the old tiers used to switch off
      is simply on — shadows, grass, dust, stars, the full particle budget. The only thing
      that still varies is the pixel-ratio cap, because resolution is the one cost that
@@ -158,7 +158,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      render nine times the pixels for a picture the same size. Everything else is kept
      cheap by construction (Lambert materials, instanced scatter, a shadow map redrawn
      every third frame, boards culled by distance) rather than by asking the player. */
-  const HIDPI=(devicePixelRatio||1)>=1.5,ULTRA={dpr:HIDPI?2:1.5,dprLow:HIDPI?1.5:1.1,shEvery:1};   // above the screen's own resolution when there is headroom: crisper edges than antialiasing alone   // sharp edges on Retina/4K: render at the screen's real resolution (auto quality still steps down if fps drops)
+  const HIDPI=(devicePixelRatio||1)>=1.5,ULTRA={dpr:HIDPI?1.5:1,dprLow:HIDPI?1.25:1,shEvery:1};   // never render above the panel's own resolution: supersampling cost 2.25x the pixels for edges MSAA already smooths   // above the screen's own resolution when there is headroom: crisper edges than antialiasing alone   // sharp edges on Retina/4K: render at the screen's real resolution (auto quality still steps down if fps drops)
   /* Quality used to be decided once, from a coarse touch/mouse guess, and never
      revisited — so a weak laptop with a mouse got full shadows and 1.3 DPR for
      the entire drive regardless of actual frame rate. This instead watches the
@@ -173,20 +173,19 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      up once the charger is in). Chrome/Edge expose the battery; elsewhere this stays off. */
   let SAVE=false;
   try{navigator.getBattery&&navigator.getBattery().then(b=>{const f=()=>{SAVE=!b.charging;if(SAVE&&typeof setTier==='function'&&qTier<1&&!(window.Settings&&Settings.v.quality!=='auto'))setTier(1)};f();b.addEventListener('chargingchange',f)}).catch(()=>{})}catch(e){}
-  const qDownMs=()=>SAVE?400:qTier===0?900:1500;   // a sustained dip, not one slow frame
+  const qDownMs=()=>SAVE?300:qTier===0?600:900;   // a sustained dip, not one slow frame
   function tierCfg(t){
     /* effects go before sharpness: the old ladder dropped resolution at every step (down to 0.75x on a 1080p laptop),
        which is what made the picture go soft. Now a desktop never renders below the screen's own resolution and a
        phone never below 1.25x; under load the shadows refresh less often, then switch off, then grass and dust go. */
-    const floor=LOW?1.25:1;
-    return t===3?{dpr:Math.max(floor,HIDPI?1.25:1),shadow:false,shEvery:8,lite:true}
-         : t===2?{dpr:Math.max(floor,HIDPI?1.5:1),shadow:false,shEvery:8}
-         : t===1?{dpr:LOW?Math.max(floor,1.5):HIDPI?1.75:1.25,shadow:!LOW,shEvery:4}
-         :        {dpr:ULTRA.dpr,shadow:true,shEvery:1};
+    return t===3?{dpr:1,shadow:false,shEvery:8,lite:true}
+         : t===2?{dpr:1,shadow:false,shEvery:8,lite:true}
+         : t===1?{dpr:LOW?1.25:HIDPI?1.25:1,shadow:!LOW,shEvery:4}
+         :        {dpr:LOW?ULTRA.dprLow:ULTRA.dpr,shadow:!LOW,shEvery:1};
   }
   function setTier(t){
     if(t===qTier)return;if(t>qTier)Q_UP_MS=Math.min(30000,Q_UP_MS*2);qTier=t;const c=tierCfg(t);
-    R.setPixelRatio(Math.min((devicePixelRatio||1)*1.5,c.dpr));R.setSize(W,H,false);
+    R.setPixelRatio(Math.min(devicePixelRatio||1,c.dpr));R.setSize(W,H,false);
     R.shadowMap.enabled=c.shadow;if(sun){sun.castShadow=c.shadow;sun.shadow.needsUpdate=true}
     if(carShadow)carShadow.visible=!c.shadow;
     ULTRA.shEvery=c.shEvery;
@@ -214,10 +213,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const MAXA=(R.capabilities&&R.capabilities.getMaxAnisotropy)?Math.min(16,R.capabilities.getMaxAnisotropy()):4;
   const sharpen=root=>{root.traverse(o=>{const mm=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];for(const m of mm)for(const k of ['map','normalMap','roughnessMap','aoMap','emissiveMap']){const t=m[k];if(t&&t.anisotropy<MAXA&&t.image){t.anisotropy=MAXA;t.needsUpdate=true}}})};
   setInterval(()=>{try{sharpen(S)}catch(e){}},4000);
-  const DPR=()=>Math.min((devicePixelRatio||1)*1.5,LOW?ULTRA.dprLow:ULTRA.dpr);   // up to 1.5x the screen: supersampled when there is headroom
+  const DPR=()=>Math.min(devicePixelRatio||1,tierCfg(qTier).dpr);   // up to 1.5x the screen: supersampled when there is headroom
   function applyQ(){
     const c=tierCfg(qTier);
-    R.setPixelRatio(Math.min((devicePixelRatio||1)*1.5,c.dpr));R.setSize(W,H,false);
+    R.setPixelRatio(Math.min(devicePixelRatio||1,c.dpr));R.setSize(W,H,false);
     R.shadowMap.enabled=c.shadow;
     if(typeof sun!=='undefined'&&sun){sun.castShadow=c.shadow;sun.shadow.needsUpdate=true}
     try{if(carShadow)carShadow.visible=!c.shadow}catch(e){}   // may run before the contact blob exists
@@ -246,14 +245,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const br=cv.getBoundingClientRect(),r=rearEl.getBoundingClientRect();
     const mw=Math.round(r.width-4),mh=Math.round(r.height-4);if(mw<8||mh<8)return;
     const mx=Math.round(r.left-br.left+2),my=Math.round(br.bottom-r.bottom+2);
-    const pr=R.getPixelRatio(),tw=Math.round(mw*pr),th=Math.round(mh*pr);
+    const pr=Math.min(1,R.getPixelRatio()),tw=Math.round(mw*pr),th=Math.round(mh*pr);
     if(mirRT.width!==tw||mirRT.height!==th)mirRT.setSize(tw,th);
     // eye just behind the tail at roof height, looking back down the road
     _mo.set(0,yOff+FP.top+.3,FP.back-.25).applyQuaternion(quat).add(origin);
     _ml.set(0,yOff+1.1,FP.back-30).applyQuaternion(quat).add(origin);
     rearCam.position.copy(_mo);rearCam.up.set(0,1,0).applyQuaternion(quat);rearCam.lookAt(_ml);
     if(rearCam.aspect!==mw/mh){rearCam.aspect=mw/mh;rearCam.updateProjectionMatrix()}
-    const prevT=R.getRenderTarget();R.setRenderTarget(mirRT);R.clear();R.render(scene,rearCam);R.setRenderTarget(prevT);
+    if((renderMirror.n=(renderMirror.n||0)+1)%2===1||mirRT.width!==tw){const prevT=R.getRenderTarget(),se=R.shadowMap.autoUpdate;R.shadowMap.autoUpdate=false;R.setRenderTarget(mirRT);R.clear();R.render(scene,rearCam);R.setRenderTarget(prevT);R.shadowMap.autoUpdate=se}
     const ac=R.autoClear;R.autoClear=false;R.setViewport(mx,my,mw,mh);R.setScissor(mx,my,mw,mh);R.setScissorTest(true);
     R.render(mirScene,mirCam);R.setScissorTest(false);R.setViewport(0,0,W,H);R.autoClear=ac}
   let ZN={drag:0,fog:1,tint:[1,1,1]},fogFar0=170,fogNear0=55,hemi0=.55,sunI0=1.05;
@@ -1752,8 +1751,8 @@ async function submitToLeaderboard(ms,vehicle){
       for(let y=1.1;y<7;y+=1.15){const r=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.64,6),steelM);r.rotation.x=Math.PI/2;r.position.set(s*PX,y,0);g.add(r);
         const dgl=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,1.32,6),steelM);dgl.rotation.x=Math.atan2(.64,1.15);dgl.position.set(s*PX,y+.575,0);g.add(dgl)}
       staticBox(p.x+Math.cos(ry)*s*PX,p.y+3,p.z-Math.sin(ry)*s*PX,.4,3,.5)});
-    // header: a deep box beam with steel rails top and bottom
-    const HW=2*PX+.6;
+    // header: a deep box beam with steel rails top and bottom (its own group, so the chase camera can hide it instead of flying through it)
+    const HW=2*PX+.6;const g0=g,hd=new THREE.Group();g0.add(hd);{const g=hd;
     const beam=shadow(new THREE.Mesh(new THREE.BoxGeometry(HW,1.7,.55),darkM));beam.position.y=7.75;g.add(beam);
     [6.85,8.65].forEach(y=>{const r=new THREE.Mesh(new THREE.BoxGeometry(HW+.2,.12,.7),steelM);r.position.y=y;g.add(r)});
     const lab=new THREE.Mesh(new THREE.PlaneGeometry(HW-.5,1.4),new THREE.MeshBasicMaterial({map:label('START · FINISH','one lap · beat the board',1024,150,false)}));
@@ -1762,6 +1761,9 @@ async function submitToLeaderboard(ms,vehicle){
     const podM=M(0x111114),lensM=new THREE.MeshLambertMaterial({color:0x3a0a08,emissive:0x5a0c08});
     for(let i=0;i<5;i++){const x0=(i-2)*.75,pod=new THREE.Mesh(new THREE.BoxGeometry(.5,.95,.5),podM);pod.position.set(x0,6.25,0);g.add(pod);
       [.26,-.26].forEach(z=>[6.47,6.03].forEach(y=>{const l=new THREE.Mesh(new THREE.CircleGeometry(.16,16),lensM);l.position.set(x0,y,z);if(z<0)l.rotation.y=Math.PI;g.add(l)}))}
+    }
+    g0.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(hd).expandByScalar(1.4);
+    window.__gantryCull=cam=>{const v=!bb.containsPoint(cam.position);if(hd.visible!==v)hd.visible=v};
   })();
   /* ---------- checkpoint/lap validation anti-cheat system ---------- */
   const CHECKPOINT_COUNT=8;
@@ -6747,6 +6749,7 @@ const PLANETS={
      TYPEF.vo=(TYPEF.vo||0)+(want-(TYPEF.vo||0))*.08;
      if(TYPEF.vo>.002)C.setViewOffset(cw,ch,0,TYPEF.vo*ch,cw,ch);else if(C.view&&C.view.enabled){TYPEF.vo=0;C.clearViewOffset()}}
     if(COCK.g.visible&&frameN%(LOW?3:2)===0){COCK.g.visible=false;COCK.mirror(S,car,FP.back,FP.top,FP.off);COCK.g.visible=true}   // the cabin mirror, without the cabin in it
+    if(window.__gantryCull)window.__gantryCull(C);
     R.render(S,C);if(active&&frameN%6===0)drawMap(mx2,mm.width,false);
     /* ---------- rearview mirror PIP ---------- */
     if(rearMirrorOn&&active&&driving&&!cineOn)renderMirror(S,car.position,car.quaternion,FP.off);
