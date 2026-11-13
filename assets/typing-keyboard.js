@@ -5,7 +5,7 @@
 (function(){
   'use strict';
   const css=document.createElement('style');css.textContent=`
-  .tkb{--k:clamp(22px,2.55vw,34px);--g:calc(var(--k)*.12);display:inline-flex;flex-direction:column;gap:var(--g);padding:calc(var(--k)*.32);
+  .tkb{--k:clamp(22px,calc(2.55vw / var(--vz,1)),34px);--g:calc(var(--k)*.12);display:inline-flex;flex-direction:column;gap:var(--g);padding:calc(var(--k)*.32);
     background:linear-gradient(180deg,#1b1c20,#111215);border-radius:calc(var(--k)*.42);border:1px solid rgba(255,255,255,.07);
     box-shadow:0 30px 60px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06),inset 0 -1px 0 rgba(0,0,0,.6);user-select:none;-webkit-user-select:none}
   .tkb-row{display:flex;gap:var(--g)}

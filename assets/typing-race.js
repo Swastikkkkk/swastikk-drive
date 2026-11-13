@@ -32,7 +32,7 @@
   #dtype .ty-tag{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#4d8dff}
   #dtype .ty-x{background:transparent;border:1px solid rgba(238,240,243,.18);color:rgba(238,240,243,.7);border-radius:999px;font:500 10px var(--mono,monospace);letter-spacing:.14em;padding:5px 11px;cursor:pointer;text-transform:uppercase}
   #dtype .ty-x:hover{color:#fff;border-color:rgba(238,240,243,.5)}
-  #dtype .ty-text{font:500 clamp(18px,2vw,26px)/1.45 var(--mono,ui-monospace,monospace);letter-spacing:.01em;word-break:break-word;min-height:1.5em}
+  #dtype .ty-text{font:500 clamp(18px,calc(2vw / var(--vz,1)),26px)/1.45 var(--mono,ui-monospace,monospace);letter-spacing:.01em;word-break:break-word;min-height:1.5em}
   #dtype .ty-text span{transition:color .08s}
   #dtype .ty-text .d{color:#eef0f3;text-shadow:0 0 18px rgba(77,141,255,.25)}
   #dtype .ty-text .t{color:rgba(238,240,243,.32)}
@@ -42,21 +42,21 @@
   @keyframes dtyShake{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
   #dtype.err .ty-card{border-color:rgba(229,72,77,.55)}
   #dtype .ty-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(238,240,243,.08)}
-  #dtype .ty-st b{display:block;font:600 clamp(15px,1.6vw,19px)/1 var(--serif,Georgia,serif);color:#fff;font-variant-numeric:tabular-nums}
+  #dtype .ty-st b{display:block;font:600 clamp(15px,calc(1.6vw / var(--vz,1)),19px)/1 var(--serif,Georgia,serif);color:#fff;font-variant-numeric:tabular-nums}
   #dtype .ty-st span{display:block;margin-top:3px;font-size:8px;letter-spacing:.24em;text-transform:uppercase;color:rgba(238,240,243,.45)}
   #dtype .ty-st.speed b{color:#8db7ff}
   #dtype input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;left:0;top:0}
   #dtype .ty-kbwrap{display:flex;justify-content:center;margin-top:10px}
   #dtype.nokb .ty-kbwrap{display:none}
   /* Type Faster: a smaller panel so the car stays in view; three lines show, the text scrolls with the cursor */
-  #dtype.fast .ty-text{font-size:clamp(15px,1.45vw,21px);max-height:calc(1.45em * 3);overflow:hidden;scroll-behavior:smooth}
+  #dtype.fast .ty-text{font-size:clamp(15px,calc(1.45vw / var(--vz,1)),21px);max-height:calc(1.45em * 3);overflow:hidden;scroll-behavior:smooth}
   #dtype.fast .ty-card{padding:10px 14px}
   #dtype.fast .ty-stats{margin-top:6px;padding-top:6px}
-  #dtype .tkb{--k:clamp(15px,1.65vw,23px);background:rgba(17,18,21,.55)}
+  #dtype .tkb{--k:clamp(15px,calc(1.65vw / var(--vz,1)),23px);background:rgba(17,18,21,.55)}
   @media (max-width:760px),(pointer:coarse){#dtype .ty-kbwrap{display:none}}
-  #dtypecd{position:absolute;inset:0;z-index:31;display:none;place-items:start center;padding-top:9vh;pointer-events:none}
+  #dtypecd{position:absolute;inset:0;z-index:31;display:none;place-items:start center;padding-top:calc(9vh / var(--vz,1));pointer-events:none}
   #dtypecd.on{display:grid}
-  #dtypecd b{font:700 clamp(64px,13vw,170px)/1 var(--serif,Georgia,serif);color:#fff;letter-spacing:-.03em;text-shadow:0 10px 60px rgba(0,0,0,.6)}
+  #dtypecd b{font:700 clamp(64px,calc(13vw / var(--vz,1)),170px)/1 var(--serif,Georgia,serif);color:#fff;letter-spacing:-.03em;text-shadow:0 10px 60px rgba(0,0,0,.6)}
   #dtypecd b.go{color:#8db7ff}
   #dtypecd small{display:block;text-align:center;font:500 12px var(--mono,monospace);letter-spacing:.4em;color:rgba(238,240,243,.75);margin-top:10px;text-transform:uppercase}
   #dtypecd .pop{animation:dtyPop .8s cubic-bezier(.2,.8,.2,1)}
@@ -69,11 +69,11 @@
   @keyframes dtyIn2{from{opacity:0}to{opacity:1}}
   #dtyperes .rs{width:min(560px,100%);text-align:center;color:#eef0f3}
   #dtyperes .rs-k{font:500 11px var(--mono,monospace);letter-spacing:.34em;color:#4d8dff;text-transform:uppercase}
-  #dtyperes h2{font:700 clamp(40px,7vw,72px)/1 var(--serif,Georgia,serif);margin:8px 0 6px;letter-spacing:-.03em}
+  #dtyperes h2{font:700 clamp(40px,calc(7vw / var(--vz,1)),72px)/1 var(--serif,Georgia,serif);margin:8px 0 6px;letter-spacing:-.03em}
   #dtyperes .rs-badge{display:inline-block;margin:6px 0 4px;padding:7px 14px;border-radius:999px;font:600 11px var(--mono,monospace);letter-spacing:.16em;text-transform:uppercase}
   #dtyperes .rs-badge.pb{background:rgba(77,141,255,.16);color:#b5d0ff;border:1px solid rgba(77,141,255,.4)}
   #dtyperes .rs-badge.one{background:rgba(77,141,255,.18);color:#8db7ff;border:1px solid rgba(77,141,255,.5)}
-  #dtyperes .rs-time{font:700 clamp(54px,10vw,96px)/1 var(--serif,Georgia,serif);letter-spacing:-.03em;margin:14px 0 2px;font-variant-numeric:tabular-nums;
+  #dtyperes .rs-time{font:700 clamp(54px,calc(10vw / var(--vz,1)),96px)/1 var(--serif,Georgia,serif);letter-spacing:-.03em;margin:14px 0 2px;font-variant-numeric:tabular-nums;
     background:linear-gradient(180deg,#fff,#b5d0ff);-webkit-background-clip:text;background-clip:text;color:transparent}
   #dtyperes .rs-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0 18px}
   #dtyperes .rs-grid div{background:rgba(238,240,243,.05);border:1px solid rgba(238,240,243,.1);border-radius:14px;padding:14px 6px}
@@ -191,7 +191,7 @@
     stat.kmh.textContent='0';stat.wpm.textContent='0';stat.acc.textContent='100%';stat.prog.textContent='0%';stat.time.textContent='0.00s';bar.style.width='0';
     // no countdown: the car waits on the line and the clock starts with your first key
     st='ready';t0=0;input.value='';input.focus();if(KBR()){KBR().active=true;KBR().hint(text[0])}
-    cd.innerHTML='<div><b style="font-size:clamp(28px,4vw,44px)">Start typing</b></div>';cd.classList.add('on');
+    cd.innerHTML='<div><b style="font-size:clamp(28px,calc(4vw / var(--vz,1)),44px)">Start typing</b></div>';cd.classList.add('on');
     if(!raf)raf=requestAnimationFrame(frame)}
   let doneT=0;
   function finish(t){st='done';doneT=t;lines.style.opacity='0';if(KBR())KBR().active=false;
