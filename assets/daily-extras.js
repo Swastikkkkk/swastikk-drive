@@ -107,7 +107,7 @@
 
   /* ---------- drawing ---------- */
   function setupCanvas(cv) {
-    var dpr = Math.min(2, window.devicePixelRatio || 1), w = cv.clientWidth || cv.width, h = cv.clientHeight || cv.height;
+    var dpr = Math.min(3, (window.devicePixelRatio || 1) * (window.UIZ || 1)), w = cv.clientWidth || cv.width, h = cv.clientHeight || cv.height;
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
     var x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
     return { x: x, w: w, h: h };
