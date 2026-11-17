@@ -142,6 +142,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const sec=$('#drive'),cv=$('#dc'),hud=$('#dhud'),hint=$('#dhint'),toast=$('#dtoast'),mm=$('#dmap'),mx2=mm.getContext('2d'),spd=$('#dspeed'),bigmap=$('#dbig'),bmc=$('#dbigc'),mob=$('#dmob'),mute=$('#dmute');
   let W=sec.clientWidth,H=sec.clientHeight,active=false,driving=false,muted=false;
   const TOUCH=typeof window.TOUCH_UI==='boolean'?window.TOUCH_UI:(matchMedia('(pointer:coarse)').matches||!matchMedia('(hover:hover)').matches),LOW=TOUCH;   // phones/tablets only (see settings.js)
+  /* ---------- graphics level ---------- */
+  const GFX={pbr:!LOW,envK:.3,hk:1,sk:1,fx:null};
+  /* custom shaders write display colours straight out; inside the post pipeline the frame is linear until the grade,
+     so these convert back to linear while it is on (otherwise the sky and stars come out washed and milky) */
+  const LINOUT={value:0};
+  const linOut=m=>{if(!m||!m.fragmentShader||m.uniforms.uLinOut)return m;m.uniforms.uLinOut=LINOUT;
+    m.fragmentShader='uniform float uLinOut;\n'+m.fragmentShader.replace(/\}\s*$/,'gl_FragColor.rgb=mix(gl_FragColor.rgb,pow(max(gl_FragColor.rgb,0.0),vec3(2.2)),uLinOut);}');return m};
+  if(GFX.pbr){const Std=THREE.MeshStandardMaterial,Lam=THREE.MeshLambertMaterial;
+    const PBRLam=function(p){p=Object.assign({},p||{});['combine','reflectivity','refractionRatio','specularMap'].forEach(k=>delete p[k]);
+      const m=new Std(Object.assign({roughness:.88,metalness:0,envMapIntensity:GFX.envK},p));return m};
+    PBRLam.prototype=Lam.prototype;THREE.MeshLambertMaterial=PBRLam}
   /* ---------- renderer / scene ---------- */
   let R;
   try{R=new THREE.WebGLRenderer({canvas:cv,antialias:!LOW,powerPreference:'high-performance'})}
@@ -150,7 +161,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(document.getElementById('dgfxlost'))return;const o=document.createElement('div');o.id='dgfxlost';
     o.innerHTML='<div><b>The graphics card reset</b><p>This happens after sleep or when a laptop switches GPUs. Reload to keep playing.</p><button type="button">Reload</button></div>';
     o.querySelector('button').onclick=()=>location.reload();document.body.appendChild(o)},false);
-  R.shadowMap.enabled=!LOW;R.shadowMap.type=THREE.PCFShadowMap;R.debug.checkShaderErrors=false;
+  R.shadowMap.enabled=!LOW;R.shadowMap.type=GFX.pbr?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;R.debug.checkShaderErrors=false;
   /* One quality: Ultra, and it is not a menu. Everything the old tiers used to switch off
      is simply on — shadows, grass, dust, stars, the full particle budget. The only thing
      that still varies is the pixel-ratio cap, because resolution is the one cost that
@@ -189,8 +200,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     /* shadows are never switched on/off here: that changes every shader's light setup and three.js recompiles them
        all on the next frame, a freeze of half a second or more each time auto quality stepped. Lower tiers keep
        the shadow but with a smaller map that refreshes less often, which costs nothing to switch. */
-    if(sun&&!LOW){const sz=t>=2?1024:2048;if(sun.shadow.mapSize.x!==sz){sun.shadow.mapSize.set(sz,sz);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null}}sun.shadow.needsUpdate=true}
-    ULTRA.shEvery=c.shEvery;
+    if(sun&&!LOW){const sz=t>=2?1024:t===1?2048:4096;if(sun.shadow.mapSize.x!==sz){sun.shadow.mapSize.set(sz,sz);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null}}sun.shadow.needsUpdate=true}
+    ULTRA.shEvery=c.shEvery;if(GFX.fx){GFX.fx.on=t<2;GFX.fx.bloom.enabled=t===0}
     if(SCN.grass)SCN.grass.visible=!c.lite;if(SCN.dust)SCN.dust.visible=!c.lite;
   }
   /* performance readout: the backquote key (left of 1) shows fps, the quality tier and what the frame draws */
@@ -228,7 +239,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(typeof pGeo!=='undefined'&&pGeo)pGeo.setDrawRange(0,PCOUNT);
   }
 
-  if('outputEncoding' in R)R.outputEncoding=THREE.sRGBEncoding;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.02;
+  if('outputEncoding' in R)R.outputEncoding=THREE.sRGBEncoding;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=GFX.pbr?.94:1.02;
   const S=new THREE.Scene();S.background=new THREE.Color(0x0e0e0d);S.fog=new THREE.Fog(0x0e0e0d,55,170);
   const C=new THREE.PerspectiveCamera(50,W/H,.1,320);
   /* ---------- rearview mirror camera ---------- */
@@ -260,7 +271,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let ZN={drag:0,fog:1,tint:[1,1,1]},fogFar0=170,fogNear0=55,hemi0=.55,sunI0=1.05;
   let progU=0;
   const hemi=new THREE.HemisphereLight(0xdfeaff,0x3c3a30,.55);S.add(hemi);
-  const sun=new THREE.DirectionalLight(0xfff2dd,1.05);sun.position.set(18,34,12);sun.castShadow=!LOW;sun.shadow.mapSize.set(LOW?1024:2048,LOW?1024:2048);sun.shadow.autoUpdate=false;sun.shadow.bias=-.0004;sun.shadow.normalBias=.035;Object.assign(sun.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:110});S.add(sun);S.add(sun.target);
+  const sun=new THREE.DirectionalLight(0xfff2dd,1.05);sun.position.set(18,34,12);sun.castShadow=!LOW;sun.shadow.mapSize.set(LOW?1024:4096,LOW?1024:4096);sun.shadow.radius=3;sun.shadow.autoUpdate=false;sun.shadow.bias=-.0004;sun.shadow.normalBias=.035;Object.assign(sun.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:110});S.add(sun);S.add(sun.target);
   const SUN_DIR=new THREE.Vector3(18,34,12).normalize();
   const MOON_DIR=new THREE.Vector3(-20,26,-14).normalize(); // rides opposite the sun
   const SUN_OFF_DEFAULT=new THREE.Vector3(18,34,12);
@@ -268,11 +279,48 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const SUN_DIR_LOW=SUN_OFF_LOW.clone().normalize();
   let recapCam=false;
   const fillL=new THREE.DirectionalLight(0x8fa8ff,.1);fillL.position.set(-16,9,-11);S.add(fillL);
+  /* ---------- picture pipeline (desktop) ----------
+     scene -> 4x MSAA float-free target -> bloom (only what is really bright: sun, lamps, brake lights, chrome
+     glints) -> filmic grade: warm highlights, cool shadows, a touch of contrast and saturation, vignette, sRGB out.
+     Auto quality turns it off at the lowest tiers and the picture falls back to the plain antialiased render. */
+  if(GFX.pbr&&THREE.EffectComposer&&THREE.UnrealBloomPass){try{
+    const gl2=R.capabilities.isWebGL2,sz=R.getDrawingBufferSize(new THREE.Vector2());
+    const rt=gl2&&THREE.WebGLMultisampleRenderTarget?new THREE.WebGLMultisampleRenderTarget(sz.x,sz.y,{format:THREE.RGBAFormat}):new THREE.WebGLRenderTarget(sz.x,sz.y,{format:THREE.RGBAFormat});
+    if(rt.samples!==undefined)rt.samples=4;
+    const comp=new THREE.EffectComposer(R,rt),rp=new THREE.RenderPass(S,C);comp.addPass(rp);
+    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(Math.max(1,sz.x>>1),Math.max(1,sz.y>>1)),.32,.55,.86);comp.addPass(bloom);
+    const grade=new THREE.ShaderPass({uniforms:{tDiffuse:{value:null},uVig:{value:.32},uSat:{value:1.16},uCon:{value:1.12},uRes:{value:new THREE.Vector2(sz.x,sz.y)}},
+      vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+      fragmentShader:[
+        'uniform sampler2D tDiffuse;uniform float uVig,uSat,uCon;uniform vec2 uRes;varying vec2 vUv;',
+        'vec3 toSRGB(vec3 c){c=max(c,0.0);return mix(c*12.92,1.055*pow(c,vec3(1.0/2.4))-.055,step(.0031308,c));}',
+        'void main(){vec2 px=1.0/uRes;vec3 c=texture2D(tDiffuse,vUv).rgb;',
+        ' vec3 b=(texture2D(tDiffuse,vUv+vec2(px.x,0.)).rgb+texture2D(tDiffuse,vUv-vec2(px.x,0.)).rgb+texture2D(tDiffuse,vUv+vec2(0.,px.y)).rgb+texture2D(tDiffuse,vUv-vec2(0.,px.y)).rgb)*.25;',
+        ' c=max(c+(c-b)*.35,0.0);',                                   // light sharpen, keeps edges crisp after MSAA
+        ' c=toSRGB(c);c=max(c-.018,0.0)/.982;float l=dot(c,vec3(.2126,.7152,.0722));',
+        ' c=mix(vec3(l),c,uSat);c=(c-.5)*uCon+.5;',
+        ' c*=mix(vec3(.97,.99,1.04),vec3(1.03,1.0,.97),smoothstep(.15,.85,l));',   // teal shadows, warm highlights
+        ' vec2 q=vUv-.5;c*=1.0-uVig*smoothstep(.25,.95,dot(q,q)*2.2);',
+        ' gl_FragColor=vec4(clamp(c,0.0,1.0),1.0);}'].join('\n')});
+    comp.addPass(grade);
+    GFX.fx={comp,rp,bloom,grade,on:true,w:0,h:0,pr:0};
+  }catch(e){GFX.fx=null}}
+  function drawMain(scene,cam){
+    const F=GFX.fx;
+    LINOUT.value=F&&F.on?1:0;
+    if(!F||!F.on){R.render(scene,cam);return}
+    const pr=R.getPixelRatio(),w=W,h=H;
+    if(F.w!==w||F.h!==h||F.pr!==pr){F.w=w;F.h=h;F.pr=pr;F.comp.setPixelRatio(pr);F.comp.setSize(w,h);F.grade.uniforms.uRes.value.set(w*pr,h*pr)}
+    F.rp.scene=scene;F.rp.camera=cam;F.comp.render()}
+  /* image lighting: the reflection cube already captured round the car is prefiltered into a proper environment
+     (rough surfaces get blurred sky, shiny ones a sharp reflection) and lights every PBR material in the world */
+  const PMG=GFX.pbr?new THREE.PMREMGenerator(R):null;let envRT=null;
+  function refreshEnv(cubeTex){if(!PMG||!cubeTex)return;try{const n=PMG.fromCubemap(cubeTex);if(envRT)envRT.dispose();envRT=n;S.environment=n.texture;GFX.hk=.38;GFX.sk=1.22}catch(e){}}
   /* ---------- sky dome, sun glow, stars, dust: atmosphere so the world isn't just flat fog ---------- */
   /* sky: gradient from the weather's two colours, a pale haze band on the horizon, a warm glow round the sun, and
      procedural clouds (fbm projected onto a cloud deck) that drift with the wind; at night the clouds go dark and the
      glow goes out. One draw, all in the shader. */
-  const skyMat=new THREE.ShaderMaterial({uniforms:{topColor:{value:new THREE.Color(0x323a52)},bottomColor:{value:new THREE.Color(0x0e0e0d)},offset:{value:9},exponent:{value:.68},
+  const skyMat=linOut(new THREE.ShaderMaterial({uniforms:{topColor:{value:new THREE.Color(0x323a52)},bottomColor:{value:new THREE.Color(0x0e0e0d)},offset:{value:9},exponent:{value:.68},
       sunDir:{value:new THREE.Vector3(.4,.75,.3).normalize()},uTime:{value:0},cover:{value:.5}},
     vertexShader:'varying vec3 vWP;void main(){vec4 wp=modelMatrix*vec4(position,1.0);vWP=wp.xyz;gl_Position=projectionMatrix*viewMatrix*wp;}',
     fragmentShader:[
@@ -289,7 +337,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
       '  float shade=fbm(uv+normalize(sunDir.xz+vec2(.001))*.08);vec3 cc=mix(vec3(.62,.66,.72),vec3(1.0,.99,.97),clamp(.5+(n-shade)*5.0,0.0,1.0));',
       '  cc=mix(bottomColor*1.4+vec3(.03),cc,day)+vec3(1.0,.8,.55)*pow(sd,6.0)*.25*day;col=mix(col,cc,c*.92);}',
       ' gl_FragColor=vec4(col,1.0);}'].join('\n'),
-    side:THREE.BackSide,fog:false,depthWrite:false});
+    side:THREE.BackSide,fog:false,depthWrite:false}));
   const sky=new THREE.Mesh(new THREE.SphereGeometry(280,20,14),skyMat);S.add(sky);
   const sunTexC=document.createElement('canvas');sunTexC.width=sunTexC.height=128;
   {const gx=sunTexC.getContext('2d'),gr=gx.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'rgba(255,246,222,1)');gr.addColorStop(.35,'rgba(255,224,168,.5)');gr.addColorStop(1,'rgba(255,224,168,0)');gx.fillStyle=gr;gx.fillRect(0,0,128,128)}
@@ -329,7 +377,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   starGeo.setAttribute('aSize',new THREE.BufferAttribute(starSize,1));
   starGeo.setAttribute('aPhase',new THREE.BufferAttribute(starPhase,1));
   starGeo.setAttribute('aTint',new THREE.BufferAttribute(starTint,3));
-  const starMat=new THREE.ShaderMaterial({
+  const starMat=linOut(new THREE.ShaderMaterial({
     uniforms:{uTime:{value:0},uOpacity:{value:.6},uPix:{value:Math.min(devicePixelRatio||1,2)}},
     transparent:true,depthWrite:false,fog:false,blending:THREE.AdditiveBlending,
     vertexShader:`attribute float aSize;attribute float aPhase;attribute vec3 aTint;
@@ -339,7 +387,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         gl_PointSize=aSize*uPix;}`,
     fragmentShader:`varying float vA;varying vec3 vT;
       void main(){vec2 d=gl_PointCoord-vec2(.5);float r=length(d);if(r>.5)discard;
-        float a=1.-smoothstep(0.,.5,r);a*=a;gl_FragColor=vec4(vT,vA*a);}`});
+        float a=1.-smoothstep(0.,.5,r);a*=a;gl_FragColor=vec4(vT,vA*a);}`}));
   const stars=new THREE.Points(starGeo,starMat);stars.frustumCulled=false;S.add(stars);SCN.stars=stars;
   /* The moon. Rides opposite the sun, fades in with the stars, and carries its own soft
      halo so it reads as light rather than a pasted-on disc. */
@@ -372,7 +420,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      slideshow, because the scene is fill-rate bound rather than geometry bound. The PBR-only
      options are dropped on the way in so the rest of the code can keep passing them. */
   const PBRONLY=['roughness','metalness','normalMap','normalScale','roughnessMap','metalnessMap','envMap','envMapIntensity','clearcoat','flatShading'];
-  const M=(c,o={})=>{const q=Object.assign({color:c},o);PBRONLY.forEach(k=>delete q[k]);return new THREE.MeshLambertMaterial(q)};
+  /* Desktop gets the real thing back: physically based shading lit by a captured reflection of the world around the car
+     (GFX below), so tarmac, metal, paint and glass pick up sky and sun highlights. Phones keep Lambert. */
+  const M=(c,o={})=>{const q=Object.assign({color:c},o);
+    if(GFX.pbr){if(q.roughness==null)q.roughness=.86;if(q.metalness==null)q.metalness=0;q.envMapIntensity=q.envMapIntensity==null?GFX.envK:q.envMapIntensity;delete q.clearcoat;return new THREE.MeshStandardMaterial(q)}
+    PBRONLY.forEach(k=>delete q[k]);return new THREE.MeshLambertMaterial(q)};
   const paper=M(0xf2eee6),ink=M(0x15140f),bone=M(0xc9c2b4),red=M(0xb8322f),blue=M(0x2f4f9e),green=M(0x3f8a56),yellow=M(0xd9b23a),steel=M(0xa9a59d,{metalness:.45,roughness:.4}),gold=M(0xd4a83a,{metalness:.75,roughness:.28}),glow=new THREE.MeshBasicMaterial({color:0xf2eee6}),rubber=M(0x232220,{roughness:.95}),skin=M(0xe2b48f),tankM=M(0x2c5bd6),hairM=M(0x1d1915);
   const groundM=M(0x1c1b18),roadM=M(0x57544d,{roughness:.88}),edgeM=M(0x81786a),skirtM=M(0x26241f,{side:THREE.DoubleSide}),leafM=M(0x33402c),trunkM=M(0x3a2c20);
   /* ---------- physics ---------- */
@@ -4451,7 +4503,7 @@ const F=chassisB.force,T=chassisB.torque;
     photon.renderOrder=3; grp.add(photon);
 
     /* --- accretion disk: swirling plasma + doppler brightening (shader) --- */
-    const diskMat=new THREE.ShaderMaterial({
+    const diskMat=linOut(new THREE.ShaderMaterial({
       transparent:true, side:THREE.DoubleSide, depthWrite:false,
       blending:THREE.AdditiveBlending, fog:false,
       uniforms:{uTime:{value:0}, uRev:{value:0}},
@@ -4467,17 +4519,17 @@ const F=chassisB.force,T=chassisB.torque;
         '  float alpha=band*(0.3+0.7*swirl)*(0.35+0.65*dopp)*uRev;',
         '  gl_FragColor=vec4(hot*(1.1+dopp), alpha);',
         '}'].join('\n')
-    });
+    }));
     const disk=new THREE.Mesh(new THREE.RingGeometry(HOR*1.15,HOR*2.9,110,1),diskMat);
     disk.rotation.x=Math.PI*0.5-0.32; disk.renderOrder=1; grp.add(disk);
 
     /* --- lensing illusion: fresnel rim that bends light around the edge --- */
-    const lensMat=new THREE.ShaderMaterial({
+    const lensMat=linOut(new THREE.ShaderMaterial({
       transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.FrontSide, fog:false,
       uniforms:{uRev:{value:0}},
       vertexShader:'varying vec3 vN; varying vec3 vV; void main(){ vec4 mv=modelViewMatrix*vec4(position,1.0); vN=normalize(normalMatrix*normal); vV=normalize(-mv.xyz); gl_Position=projectionMatrix*mv; }',
       fragmentShader:'varying vec3 vN; varying vec3 vV; uniform float uRev; void main(){ float f=pow(1.0-abs(dot(vN,vV)),3.0); gl_FragColor=vec4(vec3(0.55,0.68,1.0)*f, f*0.55*uRev); }'
-    });
+    }));
     const lens=new THREE.Mesh(new THREE.SphereGeometry(HOR*1.3,32,32),lensMat); grp.add(lens);
 
     /* --- soft volumetric-ish glow sprite --- */
@@ -5567,7 +5619,7 @@ const PLANETS={
         say(t<2.2?'The beam takes hold':'Leaving Earth');
         if(t>dur-.7)fadeTo(1,.6);
         if(t>dur){ car.visible=false; C.far=20000; C.near=0.5; C.updateProjectionMatrix(); go('flight'); fadeTo(1,0); setTimeout(()=>fadeTo(0,.8),30); }
-        R.render(S,C);return;
+        drawMain(S,C);return;
       }
       /* ---- 2. flight: Earth falls away below, the black hole grows ahead ---- */
       if(api.state==='flight'){
@@ -5582,7 +5634,7 @@ const PLANETS={
         say(k<.5?'Earth falls away below':'Black hole ahead · hold course');
         if(t>dur-.35)fadeTo(1,.3,'#fff');
         if(t>dur){ o.bh.visible=false; go('warp'); fadeTo(0,.6); }
-        R.render(spaceScene,C);return;
+        (LINOUT.value=0,R.render(spaceScene,C));return;
       }
       /* ---- 3. warp: speed lines and rings rush past, A/D/W/S to weave ---- */
       if(api.state==='warp'){
@@ -5600,7 +5652,7 @@ const PLANETS={
         say(k<.12?'Through the event horizon':k<.85?'Warp corridor · A/D steer · W/S climb and dive':tn+' signal ahead');
         if(t>dur-.4)fadeTo(1,.35);
         if(t>dur){ o.warpRings.forEach(r=>r.material.opacity=0); o.lines.material.opacity=0; go('approach'); fadeTo(0,.7); }
-        R.render(spaceScene,C);return;
+        (LINOUT.value=0,R.render(spaceScene,C));return;
       }
       /* ---- 4. approach: the destination grows from a disc to filling the view, lit from the side ---- */
       if(api.state==='approach'){
@@ -5620,7 +5672,7 @@ const PLANETS={
           if(tg==='earth'){ try{resetCar();}catch(e){} go('earth'); try{toastMsg('Home. Back on Earth.');}catch(e){} }
           else beginArrival(tg);
         }
-        R.render(spaceScene,C);return;
+        (LINOUT.value=0,R.render(spaceScene,C));return;
       }
       /* ---- leaving a planet: lift off past it into a short cruise, then approach the next one ---- */
       if(api.state==='depart'){
@@ -5635,7 +5687,7 @@ const PLANETS={
         say(k<.5?'Leaving '+(PLANETS[from]?PLANETS[from].name:'orbit'):'Course set for '+tn);
         if(t>dur-.4)fadeTo(1,.35);
         if(t>dur){ go('approach'); fadeTo(0,.6); }
-        R.render(spaceScene,C);return;
+        (LINOUT.value=0,R.render(spaceScene,C));return;
       }
       /* ---- 5. landing: the craft hovers over the road and lowers the rover on its beam, then leaves ---- */
       if(api.state==='arrive'){
@@ -5662,17 +5714,17 @@ const PLANETS={
         S.dgeo.attributes.position.needsUpdate=true;
         say(cfg.caption);
         if(t>dur){ L.visible=false; UFO.bm.opacity=.5; S.pos.y=g0; S.vy=0; S.grounded=true; S.prevGY=g0; go('surface'); }
-        R.render(S.scene,C); return;
+        (LINOUT.value=0,R.render(S.scene,C)); return;
       }
       if(api.state==='surface'){
         if(t>4)say('');
         driveSurface(dt);
-        R.render(SURF.scene,C);
+        (LINOUT.value=0,R.render(SURF.scene,C));
         if(rearMirrorOn)renderMirror(SURF.scene,SURF.rover.position,SURF.rover.quaternion,SURF.ccY||0);
         return;
       }
       if(api.state==='select'){
-        if(SURF){ S_idle(SURF,dt); R.render(SURF.scene,C); }
+        if(SURF){ S_idle(SURF,dt); (LINOUT.value=0,R.render(SURF.scene,C)); }
         return;
       }
       if(api.state==='returning'){ api.target='earth'; go('approach'); return; }
@@ -6750,7 +6802,7 @@ const PLANETS={
      if(wxB.id==='storm'){ltT-=dt;if(ltT<=0){ltT=2.5+Math.random()*7;flashV=1;thunderAt=now+300+Math.random()*1800}}
      if(flashV>0){flashV=Math.max(0,flashV-dt*(flashV>.6?3:2.2));if(flashV<.35&&Math.random()<.35)flashV=Math.min(1,flashV+.5*Math.random())}
      if(thunderAt&&now>=thunderAt){thunderAt=0;thud(.9)}
-     hemi.intensity+=((hemi0*lt+flashV*1.5)-hemi.intensity)*(flashV>.02?.7:e);sun.intensity+=(sunI0*Math.min(1.25,lt)-sun.intensity)*e}
+     hemi.intensity+=((hemi0*GFX.hk*lt+flashV*1.5)-hemi.intensity)*(flashV>.02?.7:e);sun.intensity+=(sunI0*GFX.sk*Math.min(1.25,lt)-sun.intensity)*e}
     /* the car's own shadow has to be redrawn every frame while it moves, or it trails behind the car and jumps when
        the map is next refreshed; a parked car only needs the slower refresh. The lowest quality tier halves it. */
     if(R.shadowMap.enabled){const se=ULTRA.shEvery,moving=chassisB.velocity.length()>.4||Math.abs(chassisB.angularVelocity.y)>.05,every=moving?(qTier>=2?3:1):se;
@@ -6759,11 +6811,11 @@ const PLANETS={
        no per-frame cost, and no half-updated cube that flickers as you move */
     if(cubeCam&&active&&(!cubeInit||(frameN%90===0&&(Math.abs(sun.intensity-cubeSun)>.12||Math.hypot(car.position.x-cubeX,car.position.z-cubeZ)>140)))){
       cubeCam.position.set(car.position.x,car.position.y+1.6,car.position.z);cubeCam.updateMatrixWorld();
-      if(!cubeInit){hideCars(false);cubeCam.update(R,S);hideCars(true)}else cubeFace=6;   // first capture whole, later ones spread out
+      if(!cubeInit){hideCars(false);cubeCam.update(R,S);hideCars(true);refreshEnv(cubeRT.texture)}else cubeFace=6;   // first capture whole, later ones spread out
       cubeInit=true;cubeSun=sun.intensity;cubeX=car.position.x;cubeZ=car.position.z}
     else if(cubeCam&&cubeFace>0){const f=6-cubeFace--,cams=cubeCam.children,prevT=R.getRenderTarget(),se=R.shadowMap.autoUpdate,gm=cubeRT.texture.generateMipmaps;
       cubeRT.texture.generateMipmaps=cubeFace===0&&gm;R.shadowMap.autoUpdate=false;hideCars(false);
-      R.setRenderTarget(cubeRT,f);R.render(S,cams[f]);R.setRenderTarget(prevT);hideCars(true);R.shadowMap.autoUpdate=se;cubeRT.texture.generateMipmaps=gm}
+      R.setRenderTarget(cubeRT,f);R.render(S,cams[f]);R.setRenderTarget(prevT);hideCars(true);R.shadowMap.autoUpdate=se;cubeRT.texture.generateMipmaps=gm;if(cubeFace===0)refreshEnv(cubeRT.texture)}
     if(active){ANOMALY.update(dt,now);SPACE.updateEarth()}
     /* typing race: the panel fills the bottom of the screen, so the picture slides up to keep the car above it */
     /* The shift is measured, not fixed: the car is projected to the screen every frame and the picture is slid until
@@ -6777,7 +6829,7 @@ const PLANETS={
      if(TYPEF.vo>.002)C.setViewOffset(cw,ch,0,TYPEF.vo*ch,cw,ch);else if(C.view&&C.view.enabled){TYPEF.vo=0;C.clearViewOffset()}}
     if(COCK.g.visible&&frameN%(LOW?3:2)===0){COCK.g.visible=false;COCK.mirror(S,car,FP.back,FP.top,FP.off);COCK.g.visible=true}   // the cabin mirror, without the cabin in it
     if(window.__gantryCull)window.__gantryCull(C);
-    R.render(S,C);if(active&&frameN%6===0)drawMap(mx2,mm.width,false);
+    drawMain(S,C);if(active&&frameN%6===0)drawMap(mx2,mm.width,false);
     /* ---------- rearview mirror PIP ---------- */
     if(rearMirrorOn&&active&&driving&&!cineOn)renderMirror(S,car.position,car.quaternion,FP.off);
     /* Grab the still immediately after the draw, in this same frame: the drawing buffer
