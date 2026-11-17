@@ -37,7 +37,8 @@
 
       var getPos = function(e) {
         var r = self.canvas.getBoundingClientRect();
-        return { x: e.clientX - r.left, y: e.clientY - r.top };
+        var k = (self.canvas.clientWidth || r.width) / (r.width || 1);
+        return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k };
       };
 
       this.canvas.addEventListener('pointerdown', function(e) {
