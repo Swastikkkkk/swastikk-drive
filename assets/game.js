@@ -743,6 +743,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const terrainM=LOW?new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(160,.07,Math.round(120*MK*LAND),.55)})
     :antiTile(new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.96,metalness:0,map:bladeTex(512,Math.round(70*MK*LAND)),normalMap:reliefTex(256,Math.round(480*MK*LAND)),normalScale:new THREE.Vector2(.55,.55)}));
   if(!LOW&&terrainM.map){terrainM.map.anisotropy=16;if('encoding' in terrainM.map)terrainM.map.encoding=THREE.LinearEncoding}
+  /* Desktop: ground detail from a photo scan (Poly Haven "leafy_grass", CC0): its brightness becomes the detail map
+     (the terrain's vertex colours still decide grass, dirt and rock) and its normal map gives real blade/clump relief */
+  if(GFX.pbr&&terrainM.map){
+    new THREE.TextureLoader().load('assets/tex/leafy_grass_nor_gl.jpg',t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=16;terrainM.normalMap=t;terrainM.normalScale=new THREE.Vector2(.8,.8);terrainM.needsUpdate=true})}
   const HF=(function(){
     const nx=Math.round(WS*2/ES)+1,nz=nx,minX=-WS,maxZ=WS;
     const data=[],slope=new Float32Array(nx*nz);
@@ -827,7 +831,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      Asphalt is painted once into a texture: dark aggregate, faint wear in the wheel tracks,
      solid edge lines and a dashed centre line baked in, so the markings are crisp at any
      distance instead of being a scatter of floating quads. */
-  const ROAD_REP=Math.round(curve.getLength()/(12+RWX*4));
+  const ROAD_REP=Math.round(curve.getLength()/(12+RWX*4));let roadMB_=()=>null;
   function roadTex(){const W=256,H=512,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
     x.fillStyle='#303134';x.fillRect(0,0,W,H);const im=x.getImageData(0,0,W,H),d=im.data;
     for(let jj=0;jj<H;jj++)for(let ii=0;ii<W;ii++){const k=(jj*W+ii)*4,u=ii/W;
@@ -860,12 +864,43 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
     const m=new THREE.Mesh(g,mat);m.receiveShadow=true;S.add(m);return m}
   roadM.color.setHex(0xffffff);roadM.map=roadTex();edgeM.color.setHex(0x6d685e);
+  /* Desktop: the asphalt is a photo scan (Poly Haven "asphalt_track", CC0) tiled at true scale (~3.2 m a tile),
+     with matching normal and roughness so aggregate catches the sun, the wheel tracks polish and wet weather glints.
+     The markings are painted over it as before. Laid out in one 1024x2048 sheet = one 12.6 x 25.6 m stretch of road,
+     so every map shares the road's UVs. Loads after the world is up; the painted texture holds until then. */
+  if(GFX.pbr&&roadM.isMeshStandardMaterial){
+    const RW_=1024,RH_=2048,TL=256,mk=()=>{const c=document.createElement('canvas');c.width=RW_;c.height=RH_;return c};
+    const nC=mk(),rC=mk(),nx=nC.getContext('2d'),rx=rC.getContext('2d');nx.fillStyle='rgb(128,128,255)';nx.fillRect(0,0,RW_,RH_);rx.fillStyle='rgb(200,200,200)';rx.fillRect(0,0,RW_,RH_);
+    const nT=new THREE.CanvasTexture(nC),rT=new THREE.CanvasTexture(rC);[nT,rT].forEach(t=>{t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;t.anisotropy=16});
+    roadM.normalMap=nT;roadM.normalScale=new THREE.Vector2(.9,.9);roadM.roughnessMap=rT;roadM.roughness=1;roadM.metalness=0;roadM.needsUpdate=true;
+    const img=src=>new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=src});
+    const tile=(x,i)=>{for(let y=0;y<RH_;y+=TL)for(let xx=0;xx<RW_;xx+=TL)x.drawImage(i,xx,y,TL,TL)};
+    const lines=(x,st)=>{x.fillStyle=st;x.fillRect(RW_*.045,0,RW_*.03,RH_);x.fillRect(RW_*(1-.045-.03),0,RW_*.03,RH_);for(let k=0;k<2;k++)x.fillRect(RW_*.488,RH_*(k*.5+.12),RW_*.024,RH_*.25)};
+    Promise.all(['diff','nor_gl','rough'].map(k=>img('assets/tex/asphalt_track_'+k+'.jpg'))).then(([dI,nI,rI])=>{
+      const c=roadM.map.image.width===RW_?roadM.map.image:mk(),x=c.getContext('2d');tile(x,dI);
+      const im=x.getImageData(0,0,RW_,RH_),d=im.data;
+      // large-scale life, seamless along the road: resurfaced patches, stains, rubbered-in wheel tracks, dusty edges
+      const smoothstep=(a,b,x)=>{x=Math.min(1,Math.max(0,(x-a)/(b-a)));return x*x*(3-2*x)},per=(i,j,f,R)=>{const a=j/RH_*6.2832;return noise2(i*f+Math.cos(a)*R,Math.sin(a)*R)};
+      for(let j=0;j<RH_;j++)for(let i=0;i<RW_;i++){const k=(j*RW_+i)*4,u=i/RW_;
+        const tr=Math.exp(-((u-.27)**2)/.0045)+Math.exp(-((u-.73)**2)/.0045),edge=Math.max(0,1-Math.min(u,1-u)/.1);
+        const big=per(i,j,.004,3.1),mid=per(i+500,j,.016,9.0),patch=smoothstep(.62,.66,per(i+900,j,.006,4.4));
+        let m=(1-tr*.2)*(.89+big*.19)*(.96+mid*.08)*(1-patch*.14);
+        m*=1+edge*.18;
+        d[k]=Math.min(255,d[k]*1.42*m+edge*6);d[k+1]=Math.min(255,d[k+1]*1.58*m+edge*5);d[k+2]=Math.min(255,d[k+2]*1.78*m+edge*3)}
+      x.putImageData(im,0,0);lines(x,'rgba(232,229,220,.9)');
+      tile(nx,nI);tile(rx,rI);
+      rx.globalCompositeOperation='multiply';[.27,.73].forEach(u=>{const g=rx.createLinearGradient(RW_*(u-.09),0,RW_*(u+.09),0);g.addColorStop(0,'#fff');g.addColorStop(.5,'#c4c4c4');g.addColorStop(1,'#fff');rx.fillStyle=g;rx.fillRect(RW_*(u-.09),0,RW_*.18,RH_)});
+      rx.globalCompositeOperation='source-over';lines(rx,'rgb(150,150,150)');
+      const t=new THREE.CanvasTexture(c);t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;t.anisotropy=16;
+      [roadM,roadMB_()].forEach(m=>{if(!m)return;m.map=t;m.normalMap=nT;m.roughnessMap=rT;m.needsUpdate=true});nT.needsUpdate=rT.needsUpdate=true;
+    }).catch(()=>{});
+  }
   edgeM.map=grainTex(64,.12,1,.6);edgeM.map.repeat.set(3,1);
   strip(7.6+RWX*2,.04,edgeM);strip(5.8+RWX*2,.09,roadM);
   /* the branch starts on top of the main loop and crosses the ring road at the yard, at the same height as both:
      drawn with the same materials the two surfaces fought for every pixel and the junction flickered black and
      white. Its own copies are pushed back in depth, so wherever they overlap the other road simply wins. */
-  const roadMB=roadM.clone(),edgeMB=edgeM.clone();[roadMB,edgeMB].forEach(m=>{m.polygonOffset=true;m.polygonOffsetFactor=2;m.polygonOffsetUnits=4});
+  const roadMB=roadM.clone(),edgeMB=edgeM.clone();roadMB_=()=>roadMB;[roadMB,edgeMB].forEach(m=>{m.polygonOffset=true;m.polygonOffsetFactor=2;m.polygonOffsetUnits=4});
   stripB(7+RWX*1.6,.04,edgeMB);stripB(5.2+RWX*1.6,.09,roadMB);
   /* Armco along both sides of the summit climb, posts every few metres, laid on the slope so the rail follows the
      road up instead of stepping. Each piece has a tall invisible wall behind it that the car glances off, so the
