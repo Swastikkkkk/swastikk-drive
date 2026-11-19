@@ -131,7 +131,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
        loses most of its colour, and the stars come all the way up. The sun sprite is left
        faintly on rather than off — a pinhole low on the horizon reads as the last of the
        day going, which is kinder than a hard cut to black. */
-    {id:'night',label:'Night',bg:0x070b16,fog:[64,250],hemi:.30,sun:0xbcd0f2,sunI:.42,ground:0x121722,leaf:0x1b2a22,part:null,slip:.95,skyTop:0x05080f,skyBottom:0x172542,star:1,sunA:.22,terr:[.70,.78,.98],snow:0,water:0x15273a,ridge:[.09,.12,.20]},
+    {id:'night',label:'Night',bg:0x070b16,fog:[64,250],hemi:.38,sun:0xbcd0f2,sunI:.42,ground:0x121722,leaf:0x1b2a22,part:null,slip:.95,skyTop:0x05080f,skyBottom:0x172542,star:1,sunA:.22,terr:[.70,.78,.98],snow:0,water:0x15273a,ridge:[.09,.12,.20]},
     {id:'overcast',label:'Overcast',bg:0x9aa3ab,fog:[70,240],hemi:.62,sun:0xdfe6ec,sunI:.55,ground:0x4d5a40,leaf:0x33502b,part:null,slip:.95,skyTop:0x7d8791,skyBottom:0xb4bcc3,star:0,sunA:.12,terr:[.92,.98,.94],snow:0,water:0x3a5666,ridge:[.4,.44,.5]},
     {id:'sunset',label:'Sunset',bg:0xc98a52,fog:[90,280],hemi:.55,sun:0xffb066,sunI:1.15,ground:0x4a3b28,leaf:0x5a5a2a,part:null,slip:1,skyTop:0x59608f,skyBottom:0xeba15e,star:.1,sunA:1,terr:[1.22,1.02,.8],snow:0,water:0x6a5a58,ridge:[.4,.29,.27]},
     {id:'storm',label:'Storm',bg:0x2b3138,fog:[30,130],hemi:.38,sun:0x8d9db0,sunI:.22,ground:0x0f1114,leaf:0x1c2820,part:'rain',slip:.62,skyTop:0x1f252b,skyBottom:0x454e56,star:0,sunA:.05,terr:[.66,.74,.82],snow:0,water:0x1b3140,ridge:[.10,.12,.15]},
@@ -476,11 +476,11 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const PBRONLY=['roughness','metalness','normalMap','normalScale','roughnessMap','metalnessMap','envMap','envMapIntensity','clearcoat','flatShading'];
   /* Desktop gets the real thing back: physically based shading lit by a captured reflection of the world around the car
      (GFX below), so tarmac, metal, paint and glass pick up sky and sun highlights. Phones keep Lambert. */
-  const M=(c,o={})=>{const q=Object.assign({color:c},o);
+  const M=(c,o={})=>{const q=Object.assign({color:c},o),px=q.px;delete q.px;
     if(GFX.pbr){if(q.roughness==null)q.roughness=.86;if(q.metalness==null)q.metalness=0;q.envMapIntensity=q.envMapIntensity==null?GFX.envK:q.envMapIntensity;delete q.clearcoat;return new THREE.MeshStandardMaterial(q)}
-    PBRONLY.forEach(k=>delete q[k]);return new THREE.MeshLambertMaterial(q)};
+    PBRONLY.forEach(k=>delete q[k]);if(px&&!LOW){q.specular=0x000000;q.shininess=1;return new THREE.MeshPhongMaterial(q)}return new THREE.MeshLambertMaterial(q)};
   const paper=M(0xf2eee6),ink=M(0x15140f),bone=M(0xc9c2b4),red=M(0xb8322f),blue=M(0x2f4f9e),green=M(0x3f8a56),yellow=M(0xd9b23a),steel=M(0xa9a59d,{metalness:.45,roughness:.4}),gold=M(0xd4a83a,{metalness:.75,roughness:.28}),glow=new THREE.MeshBasicMaterial({color:0xf2eee6}),rubber=M(0x232220,{roughness:.95}),skin=M(0xe2b48f),tankM=M(0x2c5bd6),hairM=M(0x1d1915);
-  const groundM=M(0x1c1b18),roadM=M(0x57544d,{roughness:.88}),edgeM=M(0x81786a),skirtM=M(0x26241f,{side:THREE.DoubleSide}),leafM=M(0x33402c),trunkM=M(0x3a2c20);
+  const groundM=M(0x1c1b18),roadM=M(0x57544d,{roughness:.88,px:true}),edgeM=M(0x81786a,{px:true}),skirtM=M(0x26241f,{side:THREE.DoubleSide}),leafM=M(0x33402c),trunkM=M(0x3a2c20);
   /* ---------- physics ---------- */
   const world=new CANNON.World();world.gravity.set(0,-24,0);world.broadphase=new CANNON.SAPBroadphase(world);world.allowSleep=true;world.defaultContactMaterial.friction=.3;
   const gM=new CANNON.Material('g'),oM=new CANNON.Material('o');world.addContactMaterial(new CANNON.ContactMaterial(gM,oM,{friction:.5,restitution:.1}));
@@ -889,7 +889,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   function roadTex(){const W=256,H=512,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
     x.fillStyle='#303134';x.fillRect(0,0,W,H);const im=x.getImageData(0,0,W,H),d=im.data;
     for(let jj=0;jj<H;jj++)for(let ii=0;ii<W;ii++){const k=(jj*W+ii)*4,u=ii/W;
-      let n=(hash2(ii*1.73+.5,jj*1.31+.5)-.5)*22+(noise2(ii*.045,jj*.045)-.5)*16+(noise2(ii*.19,jj*.19)-.5)*7;
+      const tv=jj/H,sn=(f,o)=>noise2(ii*f+o,jj*f)*(1-tv)+noise2(ii*f+o,(jj-H)*f)*tv;   // tileable along the road: the texture repeats every stretch
+      let n=(hash2(ii*1.73+.5,jj*1.31+.5)-.5)*22+(sn(.045,0)-.5)*16+(sn(.19,0)-.5)*7;
       n-=(Math.exp(-((u-.27)**2)/.0035)+Math.exp(-((u-.73)**2)/.0035))*6;d[k]+=n;d[k+1]+=n;d[k+2]+=n+1}
     x.putImageData(im,0,0);
     x.fillStyle='rgba(236,232,222,.93)';x.fillRect(W*.045,0,W*.03,H);x.fillRect(W*(1-.045-.03),0,W*.03,H);
@@ -2925,12 +2926,12 @@ t.bd.position.set(x,y+.86,z);
    const sh=new THREE.Mesh(new THREE.PlaneGeometry(2.9,5.4).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}));
    sh.position.y=.05-(VEHS.car.rest-.07)-.02;sh.renderOrder=1;vis.car.add(sh);carShadow=sh;sh.visible=!R.shadowMap.enabled}
   /* real headlights once the light drops: one spot on the road ahead, no shadow */
-  let carHL=null;if(!LOW){carHL=new THREE.SpotLight(0xfff1d6,0,70,.52,.55,1.1);carHL.position.set(0,.1,2.3);carHL.target.position.set(0,-1.4,16);vis.car.add(carHL);vis.car.add(carHL.target)}
+  let carHL=null;if(!LOW){carHL=new THREE.SpotLight(0xfff1d6,0,120,.6,.95,1.0);carHL.position.set(0,.45,2.3);carHL.target.position.set(0,-1.1,38);vis.car.add(carHL);vis.car.add(carHL.target)}
   /* the lights switch: off means no spot and dark lamps, whatever the hour. (There used to be see-through
      beam cones in front of the car too; they read as a sheet of white air, so the spotlight alone lights the road.) */
   let lastNi=0;
   function applyLights(ni){if(ni!=null)lastNi=ni;const n=lightsOff?0:lastNi;
-    if(carHL)carHL.intensity=n;headM.emissiveIntensity=lightsOff?0:1+n*.5}
+    if(carHL)carHL.intensity=n*1.6;headM.emissiveIntensity=lightsOff?0:1+n*.5}
   /* ---------- the car you drive, up close ----------
      The builders hand out Phong materials shared with the traffic. The player's car gets its own physically based
      set on top: metallic paint under a clear coat, glass and chrome that mirror the live cube reflection of the
@@ -4885,7 +4886,7 @@ const F=chassisB.force,T=chassisB.torque;
       if(detailCache._road)return detailCache._road;
       const W=256,Hh=512,c=document.createElement('canvas');c.width=W;c.height=Hh;const x=c.getContext('2d'),img=x.createImageData(W,Hh),d=img.data;
       for(let j=0;j<Hh;j++)for(let i=0;i<W;i++){const u=i/W,rut=Math.exp(-Math.pow((u-.33)/.06,2))+Math.exp(-Math.pow((u-.67)/.06,2));
-        const n=fbm2(i*.05+j*.002,j*.012)*.3+Math.random()*.18;let g=(.62+n-.12+rut*.1)*255;const k=(j*W+i)*4;d[k]=d[k+1]=d[k+2]=Math.max(0,Math.min(255,g));d[k+3]=255}
+        const tv=j/Hh,n=(fbm2(i*.05+j*.002,j*.012)*(1-tv)+fbm2(i*.05+(j-Hh)*.002,(j-Hh)*.012)*tv)*.3+Math.random()*.18;let g=(.62+n-.12+rut*.1)*255;const k=(j*W+i)*4;d[k]=d[k+1]=d[k+2]=Math.max(0,Math.min(255,g));d[k+3]=255}
       x.putImageData(img,0,0);const map=new THREE.CanvasTexture(c);map.wrapS=map.wrapT=THREE.RepeatWrapping;map.anisotropy=8;
       const a=document.createElement('canvas');a.width=256;a.height=4;const ax=a.getContext('2d'),gr=ax.createLinearGradient(0,0,256,0);
       gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(.2,'#fff');gr.addColorStop(.8,'#fff');gr.addColorStop(1,'rgba(255,255,255,0)');
@@ -6939,7 +6940,10 @@ const PLANETS={
      if(wxB.id==='storm'){ltT-=dt;if(ltT<=0){ltT=2.5+Math.random()*7;flashV=1;thunderAt=now+300+Math.random()*1800}}
      if(flashV>0){flashV=Math.max(0,flashV-dt*(flashV>.6?3:2.2));if(flashV<.35&&Math.random()<.35)flashV=Math.min(1,flashV+.5*Math.random())}
      if(thunderAt&&now>=thunderAt){thunderAt=0;thud(.9)}
-     hemi.intensity+=((hemi0*GFX.hk*lt+flashV*1.5)-hemi.intensity)*(flashV>.02?.7:e);sun.intensity+=(sunI0*GFX.sk*Math.min(1.25,lt)-sun.intensity)*e}
+     hemi.intensity+=((Math.max(.24,hemi0*GFX.hk*lt)+flashV*1.5)-hemi.intensity)*(flashV>.02?.7:e);sun.intensity+=(sunI0*GFX.sk*Math.min(1.25,lt)-sun.intensity)*e}
+    /* no hard shadows from moonlight or a storm-dimmed sun: under a weak light a wall's shadow came out as a black slab
+       across the road. Shadows return as soon as the light is strong enough (hysteresis so it doesn't flicker). */
+    if(!LOW&&frameN%20===0){const want=sun.castShadow?sun.intensity>.46:sun.intensity>.56;if(want!==sun.castShadow){sun.castShadow=want;sun.shadow.needsUpdate=true}}
     /* the car's own shadow has to be redrawn every frame while it moves, or it trails behind the car and jumps when
        the map is next refreshed; a parked car only needs the slower refresh. The lowest quality tier halves it. */
     if(R.shadowMap.enabled){const se=ULTRA.shEvery,moving=chassisB.velocity.length()>.4||Math.abs(chassisB.angularVelocity.y)>.05,every=moving?(qTier>=2?3:1):se;
@@ -7062,7 +7066,7 @@ const PLANETS={
       d[k]+=n;d[k+1]+=n;d[k+2]+=n+1}
     x.putImageData(im,0,0);x.fillStyle='rgba(240,238,232,.95)';x.fillRect(W*.012,0,W*.022,H);x.fillRect(W*(1-.012-.022),0,W*.022,H);
     const t=new THREE.CanvasTexture(c);t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;t.__shared=true;if('encoding' in t&&THREE.sRGBEncoding)t.encoding=THREE.sRGBEncoding;   // read as sRGB: linear, the dark asphalt came out pale grey
-    circRoadM=M(0xffffff,{roughness:.86});circRoadM.map=t;return circRoadM}
+    circRoadM=M(0xffffff,{roughness:.86,px:true});circRoadM.map=t;return circRoadM}
   /* ---------- trackside textures (small canvases, tiled; built once per circuit) ---------- */
   const hexCss=h=>'#'+new THREE.Color(h).getHexString();
   function texFinish(c,rx,ry,srgb){const t=new THREE.CanvasTexture(c);t.wrapS=rx?THREE.RepeatWrapping:THREE.ClampToEdgeWrapping;t.wrapT=ry?THREE.RepeatWrapping:THREE.ClampToEdgeWrapping;
@@ -7627,7 +7631,7 @@ const PLANETS={
     BT('terrain');
     const gy=(x,z)=>CIRC_Y+visH(x,z);                 // where props sit: the visual ground (ELEV venues are lifted by the settle pass later)
     roadStrip.userData.onTrack=edgeStrip.userData.onTrack=true;
-    const shoulderM=M(theme.id==='snow'?0x6a6e74:0x4a4c51,{roughness:.93});ownedMats.push(shoulderM);const runoff=circStrip(curve,RN,CIRC_W+4,.035,shoulderM,rep,hRoad);runoff.receiveShadow=true;runoff.name='runoff';root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
+    const shoulderM=M(theme.id==='snow'?0x6a6e74:0x4a4c51,{roughness:.93,px:true});ownedMats.push(shoulderM);const runoff=circStrip(curve,RN,CIRC_W+4,.035,shoulderM,rep,hRoad);runoff.receiveShadow=true;runoff.name='runoff';root.add(runoff);runoff.userData.fixedY=runoff.userData.onTrack=true;
     const curbRed=M(kerbOf(theme),{roughness:.75}),curbWhite=M(0xf2f2f0,{roughness:.8});ownedMats.push(curbRed,curbWhite);
     /* kerbs: red/white stripes ~1.75 m long, on corners only (inside and outside), flush with the tarmac edge */
     const KN=RN,KL=TL/KN,curbGeo=new THREE.BoxGeometry(1.6,.09,KL+.02);
@@ -7822,7 +7826,7 @@ const PLANETS={
         const fo=flatMesh(fPos,fUv,fIdx,fm);fo.name='catch-fence';fo.castShadow=false}
       if(tn){tyreIM.count=tn;tyreIM.instanceMatrix.needsUpdate=true;if(tyreIM.instanceColor)tyreIM.instanceColor.needsUpdate=true;root.add(tyreIM)}
       /* run-off tarmac out to the barrier and a mown verge beyond it, one ribbon round the lap (skipped on raised sections) */
-      {const HW=CIRC_W/2+BARRIER_OFF+3.4,RV=Math.max(CN,Math.min(1600,Math.round(TL/2.5))),vp=[],vu=[],vi=[],rv=TL/16,bk=.7/(2*HW),vm=M(0xffffff,{roughness:1});
+      {const HW=CIRC_W/2+BARRIER_OFF+3.4,RV=Math.max(CN,Math.min(1600,Math.round(TL/2.5))),vp=[],vu=[],vi=[],rv=TL/16,bk=.7/(2*HW),vm=M(0xffffff,{roughness:1,px:true});
         vm.map=vergeTex(theme,HW,CIRC_W/2,CIRC_W/2+BARRIER_OFF);vm.polygonOffset=true;vm.polygonOffsetFactor=-1;vm.polygonOffsetUnits=-1;ownedMats.push(vm);
         let prevOk=false;
         for(let i=0;i<=RV;i++){const u=i/RV,{p,n}=circAt(u,curve);if(!isFinite(p.x)||!isFinite(n.x)||!isFinite(p.z)){prevOk=false;vp.push(0,0,0,0,0,0,0,0,0,0,0,0);vu.push(0,0,0,0,0,0,0,0);continue}
