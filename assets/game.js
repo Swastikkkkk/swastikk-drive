@@ -143,7 +143,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let W=sec.clientWidth,H=sec.clientHeight,active=false,driving=false,muted=false;
   const TOUCH=typeof window.TOUCH_UI==='boolean'?window.TOUCH_UI:(matchMedia('(pointer:coarse)').matches||!matchMedia('(hover:hover)').matches),LOW=TOUCH;   // phones/tablets only (see settings.js)
   /* ---------- graphics level ---------- */
-  const GFX={pbr:!LOW,envK:.3,hk:1,sk:1,fx:null};
+  const GFX={pbr:!LOW,envK:.3,hk:1,sk:1,fx:null,spd:0,nit:0};
   /* custom shaders write display colours straight out; inside the post pipeline the frame is linear until the grade,
      so these convert back to linear while it is on (otherwise the sky and stars come out washed and milky) */
   const LINOUT={value:0};
@@ -201,7 +201,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
        all on the next frame, a freeze of half a second or more each time auto quality stepped. Lower tiers keep
        the shadow but with a smaller map that refreshes less often, which costs nothing to switch. */
     if(sun&&!LOW){const sz=t>=2?1024:t===1?2048:4096;if(sun.shadow.mapSize.x!==sz){sun.shadow.mapSize.set(sz,sz);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null}}sun.shadow.needsUpdate=true}
-    ULTRA.shEvery=c.shEvery;if(GFX.fx){GFX.fx.on=t<2;GFX.fx.bloom.enabled=t===0}
+    ULTRA.shEvery=c.shEvery;if(GFX.fx){GFX.fx.on=t<2;GFX.fx.bloom.enabled=t===0;if(GFX.fx.ao)GFX.fx.ao.on=t===0}
     if(SCN.grass)SCN.grass.visible=!c.lite;if(SCN.dust)SCN.dust.visible=!c.lite;
   }
   /* performance readout: the backquote key (left of 1) shows fps, the quality tier and what the frame draws */
@@ -289,12 +289,18 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(rt.samples!==undefined)rt.samples=4;
     const comp=new THREE.EffectComposer(R,rt),rp=new THREE.RenderPass(S,C);comp.addPass(rp);
     const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(Math.max(1,sz.x>>1),Math.max(1,sz.y>>1)),.32,.55,.86);comp.addPass(bloom);
-    const grade=new THREE.ShaderPass({uniforms:{tDiffuse:{value:null},uVig:{value:.32},uSat:{value:1.16},uCon:{value:1.12},uRes:{value:new THREE.Vector2(sz.x,sz.y)}},
+    const grade=new THREE.ShaderPass({uniforms:{tDiffuse:{value:null},tAO:{value:null},uAO:{value:0},uSpd:{value:0},uVig:{value:.32},uSat:{value:1.16},uCon:{value:1.12},uRes:{value:new THREE.Vector2(sz.x,sz.y)},uAORes:{value:new THREE.Vector2(1,1)}},
       vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
       fragmentShader:[
-        'uniform sampler2D tDiffuse;uniform float uVig,uSat,uCon;uniform vec2 uRes;varying vec2 vUv;',
+        'uniform sampler2D tDiffuse,tAO;uniform float uVig,uSat,uCon,uAO,uSpd;uniform vec2 uRes,uAORes;varying vec2 vUv;',
         'vec3 toSRGB(vec3 c){c=max(c,0.0);return mix(c*12.92,1.055*pow(c,vec3(1.0/2.4))-.055,step(.0031308,c));}',
-        'void main(){vec2 px=1.0/uRes;vec3 c=texture2D(tDiffuse,vUv).rgb;',
+        'void main(){vec2 px=1.0/uRes;vec2 q0=vUv-.5;float e=dot(q0,q0);',
+        ' vec3 c=texture2D(tDiffuse,vUv).rgb;',
+        // speed: radial streaks towards the edges (the centre, where you look, stays sharp) and a little lens fringing
+        ' if(uSpd>.01){float k=uSpd*smoothstep(.04,.5,e)*.035;vec3 acc=c;for(int i=1;i<7;i++){float t=float(i)/6.0;acc+=texture2D(tDiffuse,vUv-q0*k*t).rgb;}c=acc/7.0;',
+        '  float ca=uSpd*e*.006;c.r=mix(c.r,texture2D(tDiffuse,vUv+q0*ca).r,.8);c.b=mix(c.b,texture2D(tDiffuse,vUv-q0*ca).b,.8);}',
+        // contact shadows: ambient occlusion, softened with a small cross blur
+        ' if(uAO>0.0){vec2 ap=1.0/uAORes;float ao=texture2D(tAO,vUv).r*.4+(texture2D(tAO,vUv+vec2(ap.x,0.)).r+texture2D(tAO,vUv-vec2(ap.x,0.)).r+texture2D(tAO,vUv+vec2(0.,ap.y)).r+texture2D(tAO,vUv-vec2(0.,ap.y)).r)*.15;c*=mix(1.0,ao,uAO);}',
         ' vec3 b=(texture2D(tDiffuse,vUv+vec2(px.x,0.)).rgb+texture2D(tDiffuse,vUv-vec2(px.x,0.)).rgb+texture2D(tDiffuse,vUv+vec2(0.,px.y)).rgb+texture2D(tDiffuse,vUv-vec2(0.,px.y)).rgb)*.25;',
         ' c=max(c+(c-b)*.35,0.0);',                                   // light sharpen, keeps edges crisp after MSAA
         ' c=toSRGB(c);c=max(c-.018,0.0)/.982;float l=dot(c,vec3(.2126,.7152,.0722));',
@@ -303,7 +309,33 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
         ' vec2 q=vUv-.5;c*=1.0-uVig*smoothstep(.25,.95,dot(q,q)*2.2);',
         ' gl_FragColor=vec4(clamp(c,0.0,1.0),1.0);}'].join('\n')});
     comp.addPass(grade);
-    GFX.fx={comp,rp,bloom,grade,on:true,w:0,h:0,pr:0};
+    /* ambient occlusion (top quality only): a half-res depth-only pass of the scene, then an AO estimate from that
+       depth (view positions and normals rebuilt per pixel). Darkens where surfaces meet: tyres on tarmac, the car's
+       underside, kerbs, walls, under trees. Costs one cheap extra geometry pass. */
+    let ao=null;
+    if(R.capabilities.isWebGL2||R.extensions.get('WEBGL_depth_texture')){
+      const dT=new THREE.DepthTexture(1,1);dT.type=THREE.UnsignedIntType;
+      const dRT=new THREE.WebGLRenderTarget(1,1,{depthTexture:dT,depthBuffer:true,minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter});
+      const aRT=new THREE.WebGLRenderTarget(1,1,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat});
+      const dOnly=new THREE.MeshBasicMaterial({colorWrite:false});
+      const aoM=new THREE.ShaderMaterial({uniforms:{tD:{value:dT},uPInv:{value:new THREE.Matrix4()},uP11:{value:1},uRes:{value:new THREE.Vector2(1,1)},uRad:{value:1.2},uInt:{value:1.45}},
+        extensions:{derivatives:true},depthTest:false,depthWrite:false,
+        vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
+        fragmentShader:[
+          'uniform sampler2D tD;uniform mat4 uPInv;uniform float uP11,uRad,uInt;uniform vec2 uRes;varying vec2 vUv;',
+          'vec3 vp(vec2 uv){float d=texture2D(tD,uv).x;vec4 v=uPInv*vec4(uv*2.0-1.0,d*2.0-1.0,1.0);return v.xyz/v.w;}',
+          'float rnd(vec2 c){return fract(sin(dot(c,vec2(12.9898,78.233)))*43758.5453);}',
+          'void main(){float d0=texture2D(tD,vUv).x;if(d0>.99995){gl_FragColor=vec4(1.0);return;}',
+          ' vec3 p=vp(vUv);vec3 n=normalize(cross(dFdx(p),dFdy(p)));',
+          ' float rpx=uRad*uP11*.5*uRes.y/max(.2,-p.z);rpx=min(rpx,uRes.y*.12);',
+          ' float a0=rnd(gl_FragCoord.xy)*6.2832,occ=0.0;',
+          ' for(int i=0;i<12;i++){float t=(float(i)+.5)/12.0,a=a0+float(i)*2.39996;vec2 o=vec2(cos(a),sin(a))*t*rpx/uRes;',
+          '  vec3 v=vp(vUv+o)-p;float vv=dot(v,v);occ+=max(0.0,dot(n,v)/sqrt(vv+1e-4)-.12)*(1.0-smoothstep(uRad*uRad*.4,uRad*uRad*2.2,vv));}',
+          ' float a=clamp(1.0-uInt*occ/12.0*1.6,0.0,1.0);gl_FragColor=vec4(a,a,a,1.0);}'].join('\n')});
+      const aoS=new THREE.Scene(),aoC=new THREE.OrthographicCamera(-1,1,1,-1,0,1);aoS.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),aoM));
+      ao={dRT,aRT,dOnly,aoM,aoS,aoC,on:true,w:0,h:0};
+    }
+    GFX.fx={comp,rp,bloom,grade,ao,on:true,w:0,h:0,pr:0,spd:0};
   }catch(e){GFX.fx=null}}
   function drawMain(scene,cam){
     const F=GFX.fx;
@@ -311,6 +343,18 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(!F||!F.on){R.render(scene,cam);return}
     const pr=R.getPixelRatio(),w=W,h=H;
     if(F.w!==w||F.h!==h||F.pr!==pr){F.w=w;F.h=h;F.pr=pr;F.comp.setPixelRatio(pr);F.comp.setSize(w,h);F.grade.uniforms.uRes.value.set(w*pr,h*pr)}
+    F.spd+=((F.on?Math.min(1,Math.max(0,(GFX.spd-14)/40)+GFX.nit*.6):0)-F.spd)*.12;GFX.spd*=.85;GFX.nit*=.85;
+    F.grade.uniforms.uSpd.value=F.spd>.01?F.spd:0;
+    const A=F.ao;
+    if(A&&A.on&&scene===S){const aw=Math.max(1,(w*pr)>>1),ah=Math.max(1,(h*pr)>>1);
+      if(A.w!==aw||A.h!==ah){A.w=aw;A.h=ah;A.dRT.setSize(aw,ah);A.aRT.setSize(aw,ah);A.aoM.uniforms.uRes.value.set(aw,ah);F.grade.uniforms.uAORes.value.set(aw,ah)}
+      const prevT=R.getRenderTarget(),bg=scene.background,ov=scene.overrideMaterial,sa=R.shadowMap.autoUpdate;
+      R.shadowMap.autoUpdate=false;scene.background=null;scene.overrideMaterial=A.dOnly;R.setRenderTarget(A.dRT);R.clear();R.render(scene,cam);
+      scene.overrideMaterial=ov;scene.background=bg;R.shadowMap.autoUpdate=sa;
+      A.aoM.uniforms.uPInv.value.copy(cam.projectionMatrixInverse);A.aoM.uniforms.uP11.value=cam.projectionMatrix.elements[5];
+      R.setRenderTarget(A.aRT);R.render(A.aoS,A.aoC);R.setRenderTarget(prevT);
+      F.grade.uniforms.tAO.value=A.aRT.texture;F.grade.uniforms.uAO.value=.85}
+    else F.grade.uniforms.uAO.value=0;
     F.rp.scene=scene;F.rp.camera=cam;F.comp.render()}
   /* image lighting: the reflection cube already captured round the car is prefiltered into a proper environment
      (rough surfaces get blurred sky, shiny ones a sharp reflection) and lights every PBR material in the world */
@@ -743,6 +787,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const terrainM=LOW?new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:grainTex(160,.07,Math.round(120*MK*LAND),.55)})
     :antiTile(new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.96,metalness:0,map:bladeTex(512,Math.round(70*MK*LAND)),normalMap:reliefTex(256,Math.round(480*MK*LAND)),normalScale:new THREE.Vector2(.55,.55)}));
   if(!LOW&&terrainM.map){terrainM.map.anisotropy=16;if('encoding' in terrainM.map)terrainM.map.encoding=THREE.LinearEncoding}
+  /* Desktop: ground detail from a photo scan (Poly Haven "leafy_grass", CC0): its brightness becomes the detail map
+     (the terrain's vertex colours still decide grass, dirt and rock) and its normal map gives real blade/clump relief */
+  if(GFX.pbr&&terrainM.map){
+    new THREE.TextureLoader().load('assets/tex/leafy_grass_nor_gl.jpg',t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=16;terrainM.normalMap=t;terrainM.normalScale=new THREE.Vector2(.8,.8);terrainM.needsUpdate=true})}
   const HF=(function(){
     const nx=Math.round(WS*2/ES)+1,nz=nx,minX=-WS,maxZ=WS;
     const data=[],slope=new Float32Array(nx*nz);
@@ -827,7 +875,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
      Asphalt is painted once into a texture: dark aggregate, faint wear in the wheel tracks,
      solid edge lines and a dashed centre line baked in, so the markings are crisp at any
      distance instead of being a scatter of floating quads. */
-  const ROAD_REP=Math.round(curve.getLength()/(12+RWX*4));
+  const ROAD_REP=Math.round(curve.getLength()/(12+RWX*4));let roadMB_=()=>null;
   function roadTex(){const W=256,H=512,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
     x.fillStyle='#303134';x.fillRect(0,0,W,H);const im=x.getImageData(0,0,W,H),d=im.data;
     for(let jj=0;jj<H;jj++)for(let ii=0;ii<W;ii++){const k=(jj*W+ii)*4,u=ii/W;
@@ -860,12 +908,43 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
     const m=new THREE.Mesh(g,mat);m.receiveShadow=true;S.add(m);return m}
   roadM.color.setHex(0xffffff);roadM.map=roadTex();edgeM.color.setHex(0x6d685e);
+  /* Desktop: the asphalt is a photo scan (Poly Haven "asphalt_track", CC0) tiled at true scale (~3.2 m a tile),
+     with matching normal and roughness so aggregate catches the sun, the wheel tracks polish and wet weather glints.
+     The markings are painted over it as before. Laid out in one 1024x2048 sheet = one 12.6 x 25.6 m stretch of road,
+     so every map shares the road's UVs. Loads after the world is up; the painted texture holds until then. */
+  if(GFX.pbr&&roadM.isMeshStandardMaterial){
+    const RW_=1024,RH_=2048,TL=256,mk=()=>{const c=document.createElement('canvas');c.width=RW_;c.height=RH_;return c};
+    const nC=mk(),rC=mk(),nx=nC.getContext('2d'),rx=rC.getContext('2d');nx.fillStyle='rgb(128,128,255)';nx.fillRect(0,0,RW_,RH_);rx.fillStyle='rgb(200,200,200)';rx.fillRect(0,0,RW_,RH_);
+    const nT=new THREE.CanvasTexture(nC),rT=new THREE.CanvasTexture(rC);[nT,rT].forEach(t=>{t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;t.anisotropy=16});
+    roadM.normalMap=nT;roadM.normalScale=new THREE.Vector2(.9,.9);roadM.roughnessMap=rT;roadM.roughness=1;roadM.metalness=0;roadM.needsUpdate=true;
+    const img=src=>new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=src});
+    const tile=(x,i)=>{for(let y=0;y<RH_;y+=TL)for(let xx=0;xx<RW_;xx+=TL)x.drawImage(i,xx,y,TL,TL)};
+    const lines=(x,st)=>{x.fillStyle=st;x.fillRect(RW_*.045,0,RW_*.03,RH_);x.fillRect(RW_*(1-.045-.03),0,RW_*.03,RH_);for(let k=0;k<2;k++)x.fillRect(RW_*.488,RH_*(k*.5+.12),RW_*.024,RH_*.25)};
+    Promise.all(['diff','nor_gl','rough'].map(k=>img('assets/tex/asphalt_track_'+k+'.jpg'))).then(([dI,nI,rI])=>{
+      const c=roadM.map.image.width===RW_?roadM.map.image:mk(),x=c.getContext('2d');tile(x,dI);
+      const im=x.getImageData(0,0,RW_,RH_),d=im.data;
+      // large-scale life, seamless along the road: resurfaced patches, stains, rubbered-in wheel tracks, dusty edges
+      const smoothstep=(a,b,x)=>{x=Math.min(1,Math.max(0,(x-a)/(b-a)));return x*x*(3-2*x)},per=(i,j,f,R)=>{const a=j/RH_*6.2832;return noise2(i*f+Math.cos(a)*R,Math.sin(a)*R)};
+      for(let j=0;j<RH_;j++)for(let i=0;i<RW_;i++){const k=(j*RW_+i)*4,u=i/RW_;
+        const tr=Math.exp(-((u-.27)**2)/.0045)+Math.exp(-((u-.73)**2)/.0045),edge=Math.max(0,1-Math.min(u,1-u)/.1);
+        const big=per(i,j,.004,3.1),mid=per(i+500,j,.016,9.0),patch=smoothstep(.62,.66,per(i+900,j,.006,4.4));
+        let m=(1-tr*.2)*(.9+big*.14)*(.985+mid*.03)*(1-patch*.14);
+        m*=1+edge*.18;
+        d[k]=Math.min(255,d[k]*1.42*m+edge*6);d[k+1]=Math.min(255,d[k+1]*1.58*m+edge*5);d[k+2]=Math.min(255,d[k+2]*1.78*m+edge*3)}
+      x.putImageData(im,0,0);lines(x,'rgba(232,229,220,.9)');
+      tile(nx,nI);tile(rx,rI);
+      rx.globalCompositeOperation='multiply';[.27,.73].forEach(u=>{const g=rx.createLinearGradient(RW_*(u-.09),0,RW_*(u+.09),0);g.addColorStop(0,'#fff');g.addColorStop(.5,'#c4c4c4');g.addColorStop(1,'#fff');rx.fillStyle=g;rx.fillRect(RW_*(u-.09),0,RW_*.18,RH_)});
+      rx.globalCompositeOperation='source-over';lines(rx,'rgb(150,150,150)');
+      const t=new THREE.CanvasTexture(c);t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;t.anisotropy=16;
+      [roadM,roadMB_()].forEach(m=>{if(!m)return;m.map=t;m.normalMap=nT;m.roughnessMap=rT;m.needsUpdate=true});nT.needsUpdate=rT.needsUpdate=true;
+    }).catch(()=>{});
+  }
   edgeM.map=grainTex(64,.12,1,.6);edgeM.map.repeat.set(3,1);
   strip(7.6+RWX*2,.04,edgeM);strip(5.8+RWX*2,.09,roadM);
   /* the branch starts on top of the main loop and crosses the ring road at the yard, at the same height as both:
      drawn with the same materials the two surfaces fought for every pixel and the junction flickered black and
      white. Its own copies are pushed back in depth, so wherever they overlap the other road simply wins. */
-  const roadMB=roadM.clone(),edgeMB=edgeM.clone();[roadMB,edgeMB].forEach(m=>{m.polygonOffset=true;m.polygonOffsetFactor=2;m.polygonOffsetUnits=4});
+  const roadMB=roadM.clone(),edgeMB=edgeM.clone();roadMB_=()=>roadMB;[roadMB,edgeMB].forEach(m=>{m.polygonOffset=true;m.polygonOffsetFactor=2;m.polygonOffsetUnits=4});
   stripB(7+RWX*1.6,.04,edgeMB);stripB(5.2+RWX*1.6,.09,roadMB);
   /* Armco along both sides of the summit climb, posts every few metres, laid on the slope so the rail follows the
      road up instead of stepping. Each piece has a tall invisible wall behind it that the car glances off, so the
@@ -6735,6 +6814,7 @@ const PLANETS={
       const st0=veh.wheelInfos[0]?veh.wheelInfos[0].steering:0;
       camRoll+=(-st0*Math.min(1,sp/16)*.085-camRoll)*(1-Math.exp(-dt*5));
       if(Math.abs(camRoll)>.0005)C.rotateZ(camRoll);
+      GFX.spd=sp;GFX.nit=NITRO.amt;
       const tf=CAMS[camMode].fov+Math.min(10,sp*.35)-ce*2.6+NITRO.amt*7;   // nitro: the view stretches a little
       if(Math.abs(C.fov-tf)>.02){C.fov+=(tf-C.fov)*(1-Math.exp(-dt*3.2));C.updateProjectionMatrix()}}
     else if(recapCam){
