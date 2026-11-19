@@ -94,6 +94,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     {id:'skyline',label:'Skyline GTR',type:'car',blurb:'Godzilla, AWD legend',mass:180,F:2.2,B:-2.1,W:1.9,price:500,
      V:{brake:1.1,engine:880,max:41,slip:3.0,xw:1.05,zf:1.3,zb:-1.3,r:.42,rest:.4,steer:.6,roll:.02},
      paints:[0x0066cc,0x1a1a2e,0xd9d4c6,0xffd700]},
+    {id:'conceptgt',label:'Concept GT',type:'car',blurb:'Free · photoreal concept coupe, full interior',mass:172,F:2.3,B:-1.98,W:2.2,price:0,
+     V:{brake:1.25,engine:1000,max:45,slip:3.2,xw:.975,zf:1.4,zb:-1.4,r:.38,rest:.36,steer:.62,roll:.015},
+     paints:[0x8c0b1a,0x111114,0xe9e6df,0x23395e,0x5b5f66,0xc9a227]},
     {id:'truck',label:'Titan Hauler',type:'truck',blurb:'Heavy hauler, 18-wheeler',mass:450,F:3.0,B:-4.0,W:2.5,wagon:true,price:800,
      V:{brake:0.55,engine:900,max:20,slip:3.5,xw:1.4,zf:2.0,zb:-2.0,r:.6,rest:.6,steer:.35,roll:.04},
      paints:[0xb3202a,0xf2f2ee,0x1d4f91,0x2d4a22,0x1a1a2e,0xd4a843]},
@@ -3058,6 +3061,51 @@ t.bd.position.set(x,y+.86,z);
     m.traverse(x=>{if(!x.isMesh)return;x.geometry=x.geometry.clone();const one=q=>q&&q.name==='red'?paint:q.clone();x.material=Array.isArray(x.material)?x.material.map(one):one(x.material)});
     body.add(m);const lm=c=>new THREE.MeshLambertMaterial({color:c});
     return {g,body,wheels:[],tail:new THREE.MeshLambertMaterial({color:0xff3b30,emissive:0xff2a20,emissiveIntensity:.5}),paint,rev:lm(0xdedede)}}
+  /* Concept GT: "Car Concept" by Eric Chadwick, (c) 2024 Darmstadt Graphics Group GmbH, CC BY 4.0 (Khronos glTF sample
+     assets; credits in assets/models/CREDITS.txt). ~105k triangles with a full interior, compressed to ~1.8 MB and only
+     downloaded when someone picks it. Its own rims, tyres and brake discs become the game's spinning wheels; the body is
+     fitted so its axles sit on the physics axles. Glass is plain tinted glass (the file's transmission would cost a
+     second render of the scene). */
+  const CONM={tpl:null,wheel:null,loading:false};
+  function loadConcept(){if(CONM.loading||CONM.tpl)return;CONM.loading=true;
+    try{const L=new THREE.GLTFLoader();if(window.MeshoptDecoder&&L.setMeshoptDecoder)L.setMeshoptDecoder(window.MeshoptDecoder);
+    L.load('assets/models/concept.glb',g=>{const sc=g.scene;sc.updateMatrixWorld(true);
+      /* the file stores positions as packed integers; this three.js reads those raw when it computes bounds and
+         raycasts, so the car measured 70 km long (camera far away, no culling). Unpack them to plain floats. */
+      const den={Int8Array:127,Uint8Array:255,Int16Array:32767,Uint16Array:65535};
+      sc.traverse(x=>{if(!x.isMesh||!x.geometry)return;const at=x.geometry.attributes.position;if(!at||at.array instanceof Float32Array)return;
+        const n=at.count,f=new Float32Array(n*3),dv=at.normalized?(den[at.array.constructor.name]||1):1,isz=at.itemSize;
+        for(let i=0;i<n;i++){f[i*3]=at.getX(i)/dv;f[i*3+1]=at.getY(i)/dv;f[i*3+2]=at.getZ(i)/dv}
+        x.geometry.setAttribute('position',new THREE.BufferAttribute(f,3));x.geometry.computeBoundingBox();x.geometry.computeBoundingSphere()});
+      sc.updateMatrixWorld(true);
+      const W4=['WheelFrontL','WheelFrontR','WheelRearL','WheelRearR'].map(n=>sc.getObjectByName(n));if(W4.some(x=>!x))return;
+      const c=W4.map(o=>new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()));
+      const fw=c[0].clone().add(c[1]).multiplyScalar(.5),bw=c[2].clone().add(c[3]).multiplyScalar(.5),wb=fw.distanceTo(bw);
+      const spec=GARAGE.find(q=>q.id==='conceptgt'),v=spec.V,k=(v.zf-v.zb)/wb;
+      // wheel template from the rear left (the fronts are modelled steered): rim, tyre, disc; axle along x, radius 1
+      const rl=W4[2],wt=new THREE.Group();let wr=.36;
+      rl.children.forEach(ch=>{if(/pad/i.test(ch.name||''))return;const m=ch.clone(true);m.matrix.copy(ch.matrix);m.matrix.decompose(m.position,m.quaternion,m.scale);wt.add(m)});
+      {const bb=new THREE.Box3().setFromObject(wt),sz=bb.getSize(new THREE.Vector3());wr=Math.max(sz.y,sz.z)/2;const cc=bb.getCenter(new THREE.Vector3());wt.children.forEach(m=>m.position.sub(cc))}
+      const wheel=new THREE.Group();wheel.add(wt);wt.scale.setScalar(1/wr);wheel.traverse(x=>{if(x.isMesh){x.castShadow=true;x.receiveShadow=true}});
+      // body: everything but the wheels
+      W4.forEach(w=>w.parent&&w.parent.remove(w));
+      const yaw=Math.atan2(fw.x-bw.x,fw.z-bw.z),mid=fw.clone().add(bw).multiplyScalar(.5),inner=new THREE.Group(),rot=new THREE.Group(),piv=new THREE.Group();
+      inner.add(sc);inner.position.copy(mid).negate();rot.add(inner);rot.rotation.y=-yaw;piv.add(rot);piv.scale.setScalar(k);piv.position.y=v.r;   // wheel centres at wheel-radius height: car bodies stand on the ground at y=0
+      piv.traverse(x=>{if(!x.isMesh)return;const n=x.name||'';x.castShadow=/^Body/.test(n)&&!/Interior|Window|Windshield/.test(n);x.receiveShadow=true;
+        const fix=mm=>{if(!mm)return mm;if(mm.transmission>0||/glass/i.test(mm.name||'')){const gm=new THREE.MeshPhysicalMaterial({color:0x0d1013,metalness:0,roughness:.04,transparent:true,opacity:.42,depthWrite:false,clearcoat:1,clearcoatRoughness:.02,envMapIntensity:1.4});gm.name='Glass';return gm}return mm};
+        x.material=Array.isArray(x.material)?x.material.map(fix):fix(x.material)});
+      CONM.tpl=piv;CONM.wheel=wheel;
+      if(curCarId==='conceptgt'){try{const s2=JSON.parse(localStorage.getItem('sl_car')||'null');setCar('conceptgt',s2&&s2.paint,true)}catch(e){setCar('conceptgt',null,true)}}
+      if(window.__garageRefresh)window.__garageRefresh()},undefined,()=>{CONM.loading=false})}catch(e){CONM.loading=false}}
+  function conceptBody(o){const g=new THREE.Group(),body=new THREE.Group();g.add(body);const m=CONM.tpl.clone(true);
+    const pc=new THREE.Color(o.paint!=null?o.paint:0x8c0b1a);let paint=null,tail=null;
+    m.traverse(x=>{if(!x.isMesh)return;const one=q=>{if(!q)return q;const n=q.name||'';
+        if(/^Paint 1/i.test(n)){if(!paint){paint=q.clone();paint.color.copy(pc);if(paint.iridescence)paint.iridescence=0}return paint}
+        if(/brakelight/i.test(n)){if(!tail){tail=q.clone();tail.emissive=tail.emissive||new THREE.Color(0xff2a20);if(!tail.emissive.getHex())tail.emissive.setHex(0xff2a20);tail.emissiveIntensity=.55}return tail}
+        return q};
+      x.material=Array.isArray(x.material)?x.material.map(one):one(x.material)});
+    body.add(m);const lm=c=>new THREE.MeshLambertMaterial({color:c});
+    return {g,body,wheels:[],tail:tail||new THREE.MeshLambertMaterial({color:0xff3b30,emissive:0xff2a20,emissiveIntensity:.55}),paint:paint||new THREE.MeshStandardMaterial({color:pc}),rev:lm(0xdedede)}}
   const FACETEX={src:null,tex:null};
   function faceTex(src){if(FACETEX.src===src&&FACETEX.tex)return FACETEX.tex;const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');
     const t=new THREE.CanvasTexture(c);if('encoding' in t)t.encoding=THREE.sRGBEncoding;t.anisotropy=8;FACETEX.src=src;FACETEX.tex=t;
@@ -3088,6 +3136,7 @@ t.bd.position.set(x,y+.86,z);
     if(spec.id==='custom'&&spec.kind==='face')return faceBody(o,spec);
     if(spec.type==='f1'&&window.F1Car)return F1Car.build({primary:o.paint!=null?o.paint:0xdc143c,secondary:spec.livery?spec.livery[0]:0x111111,accent:spec.livery?spec.livery[1]:0xf2f2f2,zf:o.zf,zb:o.zb,r:o.r,noWheels:true});   // the modern F1 car (assets/f1car.js)
     if(spec.type==='f1'&&F1M.tpl)return f1ModelBody(o);
+    if(spec.id==='conceptgt'){if(CONM.tpl)return conceptBody(o);loadConcept()}   // until the model arrives it drives as a generic coupe
     if(spec.id==='custom'){if(spec.kind==='model'&&CUSTOM.model)return customModelBody(o);spec=Object.assign({},spec,{id:spec.buildAs||'outlaw'})}
     // lofted bodies (assets/vehicles.js) for every model it knows; the EVs and the F1 keep their own builders
     if (window.VehicleKit && window.VehicleKit.has(spec.id)) {
@@ -3145,6 +3194,7 @@ t.bd.position.set(x,y+.86,z);
     wv={car:Array.from({length:nW},(_,i)=>makeWheel(V.r,wheelWd,i%2?-1:1,true,true))};
     wv.car.forEach(k=>vis.car.add(k.w));
     if(spec.ownWheels&&CUSTOM.model)wv.car.forEach(k=>{k.w.visible=false;k.w.traverse(x=>x.visible=false)});
+    if(spec.id==='conceptgt'&&CONM.wheel)wv.car.forEach(k=>{const inn=k.w.children[0]&&k.w.children[0].children[0];if(!inn)return;inn.children.slice().forEach(c=>inn.remove(c));const m=CONM.wheel.clone(true);m.scale.setScalar(V.r);inn.add(m)});
     if(spec.type==='f1'&&window.F1Car)wv.car.forEach((k,i)=>{const inn=k.w.children[0]&&k.w.children[0].children[0];if(!inn)return;inn.children.slice().forEach(c=>inn.remove(c));   // proper F1 wheels: covers, Pirelli stripes
       const m=F1Car.wheelMesh(i<2,'soft');m.scale.setScalar(V.r/F1Car.RR);inn.add(m)});
     carLook();
