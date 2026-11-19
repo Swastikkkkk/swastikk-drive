@@ -146,7 +146,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let W=sec.clientWidth,H=sec.clientHeight,active=false,driving=false,muted=false;
   const TOUCH=typeof window.TOUCH_UI==='boolean'?window.TOUCH_UI:(matchMedia('(pointer:coarse)').matches||!matchMedia('(hover:hover)').matches),LOW=TOUCH;   // phones/tablets only (see settings.js)
   /* ---------- graphics level ---------- */
-  const GFX={pbr:!LOW,envK:.3,hk:1,sk:1,fx:null,spd:0,nit:0};
+  /* The realistic pipeline (PBR world, image lighting, MSAA, bloom, grade, AO) is heavy on laptop GPUs, so it only runs
+     when High is picked by hand in Settings. Auto/Medium/Low keep the original fast renderer. Switching reloads. */
+  const GFX_HQ=(()=>{try{return !!(window.Settings&&Settings.v&&Settings.v.quality===0)}catch(e){return false}})();
+  const GFX={pbr:!LOW&&GFX_HQ,envK:.3,hk:1,sk:1,fx:null,spd:0,nit:0};
   /* custom shaders write display colours straight out; inside the post pipeline the frame is linear until the grade,
      so these convert back to linear while it is on (otherwise the sky and stars come out washed and milky) */
   const LINOUT={value:0};
@@ -3391,7 +3394,7 @@ t.bd.position.set(x,y+.86,z);
     setTimeout(()=>{if(hint&&hint.textContent===HINT)hint.classList.add('dim')},9000)});
   function applyDisplay(){hint.textContent=TOUCH?'':HINT;hint.style.display=SET.v.hints?'':'none';
     const u=spd&&spd.nextElementSibling;if(u)u.textContent=SET.v.units==='mph'?'mph':'km/h'}
-  function applyQuality(){const q=SET.v.quality;if(q!=='auto'&&q!=null){const t=+q;if(t===qTier){qTier=-1}setTier(t)}}
+  function applyQuality(){const q=SET.v.quality;if(!LOW&&((q===0)!==GFX.pbr)){try{location.reload()}catch(e){}return}if(q!=='auto'&&q!=null){const t=+q;if(t===qTier){qTier=-1}setTier(t)}}
   SET.on(k=>{if(k==='quality')applyQuality();else if(k==='hints'||k==='units')applyDisplay();else applyMix()});
   SET.onOpen=()=>{for(const k in key)key[k]=0};
   {const sb=$('#dsettings');if(sb)sb.onclick=()=>{if(window.Settings)Settings.open()}}
