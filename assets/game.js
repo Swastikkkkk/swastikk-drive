@@ -185,14 +185,17 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let SAVE=false;
   try{navigator.getBattery&&navigator.getBattery().then(b=>{const f=()=>{SAVE=!b.charging;if(SAVE&&typeof setTier==='function'&&qTier<1&&!(window.Settings&&Settings.v.quality!=='auto'))setTier(1)};f();b.addEventListener('chargingchange',f)}).catch(()=>{})}catch(e){}
   const qDownMs=()=>SAVE?400:qTier===0?900:1500;   // a sustained dip, not one slow frame
+  const ULTRA_PICK=()=>!!(window.Settings&&Settings.v.quality===0);   // "High" picked by hand in Settings: everything on
+  // desktop with the effects pipeline: its 4x MSAA smooths edges, so render at the screen's CSS size, not 1.5x (2.25x the pixels)
+  const FXDPR=d=>(!LOW&&!ULTRA_PICK())?Math.min(1,d):d;
   function tierCfg(t){
     /* effects go before sharpness: the old ladder dropped resolution at every step (down to 0.75x on a 1080p laptop),
        which is what made the picture go soft. Now a desktop never renders below the screen's own resolution and a
        phone never below 1.25x; under load the shadows refresh less often, then switch off, then grass and dust go. */
     return t===3?{dpr:1,shadow:!LOW,shEvery:8,lite:true}
          : t===2?{dpr:1,shadow:!LOW,shEvery:6,lite:true}
-         : t===1?{dpr:LOW?1.25:HIDPI?1.25:1,shadow:!LOW,shEvery:4}
-         :        {dpr:LOW?ULTRA.dprLow:ULTRA.dpr,shadow:!LOW,shEvery:1};
+         : t===1?{dpr:FXDPR(LOW?1.25:HIDPI?1.25:1),shadow:!LOW,shEvery:4}
+         :        {dpr:FXDPR(LOW?ULTRA.dprLow:ULTRA.dpr),shadow:!LOW,shEvery:1};
   }
   function setTier(t){
     if(t===qTier)return;if(t>qTier)Q_UP_MS=Math.min(30000,Q_UP_MS*2);qTier=t;const c=tierCfg(t);
@@ -200,8 +203,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     /* shadows are never switched on/off here: that changes every shader's light setup and three.js recompiles them
        all on the next frame, a freeze of half a second or more each time auto quality stepped. Lower tiers keep
        the shadow but with a smaller map that refreshes less often, which costs nothing to switch. */
-    if(sun&&!LOW){const sz=t>=2?1024:t===1?2048:4096;if(sun.shadow.mapSize.x!==sz){sun.shadow.mapSize.set(sz,sz);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null}}sun.shadow.needsUpdate=true}
-    ULTRA.shEvery=c.shEvery;if(GFX.fx){GFX.fx.on=t<2;GFX.fx.bloom.enabled=t===0;if(GFX.fx.ao)GFX.fx.ao.on=t===0}
+    if(sun&&!LOW){const sz=t>=2?1024:t===1?2048:ULTRA_PICK()?4096:2048;if(sun.shadow.mapSize.x!==sz){sun.shadow.mapSize.set(sz,sz);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null}}sun.shadow.needsUpdate=true}
+    ULTRA.shEvery=c.shEvery;if(GFX.fx){GFX.fx.on=t<2;GFX.fx.bloom.enabled=t===0;if(GFX.fx.ao)GFX.fx.ao.on=t===0&&ULTRA_PICK()}
     if(SCN.grass)SCN.grass.visible=!c.lite;if(SCN.dust)SCN.dust.visible=!c.lite;
   }
   /* performance readout: the backquote key (left of 1) shows fps, the quality tier and what the frame draws */
@@ -271,7 +274,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   let ZN={drag:0,fog:1,tint:[1,1,1]},fogFar0=170,fogNear0=55,hemi0=.55,sunI0=1.05;
   let progU=0;
   const hemi=new THREE.HemisphereLight(0xdfeaff,0x3c3a30,.55);S.add(hemi);
-  const sun=new THREE.DirectionalLight(0xfff2dd,1.05);sun.position.set(18,34,12);sun.castShadow=!LOW;sun.shadow.mapSize.set(LOW?1024:4096,LOW?1024:4096);sun.shadow.radius=3;sun.shadow.autoUpdate=false;sun.shadow.bias=-.0004;sun.shadow.normalBias=.035;Object.assign(sun.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:110});S.add(sun);S.add(sun.target);
+  const sun=new THREE.DirectionalLight(0xfff2dd,1.05);sun.position.set(18,34,12);sun.castShadow=!LOW;sun.shadow.mapSize.set(LOW?1024:2048,LOW?1024:2048);sun.shadow.radius=3;sun.shadow.autoUpdate=false;sun.shadow.bias=-.0004;sun.shadow.normalBias=.035;Object.assign(sun.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:110});S.add(sun);S.add(sun.target);
   const SUN_DIR=new THREE.Vector3(18,34,12).normalize();
   const MOON_DIR=new THREE.Vector3(-20,26,-14).normalize(); // rides opposite the sun
   const SUN_OFF_DEFAULT=new THREE.Vector3(18,34,12);
@@ -289,6 +292,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
     if(rt.samples!==undefined)rt.samples=4;
     const comp=new THREE.EffectComposer(R,rt),rp=new THREE.RenderPass(S,C);comp.addPass(rp);
     const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(Math.max(1,sz.x>>1),Math.max(1,sz.y>>1)),.32,.55,.86);comp.addPass(bloom);
+    {const bs=bloom.setSize.bind(bloom);bloom.setSize=(w,h)=>bs(Math.max(1,w>>1),Math.max(1,h>>1))}   // half-res glow: same look, a quarter of the cost
     const grade=new THREE.ShaderPass({uniforms:{tDiffuse:{value:null},tAO:{value:null},uAO:{value:0},uSpd:{value:0},uVig:{value:.32},uSat:{value:1.16},uCon:{value:1.12},uRes:{value:new THREE.Vector2(sz.x,sz.y)},uAORes:{value:new THREE.Vector2(1,1)}},
       vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
       fragmentShader:[
@@ -333,7 +337,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
           '  vec3 v=vp(vUv+o)-p;float vv=dot(v,v);occ+=max(0.0,dot(n,v)/sqrt(vv+1e-4)-.12)*(1.0-smoothstep(uRad*uRad*.4,uRad*uRad*2.2,vv));}',
           ' float a=clamp(1.0-uInt*occ/12.0*1.6,0.0,1.0);gl_FragColor=vec4(a,a,a,1.0);}'].join('\n')});
       const aoS=new THREE.Scene(),aoC=new THREE.OrthographicCamera(-1,1,1,-1,0,1);aoS.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),aoM));
-      ao={dRT,aRT,dOnly,aoM,aoS,aoC,on:true,w:0,h:0};
+      ao={dRT,aRT,dOnly,aoM,aoS,aoC,on:false,w:0,h:0};
     }
     GFX.fx={comp,rp,bloom,grade,ao,on:true,w:0,h:0,pr:0,spd:0};
   }catch(e){GFX.fx=null}}
@@ -3337,7 +3341,7 @@ t.bd.position.set(x,y+.86,z);
     setTimeout(()=>{if(hint&&hint.textContent===HINT)hint.classList.add('dim')},9000)});
   function applyDisplay(){hint.textContent=TOUCH?'':HINT;hint.style.display=SET.v.hints?'':'none';
     const u=spd&&spd.nextElementSibling;if(u)u.textContent=SET.v.units==='mph'?'mph':'km/h'}
-  function applyQuality(){const q=SET.v.quality;if(q!=='auto'&&q!=null)setTier(+q)}
+  function applyQuality(){const q=SET.v.quality;if(q!=='auto'&&q!=null){const t=+q;if(t===qTier){qTier=-1}setTier(t)}}
   SET.on(k=>{if(k==='quality')applyQuality();else if(k==='hints'||k==='units')applyDisplay();else applyMix()});
   SET.onOpen=()=>{for(const k in key)key[k]=0};
   {const sb=$('#dsettings');if(sb)sb.onclick=()=>{if(window.Settings)Settings.open()}}
